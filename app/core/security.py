@@ -4,6 +4,7 @@ from flask_login import LoginManager
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
 
+
 def register_context_processors(app, has_permission, build_menu_flags):
     @app.context_processor
     def inject_permissions():

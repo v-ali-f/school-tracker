@@ -74,7 +74,11 @@
               <td>{{ {'OPEN':'Активное','MONITORING':'Наблюдение','CLOSED':'Завершено'}[row.status] if row.status in ['OPEN','MONITORING','CLOSED'] else row.status }}</td>
               <td>{{ row.description or '—' }}</td>
               <td>
-                <form method="post" action="{{ url_for('core.support_status', case_id=row.id) }}">
+                {% if endpoint_exists('core.support_status') %}
+  <form method="post" action="{{ url_for('core.support_status', case_id=row.id) }}">
+{% else %}
+  <form method="post" action="#">
+{% endif %}
                   <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
                     {% for st, title in [('OPEN','Активное'),('MONITORING','Наблюдение'),('CLOSED','Завершено')] %}
                     <option value="{{ st }}" {% if row.status == st %}selected{% endif %}>{{ title }}</option>

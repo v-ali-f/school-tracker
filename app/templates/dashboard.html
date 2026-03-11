@@ -248,7 +248,7 @@
       <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Социальный паспорт</h5><p>Компактный доступ к социальным данным по детям.</p></div><a class="btn btn-outline-primary" href="{{ url_for('children.social_passport_registry') }}">Открыть</a></div></div>
       {% endif %}
       {% if can('core_support_registry_view') or is_admin or is_methodist %}
-      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Сопровождение</h5><p>Психолог, социальный педагог и активные случаи сопровождения.</p></div><a class="btn btn-outline-dark" href="{{ url_for('core.support_registry') }}">Открыть</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Сопровождение</h5><p>Психолог, социальный педагог и активные случаи сопровождения.</p></div><a class="btn btn-outline-dark" href="{{ url_for('children.social_passport_registry') }}">Открыть</a></div></div>
       {% endif %}
       {% if can('incident_registry_view') %}
       <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Реестр инцидентов</h5><p>Полный реестр, фильтры, статусы и редактирование инцидентов.</p></div><a class="btn btn-outline-danger" href="{{ url_for('children.incidents_registry') }}">Открыть</a></div></div>
@@ -321,10 +321,11 @@
       {% if current_user.is_authenticated and (current_user.has_role('ADMIN') or current_user.has_role('METHODIST')) %}
       <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Приказы</h5><p>Реестр приказов по разделам, ответственные и контроль оригиналов.</p></div><a class="btn btn-outline-primary" href="{{ url_for('orders.registry') }}">Открыть</a></div></div>
       {% endif %}
-      {% if is_admin %}
-      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Журнал действий</h5><p>История изменений в системе и контроль пользовательских действий.</p></div><a class="btn btn-outline-dark" href="{{ url_for('core.system_logs_registry') }}">Открыть</a></div></div>
-      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Архив документов</h5><p>Архивные документы, сроки хранения и служебные разделы.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('documents.documents_archive') }}">Открыть</a></div></div>
-      {% endif %}
+    {% if endpoint_exists('core.system_logs_registry') %}
+  <a class="btn btn-outline-dark" href="{{ url_for('core.system_logs_registry') }}">Открыть</a>
+{% else %}
+  <span class="btn btn-outline-secondary disabled">Недоступно</span>
+{% endif %}
     </div>
   </section>
 

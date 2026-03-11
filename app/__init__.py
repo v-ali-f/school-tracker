@@ -1,12 +1,11 @@
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, current_app
+from flask import Flask
 from .core.database import db, migrate
 from .core.security import login_manager
 
 load_dotenv(override=True)
-
 
 
 def _ensure_runtime_schema(app):
@@ -19,6 +18,7 @@ def _ensure_runtime_schema(app):
             cols = {c["name"] for c in inspector.get_columns("child")}
         except Exception:
             cols = set()
+
         needed = {
             "ovz_doc_number": "ALTER TABLE child ADD COLUMN ovz_doc_number VARCHAR(100)",
             "ovz_doc_date": "ALTER TABLE child ADD COLUMN ovz_doc_date DATE",
@@ -38,6 +38,7 @@ def _ensure_runtime_schema(app):
             cw_cols = {c["name"] for c in inspector.get_columns("control_work")}
         except Exception:
             cw_cols = set()
+
         cw_needed = {
             "grade5_percent": "ALTER TABLE control_work ADD COLUMN grade5_percent INTEGER DEFAULT 85",
             "grade4_percent": "ALTER TABLE control_work ADD COLUMN grade4_percent INTEGER DEFAULT 65",
@@ -55,6 +56,7 @@ def _ensure_runtime_schema(app):
             task_cols = {c["name"] for c in inspector.get_columns("control_work_task")}
         except Exception:
             task_cols = set()
+
         task_needed = {
             "description": "ALTER TABLE control_work_task ADD COLUMN description VARCHAR(255)",
             "topic": "ALTER TABLE control_work_task ADD COLUMN topic VARCHAR(255)",
@@ -71,6 +73,7 @@ def _ensure_runtime_schema(app):
             result_cols = {c["name"] for c in inspector.get_columns("control_work_result")}
         except Exception:
             result_cols = set()
+
         result_needed = {
             "assignment_id": "ALTER TABLE control_work_result ADD COLUMN assignment_id INTEGER",
             "grade5_percent": "ALTER TABLE control_work_result ADD COLUMN grade5_percent INTEGER DEFAULT 85",
@@ -92,6 +95,7 @@ def _ensure_runtime_schema(app):
             refreshed_result_cols = {c["name"] for c in inspect(db.engine).get_columns("control_work_result")}
         except Exception:
             refreshed_result_cols = set()
+
         if "assignment_id" in refreshed_result_cols:
             try:
                 db.session.execute(text("""
@@ -167,6 +171,7 @@ def _ensure_runtime_schema(app):
                 existing = {c["name"] for c in inspector.get_columns(table_name)}
             except Exception:
                 existing = set()
+
             for name, sql in additions.items():
                 if name not in existing:
                     try:
@@ -175,37 +180,34 @@ def _ensure_runtime_schema(app):
                     except Exception:
                         db.session.rollback()
 
-        # Generic fallback: if a model already contains new nullable/runtime columns,
-        # but the physical PostgreSQL table is older, add the missing columns automatically.
-        # This helps after SQLite -> PostgreSQL migrations when metadata changed faster than schema.
         inspector = inspect(db.engine)
         for table in db.metadata.sorted_tables:
             try:
                 existing_cols = {c["name"] for c in inspector.get_columns(table.name)}
             except Exception:
                 continue
+
             for column in table.columns:
                 if column.name in existing_cols:
                     continue
                 if getattr(column, "primary_key", False):
                     continue
+
                 try:
                     col_sql = str(CreateColumn(column).compile(dialect=db.engine.dialect))
                     db.session.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN {col_sql}'))
                     db.session.commit()
                 except Exception:
                     db.session.rollback()
-                    # Best-effort runtime upgrade: skip columns that require a dedicated migration.
                     continue
 
         db.session.commit()
 
 
-
 def _seed_olympiad_subject_mappings(app):
     try:
         from openpyxl import load_workbook
-        from .models import Department, DepartmentSubject, OlympiadSubjectMapping, Subject
+        from .models import DepartmentSubject, OlympiadSubjectMapping, Subject
     except Exception:
         return
 
@@ -239,31 +241,39 @@ def _seed_olympiad_subject_mappings(app):
                 item = norm(part)
                 if item:
                     variants.append(item)
+
             for item in variants:
                 if item in subjects_by_name:
                     return subjects_by_name[item]
+
             for item in variants:
                 for subj in subjects:
                     subj_norm = norm(subj.name)
                     if subj_norm == item or subj_norm in item or item in subj_norm:
                         return subj
+
             return None
 
         created = 0
         for idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
             if idx == 1:
                 continue
+
             olympiad_name = str(row[0] or '').strip()
             school_subjects = str(row[1] or '').strip()
+
             if not olympiad_name or not school_subjects:
                 continue
+
             subject = match_subject(school_subjects)
             if not subject:
                 continue
+
             dep_link = DepartmentSubject.query.filter_by(subject_id=subject.id).first()
             mapping = OlympiadSubjectMapping.query.filter_by(olympiad_subject_name=olympiad_name).first()
             if mapping:
                 continue
+
             mapping = OlympiadSubjectMapping(
                 olympiad_subject_name=olympiad_name,
                 subject_id=subject.id,
@@ -273,6 +283,7 @@ def _seed_olympiad_subject_mappings(app):
             )
             db.session.add(mapping)
             created += 1
+
         if created:
             db.session.commit()
 
@@ -282,19 +293,21 @@ def get_current_year():
     return AcademicYear.query.filter_by(is_current=True).first()
 
 
-
-
 def create_app():
     app = Flask(__name__)
 
-    from .core import configure_app, init_extensions, register_context_processors, login_manager as core_login_manager
+    from .core import configure_app, init_extensions, register_context_processors
     configure_app(app)
     init_extensions(app)
 
-    from .permissions import has_permission, build_menu_flags
-    from .models import User  # noqa
+    # ВАЖНО: явно привязываем Flask-Login к приложению
+    login_manager.init_app(app)
+    login_manager.login_view = "auth.login"
 
-    @core_login_manager.user_loader
+    from .permissions import has_permission, build_menu_flags
+    from .models import User
+
+    @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
 
@@ -305,6 +318,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+
     _ensure_runtime_schema(app)
     _seed_olympiad_subject_mappings(app)
 
