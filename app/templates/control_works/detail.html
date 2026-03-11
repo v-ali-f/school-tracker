@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1">{{ work.subject_name }} — {{ work.theme }}</h4>
+    <div class="text-muted">
+      {% if work.work_date %}Дата: {{ work.work_date.strftime("%d.%m.%Y") }}{% endif %}
+      {% if work.deadline_date %} · Срок отчёта: {{ work.deadline_date.strftime("%d.%m.%Y") }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-dark" href="{{ url_for('control_works.control_work_report', work_id=work.id) }}">Сводный отчёт</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_archive', academic_year_id=work.academic_year_id, subject_id=work.subject_id) }}">Архив по предмету</a>
+    {% if can('control_works_edit') %}
+      <a class="btn btn-outline-primary" href="{{ url_for('control_works.edit_control_work', work_id=work.id) }}">Изменить настройки</a>
+      <form method="post" action="{{ url_for('control_works.delete_control_work', work_id=work.id) }}" onsubmit="return confirm('Удалить контрольную работу?');">
+        <button class="btn btn-outline-danger" type="submit">Удалить</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h6>Критерии</h6>
+      <div class="small text-muted mb-2">5 — от {{ work.grade5_percent or 85 }}%, 4 — от {{ work.grade4_percent or 65 }}%, 3 — от {{ work.grade3_percent or 45 }}%</div>
+      <ul class="mb-0">
+      {% for task in work.tasks|sort(attribute='task_number') %}
+        <li>Задание {{ task.task_number }} — максимум {{ task.max_score }} б.{% if task.description %} · {{ task.description }}{% endif %}{% if task.topic %} · тема: {{ task.topic }}{% endif %}</li>
+      {% else %}
+        <li class="text-muted">Нет заданий</li>
+      {% endfor %}
+      </ul>
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <h6>Назначения</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Класс</th><th>Учитель</th><th>Статус</th><th></th></tr></thead>
+          <tbody>
+          {% for a in work.assignments %}
+            {% if can('control_works_edit') or a.teacher_id == current_user.id %}
+            <tr>
+              <td>{{ a.school_class.name if a.school_class else '—' }}</td>
+              <td>{{ a.teacher.fio if a.teacher else '—' }}</td>
+              <td>{{ 'Заполнено' if a.status == 'FILLED' else 'Назначено' }}</td>
+              <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('control_works.assignment_results', work_id=work.id, assignment_id=a.id) }}">{% if a.status == 'FILLED' %}Открыть{% else %}Заполнить{% endif %}</a></td>
+            </tr>
+            {% endif %}
+          {% else %}
+            <tr><td colspan="4" class="text-muted">Классы пока не назначены.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

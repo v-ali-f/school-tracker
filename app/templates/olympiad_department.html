@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Олимпиады по кафедрам</h3>
+    <div class="text-muted">Заведующий кафедрой может назначать учителей к загруженным результатам.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-3"><select class="form-select" name="department_id"><option value="">Все кафедры</option>{% for d in departments %}<option value="{{ d.id }}" {% if department_id==d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select class="form-select" name="academic_year_id"><option value="">Все годы</option>{% for y in years %}<option value="{{ y.id }}" {% if academic_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select class="form-select" name="subject_id"><option value="">Все предметы</option>{% for s in subjects %}<option value="{{ s.id }}" {% if subject_id==s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select class="form-select" name="stage"><option value="">Все этапы</option>{% for x in stages %}<option value="{{ x }}" {% if stage==x %}selected{% endif %}>{{ x|capitalize }}</option>{% endfor %}</select></div>
+  <div class="col-md-1 d-grid"><button class="btn btn-primary">Показать</button></div>
+</form>
+<div class="card"><div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+<thead><tr><th>Ученик</th><th>Класс</th><th>Предмет</th><th>Этап</th><th>Балл</th><th>Статус</th><th>Учитель</th><th>Назначить</th></tr></thead>
+<tbody>
+{% for row in rows %}
+<tr>
+  <td>{% if row.child %}{{ row.child.fio }}{% else %}<span class="text-muted">Ученик удалён</span>{% endif %}</td>
+  <td>{{ row.school_class.name if row.school_class else row.class_study_text or '—' }}</td>
+  <td>{{ row.subject_name or (row.subject.name if row.subject else '—') }}</td>
+  <td>{{ row.stage or '—' }}</td>
+  <td>{{ row.score if row.score is not none else '—' }}</td>
+  <td>{{ row.status or '—' }}</td>
+  <td>{% if row.teacher %}{{ row.teacher.fio }}{% else %}<span class="text-warning">Не назначен</span>{% endif %}</td>
+  <td>
+    <form method="post" action="{{ url_for('olympiads.department_assign_teacher', result_id=row.id) }}" class="d-flex gap-2">
+      <input type="hidden" name="department_id" value="{{ row.department_id or department_id or '' }}">
+      <select class="form-select form-select-sm" name="teacher_id" required>
+        <option value="">Выбрать</option>
+        {% for t in teachers %}<option value="{{ t.id }}" {% if row.teacher_id==t.id %}selected{% endif %}>{{ t.fio }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm btn-outline-primary">Сохранить</button>
+    </form>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="text-muted">Результатов нет</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div></div>
+{% endblock %}

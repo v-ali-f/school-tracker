@@ -1,0 +1,171 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-1">Архив контрольных работ</h3>
+    <div class="text-muted">Отдельные сводки по учителю, предмету и учебным годам. Можно выгрузить архив в Excel и PDF.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_archive_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}">Excel</a>
+    <a class="btn btn-outline-danger" href="{{ url_for('control_works.control_works_archive_pdf', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}">PDF</a>
+  </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label mb-1">Учебный год</label>
+      <select class="form-select" name="academic_year_id">
+        <option value="">Все годы</option>
+        {% for y in years %}
+          <option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label mb-1">Предмет</label>
+      <select class="form-select" name="subject_id">
+        <option value="">Все предметы</option>
+        {% for s in subjects %}
+          <option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label mb-1">Учитель</label>
+      <select class="form-select" name="teacher_id" {% if not can('control_works_edit') %}disabled{% endif %}>
+        {% if can('control_works_edit') %}
+          <option value="">Все учителя</option>
+          {% for t in teachers %}
+            <option value="{{ t.id }}" {% if selected_teacher_id == t.id %}selected{% endif %}>{{ t.fio }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="{{ current_user.id }}">{{ current_user.fio }}</option>
+        {% endif %}
+      </select>
+      {% if not can('control_works_edit') %}<input type="hidden" name="teacher_id" value="{{ current_user.id }}">{% endif %}
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Показать</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_archive') }}">Сбросить</a>
+    </div>
+  </form>
+</div></div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted">Контрольных</div><div class="fs-3">{{ dataset.summary.works_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted">Результатов</div><div class="fs-3">{{ dataset.summary.results_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted">Средний %</div><div class="fs-3">{{ dataset.summary.avg_percent if dataset.summary.avg_percent is not none else '—' }}</div><div class="progress mt-2" style="height:8px;"><div class="progress-bar {{ dataset.summary.bar_class }}" style="width: {{ dataset.summary.avg_percent or 0 }}%"></div></div></div></div></div>
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted">Средняя отметка</div><div class="fs-3">{{ dataset.summary.avg_mark if dataset.summary.avg_mark is not none else '—' }}</div><div class="small text-muted">{{ dataset.summary.status }}</div></div></div></div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <h5 class="mb-3">Инфографика по архивным годам</h5>
+  <div class="row g-3">
+    {% for year in dataset.year_groups %}
+      <div class="col-lg-4 col-md-6">
+        <div class="border rounded p-3 h-100 bg-light-subtle">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div>
+              <div class="fw-semibold">{{ year.year.name if year.year else 'Без года' }}</div>
+              <div class="small text-muted">Контрольных: {{ year.works|length }} · Результатов: {{ year.results }}</div>
+            </div>
+            <span class="badge {{ 'text-bg-success' if year.status == 'Высокий результат' else 'text-bg-primary' if year.status == 'Стабильно' else 'text-bg-warning' if year.status == 'Риск' else 'text-bg-danger' if year.status == 'Критично' else 'text-bg-secondary' }}">{{ year.status }}</span>
+          </div>
+          <div class="d-flex justify-content-between small mb-1"><span>Средний %</span><span>{{ year.avg_percent if year.avg_percent is not none else '—' }}</span></div>
+          <div class="progress mb-2" style="height:10px;"><div class="progress-bar {{ year.bar_class }}" style="width: {{ year.avg_percent or 0 }}%"></div></div>
+          <div class="small text-muted">Средняя отметка: {{ year.avg_mark if year.avg_mark is not none else '—' }}</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="col-12 text-muted">Данных по архивным годам пока нет.</div>
+    {% endfor %}
+  </div>
+</div></div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-body p-0">
+      <div class="p-3 pb-0"><h5>Архив по учителям</h5></div>
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead><tr><th>Учитель</th><th>Контрольных</th><th>Результатов</th><th>Средний %</th><th>Индикатор</th></tr></thead>
+          <tbody>
+          {% for row in dataset.teacher_groups %}
+            <tr>
+              <td>{{ row.teacher.fio if row.teacher else '—' }}</td>
+              <td>{{ row.works|length }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td style="min-width:190px;">
+                <div class="progress" style="height:8px;"><div class="progress-bar {{ row.bar_class }}" style="width: {{ row.avg_percent or 0 }}%"></div></div>
+                <div class="small text-muted mt-1">{{ row.status }}</div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-muted">Нет данных.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-body p-0">
+      <div class="p-3 pb-0"><h5>Архив по предметам</h5></div>
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead><tr><th>Предмет</th><th>Контрольных</th><th>Результатов</th><th>Средний %</th><th>Индикатор</th></tr></thead>
+          <tbody>
+          {% for row in dataset.subject_groups %}
+            <tr>
+              <td>{{ row.subject.name if row.subject else '—' }}</td>
+              <td>{{ row.works|length }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td style="min-width:190px;">
+                <div class="progress" style="height:8px;"><div class="progress-bar {{ row.bar_class }}" style="width: {{ row.avg_percent or 0 }}%"></div></div>
+                <div class="small text-muted mt-1">{{ row.status }}</div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-muted">Нет данных.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="p-3 pb-0"><h5>Архив контрольных</h5></div>
+    <div class="table-responsive">
+      <table class="table table-striped mb-0 align-middle">
+        <thead><tr><th>Дата</th><th>Год</th><th>Предмет</th><th>Тема</th><th>Учителя</th><th>Результатов</th><th>Средний %</th><th>Статус</th><th></th></tr></thead>
+        <tbody>
+        {% for row in dataset.works %}
+          <tr>
+            <td>{{ row.work_date_text }}</td>
+            <td>{{ row.year_name }}</td>
+            <td>{{ row.subject_name }}</td>
+            <td>{{ row.theme }}</td>
+            <td>{{ row.teachers_text }}</td>
+            <td>{{ row.results }}</td>
+            <td style="min-width:180px;">
+              <div class="d-flex justify-content-between small"><span>{{ row.avg_percent if row.avg_percent is not none else '—' }}</span><span>{{ row.avg_mark if row.avg_mark is not none else '—' }}</span></div>
+              <div class="progress" style="height:8px;"><div class="progress-bar {{ row.bar_class }}" style="width: {{ row.avg_percent or 0 }}%"></div></div>
+            </td>
+            <td>{{ row.status }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('control_works.control_work_report', work_id=row.id) }}">Отчёт</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9" class="text-muted">По выбранным фильтрам данных нет.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

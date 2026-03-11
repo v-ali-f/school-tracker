@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">Реестр приказов</h2>
+    <div class="text-muted">Разделы: учебная часть, воспитательная часть, допобразование, контингент</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('orders.responsibles') }}">Ответственные</a>
+    <a class="btn btn-primary" href="{{ url_for('orders.create') }}">Новый приказ</a>
+  </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <form class="row g-2" method="get">
+    <div class="col-md-3">
+      <label class="form-label">Раздел</label>
+      <select class="form-select" name="section">
+        {% for code, label in sections %}
+          <option value="{{ code }}" {% if section == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Поиск</label>
+      <input class="form-control" name="q" value="{{ query_text }}" placeholder="Номер или название">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Ответственный</label>
+      <select class="form-select" name="responsible_id">
+        <option value="">Все</option>
+        {% for u in users %}
+          <option value="{{ u.id }}" {% if responsible_id == u.id %}selected{% endif %}>{{ u.fio or u.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-outline-primary w-100">Применить</button>
+    </div>
+  </form>
+</div></div>
+
+<div class="card mb-3"><div class="card-body">
+  <h5 class="mb-3">Назначенные ответственные</h5>
+  <div class="row">
+    {% for r in responsibles %}
+      <div class="col-md-6 mb-2"><strong>{{ section_map.get(r.section, r.section) }}:</strong> {{ r.user.fio or r.user.username }}</div>
+    {% else %}
+      <div class="text-muted">Ответственные по разделам пока не назначены.</div>
+    {% endfor %}
+  </div>
+</div></div>
+
+<div class="card"><div class="table-responsive">
+<table class="table table-sm table-hover align-middle mb-0">
+  <thead class="table-light">
+    <tr>
+      <th>№</th><th>Дата</th><th>Название</th><th>Исполнитель</th><th>Составитель</th><th>Ответственный</th><th>Срок</th><th>Согласовано</th><th>Оригинал</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for item in items %}
+    <tr>
+      <td>{{ item.number }}</td>
+      <td>{{ item.order_date.strftime('%d.%m.%Y') if item.order_date else '' }}</td>
+      <td>
+        <div>{{ item.title }}</div>
+        <div class="small text-muted">{{ section_map.get(item.section, item.section) }}</div>
+      </td>
+      <td>{{ item.executor or '—' }}</td>
+      <td>{{ item.author or '—' }}</td>
+      <td>{{ item.responsible_users_text }}</td>
+      <td>{{ item.valid_until.strftime('%d.%m.%Y') if item.valid_until else '—' }}</td>
+      <td>{{ 'Да' if item.approved_by_deputy else 'Нет' }}</td>
+      <td>{{ 'Сдал' if item.original_submitted else 'Не сдал' }}</td>
+      <td class="text-nowrap">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('orders.edit', order_id=item.id) }}">Изменить</a>
+        <form method="post" action="{{ url_for('orders.delete', order_id=item.id) }}" class="d-inline" onsubmit="return confirm('Удалить приказ?');">
+          <button class="btn btn-sm btn-outline-danger">Удалить</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="10" class="text-center text-muted py-4">Записей пока нет.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

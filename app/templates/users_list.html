@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">Сотрудники и пользователи</h4>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="/admin/users/new">Добавить пользователя</a>
+    <a class="btn btn-outline-primary btn-sm" href="/admin/users/import">Импорт Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/children">Назад</a>
+  </div>
+</div>
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2">
+    <div class="col-md-4"><input class="form-control" name="q" value="{{ q or '' }}" placeholder="Поиск по ФИО или логину"></div>
+    <div class="col-md-3"><select class="form-select" name="status" onchange="this.form.submit()"><option value="active" {% if status=='active' %}selected{% endif %}>Активные</option><option value="archived" {% if status=='archived' %}selected{% endif %}>Архив сотрудников</option><option value="all" {% if status=='all' %}selected{% endif %}>Все</option></select></div>
+    <div class="col-md-2 d-grid"><button class="btn btn-outline-dark">Показать</button></div>
+  </form>
+</div></div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead><tr><th>ФИО</th><th>Телефон</th><th>Логин</th><th>Роль</th><th>Статус</th><th style="width:280px;"></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><div class="fw-semibold">{{ u.fio or ((u.last_name or '') ~ ' ' ~ (u.first_name or '')) }}</div>{% if u.dismissal_date %}<div class="small text-muted">Дата выбытия: {{ u.dismissal_date.strftime('%d.%m.%Y') }}</div>{% endif %}</td>
+          <td class="text-muted">{{ u.phone or '—' }}</td>
+          <td>{{ u.username }}</td>
+          <td>{{ u.role }}</td>
+          <td>{% if u.employment_status in ['DISMISSED','ARCHIVED'] %}<span class="badge text-bg-secondary">Архив</span>{% else %}<span class="badge text-bg-success">Активен</span>{% endif %}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="/admin/users/{{u.id}}/edit">Изменить</a>
+            {% if u.employment_status in ['DISMISSED','ARCHIVED'] %}
+              <form method="post" action="/admin/users/{{u.id}}/restore" style="display:inline;" onsubmit="return confirm('Вернуть сотрудника в активный список?');"><button class="btn btn-sm btn-outline-success">Вернуть</button></form>
+            {% else %}
+              <form method="post" action="/admin/users/{{u.id}}/archive" style="display:inline;" onsubmit="return confirm('Перевести сотрудника в архив? История и документы сохранятся.');"><button class="btn btn-sm btn-outline-warning">В архив</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if users|length == 0 %}<tr><td colspan="6" class="text-muted">Записей нет</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

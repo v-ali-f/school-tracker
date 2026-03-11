@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Перевод параллели → параллель</h3>
+<div class="card mb-3"><div class="card-body">
+<form method="get" class="row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label">Год-источник</label><select class="form-select" name="from_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == from_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Год-назначение</label><select class="form-select" name="to_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == to_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Исходная параллель</label><input type="number" min="1" max="11" class="form-control" name="source_grade" value="{{ source_grade or '' }}"></div>
+  <div class="col-md-2"><label class="form-label">Целевая параллель</label><input type="number" min="1" max="11" class="form-control" name="target_grade" value="{{ target_grade or '' }}"></div>
+  <div class="col-md-2"><button class="btn btn-primary w-100">Показать</button></div>
+</form></div></div>
+{% if rows %}
+<div class="card"><div class="card-body"><form method="post">
+  <input type="hidden" name="from_year_id" value="{{ from_year_id }}"><input type="hidden" name="to_year_id" value="{{ to_year_id }}"><input type="hidden" name="source_grade" value="{{ source_grade }}"><input type="hidden" name="target_grade" value="{{ target_grade }}">
+  <div class="mb-3 col-md-3"><label class="form-label">Дата перевода</label><input type="date" class="form-control" name="transfer_date"></div>
+  <div class="table-responsive"><table class="table align-middle"><thead><tr><th>ФИО</th><th>Старый класс</th><th>Новый класс</th></tr></thead><tbody>{% for e in rows %}<tr><td>{{ e.child.fio }}</td><td>{{ e.school_class.name if e.school_class else '—' }}</td><td><select class="form-select" name="target_class_{{ e.id }}"><option value="">— выберите —</option>{% for c in to_classes %}{% if not target_grade or c.grade == target_grade %}<option value="{{ c.id }}">{{ c.name }}</option>{% endif %}{% endfor %}</select></td></tr>{% endfor %}</tbody></table></div>
+  <button class="btn btn-success">Выполнить распределение</button>
+</form></div></div>
+{% endif %}
+{% endblock %}

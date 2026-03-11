@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Импорт олимпиад</h3>
+    <div class="text-muted">v52: кафедра при импорте, защита от дублей и отмена загрузки.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-dark" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.imports') }}">Импорты</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.department_registry') }}">Кафедры</a>
+  </div>
+</div>
+
+<div class="card"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-3" id="olympiad-import-form">
+    <div class="col-md-4"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id" id="academic_year_id" required>{% for y in years %}<option value="{{ y.id }}" {% if (selected_academic_year_id and selected_academic_year_id == y.id) or (not selected_academic_year_id and current_year and current_year.id == y.id) %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Этап</label><select class="form-select" name="stage" required>{% for stage in stages %}<option value="{{ stage }}">{{ stage|capitalize }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Предмет системы</label><select class="form-select" name="subject_id" id="subject_id"><option value="">Определить автоматически</option>{% for s in subjects %}<option value="{{ s.id }}" {% if selected_subject_id==s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+
+    <div class="col-md-4"><label class="form-label">Кафедра</label><select class="form-select" name="department_id" id="department_id"><option value="">Определить автоматически / не выбрана</option>{% for d in departments %}<option value="{{ d.id }}" {% if selected_department_id==d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Фильтрация школы</label><select class="form-select" name="filter_mode"><option value="both">Логин или ЕКИС</option><option value="login">Только логин sch778547</option><option value="ekis">Только ЕКИС 2357</option></select></div>
+    <div class="col-md-4"><label class="form-label">Режим загрузки</label><select class="form-select" name="mode"><option value="excel">Excel</option><option value="zip">ZIP-архив</option></select></div>
+    <div class="col-md-4"><label class="form-label">Файл</label><input class="form-control" type="file" name="file" accept=".xlsx,.xls,.xlsm,.zip" required></div>
+
+    <div class="col-md-4"><label class="form-label">Режим привязки учителя</label><select class="form-select" name="teacher_binding_mode" id="teacher_binding_mode"><option value="auto">Автоматически по TeacherLoad</option><option value="fixed">Один выбранный учитель</option><option value="limited_auto">Искать только среди выбранных учителей</option><option value="none">Не привязывать учителя</option></select></div>
+    <div class="col-md-4"><label class="form-label">Учитель</label><select class="form-select" name="teacher_id" id="teacher_id"><option value="">Автоматически / не выбран</option>{% for t in teachers_for_subject %}<option value="{{ t.id }}">{{ t.fio }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Список учителей предмета</label><select class="form-select" name="teacher_ids" id="teacher_ids" multiple size="5">{% for t in teachers_for_subject %}<option value="{{ t.id }}">{{ t.fio }}</option>{% endfor %}</select></div>
+
+    <div class="col-12"><div class="small text-muted">Система ищет строки школы № 547 по логину sch778547, ЕКИС 2357 и названию школы. Дубликатами считаются записи одного и того же ученика по одному предмету в рамках одного учебного года — повторно такие строки не будут загружены.</div></div>
+    <div class="col-12 d-grid"><button class="btn btn-primary">Построить предпросмотр</button></div>
+  </form>
+</div></div>
+
+<script>
+async function loadTeachers() {
+  const subjectId = document.getElementById('subject_id').value;
+  const yearId = document.getElementById('academic_year_id').value;
+  const departmentId = document.getElementById('department_id').value;
+  const teacherSelect = document.getElementById('teacher_id');
+  const teacherMulti = document.getElementById('teacher_ids');
+  teacherSelect.innerHTML = '<option value="">Автоматически / не выбран</option>';
+  teacherMulti.innerHTML = '';
+  if (!subjectId) return;
+  const response = await fetch(`{{ url_for('olympiads.teachers_by_subject') }}?subject_id=${subjectId}&academic_year_id=${yearId}&department_id=${departmentId}`);
+  const data = await response.json();
+  data.forEach(item => {
+    const option1 = document.createElement('option');
+    option1.value = item.id;
+    option1.textContent = item.fio;
+    teacherSelect.appendChild(option1);
+    const option2 = document.createElement('option');
+    option2.value = item.id;
+    option2.textContent = item.fio;
+    teacherMulti.appendChild(option2);
+  });
+}
+document.getElementById('subject_id').addEventListener('change', loadTeachers);
+document.getElementById('academic_year_id').addEventListener('change', loadTeachers);
+document.getElementById('department_id').addEventListener('change', loadTeachers);
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% block content %}
+<h4 class="mb-3">Пользователь: {{ u.username }}</h4>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" style="max-width:520px;">
+
+      <div class="mb-2">
+        <label class="form-label">Фамилия</label>
+        <input class="form-control" name="last_name" value="{{ u.last_name or '' }}" required>
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Имя</label>
+        <input class="form-control" name="first_name" value="{{ u.first_name or '' }}" required>
+      </div>
+
+      <div class="mb-2">
+        <label class="form-label">Телефон</label>
+        <input class="form-control" name="phone" value="{{ u.phone or '' }}" placeholder="+7...">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Роли пользователя</label>
+
+        <div class="form-control bg-light">
+          <div class="text-muted mb-2">
+            Роли назначаются на отдельной странице управления ролями.
+          </div>
+
+          {% if u.role_codes %}
+            <div class="d-flex flex-wrap gap-2">
+              {% for code in u.role_codes %}
+                <span class="badge bg-secondary">{{ code }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <span class="text-muted">Роли не назначены</span>
+          {% endif %}
+        </div>
+
+        <div class="mt-2">
+          <a class="btn btn-outline-primary btn-sm"
+             href="{{ url_for('children.roles_admin') }}">
+             Открыть управление ролями
+          </a>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Новый пароль (если нужно сменить)</label>
+        <input class="form-control" name="password" type="password" placeholder="Оставь пустым, чтобы не менять">
+      </div>
+
+      <button class="btn btn-primary">Сохранить</button>
+      <a class="btn btn-outline-secondary" href="/admin/users">Назад</a>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

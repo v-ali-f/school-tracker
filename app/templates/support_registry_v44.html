@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Добавить сопровождение</h2>
+        <form method="post" class="vstack gap-2">
+          <input type="hidden" name="academic_year_id" value="{{ year_id or '' }}">
+          <select class="form-select" name="child_id" required>
+            <option value="">Выберите ученика</option>
+            {% for child in children %}
+            <option value="{{ child.id }}">{{ child.last_name }} {{ child.first_name }} {{ child.middle_name or '' }}</option>
+            {% endfor %}
+          </select>
+          <select class="form-select" name="support_type" required>
+            <option value="psychologist">Психолог</option>
+            <option value="social">Социальный педагог</option>
+            <option value="administration">Администрация</option>
+            <option value="tutor">Иное сопровождение</option>
+          </select>
+          <select class="form-select" name="status" required>
+            <option value="OPEN">Активное</option>
+            <option value="MONITORING">Наблюдение</option>
+            <option value="CLOSED">Завершено</option>
+          </select>
+          <textarea class="form-control" name="description" rows="5" placeholder="Описание ситуации"></textarea>
+          <button class="btn btn-primary">Сохранить</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="mb-0">Реестр сопровождения</h2>
+    </div>
+    <form method="get" class="row g-2 mb-3">
+      <div class="col-md-4">
+        <select class="form-select" name="academic_year_id">
+          <option value="">Все учебные годы</option>
+          {% for year in years %}
+          <option value="{{ year.id }}" {% if year_id == year.id %}selected{% endif %}>{{ year.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <select class="form-select" name="support_type">
+          <option value="">Все типы</option>
+          <option value="psychologist" {% if support_type == 'psychologist' %}selected{% endif %}>Психолог</option>
+          <option value="social" {% if support_type == 'social' %}selected{% endif %}>Социальный педагог</option>
+          <option value="administration" {% if support_type == 'administration' %}selected{% endif %}>Администрация</option>
+          <option value="tutor" {% if support_type == 'tutor' %}selected{% endif %}>Иное сопровождение</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <select class="form-select" name="status">
+          <option value="">Все статусы</option>
+          <option value="OPEN" {% if status == 'OPEN' %}selected{% endif %}>Активное</option>
+          <option value="MONITORING" {% if status == 'MONITORING' %}selected{% endif %}>Наблюдение</option>
+          <option value="CLOSED" {% if status == 'CLOSED' %}selected{% endif %}>Завершено</option>
+        </select>
+      </div>
+    </form>
+    <div class="card shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light"><tr><th>Дата</th><th>Ученик</th><th>Тип</th><th>Статус</th><th>Описание</th><th></th></tr></thead>
+          <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.created_at.strftime('%d.%m.%Y') if row.created_at else '—' }}</td>
+              <td><a href="{{ url_for('children.child_card', child_id=row.child_id) }}">{{ row.child.last_name }} {{ row.child.first_name }} {{ row.child.middle_name or '' }}</a></td>
+              <td>{{ {'psychologist':'Психолог','social':'Соц. педагог','administration':'Администрация','tutor':'Иное'}[row.support_type] if row.support_type in ['psychologist','social','administration','tutor'] else row.support_type }}</td>
+              <td>{{ {'OPEN':'Активное','MONITORING':'Наблюдение','CLOSED':'Завершено'}[row.status] if row.status in ['OPEN','MONITORING','CLOSED'] else row.status }}</td>
+              <td>{{ row.description or '—' }}</td>
+              <td>
+                <form method="post" action="{{ url_for('core.support_status', case_id=row.id) }}">
+                  <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
+                    {% for st, title in [('OPEN','Активное'),('MONITORING','Наблюдение'),('CLOSED','Завершено')] %}
+                    <option value="{{ st }}" {% if row.status == st %}selected{% endif %}>{{ title }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">Записей сопровождения пока нет</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

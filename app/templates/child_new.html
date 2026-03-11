@@ -1,0 +1,86 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h4 class="mb-3">Добавить ребёнка</h4>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+
+      <div class="row g-2">
+
+        <div class="col-md-4">
+          <label class="form-label mb-1">Фамилия</label>
+          <input class="form-control" name="last_name" placeholder="Фамилия" required>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label mb-1">Имя</label>
+          <input class="form-control" name="first_name" placeholder="Имя" required>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label mb-1">Отчество</label>
+          <input class="form-control" name="middle_name" placeholder="Отчество">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label mb-1">Дата рождения</label>
+          <input class="form-control" type="date" name="birth_date">
+        </div>
+
+        <div class="col-md-9">
+          <label class="form-label mb-1">Класс</label>
+          <select class="form-select" name="school_class_id">
+            <option value="">— выбрать класс —</option>
+            {% for sc in school_classes %}
+              <option value="{{ sc.id }}">{{ sc.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text text-muted">
+            Класс берётся из реестра классов текущего учебного года.
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label mb-1">ФИО мамы</label>
+          <input class="form-control" name="mother_fio" placeholder="ФИО мамы">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label mb-1">Телефон мамы</label>
+          <input class="form-control" name="mother_phone" placeholder="Телефон мамы">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label mb-1">ФИО папы</label>
+          <input class="form-control" name="father_fio" placeholder="ФИО папы">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label mb-1">Телефон папы</label>
+          <input class="form-control" name="father_phone" placeholder="Телефон папы">
+        </div>
+
+        <div class="col-md-12">
+          <label class="form-label mb-1">Адрес регистрации</label>
+          <input class="form-control" name="reg_address" placeholder="Адрес регистрации">
+        </div>
+
+        <div class="col-md-12">
+          <label class="form-label mb-1">Примечание</label>
+          <input class="form-control" name="notes" placeholder="Примечание">
+        </div>
+
+      </div>
+
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+        <a class="btn btn-outline-secondary" href="/children">Отмена</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}

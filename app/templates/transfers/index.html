@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Массовый перевод обучающихся</h3>
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Активных записей текущего года</div><div class="metric-value">{{ pending_count }}</div></div></div></div>
+  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Переводов по году</div><div class="metric-value">{{ promoted_count }}</div></div></div></div>
+  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Выбытие / архив</div><div class="metric-value">{{ archived_count }}</div></div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Класс → класс</h5><div class="text-muted mb-3">Автоматический перевод, например 1-АП → 2-АП.</div><a class="btn btn-primary mt-auto" href="{{ url_for('transfers.class_to_class', from_year_id=current_year_id, to_year_id=target_year_id) }}">Открыть</a></div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Параллель → параллель</h5><div class="text-muted mb-3">Распределение по новым буквам, например 4-е → 5-е классы.</div><a class="btn btn-outline-primary mt-auto" href="{{ url_for('transfers.parallel_to_parallel', from_year_id=current_year_id, to_year_id=target_year_id) }}">Открыть</a></div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Индивидуальный перевод</h5><div class="text-muted mb-3">Ручной перевод, условный перевод, повторное обучение.</div><a class="btn btn-outline-success mt-auto" href="{{ url_for('transfers.individual', year_id=current_year_id) }}">Открыть</a></div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Выбытие / архив</h5><div class="text-muted mb-3">Архивирование карточек без удаления документов и истории.</div><a class="btn btn-outline-dark mt-auto" href="{{ url_for('transfers.archive') }}">Открыть</a></div></div></div>
+  <div class="col-lg-8"><div class="card h-100"><div class="card-body"><div class="small text-muted mb-2">Учебные годы</div>{% for y in years %}<span class="badge text-bg-{% if y.is_current %}success{% else %}light{% endif %} me-2 mb-2">{{ y.name }}</span>{% endfor %}</div></div></div>
+</div>
+{% endblock %}

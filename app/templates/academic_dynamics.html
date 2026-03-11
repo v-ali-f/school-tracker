@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <div class="section-overline">Академический контур</div>
+    <h3 class="mb-1">Динамика по классам и предметам</h3>
+    <div class="text-muted">Срез результатов по сочетаниям «класс + предмет» и по периодам проведения контрольных.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('academic.dashboard') }}">Назад в академический контур</a>
+</div>
+{% include '_academic_filters.html' %}
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card h-100"><div class="card-header bg-white"><strong>Класс + предмет</strong></div>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Класс</th><th>Предмет</th><th>Работ</th><th>Средний %</th><th>Качество</th><th>Успеваемость</th><th>Статус</th></tr></thead>
+        <tbody>
+          {% for row in dataset.pair_rows %}
+          <tr><td>{{ row.class_name }}</td><td>{{ row.subject_name }}</td><td>{{ row.results }}</td><td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td><td>{{ row.quality if row.quality is not none else '—' }}</td><td>{{ row.success if row.success is not none else '—' }}</td><td>{{ row.label }}</td></tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по динамике.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card h-100"><div class="card-header bg-white"><strong>Периоды проведения</strong></div>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Период</th><th>Результатов</th><th>Средний %</th><th>Статус</th></tr></thead>
+        <tbody>
+          {% for row in dataset.dynamics_rows %}
+          <tr><td>{{ row.label }}</td><td>{{ row.results }}</td><td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td><td>{{ row.status }}</td></tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted py-4">Нет данных по периодам.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

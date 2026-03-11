@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-head mb-4">
+  <div>
+    <div class="section-overline">Администрирование</div>
+    <h3 class="mb-1">Реестр учебных лет</h3>
+    <div class="text-muted">Компактный реестр с быстрыми действиями по каждому учебному году.</div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="panel-card h-100">
+      <div class="panel-card-head"><b>Добавить учебный год</b></div>
+      <div class="panel-card-body">
+        <form method="post" action="{{ url_for('children.academic_years_new') }}" class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Название</label>
+            <input class="form-control" name="name" placeholder="2026/2027" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Дата начала</label>
+            <input type="date" class="form-control" name="start_date">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Дата окончания</label>
+            <input type="date" class="form-control" name="end_date">
+          </div>
+          <div class="col-md-2">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="is_current" value="1" id="is_current">
+              <label class="form-check-label" for="is_current">Текущий</label>
+            </div>
+          </div>
+          <div class="col-12"><button class="btn btn-primary" type="submit">Добавить</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="panel-card h-100">
+      <div class="panel-card-head"><b>Быстрое действие</b></div>
+      <div class="panel-card-body d-flex flex-column gap-2">
+        <form method="post" action="{{ url_for('children.academic_year_create_next') }}">
+          <button class="btn btn-outline-primary w-100">Создать следующий учебный год автоматически</button>
+        </form>
+        <div class="small text-muted">Следующий год создаётся по текущему или последнему году реестра.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel-card">
+  <div class="panel-card-head"><b>Список учебных лет</b></div>
+  <div class="panel-card-body">
+    <div class="table-responsive">
+      <table class="table align-middle academic-years-table mb-0">
+        <thead>
+          <tr>
+            <th style="min-width: 320px;">Учебный год</th>
+            <th>Начало</th>
+            <th>Окончание</th>
+            <th>Статус</th>
+            <th style="min-width: 420px;">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for y in years %}
+          <tr>
+            <td>
+              <form method="post" action="{{ url_for('children.academic_year_update', year_id=y.id) }}" class="year-inline-form">
+                <div class="year-inline-grid">
+                  <div>
+                    <label class="form-label small text-muted mb-1">Название</label>
+                    <input class="form-control form-control-sm" name="name" value="{{ y.name }}">
+                  </div>
+                  <div>
+                    <label class="form-label small text-muted mb-1">Дата начала</label>
+                    <input type="date" class="form-control form-control-sm" name="start_date" value="{{ y.start_date.strftime('%Y-%m-%d') if y.start_date else '' }}">
+                  </div>
+                  <div>
+                    <label class="form-label small text-muted mb-1">Дата окончания</label>
+                    <input type="date" class="form-control form-control-sm" name="end_date" value="{{ y.end_date.strftime('%Y-%m-%d') if y.end_date else '' }}">
+                  </div>
+                  <div class="d-flex align-items-end">
+                    <button class="btn btn-sm btn-outline-secondary w-100" type="submit">Сохранить</button>
+                  </div>
+                </div>
+              </form>
+            </td>
+            <td>{{ y.start_date.strftime('%d.%m.%Y') if y.start_date else '—' }}</td>
+            <td>{{ y.end_date.strftime('%d.%m.%Y') if y.end_date else '—' }}</td>
+            <td>
+              <div class="d-flex flex-column gap-1">
+                {% if y.is_current %}<span class="badge text-bg-success">Текущий</span>{% endif %}
+                {% if y.is_closed %}<span class="badge text-bg-warning">Закрыт</span>{% endif %}
+                {% if y.is_archived %}<span class="badge text-bg-secondary">Архив</span>{% endif %}
+                {% if not y.is_current and not y.is_closed and not y.is_archived %}<span class="badge text-bg-light border text-dark">Активный</span>{% endif %}
+              </div>
+            </td>
+            <td>
+              <div class="year-actions-line">
+                {% if not y.is_current %}
+                <form method="post" action="{{ url_for('children.academic_year_make_current', year_id=y.id) }}">
+                  <button class="btn btn-sm btn-outline-success">Сделать текущим</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('children.academic_year_toggle_closed', year_id=y.id) }}">
+                  <button class="btn btn-sm btn-outline-warning">{% if y.is_closed %}Открыть год{% else %}Закрыть год{% endif %}</button>
+                </form>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('children.classes_registry', academic_year_id=y.id) }}">Классы года</a>
+                <form method="post" action="{{ url_for('children.academic_year_toggle_archive', year_id=y.id) }}">
+                  <button class="btn btn-sm btn-outline-dark">{% if y.is_archived %}Снять архив{% else %}Архив{% endif %}</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="text-muted">Учебных лет пока нет.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

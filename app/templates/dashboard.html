@@ -1,0 +1,354 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell">
+  <div class="dashboard-topbar mb-4">
+    <div>
+      <div class="section-overline">Главная страница</div>
+      <h2 class="dashboard-title mb-1">Система сопровождения обучающихся</h2>
+      <div class="text-muted">Компактная рабочая панель для директора и администрации.</div>
+    </div>
+    <div class="dashboard-year-badge">Учебный год: {{ dashboard_stats.current_year_name or 'не выбран' }}</div>
+  </div>
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Быстрый поиск</div>
+        <h4 class="section-title mb-0">Поиск ученика по школе</h4>
+      </div>
+    </div>
+    <div class="card"><div class="card-body">
+      <form method="get" action="{{ url_for('children.list_children') }}" class="row g-3 align-items-end">
+        <div class="col-lg-4 col-md-6">
+          <label class="form-label">ФИО</label>
+          <input class="form-control" name="q" placeholder="Например Иванов Петр">
+        </div>
+        <div class="col-lg-3 col-md-3">
+          <label class="form-label">Параллель</label>
+          <select class="form-select" name="grade">
+            <option value="">Все</option>
+            {% for grade in range(1, 12) %}
+            <option value="{{ grade }}">{{ grade }} класс</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-lg-3 col-md-3">
+          <label class="form-label">Класс</label>
+          <select class="form-select" name="class_id">
+            <option value="">Все</option>
+            {% if dashboard_classes is defined %}
+              {% for c in dashboard_classes %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            {% endif %}
+          </select>
+        </div>
+        <div class="col-lg-2 col-md-12 d-grid">
+          <button class="btn btn-primary">Найти</button>
+        </div>
+      </form>
+    </div></div>
+  </section>
+
+  <section class="dashboard-section mb-4">
+    <div class="section-overline">Быстрая сводка</div>
+    <div class="row g-3">
+      <div class="col-xl-3 col-md-6">
+        <a class="summary-card text-decoration-none" href="{{ url_for('children.incidents_registry') if can('incident_registry_view') else '#' }}">
+          <div class="summary-card-label">Инциденты сегодня</div>
+          <div class="summary-card-value">{{ dashboard_stats.incidents_today }}</div>
+        </a>
+      </div>
+      <div class="col-xl-3 col-md-6">
+        <a class="summary-card text-decoration-none" href="{{ url_for('children.incidents_registry') if can('incident_registry_view') else '#' }}">
+          <div class="summary-card-label">Травмы</div>
+          <div class="summary-card-value">{{ dashboard_stats.injuries_today }}</div>
+        </a>
+      </div>
+      <div class="col-xl-3 col-md-6">
+        <a class="summary-card text-decoration-none" href="{{ url_for('children.incidents_registry') if can('incident_registry_view') else '#' }}">
+          <div class="summary-card-label">Нарушения дисциплины</div>
+          <div class="summary-card-value">{{ dashboard_stats.discipline_today }}</div>
+        </a>
+      </div>
+      <div class="col-xl-3 col-md-6">
+        <a class="summary-card text-decoration-none" href="{{ url_for('control_works.list_control_works') if can('control_works_edit') else url_for('control_works.my_control_works') if can('control_works_view') else '#' }}">
+          <div class="summary-card-label">Контрольные работы сегодня</div>
+          <div class="summary-card-value">{{ dashboard_stats.control_works_today }}</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Выделенные разделы</div>
+        <h4 class="section-title mb-0">Быстрый доступ</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% if can('incident_add') %}
+      <div class="col-lg-3 col-md-6">
+        <div class="home-card action-card action-card-accent">
+          <div>
+            <h5>Добавить инцидент</h5>
+            <p>Быстрое внесение нового инцидента без перехода по реестрам.</p>
+          </div>
+          <a class="btn btn-primary" href="{{ url_for('children.incident_new') }}">Открыть</a>
+        </div>
+      </div>
+      {% endif %}
+      {% if can('incident_dashboard_view') %}
+      <div class="col-lg-3 col-md-6">
+        <div class="home-card action-card action-card-accent">
+          <div>
+            <h5>Дашборд инцидентов</h5>
+            <p>Оперативная аналитика и контроль динамики по инцидентам.</p>
+          </div>
+          <a class="btn btn-outline-dark" href="{{ url_for('children.incidents_dashboard') }}">Открыть</a>
+        </div>
+      </div>
+      {% endif %}
+      {% if can('contingent_view') %}
+      <div class="col-lg-3 col-md-6">
+        <div class="home-card action-card action-card-primary">
+          <div>
+            <h5>Сводный контингент</h5>
+            <p>Общая аналитика по обучающимся и составу контингента.</p>
+          </div>
+          <a class="btn btn-outline-primary" href="{{ url_for('children.contingent') }}">Открыть</a>
+        </div>
+      </div>
+      {% endif %}
+      {% if can('control_works_view') %}
+      <div class="col-lg-3 col-md-6">
+        <div class="home-card action-card action-card-primary">
+          <div>
+            <h5>Контрольные работы</h5>
+            <p>Работы, результаты и свод качества по текущему году.</p>
+          </div>
+          <a class="btn btn-outline-success" href="{{ url_for('control_works.list_control_works') if can('control_works_edit') else url_for('control_works.my_control_works') }}">Открыть</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Олимпиады</div>
+        <h4 class="section-title mb-0">ВСОШ и аналитика</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-3 col-md-6">
+        <div class="home-card">
+          <div>
+            <h5>Олимпиады</h5>
+            <p>Участий: {{ olympiad_dashboard_stats.total }} · Победителей: {{ olympiad_dashboard_stats.winners }} · Призеров: {{ olympiad_dashboard_stats.prizers }}</p>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-outline-primary" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.analytics') }}">Аналитика</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Навигация по системе</div>
+        <h4 class="section-title mb-0">Основные разделы</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% if current_user.is_authenticated and current_user.role == 'ADMIN' %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Управленческий контур</h5><p>Показатели школы, аналитика по параллелям и отчёты для администрации.</p></div><a class="btn btn-outline-primary" href="{{ url_for('management.dashboard') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('control_works_view') %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Академический контур</h5><p>Контрольные работы, результаты, низкие показатели и свод качества.</p></div><a class="btn btn-outline-success" href="{{ url_for('academic.dashboard') }}">Открыть</a></div></div>
+      {% endif %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Кафедры</h5><p>Структура кафедр, участники и предметные объединения.</p></div><a class="btn btn-outline-dark" href="{{ url_for('departments.index') }}">Открыть</a></div></div>
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Нагрузка</h5><p>{% if is_admin or is_methodist %}Нагрузка педагогов по текущему учебному году.{% else %}Просмотр только собственной нагрузки учителя.{% endif %}</p></div><a class="btn btn-outline-secondary" href="{{ url_for('departments.loads') }}">Открыть</a></div></div>
+    </div>
+  </section>
+
+
+
+  {% if can_olympiad_view %}
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Олимпиадное движение</div>
+        <h4 class="section-title mb-0">Олимпиады / ВСОШ</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Сводка олимпиад</h5><p>Участники: {{ olympiad_dashboard_stats.total }} · Победители: {{ olympiad_dashboard_stats.winners }} · Призёры: {{ olympiad_dashboard_stats.prizers }}</p></div><a class="btn btn-outline-primary" href="{{ url_for('olympiads.registry') }}">Реестр</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Аналитика олимпиад</h5><p>Срезы по годам, уровням, предметам, кафедрам и учителям.</p></div><a class="btn btn-outline-success" href="{{ url_for('olympiads.analytics') }}">Аналитика</a></div></div>
+      {% if can_olympiad_import %}<div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Импорт олимпиад</h5><p>Загрузка результатов, журнал импортов и отмена ошибочной загрузки.</p></div><a class="btn btn-outline-dark" href="{{ url_for('olympiads.import_view') }}">Импорт</a></div></div>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+  {% if current_user.is_authenticated and current_user.role == 'ADMIN' %}
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Управление школой</div>
+        <h4 class="section-title mb-0">Управленческий контур</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-6 col-md-6">
+        <div class="home-card">
+          <div>
+            <h5>Управленческий дашборд</h5>
+            <p>Ключевые показатели школы, аналитика по параллелям и индикаторы риска.</p>
+          </div>
+          <a class="btn btn-outline-primary" href="{{ url_for('management.dashboard') }}">Открыть</a>
+        </div>
+      </div>
+      <div class="col-lg-6 col-md-6">
+        <div class="home-card">
+          <div>
+            <h5>Отчёты по контингенту</h5>
+            <p>Управленческая таблица по параллелям для администрации.</p>
+          </div>
+          <a class="btn btn-outline-success" href="{{ url_for('management.contingent_report') }}">Открыть</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Контингент и движение</div>
+        <h4 class="section-title mb-0">Основные реестры</h4>
+      </div>
+    </div>
+    <div class="row g-3 mb-3">
+      {% if is_admin %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Учебные годы</h5><p>Активный год, архив лет и переход между учебными годами.</p></div><a class="btn btn-outline-primary" href="{{ url_for('children.academic_years_registry') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('children_registry_view') %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Классы</h5><p>Реестр классов, параллели и классные руководители.</p></div><a class="btn btn-outline-dark" href="{{ url_for('children.classes_registry') }}">Открыть</a></div></div>
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Ученики</h5><p>Основной реестр обучающихся и карточек.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('children.list_children') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if is_admin %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Движение</h5><p>Переводы, выбытие, массовый перевод и история движения.</p></div><a class="btn btn-outline-success" href="{{ url_for('transfers.index') }}">Открыть</a></div></div>
+      {% endif %}
+    </div>
+    <div class="row g-3">
+      {% if can_social_passport_registry_view %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Социальный паспорт</h5><p>Компактный доступ к социальным данным по детям.</p></div><a class="btn btn-outline-primary" href="{{ url_for('children.social_passport_registry') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('core_support_registry_view') or is_admin or is_methodist %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Сопровождение</h5><p>Психолог, социальный педагог и активные случаи сопровождения.</p></div><a class="btn btn-outline-dark" href="{{ url_for('core.support_registry') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('incident_registry_view') %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Реестр инцидентов</h5><p>Полный реестр, фильтры, статусы и редактирование инцидентов.</p></div><a class="btn btn-outline-danger" href="{{ url_for('children.incidents_registry') }}">Открыть</a></div></div>
+      {% endif %}
+    </div>
+    <div class="row g-3 mt-1">
+      {% if can('ovz_registry_view') or is_admin or is_methodist %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Реестр ОВЗ</h5><p>Список обучающихся с ОВЗ и быстрый переход к карточкам.</p></div><a class="btn btn-outline-primary" href="{{ url_for('children.registry_ovz') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('vshu_registry_view') or is_admin or is_methodist %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Реестр ВШУ</h5><p>Внутришкольный учёт и оперативный контроль категории.</p></div><a class="btn btn-outline-dark" href="{{ url_for('children.registry_vshu') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('kdn_registry_view') or is_admin or is_methodist %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Реестр КДН</h5><p>Контроль детей, состоящих на учёте КДН.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('children.registry_kdn') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if can('az_registry_view') or is_admin or is_methodist or can('low_results_registry_view') %}
+      <div class="col-lg-3 col-md-6"><div class="home-card"><div><h5>Реестр АЗ</h5><p>Академическая задолженность и низкие результаты по детям.</p></div><a class="btn btn-outline-success" href="{{ url_for('children.registry_az') }}">Открыть</a></div></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Учебная аналитика</div>
+        <h4 class="section-title mb-0">Контрольные и результаты</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% if can('control_works_view') %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Контрольные работы</h5><p>Работы, результаты и оперативный доступ на текущий день.</p></div><a class="btn btn-success" href="{{ url_for('control_works.list_control_works') if can('control_works_edit') else url_for('control_works.my_control_works') }}">Открыть</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Архив контрольных</h5><p>Завершённые работы и история результатов.</p></div><a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_archive') }}">Открыть</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Свод качества</h5><p>Общий дашборд по контрольным, учителям, классам и детям.</p></div><a class="btn btn-outline-dark" href="{{ url_for('control_works.control_works_summary') }}">Открыть</a></div></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3 align-items-start">
+      <div>
+        <div class="section-overline">Педагоги и структура</div>
+        <h4 class="section-title mb-0">Кафедры и нагрузка</h4>
+      </div>
+      <div class="section-note">Нагрузка на главной рассчитана по текущему учебному году.</div>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-xl-4 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Кафедры</div><div class="mini-stat-value">{{ departments_dashboard_stats.departments_count }}</div></div></div>
+      <div class="col-xl-4 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Педагоги в нагрузке</div><div class="mini-stat-value">{{ departments_dashboard_stats.teachers_count }}</div></div></div>
+      <div class="col-xl-4 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Часы нагрузки</div><div class="mini-stat-value">{{ departments_dashboard_stats.total_hours }}</div></div></div>
+    </div>
+    <div class="row g-3">
+      {% if is_admin or is_methodist %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Кафедры и структура</h5><p>Структура кафедр, предметы и руководители.</p></div><a class="btn btn-outline-primary" href="{{ url_for('departments.settings') if is_admin else url_for('departments.index') }}">Открыть</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Нагрузка учителей</h5><p>Импорт, распределение и проверка нагрузки педагогов.</p></div><a class="btn btn-outline-dark" href="{{ url_for('departments.loads') }}">Открыть</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Свод по кафедрам</h5><p>Общая аналитика по подразделениям и педагогам.</p></div><a class="btn btn-outline-success" href="{{ url_for('departments.summary') }}">Открыть</a></div></div>
+      {% else %}
+      <div class="col-lg-12 col-md-12"><div class="home-card"><div><h5>Моя нагрузка</h5><p>Учитель видит только свою нагрузку по текущему учебному году.</p></div><a class="btn btn-outline-dark" href="{{ url_for('departments.loads') }}">Открыть</a></div></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Административный контур</div>
+        <h4 class="section-title mb-0">Приказы и документы</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% if current_user.is_authenticated and (current_user.has_role('ADMIN') or current_user.has_role('METHODIST')) %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Приказы</h5><p>Реестр приказов по разделам, ответственные и контроль оригиналов.</p></div><a class="btn btn-outline-primary" href="{{ url_for('orders.registry') }}">Открыть</a></div></div>
+      {% endif %}
+      {% if is_admin %}
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Журнал действий</h5><p>История изменений в системе и контроль пользовательских действий.</p></div><a class="btn btn-outline-dark" href="{{ url_for('core.system_logs_registry') }}">Открыть</a></div></div>
+      <div class="col-lg-4 col-md-6"><div class="home-card"><div><h5>Архив документов</h5><p>Архивные документы, сроки хранения и служебные разделы.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('documents.documents_archive') }}">Открыть</a></div></div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if is_admin %}
+  <section class="dashboard-section mb-4">
+    <div class="section-head mb-3">
+      <div>
+        <div class="section-overline">Для администратора</div>
+        <h4 class="section-title mb-0">Служебные ссылки</h4>
+      </div>
+    </div>
+    <div class="compact-links mt-1">
+      <a class="compact-link" href="{{ url_for('children.academic_years_registry') }}">Учебные годы</a>
+      <a class="compact-link" href="{{ url_for('children.classes_registry') }}">Классы учебного года</a>
+      <a class="compact-link" href="{{ url_for('children.subjects_registry') if endpoint_exists('children.subjects_registry') else url_for('olympiads.settings') }}">Реестр предметов</a>
+      <a class="compact-link" href="{{ url_for('olympiads.settings') }}">Реестр олимпиадных предметов</a>
+      <a class="compact-link" href="{{ url_for('olympiads.unmatched') }}">Несопоставленные результаты</a>
+      <a class="compact-link" href="{{ url_for('users.users_list', status='archived') }}">Архив сотрудников</a>
+      <a class="compact-link" href="{{ url_for('documents.documents_archive') }}">Архив документов</a>
+      <form method="post" action="{{ url_for('documents.run_retention') }}" class="d-inline-block m-0">
+        <button class="compact-link compact-link-button" type="submit">Обновить архив по срокам хранения</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

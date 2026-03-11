@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h4 class="mb-3">Импорт детей из Excel</h4>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Excel файл (.xlsx)</label>
+        <input class="form-control" type="file" name="file" accept=".xlsx" required>
+      </div>
+
+      <button class="btn btn-primary">Загрузить</button>
+      <a class="btn btn-outline-secondary" href="/children">Назад</a>
+    </form>
+
+    <hr>
+
+    <div class="text-muted">
+      <div class="mb-2"><b>Колонки Excel (как в вашем файле):</b></div>
+
+      <div><code>ФИО</code></div>
+      <div><code>Пол</code></div>
+      <div><code>Родился</code></div>
+      <div><code>Вариант АООП</code></div>
+      <div><code>Сведения о форме обучения</code></div>
+      <div><code>Номер и буква класса</code></div>
+      <div><code>Регистрация по месту жительства</code></div>
+      <div><code>Регистрация по месту пребывания</code></div>
+      <div><code>Адрес фактического проживания</code></div>
+      <div><code>На ВШУ с</code></div>
+      <div><code>Основание(я) постановки на ВШУ</code></div>
+      <div><code>На учете КДН с</code></div>
+      <div><code>Основание(я) постановки на учет КДН</code></div>
+      <div><code>На учете ПДН с</code></div>
+      <div><code>Основание(я) постановки на учет ПДН</code></div>
+      <div><code>Снят с ВШУ</code></div>
+      <div><code>Основание снятия с ВШУ</code></div>
+
+      <div class="mt-3">
+        <b>Обязательные колонки:</b>
+        <code>ФИО</code>, <code>Пол</code>, <code>Родился</code>, <code>Номер и буква класса</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

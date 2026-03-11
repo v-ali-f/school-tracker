@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h3 class="mb-3">Социальные данные — аналитика</h3>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Всего детей</div><div class="fs-3">{{ totals.school_total }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Многодетные семьи</div><div class="fs-3">{{ totals.large_family }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Малообеспеченные семьи</div><div class="fs-3">{{ totals.low_income }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Опека / попечительство</div><div class="fs-3">{{ totals.guardianship }}</div></div></div></div>
+
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Сироты / без попечения</div><div class="fs-3">{{ totals.orphan }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Родители с инвалидностью</div><div class="fs-3">{{ totals.parents_disability }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Социально опасное положение</div><div class="fs-3">{{ totals.socially_dangerous }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted">Трудная жизненная ситуация</div><div class="fs-3">{{ totals.hard_life }}</div></div></div></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><b>По зданиям</b></div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>Здание</th>
+          <th>Всего</th>
+          <th>Многодетные</th>
+          <th>Малообеспеченные</th>
+          <th>Опека</th>
+          <th>Сироты / без попечения</th>
+          <th>Родители с инвалидностью</th>
+          <th>Социально опасное положение</th>
+          <th>Трудная жизненная ситуация</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bname, row in by_building.items() %}
+          <tr>
+            <td>{{ bname }}</td>
+            <td>{{ row.total }}</td>
+            <td>{{ row.large_family }}</td>
+            <td>{{ row.low_income }}</td>
+            <td>{{ row.guardianship }}</td>
+            <td>{{ row.orphan }}</td>
+            <td>{{ row.parents_disability }}</td>
+            <td>{{ row.socially_dangerous }}</td>
+            <td>{{ row.hard_life }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

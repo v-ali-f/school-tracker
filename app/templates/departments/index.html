@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Предметные кафедры</h3>
+    <div class="text-muted">Быстрый доступ к настройкам, нагрузке и аналитике.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+</div>
+<div class="row g-3 mb-4">
+  {% if is_admin or is_methodist %}
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Настройка предметных кафедр</h5><div class="text-muted mb-3">Кафедры, руководители, предметы и состав участников.</div><a class="btn btn-primary mt-auto" href="{{ url_for('departments.settings') if is_admin else url_for('departments.summary') }}">Открыть</a></div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Свод по кафедрам</h5><div class="text-muted mb-3">Результаты контрольных, МЦКО и курсы повышения квалификации.</div><a class="btn btn-success mt-auto" href="{{ url_for('departments.summary') }}">Открыть</a></div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Нагрузка учителей</h5><div class="text-muted mb-3">Импорт Excel, распределение по кафедрам и ручная корректировка.</div><a class="btn btn-outline-dark mt-auto" href="{{ url_for('departments.loads') }}">Открыть</a></div></div></div>
+  {% else %}
+  <div class="col-lg-12"><div class="card h-100"><div class="card-body d-flex flex-column"><h5>Моя нагрузка</h5><div class="text-muted mb-3">Учитель видит только свою нагрузку по текущему учебному году.</div><a class="btn btn-outline-dark mt-auto" href="{{ url_for('departments.loads') }}">Открыть</a></div></div></div>
+  {% endif %}
+</div>
+<div class="card">
+  <div class="card-body">
+    <h5 class="mb-3">Кафедры школы</h5>
+    <div class="row g-2">
+      {% for dep in departments %}
+      <div class="col-lg-6">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold">{{ dep.name }}</div>
+          <div class="small text-muted">Предметов: {{ dep.subject_links|length }} · Руководителей: {{ dep.leaders|length }}</div>
+          {% if dep.description %}<div class="small mt-2">{{ dep.description }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

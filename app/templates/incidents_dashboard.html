@@ -1,0 +1,337 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+  .incident-hero {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 18px;
+    box-shadow: 0 12px 28px rgba(0,0,0,.08);
+  }
+  .incident-stat-card {
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.07);
+    overflow: hidden;
+  }
+  .incident-stat-card .card-body {
+    padding: 1.25rem 1.35rem;
+  }
+  .incident-stat-label {
+    font-size: .92rem;
+    color: #6c757d;
+    margin-bottom: .35rem;
+  }
+  .incident-stat-value {
+    font-size: 2.15rem;
+    line-height: 1;
+    font-weight: 800;
+  }
+  .incident-card-accent-1 { background: #fff; }
+  .incident-card-accent-2 { background: #fff; }
+  .incident-card-accent-3 { background: #fff; }
+  .incident-panel {
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.06);
+  }
+  .mini-bars {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+    min-height: 180px;
+    padding-top: 10px;
+  }
+  .mini-bar-wrap {
+    flex: 1;
+    text-align: center;
+  }
+  .mini-bar {
+    width: 100%;
+    min-height: 6px;
+    border-radius: 12px 12px 4px 4px;
+    background: linear-gradient(180deg, #ff7043 0%, #ef5350 100%);
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.08);
+  }
+  .mini-bar-value {
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #d84315;
+  }
+  .mini-bar-label {
+    margin-top: 8px;
+    font-size: .82rem;
+    color: #6c757d;
+  }
+  .rank-row + .rank-row {
+    margin-top: .9rem;
+  }
+  .rank-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: .92rem;
+    margin-bottom: .35rem;
+  }
+  .progress.rank-progress {
+    height: 12px;
+    border-radius: 999px;
+    background: #f1f3f5;
+  }
+  .incident-table thead th {
+    white-space: nowrap;
+    background: #fff8ef;
+  }
+  .incident-chip {
+    display: inline-block;
+    padding: .22rem .55rem;
+    border-radius: 999px;
+    background: #fff1e6;
+    color: #c25b00;
+    font-size: .82rem;
+    font-weight: 600;
+  }
+</style>
+
+<div class="incident-hero p-4 mb-4">
+  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+    <div>
+      <div class="incident-chip mb-2">Инциденты · аналитический дашборд</div>
+      <h2 class="mb-1">{{ title }}</h2>
+      <div class="text-muted">Яркая сводка по инцидентам: динамика за 7 дней, топ категорий, классов, зданий и последние случаи.</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-warning fw-semibold" href="{{ url_for('children.incidents_registry') }}">Реестр</a>
+      <a class="btn btn-success fw-semibold" href="{{ url_for('children.incidents_registry_export', grade=grade, class_id=class_id, category=category, q='') }}">Excel</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+    </div>
+  </div>
+</div>
+
+<div class="card incident-panel mb-4">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" name="grade" id="gradeSelect">
+          <option value="">—</option>
+          {% for g in range(1, 12) %}
+            <option value="{{ g }}" {% if grade==g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Класс</label>
+        <select class="form-select" name="class_id" id="classSelect">
+          <option value="">—</option>
+          {% for c in classes %}
+            <option value="{{ c.id }}" {% if class_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text text-muted">Класс важнее параллели</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Категория</label>
+        <select class="form-select" name="category">
+          <option value="">— все —</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary">Применить</button>
+      </div>
+      <div class="col-md-2 d-grid">
+        <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_dashboard') }}">Сброс</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card incident-stat-card incident-card-accent-1 h-100">
+      <div class="card-body">
+        <div class="incident-stat-label">Всего по фильтрам</div>
+        <div class="incident-stat-value">{{ total_all }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card incident-stat-card incident-card-accent-2 h-100">
+      <div class="card-body">
+        <div class="incident-stat-label">За последние 7 дней</div>
+        <div class="incident-stat-value">{{ total_7 }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card incident-stat-card incident-card-accent-3 h-100">
+      <div class="card-body">
+        <div class="incident-stat-label">За последние 30 дней</div>
+        <div class="incident-stat-value">{{ total_30 }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card incident-panel">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h5 class="mb-0">Динамика за 7 дней</h5>
+          <span class="text-muted small">Мини-диаграмма по количеству инцидентов</span>
+        </div>
+        <div class="mini-bars">
+          {% for item in recent_daily %}
+            <div class="mini-bar-wrap">
+              <div class="mini-bar-value">{{ item.count }}</div>
+              <div class="mini-bar" style="height: {{ 18 if max_daily == 0 else ((item.count / max_daily) * 140)|round(0, 'ceil') + 18 }}px;"></div>
+              <div class="mini-bar-label">{{ item.label }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-4">
+    <div class="card incident-panel h-100">
+      <div class="card-body">
+        <h5 class="mb-3">Топ категорий за 30 дней</h5>
+        {% for name, cnt in top_categories %}
+          <div class="rank-row">
+            <div class="rank-meta"><span>{{ name }}</span><strong>{{ cnt }}</strong></div>
+            <div class="progress rank-progress">
+              <div class="progress-bar bg-danger" role="progressbar" style="width: {{ 0 if max_category == 0 else ((cnt / max_category) * 100)|round(0, 'ceil') }}%"></div>
+            </div>
+          </div>
+        {% endfor %}
+        {% if top_categories|length == 0 %}<div class="text-muted">Нет данных</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card incident-panel h-100">
+      <div class="card-body">
+        <h5 class="mb-3">Топ зданий за 30 дней</h5>
+        {% for name, cnt in top_buildings %}
+          <div class="rank-row">
+            <div class="rank-meta"><span>{{ name or "Без здания" }}</span><strong>{{ cnt }}</strong></div>
+            <div class="progress rank-progress">
+              <div class="progress-bar bg-warning" role="progressbar" style="width: {{ 0 if max_building == 0 else ((cnt / max_building) * 100)|round(0, 'ceil') }}%"></div>
+            </div>
+          </div>
+        {% endfor %}
+        {% if top_buildings|length == 0 %}<div class="text-muted">Нет данных</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card incident-panel h-100">
+      <div class="card-body">
+        <h5 class="mb-3">Топ классов за 30 дней</h5>
+        {% for name, cnt in top_classes %}
+          <div class="rank-row">
+            <div class="rank-meta"><span>{{ name }}</span><strong>{{ cnt }}</strong></div>
+            <div class="progress rank-progress">
+              <div class="progress-bar bg-primary" role="progressbar" style="width: {{ 0 if max_class == 0 else ((cnt / max_class) * 100)|round(0, 'ceil') }}%"></div>
+            </div>
+          </div>
+        {% endfor %}
+        {% if top_classes|length == 0 %}<div class="text-muted">Нет данных</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card incident-panel">
+  <div class="card-body pb-2">
+    <div class="d-flex align-items-center justify-content-between">
+      <h5 class="mb-0">Последние инциденты</h5>
+      <span class="text-muted small">Последние 20 записей</span>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle incident-table">
+      <thead>
+        <tr>
+          <th style="width:180px;">Дата/время</th>
+          <th style="width:220px;">Категория</th>
+          <th>Дети</th>
+          <th>Описание</th>
+          <th style="width:170px;">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td class="text-muted">{{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</td>
+            <td><span class="incident-chip">{{ r.inc.category }}</span></td>
+            <td>
+              {% for ch in r.children %}
+                <div>
+                  <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
+                  <span class="text-muted">— {{ ch.class }}</span>
+                </div>
+              {% endfor %}
+            </td>
+            <td class="text-muted">{{ r.inc.description or "—" }}</td>
+          <td>
+            {% if current_user.role in ["ADMIN", "METHODIST"] or r.inc.author_id == current_user.id %}
+              <div class="d-flex gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}">Изменить</a>
+                <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');">
+                  <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
+                </form>
+              </div>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          </tr>
+        {% endfor %}
+        {% if rows|length == 0 %}
+          <tr><td colspan="5" class="text-muted">Нет данных</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const gradeSel = document.getElementById("gradeSelect");
+  const classSel = document.getElementById("classSelect");
+  if (!gradeSel || !classSel) return;
+
+  classSel.addEventListener("change", () => {
+    if (classSel.value) gradeSel.value = "";
+  });
+
+  gradeSel.addEventListener("change", async () => {
+    const g = gradeSel.value;
+    if (!g) return;
+
+    const res = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(g)}`);
+    const data = await res.json();
+
+    classSel.innerHTML = `<option value="">—</option>`;
+    data.forEach(x => {
+      const opt = document.createElement("option");
+      opt.value = x.id;
+      opt.textContent = x.name;
+      classSel.appendChild(opt);
+    });
+  });
+})();
+</script>
+
+{% endblock %}

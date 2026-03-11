@@ -1,0 +1,10 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Журнал импортов олимпиад</h3>
+<div class="card"><div class="table-responsive">
+<table class="table table-striped align-middle mb-0">
+  <thead><tr><th>Дата</th><th>Файл</th><th>Год</th><th>Этап</th><th>Предмет</th><th>Строк</th><th>Школа 547</th><th>Сопоставлено</th><th>Несопоставлено</th><th>Создано</th><th>Дубликаты</th><th>Действие</th></tr></thead>
+  <tbody>{% for row in rows %}<tr><td>{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}</td><td>{{ row.source_file_name or '—' }}</td><td>{{ row.academic_year.name if row.academic_year else '—' }}</td><td>{{ row.stage or '—' }}</td><td>{{ row.subject_name or (row.subject.name if row.subject else '—') }}</td><td>{{ row.total_rows }}</td><td>{{ row.school_rows }}</td><td>{{ row.matched_rows }}</td><td>{{ row.unmatched_rows }}</td><td>{{ row.created_rows }}</td><td>{{ row.duplicate_rows }}</td><td><form method="post" action="{{ url_for('olympiads.rollback_import', session_id=row.id) }}" onsubmit="return confirm('Отменить этот импорт и удалить его результаты?');"><button class="btn btn-sm btn-outline-danger">Отменить импорт</button></form></td></tr>{% else %}<tr><td colspan="12" class="text-muted">Импортов пока нет</td></tr>{% endfor %}</tbody>
+</table>
+</div></div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h3 class="mb-0">{{ title }}</h3>
+    <div class="text-muted" style="font-size:0.95em;">Сформировано из данных контингента</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" name="grade" onchange="this.form.submit()">
+          <option value="">Все</option>
+          {% for grade in grades %}
+            <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Класс</label>
+        <select class="form-select" name="class_id">
+          <option value="">Все</option>
+          {% for c in classes %}
+            <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">ФИО</label>
+        <input class="form-control" name="q" value="{{ q_text or '' }}" placeholder="Например Иванов">
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">Показать</button>
+        <a class="btn btn-outline-secondary" href="?">Сброс</a>
+        {% if export_url %}<a class="btn btn-success" href="{{ export_url }}">Excel</a>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th class="table-number-col">№</th>
+          <th>ФИО</th>
+          <th style="width:100px;">Класс</th>
+          <th>Мама</th>
+          <th style="width:160px;">Телефон мамы</th>
+          <th>Папа</th>
+          <th style="width:160px;">Телефон папы</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ch in children %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td>
+            <td class="text-muted">{{ ch.current_class_name or ch.class_name or "—" }}</td>
+            <td>{{ ch.mother_fio or "—" }}</td>
+            <td class="text-muted">{{ ch.mother_phone or "—" }}</td>
+            <td>{{ ch.father_fio or "—" }}</td>
+            <td class="text-muted">{{ ch.father_phone or "—" }}</td>
+          </tr>
+        {% endfor %}
+        {% if children|length == 0 %}
+          <tr><td colspan="7" class="text-muted">Нет данных</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

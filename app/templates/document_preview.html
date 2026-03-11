@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Просмотр документа</title>
+  <style>
+    body { background:#fff; }
+    iframe { width:100%; height:78vh; border:0; }
+  </style>
+</head>
+<body>
+  <div class="border-bottom p-3 d-flex justify-content-between align-items-center gap-3">
+    <div>
+      <div class="fw-semibold">{{ doc.original_name }}</div>
+      <div class="small text-muted">Тип: {{ doc.doc_type }}{% if doc.uploaded_at %} · Загружен: {{ doc.uploaded_at.strftime('%d.%m.%Y %H:%M') }}{% endif %}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-outline-primary" href="/documents/{{ doc.id }}/download">Скачать</a>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="window.close()">Закрыть</button>
+    </div>
+  </div>
+
+  {% if preview_error %}
+    <div class="p-3">
+      <div class="alert alert-warning mb-3">{{ preview_error }}</div>
+      <a class="btn btn-primary btn-sm" href="/documents/{{ doc.id }}/download">Скачать документ</a>
+    </div>
+  {% elif mode == 'iframe' and inline_url %}
+    <iframe src="{{ inline_url }}"></iframe>
+  {% else %}
+    {{ preview_html|safe }}
+  {% endif %}
+</body>
+</html>

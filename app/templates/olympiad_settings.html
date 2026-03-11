@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Реестр олимпиадных предметов</h3>
+    <div class="text-muted">Сопоставление предметов из файлов ВСОШ с предметами системы и кафедрами.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.registry') }}">Реестр олимпиадников</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('olympiads.import_view') }}">Импорт</a>
+  </div>
+</div>
+<div class="row g-4">
+  <div class="col-lg-5"><div class="card h-100"><div class="card-body">
+    <h5>Добавить / изменить сопоставление</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-12"><input class="form-control" name="olympiad_subject_name" placeholder="Название предмета в файле" required></div>
+      <div class="col-12"><select class="form-select" name="subject_id" required><option value="">Предмет системы</option>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+      <div class="col-12"><select class="form-select" name="department_id"><option value="">Кафедра</option>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></div>
+      <div class="col-12"><input class="form-control" name="comment" placeholder="Комментарий"></div>
+      <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" name="is_active" id="is_active" checked><label class="form-check-label" for="is_active">Активно</label></div>
+      <div class="col-12 d-grid"><button class="btn btn-outline-primary">Сохранить сопоставление</button></div>
+    </form>
+    <div class="small text-muted">Базовый перечень предметов ВСОШ загружается автоматически при первом запуске, а затем может редактироваться через этот раздел.</div>
+  </div></div></div>
+  <div class="col-lg-7"><div class="card h-100"><div class="card-body">
+    <h5>Список сопоставлений</h5>
+    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>В файле</th><th>В системе</th><th>Кафедра</th><th>Активно</th><th>Комментарий</th><th>Дата изменения</th></tr></thead><tbody>{% for row in mappings %}<tr><td>{{ row.olympiad_subject_name }}</td><td>{{ row.subject.name if row.subject else '—' }}</td><td>{{ row.department.name if row.department else '—' }}</td><td>{% if row.is_active %}<span class="badge text-bg-success">Да</span>{% else %}<span class="badge text-bg-secondary">Нет</span>{% endif %}</td><td>{{ row.comment or '—' }}</td><td>{{ (row.updated_at or row.created_at).strftime('%d.%m.%Y') if (row.updated_at or row.created_at) else '—' }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Пока пусто</td></tr>{% endfor %}</tbody></table></div>
+  </div></div></div>
+</div>
+{% endblock %}

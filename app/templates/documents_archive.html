@@ -1,0 +1,76 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0">Архив документов</h4>
+    <div class="text-muted">Скрытые, архивные и удалённые из карточек файлы</div>
+  </div>
+  <form method="post" action="{{ url_for('documents.run_retention') }}">
+    <button class="btn btn-outline-secondary">Обновить архив по срокам хранения</button>
+  </form>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2">
+      <div class="col-md-4">
+        <input class="form-control" type="text" name="q" value="{{ q }}" placeholder="Поиск по ученику или названию файла">
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="mode">
+          <option value="all" {% if mode=='all' %}selected{% endif %}>Все архивные</option>
+          <option value="deleted" {% if mode=='deleted' %}selected{% endif %}>Только удалённые из карточки</option>
+          <option value="retention" {% if mode=='retention' %}selected{% endif %}>Только скрытые по сроку</option>
+        </select>
+      </div>
+      <div class="col-md-5 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">Показать</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('documents.documents_archive') }}">Сбросить</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Ученик</th>
+            <th>Документ</th>
+            <th>Тип</th>
+            <th>Год</th>
+            <th>Скрыт</th>
+            <th>Срок хранения до</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in docs %}
+          <tr>
+            <td>{{ doc.child.fio if doc.child else '—' }}</td>
+            <td>{{ doc.original_name }}</td>
+            <td>{{ doc.doc_type }}</td>
+            <td>{{ doc.academic_year.name if doc.academic_year else '—' }}</td>
+            <td>
+              {% if doc.is_hidden_by_retention %}<span class="badge text-bg-secondary">7 лет</span>{% endif %}
+              {% if doc.is_deleted_soft %}<span class="badge text-bg-warning">удалён из карточки</span>{% endif %}
+              {% if doc.is_archived and not doc.is_hidden_by_retention %}<span class="badge text-bg-info">архив</span>{% endif %}
+            </td>
+            <td>{{ doc.retention_until.strftime('%d.%m.%Y') if doc.retention_until else '—' }}</td>
+            <td class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('documents.preview_document', doc_id=doc.id) }}" target="_blank">Просмотр</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('documents.download_document', doc_id=doc.id) }}">Скачать</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">Архивных документов не найдено.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

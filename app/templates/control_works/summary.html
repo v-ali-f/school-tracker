@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <div class="section-overline">Учебный процесс</div>
+    <h3 class="mb-1">Свод качества контрольных работ</h3>
+    <div class="text-muted">Дашборд по контрольным работам, качеству знаний и успеваемости.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+</div>
+
+<form method="get" class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учебный год</label>
+        <select class="form-select" name="academic_year_id">
+          <option value="">Все</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Предмет</label>
+        <select class="form-select" name="subject_id">
+          <option value="">Все</option>
+          {% for s in subjects %}
+          <option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" name="grade">
+          <option value="">Все</option>
+          {% for grade in parallels %}
+          <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Класс</label>
+        <select class="form-select" name="class_id">
+          <option value="">Все</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учитель</label>
+        <select class="form-select" name="teacher_id">
+          <option value="">Все</option>
+          {% for t in teachers %}
+          <option value="{{ t.id }}" {% if selected_teacher_id == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4 d-flex gap-2">
+        <button class="btn btn-primary w-100" type="submit">Показать</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_summary') }}">Сброс</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Контрольных работ</div><div class="mini-stat-value">{{ dataset.summary.works_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Проверенных работ</div><div class="mini-stat-value">{{ dataset.summary.results_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Средний процент</div><div class="mini-stat-value">{{ dataset.summary.avg_percent if dataset.summary.avg_percent is not none else '—' }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Качество / успеваемость</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.summary.quality if dataset.summary.quality is not none else '—' }} / {{ dataset.summary.success if dataset.summary.success is not none else '—' }}</div></div></div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-4">
+      <div><strong>Оценка 5:</strong> {{ dataset.summary.mark_counts[5] }}</div>
+      <div><strong>Оценка 4:</strong> {{ dataset.summary.mark_counts[4] }}</div>
+      <div><strong>Оценка 3:</strong> {{ dataset.summary.mark_counts[3] }}</div>
+      <div><strong>Оценка 2:</strong> {{ dataset.summary.mark_counts[2] }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white"><strong>Свод по учителям</strong></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Учитель</th><th>Предметы</th><th>Работ</th><th>Средний %</th><th>Средний балл</th><th>Качество</th><th>Успеваемость</th></tr></thead>
+          <tbody>
+            {% for row in dataset.teacher_rows %}
+            <tr>
+              <td>{{ row.teacher_name }}</td>
+              <td>{{ row.subjects_text }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td>{{ row.avg_mark if row.avg_mark is not none else '—' }}</td>
+              <td>{{ row.quality if row.quality is not none else '—' }}</td>
+              <td>{{ row.success if row.success is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header bg-white"><strong>Свод по классам</strong></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Класс</th><th>Предметы</th><th>Работ</th><th>Средний %</th><th>Качество</th></tr></thead>
+          <tbody>
+            {% for row in dataset.class_rows %}
+            <tr>
+              <td>{{ row.class_name }}</td>
+              <td>{{ row.subjects_text }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td>{{ row.quality if row.quality is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header bg-white"><strong>Свод по обучающимся</strong></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Обучающийся</th><th>Класс</th><th>Предметы</th><th>Работ</th><th>Средний %</th></tr></thead>
+          <tbody>
+            {% for row in dataset.child_rows %}
+            <tr>
+              <td>{{ row.child_name }}</td>
+              <td>{{ row.class_name }}</td>
+              <td>{{ row.subjects_text }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

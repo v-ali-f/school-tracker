@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1">{% if my_only %}Мои контрольные{% else %}Контрольные работы{% endif %}</h4>
+    <div class="text-muted">{% if my_only %}Показаны только назначенные вам контрольные работы{% else %}Все контрольные работы по школе{% endif %}</div>
+  </div>
+  {% if can("control_works_edit") %}<a class="btn btn-success" href="{{ url_for('control_works.new_control_work') }}">Добавить контрольную</a>{% endif %}
+    <a class="btn btn-outline-dark" href="{{ url_for('control_works.control_works_archive') }}">Архив и выгрузки</a>
+</div>
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label mb-1">Учебный год</label><select class="form-select" name="academic_year_id" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-8"><div class="small text-muted">Список и показатели отображаются по выбранному учебному году. История качества по прошлым годам сохраняется отдельно.</div></div>
+  </form>
+</div></div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead><tr><th class="table-number-col">№</th><th>Дата</th><th>Год</th><th>Предмет</th><th>Тема</th><th>Заполнение</th><th></th></tr></thead>
+      <tbody>
+      {% for work in works %}
+        {% set st = stats.get(work.id, {}) %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>{% if work.work_date %}{{ work.work_date.strftime("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{{ work.academic_year.name if work.academic_year else '—' }}</td>
+          <td>{{ work.subject_name }}</td>
+          <td>{{ work.theme }}</td>
+          <td>{{ st.get('filled', 0) }}/{{ st.get('total', 0) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('control_works.view_control_work', work_id=work.id) }}">Открыть</a></td>
+        </tr>
+      {% else %}<tr><td colspan="7" class="text-muted">Пока контрольных работ нет.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

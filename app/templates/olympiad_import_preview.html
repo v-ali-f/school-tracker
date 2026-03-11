@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="mb-1">Предпросмотр импорта олимпиад</h2>
+        <div class="text-muted">Файл: {{ payload.file_name }}</div>
+        <div class="text-muted">Режим привязки учителя: {{ teacher_binding_mode }}</div>
+        {% if subject %}<div class="text-muted">Предмет системы: {{ subject.name }}</div>{% endif %}
+        {% if department %}<div class="text-muted">Кафедра: {{ department.name }}</div>{% endif %}
+        {% if teacher %}<div class="text-muted">Выбранный учитель: {{ teacher.fio }}</div>{% endif %}
+        {% if unique_subjects %}<div class="text-muted">Предметы из файла: {{ unique_subjects|join(', ') }}</div>{% endif %}
+    </div>
+    <div><a class="btn btn-outline-secondary" href="{{ url_for('olympiads.import_view') }}">Назад</a></div>
+</div>
+<div class="row mb-3">
+    <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Всего строк</div><div class="fs-4 fw-bold">{{ total_rows }}</div></div></div>
+    <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Строк школы 547</div><div class="fs-4 fw-bold">{{ school_rows }}</div></div></div>
+    <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Сопоставлено</div><div class="fs-4 fw-bold">{{ matched_rows }}</div></div></div>
+    <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Дубликаты</div><div class="fs-4 fw-bold">{{ duplicate_rows }}</div></div></div>
+</div>
+<div class="card"><div class="card-body">
+    <form method="post" action="{{ url_for('olympiads.import_commit') }}" class="mb-3"><button type="submit" class="btn btn-success">Подтвердить импорт</button></form>
+    <div class="table-responsive"><table class="table table-sm table-bordered align-middle">
+        <thead><tr><th>ФИО из файла</th><th>Найденный ученик</th><th>Класс</th><th>Предмет из файла</th><th>Предмет системы</th><th>Этап</th><th>Балл</th><th>Статус</th><th>Учитель</th><th>Кафедра</th><th>Проверка</th></tr></thead>
+        <tbody>
+        {% for item in preview_rows[:200] %}{% set raw = item.row %}
+        <tr class="{% if item.duplicate_status %}table-warning{% elif not item.child %}table-danger{% endif %}">
+            <td>{{ raw.fio or '-' }}</td>
+            <td>{% if item.child %}{{ item.child.last_name }} {{ item.child.first_name }} {{ item.child.middle_name or '' }}{% else %}<span class="text-danger">{{ item.child_error or 'Не найден' }}</span>{% endif %}</td>
+            <td>{{ raw.class_study or raw.class_participation or '-' }}</td>
+            <td>{{ raw.subject or '-' }}</td>
+            <td>{% if item.subject %}{{ item.subject.name }}{% else %}<span class="text-warning">{{ item.subject_error or '-' }}</span>{% endif %}</td>
+            <td>{{ stage }}</td>
+            <td>{{ raw.score if raw.score is not none else '-' }}</td>
+            <td>{{ raw.status or '-' }}</td>
+            <td>{% if item.teacher_load and item.teacher_load.teacher %}{{ item.teacher_load.teacher.fio }}{% elif item.teacher_error %}<span class="text-warning">{{ item.teacher_error }}</span>{% else %}-{% endif %}</td>
+            <td>{% if item.department %}{{ item.department.name }}{% else %}-{% endif %}</td>
+            <td>{% if item.duplicate_status %}<span class="text-warning">Уже загружено в этом году по предмету</span>{% else %}Новая строка{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+    {% if preview_rows|length > 200 %}<div class="text-muted mt-2">Показаны первые 200 строк из {{ preview_rows|length }}.</div>{% endif %}
+</div></div>
+{% endblock %}

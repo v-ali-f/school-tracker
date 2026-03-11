@@ -1,0 +1,69 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h3 class="mb-0">Реестр зданий</h3>
+    <div class="text-muted" style="font-size:0.95em;">Название и адрес</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2" method="post" action="{{ url_for('children.buildings_new') }}">
+      <div class="col-md-4">
+        <input class="form-control" name="name" placeholder="Название здания" required>
+      </div>
+      <div class="col-md-6">
+        <input class="form-control" name="address" placeholder="Адрес (необязательно)">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100">Добавить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="width:60px;">ID</th>
+          <th>Название</th>
+          <th>Адрес</th>
+          <th style="width:220px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in buildings %}
+          <tr>
+            <td class="text-muted">{{ b.id }}</td>
+            <td>
+              <form class="d-flex gap-2" method="post" action="{{ url_for('children.buildings_update', building_id=b.id) }}">
+                <input class="form-control" name="name" value="{{ b.name }}" required>
+            </td>
+            <td>
+                <input class="form-control" name="address" value="{{ b.address or '' }}">
+            </td>
+            <td class="text-end">
+                <button class="btn btn-outline-primary btn-sm">Сохранить</button>
+              </form>
+
+              <form method="post" action="{{ url_for('children.buildings_delete', building_id=b.id) }}"
+                    style="display:inline-block" onsubmit="return confirm('Удалить здание?');">
+                <button class="btn btn-outline-danger btn-sm">Удалить</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if buildings|length == 0 %}
+          <tr><td colspan="4" class="text-muted">Пока нет зданий</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

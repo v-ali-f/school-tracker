@@ -1,0 +1,464 @@
+:root {
+  --brand-orange: #e58a32;
+  --brand-dark: #283149;
+  --brand-bg: #f5f6f8;
+}
+
+body {
+  background: var(--brand-bg);
+}
+
+.navbar-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.navbar-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.brand-title {
+  line-height: 1.05;
+}
+
+.brand-title .main {
+  display: block;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.brand-title .sub {
+  display: block;
+  font-size: 0.84rem;
+  color: #6c757d;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f6f7f9 0%, #eef2f6 100%);
+}
+
+.login-shell {
+  width: 100%;
+  max-width: 980px;
+}
+
+.login-card {
+  border: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 55px rgba(25, 37, 63, 0.12);
+}
+
+.login-side {
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+  padding: 40px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.login-brand img {
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+}
+
+.login-title {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--brand-dark);
+  line-height: 1.15;
+}
+
+.login-subtitle {
+  color: #6c757d;
+}
+
+.login-form-wrap {
+  background: #fff;
+  padding: 40px;
+}
+
+.metric-card,
+.quick-link-card {
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 10px 25px rgba(26, 39, 68, 0.07);
+}
+
+.metric-card .metric-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.metric-card .metric-label {
+  color: #6c757d;
+  margin-bottom: 6px;
+}
+
+.dashboard-hero {
+  border: 0;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7f9fc 100%);
+  box-shadow: 0 12px 30px rgba(26, 39, 68, 0.07);
+}
+
+.section-title {
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.compact-passport-block {
+  border: 1px solid #e9ecef;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  height: 100%;
+}
+
+.compact-passport-block h6 {
+  font-size: 0.84rem;
+  letter-spacing: .04em;
+  margin-bottom: 10px;
+  color: #6c757d;
+}
+
+.compact-passport-row + .compact-passport-row {
+  margin-top: 6px;
+}
+
+.table-number-col {
+  width: 70px;
+}
+
+@media (max-width: 767.98px) {
+  .login-side,
+  .login-form-wrap {
+    padding: 26px;
+  }
+
+  .login-title {
+    font-size: 1.45rem;
+  }
+
+  .navbar-logo {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+
+.year-inline-form {
+  margin: 0;
+}
+
+.year-inline-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 120px;
+  gap: 10px;
+  align-items: end;
+}
+
+.year-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.academic-years-table td,
+.academic-years-table th {
+  vertical-align: middle;
+}
+
+@media (max-width: 991.98px) {
+  .year-inline-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .year-inline-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.navbar {
+  box-shadow: 0 6px 22px rgba(26, 39, 68, 0.04);
+}
+
+.navbar-brand {
+  padding-top: .35rem;
+  padding-bottom: .35rem;
+}
+
+.navbar-logo {
+  width: 46px;
+  height: 46px;
+}
+
+.container {
+  max-width: 1320px;
+}
+
+.dashboard-shell {
+  display: block;
+}
+
+.dashboard-topbar,
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  background: #fff;
+  border: 1px solid #e9edf3;
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgba(26, 39, 68, 0.05);
+}
+
+.dashboard-title {
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
+.dashboard-year-badge {
+  white-space: nowrap;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #f7f9fc;
+  border: 1px solid #e3e8f0;
+  color: var(--brand-dark);
+  font-weight: 600;
+}
+
+.dashboard-section {
+  background: #fff;
+  border: 1px solid #e9edf3;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 10px 28px rgba(26, 39, 68, 0.05);
+}
+
+.section-overline {
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #7a8798;
+  margin-bottom: 6px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-note {
+  color: #7a8798;
+  font-size: .9rem;
+}
+
+.summary-card,
+.home-card,
+.mini-stat-card,
+.panel-card {
+  background: #fff;
+  border: 1px solid #e9edf3;
+  border-radius: 18px;
+}
+
+.summary-card {
+  display: block;
+  padding: 18px 20px;
+  height: 100%;
+  color: inherit;
+  box-shadow: 0 8px 18px rgba(26, 39, 68, 0.04);
+}
+
+.summary-card:hover,
+.home-card:hover {
+  transform: translateY(-1px);
+  transition: .15s ease;
+}
+
+.summary-card-label,
+.mini-stat-label {
+  font-size: .9rem;
+  color: #7a8798;
+  margin-bottom: 8px;
+}
+
+.summary-card-value,
+.mini-stat-value {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.mini-stat-value-sm {
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  height: 100%;
+  padding: 20px;
+  box-shadow: 0 8px 18px rgba(26, 39, 68, 0.04);
+}
+
+.home-card h5 {
+  margin-bottom: 8px;
+  color: var(--brand-dark);
+}
+
+.home-card p {
+  margin: 0;
+  color: #6f7a88;
+}
+
+.mini-stat-card {
+  height: 100%;
+  padding: 16px 18px;
+  background: #f9fbfd;
+}
+
+.compact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.compact-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #dce4ee;
+  background: #f8fafc;
+  color: var(--brand-dark);
+  text-decoration: none;
+  font-size: .92rem;
+}
+
+.compact-link:hover {
+  background: #eef3f8;
+}
+
+.compact-link-button {
+  font: inherit;
+}
+
+.panel-card {
+  overflow: hidden;
+  box-shadow: 0 8px 18px rgba(26, 39, 68, 0.04);
+}
+
+.panel-card-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid #edf1f5;
+  background: #fff;
+}
+
+.panel-card-body {
+  padding: 18px;
+}
+
+.year-actions-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.year-actions-line form {
+  margin: 0;
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-topbar,
+  .page-head,
+  .section-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-year-badge {
+    white-space: normal;
+  }
+}
+
+
+.section-subtitle {
+  margin: 0 0 12px;
+  font-size: .88rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #6f7a88;
+}
+
+.action-card {
+  min-height: 220px;
+  padding: 24px;
+}
+
+.action-card h5 {
+  font-size: 1.55rem;
+  margin-bottom: 10px;
+}
+
+.action-card p {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.action-card-primary {
+  border-color: #d7e4ff;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+}
+
+.action-card-accent {
+  border-color: #dce4ee;
+  box-shadow: 0 12px 28px rgba(26, 39, 68, 0.06);
+}
+
+.secondary-card {
+  min-height: 190px;
+}
+
+.secondary-card h5 {
+  font-size: 1.28rem;
+}
+
+.compact-links-lg {
+  gap: 12px;
+}
+
+.compact-link-lg {
+  padding: 12px 18px;
+  font-size: 1rem;
+  font-weight: 500;
+  background: #ffffff;
+  border-color: #d6e0eb;
+  box-shadow: 0 4px 10px rgba(26, 39, 68, 0.03);
+}

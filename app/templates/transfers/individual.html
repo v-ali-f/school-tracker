@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Индивидуальный перевод / условный перевод / повторное обучение</h3>
+<div class="card"><div class="card-body">
+<form method="post" class="row g-2">
+  <div class="col-md-4"><label class="form-label">Ученик</label><select class="form-select" name="child_id" required><option value="">—</option>{% for c in children %}<option value="{{ c.id }}">{{ c.fio }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Учебный год</label><select class="form-select" name="year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Целевой класс</label><select class="form-select" name="to_class_id" required><option value="">—</option>{% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Тип перевода</label><select class="form-select" name="transfer_type"><option value="MANUAL">Ручной перевод</option><option value="CONDITIONAL">Условный перевод</option><option value="REPEAT">Повторное обучение</option><option value="PROMOTED">Перевод</option></select></div>
+  <div class="col-md-3"><label class="form-label">Дата</label><input type="date" class="form-control" name="transfer_date"></div>
+  <div class="col-md-9"><label class="form-label">Комментарий</label><input class="form-control" name="comment" placeholder="Основание, примечание"></div>
+  <div class="col-12"><button class="btn btn-success">Сохранить</button></div>
+</form>
+</div></div>
+{% endblock %}

@@ -1,0 +1,46 @@
+<form method="get" class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учебный год</label>
+        <select class="form-select" name="academic_year_id">
+          <option value="">Все</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Предмет</label>
+        <select class="form-select" name="subject_id">
+          <option value="">Все</option>
+          {% for s in subjects %}
+          <option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" name="grade">
+          <option value="">Все</option>
+          {% for grade in parallels %}
+          <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Класс</label>
+        <select class="form-select" name="class_id">
+          <option value="">Все</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-4 col-md-8 d-flex gap-2">
+        <button class="btn btn-primary w-100" type="submit">Показать</button>
+        <a class="btn btn-outline-secondary" href="{{ request.path }}">Сброс</a>
+      </div>
+    </div>
+  </div>
+</form>

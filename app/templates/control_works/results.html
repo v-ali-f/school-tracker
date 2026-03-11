@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+{% block content %}
+<h4 class="mb-1">Заполнение результатов</h4>
+<div class="text-muted mb-3">{{ work.subject_name }} — {{ work.theme }} · {{ assignment.school_class.name if assignment.school_class else 'Класс не указан' }}</div>
+<div class="alert alert-info">Максимум за работу: <strong>{{ max_total }}</strong></div>
+<form method="post" class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Ученик</th>
+          {% for task in tasks %}
+            <th class="text-center" style="min-width: 120px">Задание {{ task.task_number }}<br><small class="text-muted">0–{{ task.max_score }}</small></th>
+          {% endfor %}
+          <th class="text-center" style="min-width: 120px">Сумма</th>
+          <th class="text-center" style="min-width: 120px">%</th>
+          <th class="text-center" style="min-width: 120px">Отметка</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for en in enrollments %}
+        {% set row = existing.get(en.child_id) %}
+        <tr>
+          <td>{{ en.child.fio }}</td>
+          {% for task in tasks %}
+            {% set value = posted_scores.get((en.child_id, task.id), '') %}
+            <td>
+              <input
+                class="form-control form-control-sm text-center task-score"
+                type="number"
+                min="0"
+                max="{{ task.max_score }}"
+                step="1"
+                data-max="{{ task.max_score }}"
+                data-child="{{ en.child_id }}"
+                name="task_{{ task.id }}_{{ en.child_id }}"
+                value="{{ value }}"
+              >
+            </td>
+          {% endfor %}
+          <td class="text-center fw-semibold total-cell" data-child="{{ en.child_id }}">{{ row.total_score if row and not posted_scores else '—' }}</td>
+          <td class="text-center percent-cell" data-child="{{ en.child_id }}">{% if row and row.percent is not none and not posted_scores %}{{ '%.0f'|format(row.percent) }}%{% else %}—{% endif %}</td>
+          <td class="text-center fw-semibold mark-cell" data-child="{{ en.child_id }}">{{ row.mark if row and row.mark is not none and not posted_scores else '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ 4 + (tasks|length) }}" class="text-muted">В текущем учебном году у класса нет активных учеников.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body pt-3">
+    <div class="small text-muted mb-3">Отметка рассчитывается автоматически по проценту: 85–100% = 5, 65–84% = 4, 45–64% = 3, ниже 45% = 2.</div>
+    <button class="btn btn-success">Сохранить результаты</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.view_control_work', work_id=work.id) }}">Назад</a>
+  </div>
+</form>
+
+<script>
+(function() {
+  const maxTotal = {{ max_total or 0 }};
+
+  function markFromPercent(percent) {
+    if (percent === null || Number.isNaN(percent)) return '—';
+    if (percent >= 85) return '5';
+    if (percent >= 65) return '4';
+    if (percent >= 45) return '3';
+    return '2';
+  }
+
+  function recalc(childId) {
+    const inputs = Array.from(document.querySelectorAll('.task-score[data-child="' + childId + '"]'));
+    let total = 0;
+    let hasValue = false;
+
+    inputs.forEach((input) => {
+      const raw = input.value.trim();
+      const max = Number(input.dataset.max || 0);
+      if (raw === '') {
+        input.setCustomValidity('');
+        return;
+      }
+      hasValue = true;
+      let value = Number(raw);
+      if (!Number.isInteger(value)) {
+        input.setCustomValidity('Нужно целое число');
+        return;
+      }
+      if (value < 0) value = 0;
+      if (value > max) value = max;
+      if (String(value) !== raw) input.value = value;
+      input.setCustomValidity('');
+      total += value;
+    });
+
+    const totalCell = document.querySelector('.total-cell[data-child="' + childId + '"]');
+    const percentCell = document.querySelector('.percent-cell[data-child="' + childId + '"]');
+    const markCell = document.querySelector('.mark-cell[data-child="' + childId + '"]');
+
+    if (!hasValue) {
+      totalCell.textContent = '—';
+      percentCell.textContent = '—';
+      markCell.textContent = '—';
+      return;
+    }
+
+    totalCell.textContent = total;
+    const percent = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : null;
+    percentCell.textContent = percent === null ? '—' : percent + '%';
+    markCell.textContent = markFromPercent(percent);
+  }
+
+  const allInputs = document.querySelectorAll('.task-score');
+  allInputs.forEach((input) => {
+    input.addEventListener('input', () => recalc(input.dataset.child));
+    input.addEventListener('change', () => recalc(input.dataset.child));
+  });
+
+  const childIds = [...new Set(Array.from(allInputs).map((input) => input.dataset.child))];
+  childIds.forEach(recalc);
+})();
+</script>
+{% endblock %}

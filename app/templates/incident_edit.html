@@ -1,0 +1,232 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">Изменить инцидент</h4>
+    <div class="text-muted" style="font-size:0.95em;">Можно исправить дату, время, категорию, описание и участников.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-warning" href="{{ url_for('children.incidents_registry') }}">Реестр</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" id="incidentForm">
+      <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Дата</label>
+          <input class="form-control" type="date" name="occurred_date" value="{{ incident.occurred_at.strftime('%Y-%m-%d') if incident.occurred_at else '' }}" required>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Время</label>
+          <div class="d-flex gap-2">
+            <select class="form-select" name="occurred_hour" required>
+              {% set current_hour = incident.occurred_at.strftime('%H') if incident.occurred_at else '' %}
+              {% for h in range(0,24) %}
+                {% set val = "%02d"|format(h) %}
+                <option value="{{ val }}" {% if current_hour == val %}selected{% endif %}>{{ val }}</option>
+              {% endfor %}
+            </select>
+
+            <select class="form-select" name="occurred_minute" required>
+              {% set current_minute = incident.occurred_at.strftime('%M') if incident.occurred_at else '' %}
+              {% for m in range(0,60,5) %}
+                {% set val = "%02d"|format(m) %}
+                <option value="{{ val }}" {% if current_minute == val %}selected{% endif %}>{{ val }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-text text-muted">Минуты с шагом 5</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Категория</label>
+          <select class="form-select" name="category" required>
+            <option value="">— выбрать —</option>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if incident.category == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <hr class="my-3">
+
+      <label class="form-label mb-1">Участники (дети)</label>
+      <div id="participants"></div>
+
+      <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addParticipantBtn">
+        + Добавить ученика
+      </button>
+
+      <div class="mt-3">
+        <label class="form-label">Описание</label>
+        <textarea class="form-control" name="description" rows="4" placeholder="Кратко опишите ситуацию">{{ incident.description or '' }}</textarea>
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary">Сохранить изменения</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_registry') }}">Отмена</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<script>
+const initialBlocks = {{ selected_blocks|tojson }};
+let idx = 0;
+
+function participantBlock(i) {
+  const grades = Array.from({length: 11}, (_,k)=>k+1)
+    .map(n=>`<option value="${n}">${n}</option>`)
+    .join("");
+
+  return `
+  <div class="border rounded p-2 mb-2" data-i="${i}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Параллель</label>
+        <select class="form-select gradeSel">
+          <option value="">—</option>
+          ${grades}
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Класс</label>
+        <select class="form-select classSel" disabled>
+          <option value="">—</option>
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Ученик(и)</label>
+        <select class="form-select childSel" name="child_ids" multiple size="10" disabled required>
+          <option value="">—</option>
+        </select>
+        <div class="form-text text-muted">Можно выбрать несколько: Ctrl/⌘ + клик</div>
+      </div>
+
+      <div class="col-md-1 text-end">
+        <button type="button" class="btn btn-outline-danger btn-sm removeBtn" title="Убрать">×</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setLoading(selectEl, text){
+  selectEl.innerHTML = `<option value="">${text || "Загрузка..."}</option>`;
+  selectEl.disabled = true;
+}
+
+async function loadClasses(grade, classSelect, selectedClassId) {
+  classSelect.innerHTML = `<option value="">—</option>`;
+  classSelect.disabled = true;
+  if (!grade) return;
+
+  try {
+    setLoading(classSelect, "Загрузка классов...");
+    const res = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(grade)}`);
+    const data = await res.json();
+
+    classSelect.innerHTML = `<option value="">— выбрать —</option>`;
+    data.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      if (String(selectedClassId || "") === String(c.id)) opt.selected = true;
+      classSelect.appendChild(opt);
+    });
+    classSelect.disabled = false;
+  } catch(e) {
+    classSelect.innerHTML = `<option value="">Ошибка загрузки</option>`;
+    classSelect.disabled = true;
+  }
+}
+
+async function loadChildren(classId, childSelect, selectedChildIds) {
+  childSelect.innerHTML = "";
+  childSelect.disabled = true;
+  if (!classId) return;
+
+  const res = await fetch(`/api/children/by-class?class_id=${encodeURIComponent(classId)}`);
+  const data = await res.json();
+
+  data.forEach(ch => {
+    const opt = document.createElement("option");
+    opt.value = ch.id;
+    opt.textContent = ch.fio;
+    if ((selectedChildIds || []).map(String).includes(String(ch.id))) opt.selected = true;
+    childSelect.appendChild(opt);
+  });
+  childSelect.disabled = false;
+}
+
+async function addParticipant(initialData) {
+  const container = document.getElementById("participants");
+  container.insertAdjacentHTML("beforeend", participantBlock(idx));
+
+  const block = container.querySelector(`[data-i="${idx}"]`);
+  const gradeSel = block.querySelector(".gradeSel");
+  const classSel = block.querySelector(".classSel");
+  const childSel = block.querySelector(".childSel");
+
+  gradeSel.addEventListener("change", async () => {
+    childSel.innerHTML = "";
+    childSel.disabled = true;
+    await loadClasses(gradeSel.value, classSel, "");
+  });
+
+  classSel.addEventListener("change", async () => {
+    childSel.innerHTML = "";
+    childSel.disabled = true;
+    await loadChildren(classSel.value, childSel, []);
+  });
+
+  block.querySelector(".removeBtn").addEventListener("click", () => {
+    block.remove();
+  });
+
+  idx += 1;
+
+  if (initialData) {
+    if (initialData.grade) gradeSel.value = String(initialData.grade);
+    if (initialData.grade) {
+      await loadClasses(initialData.grade, classSel, initialData.class_id || "");
+    }
+    if (initialData.class_id) {
+      await loadChildren(initialData.class_id, childSel, initialData.child_ids || []);
+    }
+  }
+}
+
+document.getElementById("addParticipantBtn").addEventListener("click", () => addParticipant(null));
+
+(async function init(){
+  if (initialBlocks.length > 0) {
+    for (const block of initialBlocks) {
+      await addParticipant(block);
+    }
+  } else {
+    await addParticipant(null);
+  }
+})();
+
+document.getElementById("incidentForm").addEventListener("submit", (e) => {
+  const selects = Array.from(document.querySelectorAll('select[name="child_ids"]'));
+  const chosen = selects.flatMap(s => Array.from(s.selectedOptions).map(o => o.value)).filter(v => v && v !== "");
+  if (chosen.length === 0){
+    e.preventDefault();
+    alert("Выберите хотя бы одного ребёнка.");
+  }
+});
+</script>
+
+{% endblock %}

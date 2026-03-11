@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div><h3 class="mb-0">{{ title }}</h3><div class="text-muted" style="font-size:0.95em;">Сформировано из событий отчисления</div></div>
+  <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a><a class="btn btn-outline-success" href="{{ export_url }}">Excel</a></div>
+</div>
+<div class="card mb-3"><div class="card-body"><form method="get" class="row g-2 align-items-end">
+  <div class="col-md-2"><label class="form-label">Параллель</label><select name="grade" class="form-select" onchange="this.form.submit()"><option value="">Все</option>{% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Класс</label><select name="class_id" class="form-select"><option value="">Все</option>{% for cls in classes %}<option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label">ФИО</label><input type="text" name="q" value="{{ q_text }}" class="form-control" placeholder="Поиск по ФИО"></div>
+  <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Показать</button><a class="btn btn-outline-secondary" href="{{ url_for('children.registry_expelled') }}">Сбросить</a></div>
+</form></div></div>
+<div class="card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle"><thead><tr><th class="table-number-col">№</th><th>ФИО</th><th style="width:90px;">Откуда</th><th style="width:140px;">Дата</th><th>Куда</th><th>Основание</th></tr></thead><tbody>{% for r in rows %}<tr><td class="text-muted">{{ loop.index }}</td><td>{% if r.child %}<a href="{{ url_for('children.child_card', child_id=r.child.id) }}">{{ r.child.fio }}</a>{% else %}—{% endif %}</td><td class="text-muted">{{ r.ev.from_class or "—" }}</td><td class="text-muted">{% if r.ev.created_at %}{{ r.ev.created_at.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td><td>{{ r.ev.to_class or "—" }}</td><td>{{ r.ev.reason or "—" }}</td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endif %}</tbody></table></div></div>
+{% endblock %}

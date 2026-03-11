@@ -1,0 +1,156 @@
+{% extends "layout.html" %}
+{% block content %}
+<h4 class="mb-3">{{ 'Изменить настройки контрольной' if work else 'Новая контрольная работа' }}</h4>
+<form method="post" class="card">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Предмет</label>
+        <select id="subject-select" class="form-select" name="subject_id" required>
+          <option value="">Выберите предмет</option>
+          {% for s in subjects %}
+            {% set selected_subject = request.form.get('subject_id') or (work.subject_id if work else None) %}
+            <option value="{{ s.id }}" {% if selected_subject|int == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-8"><label class="form-label">Тема</label><input class="form-control" name="theme" value="{{ request.form.get('theme', work.theme if work else '') }}" required></div>
+      <div class="col-md-3"><label class="form-label">Дата работы</label><input class="form-control" type="date" name="work_date" value="{{ request.form.get('work_date', work.work_date.isoformat() if work and work.work_date else '') }}"></div>
+      <div class="col-md-3"><label class="form-label">Срок сдачи отчёта</label><input class="form-control" type="date" name="deadline_date" value="{{ request.form.get('deadline_date', work.deadline_date.isoformat() if work and work.deadline_date else '') }}"></div>
+      <div class="col-md-3"><label class="form-label">Количество заданий</label><input id="task-count" class="form-control" type="number" min="1" max="20" name="task_count" value="{{ task_count or 5 }}"></div>
+      <div class="col-md-3"><label class="form-label">Параллель</label>
+        <select id="parallel-filter" class="form-select" name="parallel_filter">
+          <option value="">Все параллели</option>
+          {% for grade in parallels %}
+            <option value="{{ grade }}">{{ grade }} класс</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <hr>
+    <h6>Критерии оценивания</h6>
+    <div class="row g-3">
+      <div class="col-md-4"><label class="form-label">Оценка 5, от %</label><input class="form-control" type="number" min="0" max="100" name="grade5_percent" value="{{ request.form.get('grade5_percent', work.grade5_percent if work else 85) }}"></div>
+      <div class="col-md-4"><label class="form-label">Оценка 4, от %</label><input class="form-control" type="number" min="0" max="100" name="grade4_percent" value="{{ request.form.get('grade4_percent', work.grade4_percent if work else 65) }}"></div>
+      <div class="col-md-4"><label class="form-label">Оценка 3, от %</label><input class="form-control" type="number" min="0" max="100" name="grade3_percent" value="{{ request.form.get('grade3_percent', work.grade3_percent if work else 45) }}"></div>
+    </div>
+
+    <hr>
+    <h6>Задания</h6>
+    <div class="small text-muted mb-2">Для каждого задания можно задать максимальный балл, краткое описание и тему для аналитики.</div>
+    <div id="tasks-grid">
+      {% for i in range(1, (task_count or 5) + 1) %}
+      {% set task = (work.tasks|sort(attribute='task_number'))[i-1] if work and work.tasks and (work.tasks|length) >= i else None %}
+      <div class="border rounded p-3 mb-3 task-block">
+        <div class="row g-3">
+          <div class="col-md-2"><label class="form-label">Задание {{ i }}</label><input class="form-control" type="number" min="0" name="max_score_{{ i }}" value="{{ request.form.get('max_score_' ~ i, task.max_score if task else 1) }}"></div>
+          <div class="col-md-5"><label class="form-label">Описание</label><input class="form-control" name="description_{{ i }}" value="{{ request.form.get('description_' ~ i, task.description if task else '') }}" placeholder="Например: текстовая задача"></div>
+          <div class="col-md-5"><label class="form-label">Тема</label><input class="form-control" name="topic_{{ i }}" value="{{ request.form.get('topic_' ~ i, task.topic if task else '') }}" placeholder="Например: дроби"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <hr>
+    <h6>Классы и учителя</h6>
+    <div class="small text-muted mb-2">Сначала выберите параллель и предмет. Если по классу уже есть нагрузка, учитель подставится автоматически. При необходимости назначение можно изменить вручную.</div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th></th><th>Параллель</th><th>Класс</th><th>Назначенный учитель</th></tr></thead>
+        <tbody id="classes-table-body">
+        {% for c in classes %}
+          {% set selected_ids = request.form.getlist('class_ids') if request.method == 'POST' else (selected_class_ids or []) %}
+          {% set selected = (c.id|string) in selected_ids or c.id in selected_ids %}
+          {% set teacher_selected = request.form.get('teacher_for_' ~ c.id) if request.method == 'POST' else ((teacher_by_class.get(c.id) if teacher_by_class and teacher_by_class.get(c.id) else None) or (auto_teacher_by_class.get(c.id) if auto_teacher_by_class else None)) %}
+          <tr class="class-row" data-grade="{{ c.grade or '' }}">
+            <td><input class="form-check-input" type="checkbox" name="class_ids" value="{{ c.id }}" {% if selected %}checked{% endif %}></td>
+            <td>{{ c.grade or '—' }}</td>
+            <td>{{ c.name }}</td>
+            <td>
+              <select class="form-select form-select-sm teacher-select" name="teacher_for_{{ c.id }}" data-class-id="{{ c.id }}">
+                <option value="">—</option>
+                {% set load_options = teacher_options_map.get(c.id, []) if teacher_options_map else [] %}
+                {% if load_options %}
+                  {% for t in load_options %}
+                    <option value="{{ t.id }}" {% if teacher_selected and teacher_selected|int == t.id %}selected{% endif %}>{{ t.name }}</option>
+                  {% endfor %}
+                {% else %}
+                  {% for t in teachers %}
+                    <option value="{{ t.id }}" {% if teacher_selected and teacher_selected|int == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button class="btn btn-success" type="submit">{{ 'Сохранить изменения' if work else 'Создать контрольную' }}</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.view_control_work', work_id=work.id) if work else url_for('control_works.list_control_works') }}">Отмена</a>
+    </div>
+  </div>
+</form>
+
+<script>
+  const taskCountInput = document.getElementById('task-count');
+  const subjectSelect = document.getElementById('subject-select');
+  const parallelFilter = document.getElementById('parallel-filter');
+
+  taskCountInput?.addEventListener('change', () => {
+    const form = taskCountInput.form;
+    if (form) form.submit();
+  });
+
+  function applyParallelFilter() {
+    const grade = parallelFilter?.value || '';
+    document.querySelectorAll('.class-row').forEach(row => {
+      row.style.display = (!grade || row.dataset.grade === grade) ? '' : 'none';
+    });
+  }
+
+  async function reloadTeachersByLoad() {
+    const subjectId = subjectSelect?.value || '';
+    if (!subjectId) return;
+    const params = new URLSearchParams();
+    params.set('subject_id', subjectId);
+    if (parallelFilter?.value) params.set('parallel', parallelFilter.value);
+    document.querySelectorAll('.teacher-select').forEach(select => params.append('class_id', select.dataset.classId));
+    const response = await fetch(`{{ url_for('control_works.teachers_by_load_api') }}?${params.toString()}`);
+    if (!response.ok) return;
+    const data = await response.json();
+    document.querySelectorAll('.teacher-select').forEach(select => {
+      const currentValue = select.value;
+      const options = data[String(select.dataset.classId)] || [];
+      const shouldAutoAssign = !currentValue || currentValue === '';
+      if (!options.length) return;
+      select.innerHTML = '<option value="">—</option>';
+      options.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = item.name;
+        option.dataset.preferred = item.preferred ? '1' : '0';
+        if (String(item.id) === String(currentValue)) option.selected = true;
+        select.appendChild(option);
+      });
+      if (shouldAutoAssign) {
+        const preferred = options.find(item => item.preferred);
+        if (preferred) {
+          select.value = String(preferred.id);
+        } else if (options.length === 1) {
+          select.value = String(options[0].id);
+        }
+      }
+    });
+  }
+
+  parallelFilter?.addEventListener('change', async function() {
+    applyParallelFilter();
+    await reloadTeachersByLoad();
+  });
+  subjectSelect?.addEventListener('change', reloadTeachersByLoad);
+  applyParallelFilter();
+</script>
+{% endblock %}

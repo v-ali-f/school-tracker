@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h3 class="mb-1">Управленческий контур v45</h3>
+    <div class="text-muted">Dashboard, сводка по школе, аналитика по параллелям и индикаторы риска.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('management.contingent_report', year_id=selected_year_id) }}">Отчёты по контингенту</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label">Учебный год</label>
+      <select class="form-select" name="year_id" onchange="this.form.submit()">
+        {% for y in years %}
+        <option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}{% if y.is_current %} • текущий{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+</div></div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-2 col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted">Всего учеников</div><div class="fs-3 fw-bold">{{ summary.students }}</div></div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted">Классов</div><div class="fs-3 fw-bold">{{ summary.classes }}</div></div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted">Мальчики</div><div class="fs-3 fw-bold">{{ summary.boys }}</div></div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted">Девочки</div><div class="fs-3 fw-bold">{{ summary.girls }}</div></div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card h-100 border-warning"><div class="card-body"><div class="text-muted">Инциденты сегодня</div><div class="fs-3 fw-bold">{{ summary.incidents_today }}</div></div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card h-100 border-success"><div class="card-body"><div class="text-muted">Свободные места</div><div class="fs-3 fw-bold">{{ summary.free_places }}</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card h-100 border-primary"><div class="card-body"><div class="text-muted">ОВЗ</div><div class="fs-3 fw-bold">{{ summary.ovz }}</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100 border-warning"><div class="card-body"><div class="text-muted">ВШУ</div><div class="fs-3 fw-bold">{{ summary.vshu }}</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100 border-danger"><div class="card-body"><div class="text-muted">Низкие результаты</div><div class="fs-3 fw-bold">{{ summary.low_results }}</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100 border-secondary"><div class="card-body"><div class="text-muted">Сопровождение (активное)</div><div class="fs-3 fw-bold">{{ summary.support_open }}</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Аналитика по параллелям</h5>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Параллель</th><th>Классов</th><th>Учеников</th><th>М</th><th>Ж</th><th>ОВЗ</th><th>ВШУ</th><th>Низкие результаты</th><th>Инциденты / мес</th><th>Риск</th></tr></thead>
+          <tbody>
+            {% for row in parallel_stats %}
+            <tr>
+              <td><b>{{ row.parallel }}</b></td><td>{{ row.classes }}</td><td>{{ row.students }}</td><td>{{ row.boys }}</td><td>{{ row.girls }}</td><td>{{ row.ovz }}</td><td>{{ row.vshu }}</td><td>{{ row.low_results }}</td><td>{{ row.incident_month }}</td>
+              <td><span class="badge text-bg-{{ row.risk_color }}">{{ row.risk_label }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="10" class="text-muted">Нет данных</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Индикаторы риска</h5>
+      {% for item in risk_indicators %}
+      <div class="border rounded p-3 mb-2 bg-light">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <div class="fw-semibold">{{ item.name }}</div>
+          <span class="badge text-bg-{{ item.color }}">{{ item.value }}</span>
+        </div>
+        <div class="small text-muted mt-1">{{ item.details }}</div>
+      </div>
+      {% else %}
+      <div class="text-muted">Нет данных для расчёта индикаторов.</div>
+      {% endfor %}
+    </div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('children.contingent', year_id=selected_year_id) }}">Сводка по школе</a>
+    <a class="btn btn-outline-dark" href="{{ url_for('management.contingent_report', year_id=selected_year_id) }}">Отчёт по контингенту</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('transfers.index') }}">История движения</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('core.support_registry') }}">Реестр сопровождения</a>
+  </div>
+</div>
+{% endblock %}
