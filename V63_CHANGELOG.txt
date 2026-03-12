@@ -1,0 +1,16 @@
+V63 CHANGELOG
+
+Основные изменения:
+- введен канонический пакет app/models/ с доменными wrapper-модулями
+- исходный монолит моделей перенесен в app/models_legacy.py как compatibility-слой
+- добавлены app/queries/ и недостающие каркасы модулей для дальнейшего переноса
+- CLI приведен к набору команд v63: init-db, seed-initial-data, create-admin, repair-runtime-columns, seed-olympiads, seed-academic-year
+- лимит загрузки файлов увеличен до 200 МБ для импорта ZIP с результатами олимпиад
+- добавлен .env.example
+- обновлен .gitignore
+- архив очищен от .env, .git, .venv, *.db, __pycache__, .DS_Store, локальных upload-артефактов
+
+Совместимость:
+- действующая бизнес-логика пока остается в legacy-модулях app/*.py
+- package app/modules/* продолжает использовать compatibility-wrapper на верхнеуровневые blueprints
+- runtime repair оставлен как аварийный механизм, но не как основной путь развития

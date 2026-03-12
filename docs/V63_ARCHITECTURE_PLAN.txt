@@ -1,0 +1,33 @@
+ПЛАН АРХИТЕКТУРЫ V63
+
+Что уже переведено:
+1. create_app использует слой app.core
+2. расширения берутся из app.core.extensions
+3. регистрация blueprint идет через app.modules
+4. модели вынесены в канонический пакет app/models
+5. CLI-команды собраны в app/cli
+
+Что осталось в compatibility-режиме:
+- auth.py
+- users.py
+- children.py
+- classes.py
+- departments.py
+- documents.py
+- olympiads.py
+- orders.py
+- reports.py
+- management.py
+- main.py
+- academic.py
+- control_works.py
+- debts.py
+- importer.py
+- transfers.py
+
+Рекомендуемый следующий шаг:
+1. перенос routes по доменам из legacy-файлов в app/modules/<domain>/routes.py
+2. перенос тяжелых SQLAlchemy-выборок в app/queries
+3. перенос бизнес-логики импорта и агрегаций в domain services
+4. фиксация схемы только через Flask-Migrate/Alembic
+5. поэтапное удаление compatibility-wrapper после тестирования

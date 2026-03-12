@@ -1,22 +1,50 @@
-# school-tracker v62
+# school-tracker v63
 
-Архитектурно переработанная версия проекта по ТЗ v62.
+Версия v63 завершает архитектурный переход в безопасном compatibility-режиме.
 
-## Что изменено
-- app/__init__.py оставлен только как фабрика приложения
-- единая точка расширений перенесена в app/core/extensions.py
-- регистрация blueprint вынесена в app/core/module_registry.py
-- context processors вынесены в app/core/context_processors.py
-- добавлен пакет app/models/ с переходным разбиением моделей по доменам
-- runtime-ремонт схемы и seed вынесены в CLI-команды
-- добавлены instance/, uploads/, data_seed/, tests/
+## Быстрый запуск
 
-## Первый запуск
-1. Скопировать .env.example в .env
-2. Заполнить DATABASE_URL
-3. Установить зависимости: pip install -r requirements.txt
-4. Выполнить: flask init-db ; flask repair-runtime-columns ; flask seed-olympiads ; flask seed-academic-year
-5. Запуск: python run.py
+1. Создайте файл `.env` по образцу `.env.example`.
+2. Установите зависимости:
+   `pip install -r requirements.txt`
+3. Выполните миграции:
+   `flask db upgrade`
+4. Инициализируйте стартовые данные:
+   `flask seed-initial-data`
+5. Создайте администратора:
+   `flask create-admin --username admin --password admin123`
+6. При необходимости создайте текущий учебный год:
+   `flask seed-academic-year --name 2025/2026`
+7. Запустите приложение:
+   `python run.py`
 
-## Важно
-В v62 сохранён compatibility-layer. Старые плоские модули пока не удалены полностью, а остаются как переходный слой до полного переноса в app/modules/.
+## Команды CLI
+
+- `flask init-db`
+- `flask db upgrade`
+- `flask db migrate -m "message"`
+- `flask seed-initial-data`
+- `flask create-admin`
+- `flask repair-runtime-columns`
+- `flask seed-olympiads`
+- `flask seed-academic-year`
+
+## Архитектура
+
+Канонический слой моделей находится в `app/models/`.
+Переходный compatibility-слой находится в `app/models_legacy.py`.
+Основные legacy-blueprint-файлы сохранены, но используются как временный слой до полного переноса доменных модулей.
+
+## Обновление существующей базы
+
+1. Сделайте резервную копию базы.
+2. Обновите код проекта.
+3. Выполните `flask db upgrade`.
+4. Только в аварийном случае выполните `flask repair-runtime-columns`.
+
+## Новая чистая база
+
+1. Создайте БД и укажите `DATABASE_URL` в `.env`.
+2. Выполните `flask db upgrade`.
+3. Выполните `flask seed-initial-data`.
+4. Выполните `flask create-admin`.
