@@ -7,8 +7,7 @@ import re
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import current_user
-
-from . import db
+from app.core.extensions import db
 from .models import (
     AcademicYear,
     SchoolClass,

@@ -5,7 +5,7 @@ from datetime import datetime, date
 import re
 
 from .models import Child
-from . import db
+from app.core.extensions import db
 
 import_bp = Blueprint("importer", __name__)
 

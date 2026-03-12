@@ -4,7 +4,7 @@ from flask import Blueprint, render_template
 from flask_login import login_required
 from sqlalchemy import func, or_
 
-from . import db
+from app.core.extensions import db
 from .models import AcademicYear, Child, ChildEnrollment, ChildSocial, Incident, Department, TeacherLoad, ControlWork, ControlWorkResult, ChildTransferHistory, SchoolClass, User, Document, OlympiadResult
 
 main_bp = Blueprint("main", __name__)

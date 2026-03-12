@@ -7,7 +7,7 @@ from pathlib import Path
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 
-from . import db
+from app.core.extensions import db
 from .models import (
     AcademicYear,
     Child,

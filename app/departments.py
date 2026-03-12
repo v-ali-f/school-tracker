@@ -11,7 +11,7 @@ from flask_login import current_user, login_required
 from openpyxl import load_workbook
 from sqlalchemy import func
 
-from . import db
+from app.core.extensions import db
 from .models import (
     Building,
     ControlWork,

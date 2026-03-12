@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required
 from sqlalchemy import func
 
-from . import db
+from app.core.extensions import db
 from .models import AcademicYear, Child, ChildEnrollment, ChildSocial, Incident, IncidentChild, SchoolClass, SupportCase
 
 management_bp = Blueprint('management', __name__)

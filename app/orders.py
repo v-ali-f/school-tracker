@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from sqlalchemy import or_
 
-from . import db
+from app.core.extensions import db
 from .models import SchoolOrder, OrderResponsible, OrderResponsibleLink, User
 from .permissions import has_any_role
 

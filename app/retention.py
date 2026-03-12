@@ -1,7 +1,7 @@
 
 from datetime import date
 
-from . import db
+from app.core.extensions import db
 from .models import Document, TeacherLoad, TeacherMckoResult, TeacherCourse, ControlWork, ControlWorkResult
 
 

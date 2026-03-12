@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required
 from sqlalchemy import func
 from .models import Child, Debt, Subject
-from . import db
+from app.core.extensions import db
 
 reports_bp = Blueprint("reports", __name__)
 

@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
-from app import create_app, db
+from app.core.extensions import db
+from app import create_app
 from app.models import AcademicYear, SchoolClass, ChildEnrollment, Child
 
 def parse_class_name(raw: str):

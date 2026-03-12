@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
-from . import db
+from app.core.extensions import db
 from .models import (
     ControlWork, ControlWorkTask, ControlWorkAssignment, ControlWorkResult,
     SchoolClass, User, ChildEnrollment, Child, AcademicYear, Subject, TeacherLoad, DepartmentLeader

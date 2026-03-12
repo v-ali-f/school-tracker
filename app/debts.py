@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, redirect, url_for, request
 from flask_login import login_required, current_user
 from .models import Debt, Subject, Child
-from . import db
+from app.core.extensions import db
 
 debts_bp = Blueprint("debts", __name__)
 

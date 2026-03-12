@@ -1,8 +1,7 @@
 from sqlalchemy import func
 
 from app.models import AcademicYear, Child, Incident, IncidentChild, SchoolClass, ControlWorkResult
-from app import db
-
+from app.core.extensions import db
 
 class AnalyticsService:
     """Сервис управленческой аналитики для dashboard директора."""

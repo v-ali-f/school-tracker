@@ -9,7 +9,7 @@ from typing import Iterable, List
 
 from openpyxl import load_workbook
 
-from .. import db
+from app.core.extensions import db
 from ..models import OlympiadImportSession, OlympiadResult, OlympiadUnmatchedRow
 from .olympiad_matcher import (
     find_child_for_row,

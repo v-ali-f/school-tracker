@@ -4,6 +4,6 @@
 Текущий проект продолжает использовать объекты из app.__init__,
 поэтому здесь сделаны безопасные алиасы без ломки существующего кода.
 """
-from . import db, login_manager, migrate
+from app.core.extensions import db, login_manager, migrate
 
 __all__ = ['db', 'login_manager', 'migrate']

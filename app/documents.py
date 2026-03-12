@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from openpyxl import load_workbook
 
-from . import db
+from app.core.extensions import db
 from .models import Child, Document, Debt, AcademicYear, User
 from .retention import apply_retention_policies
 from .permissions import can_view_documents, can_upload_documents, is_admin

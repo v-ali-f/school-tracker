@@ -75,7 +75,7 @@ from sqlalchemy.orm import joinedload
 from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
-from . import db
+from app.core.extensions import db
 from .models import (
     AcademicYear,
     Building,

@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import current_user
 
-from . import db
+from app.core.extensions import db
 from .models import AcademicYear, Child, ChildMovement, SchoolClass, SupportCase, SystemLog
 from .roles import require_roles
 from .services.logging_service import log_action
