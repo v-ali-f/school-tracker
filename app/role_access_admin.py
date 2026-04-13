@@ -81,7 +81,7 @@ QUICK_LINK_DESCRIPTIONS = {
 MODULE_DEFAULT_ROLES = {
     "dashboard":    None,  # все
     "children":     None,  # все (карточки ограничены на уровне маршрутов)
-    "attendance":   {"ADMIN", "CLASS_TEACHER"},
+    "attendance":   {"ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"},
     "incidents":    {"ADMIN", "TEACHER", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
     "control_works":{"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST"},
     "diagnostics":  None,  # все

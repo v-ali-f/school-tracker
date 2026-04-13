@@ -80,8 +80,9 @@
         <div class="invalid-feedback">Заполните описание инцидента</div>
       </div>
 
-      {% if can_change_status %}
+      {% if can_change_status or can_assign %}
       <div class="row g-3 mt-1">
+        {% if can_change_status %}
         <div class="col-auto">
           <label class="form-label">Статус</label>
           <select class="form-select" name="status" style="max-width:200px;">
@@ -90,6 +91,8 @@
             <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Закрыт</option>
           </select>
         </div>
+        {% endif %}
+        {% if can_assign %}
         <div class="col-auto">
           <label class="form-label">Исполнитель</label>
           <select class="form-select" name="assignee_id" style="max-width:280px;">
@@ -101,6 +104,7 @@
             {% endfor %}
           </select>
         </div>
+        {% endif %}
       </div>
       {% endif %}
 

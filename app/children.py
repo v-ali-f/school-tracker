@@ -2759,6 +2759,15 @@ def _can_change_status():
     )
 
 
+def _can_assign():
+    """Только ADMIN, SOCIAL_PEDAGOG, DEPUTY_DIRECTOR могут назначать исполнителя."""
+    return (
+        has_role("ADMIN")
+        or has_role("SOCIAL_PEDAGOG")
+        or has_role("DEPUTY_DIRECTOR")
+    )
+
+
 def _can_manage_incident(incident):
     if _can_change_status():
         return True
@@ -2817,7 +2826,7 @@ def incident_edit(incident_id):
         if new_status in ("new", "in_progress", "closed") and _can_change_status():
             inc.status = new_status
 
-        if _can_change_status():
+        if _can_assign():
             assignee_id = request.form.get("assignee_id", type=int)
             inc.assignee_id = assignee_id or None
 
@@ -2852,13 +2861,13 @@ def incident_edit(incident_id):
     selected_blocks = list(grouped.values()) or [{"grade": "", "class_id": "", "child_ids": []}]
 
     assignees = []
-    if _can_change_status():
+    if _can_assign():
         from app.models_legacy import User as _User, UserRole as _UserRole, Role as _Role
         assignees = (
             _User.query
             .join(_UserRole, _UserRole.user_id == _User.id)
             .join(_Role, _Role.id == _UserRole.role_id)
-            .filter(_Role.code.in_(["ADMIN", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "METHODIST"]))
+            .filter(_Role.code.in_(["ADMIN", "SOCIAL_PEDAGOG", "DEPUTY_DIRECTOR"]))
             .order_by(_User.last_name, _User.first_name)
             .all()
         )
@@ -2873,6 +2882,7 @@ def incident_edit(incident_id):
         categories=INCIDENT_CATEGORIES,
         selected_blocks=selected_blocks,
         can_change_status=_can_change_status(),
+        can_assign=_can_assign(),
         assignees=assignees,
         notes=inc.notes,
         can_add_note=can_add_note,

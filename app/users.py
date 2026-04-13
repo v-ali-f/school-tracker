@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from openpyxl import load_workbook, Workbook
 
 from .models import User
+from app.models_legacy import Role, UserRole
 from app.core.extensions import db
 from .roles import require_roles
 from app.utils.user_matching import find_existing_user, normalize_fio, potential_duplicate_groups
@@ -192,6 +193,25 @@ def role_label(code: str) -> str:
     return ROLE_LABELS.get((code or '').upper(), code or '—')
 
 
+def _sync_user_roles_table(user: User):
+    """Синхронизирует таблицу user_role с полем user.role.
+    Если у пользователя есть записи в user_role (новая схема),
+    они перезаписываются в соответствии с user.role.
+    """
+    if not user or not user.id:
+        return
+    existing = UserRole.query.filter_by(user_id=user.id).all()
+    if not existing:
+        return
+    role_code = (user.role or "VIEWER").upper()
+    role_obj = Role.query.filter_by(code=role_code).first()
+    for ur in existing:
+        db.session.delete(ur)
+    db.session.flush()
+    if role_obj:
+        db.session.add(UserRole(user_id=user.id, role_id=role_obj.id))
+
+
 def _sync_service_specialist(user: User):
     if not user:
         return
@@ -307,6 +327,7 @@ def users_edit(user_id):
         if password:
             u.set_password(password)
 
+        _sync_user_roles_table(u)
         _sync_service_specialist(u)
         db.session.commit()
         flash("Сохранено", "success")
@@ -533,6 +554,7 @@ def users_import():
                 db.session.add(u)
                 db.session.flush()
 
+            _sync_user_roles_table(u)
             _sync_service_specialist(u)
             row_log.user_id = u.id
             row_log.password_was_changed = bool(password)

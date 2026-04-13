@@ -72,23 +72,36 @@
     color: #6c757d;
   }
   .rank-row + .rank-row {
-    margin-top: .9rem;
+    margin-top: .75rem;
   }
   .rank-meta {
     display: flex;
     justify-content: space-between;
     gap: 10px;
     font-size: .92rem;
-    margin-bottom: .35rem;
+    margin-bottom: .3rem;
   }
   .progress.rank-progress {
-    height: 12px;
+    height: 11px;
     border-radius: 999px;
     background: #f1f3f5;
+  }
+  .rank-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.2rem;
+  }
+  .incident-table {
+    font-size: .86rem;
   }
   .incident-table thead th {
     white-space: nowrap;
     background: #fff8ef;
+    padding: .55rem .75rem;
+  }
+  .incident-table tbody td {
+    padding: .5rem .75rem;
+    vertical-align: middle;
   }
   .incident-chip {
     display: inline-block;
@@ -125,6 +138,17 @@
   .status-donut-wrap { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
   .status-donut-item { display: flex; align-items: center; gap: .5rem; }
   .status-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .btn-desc-toggle {
+    background: none;
+    border: none;
+    padding: 0 0 0 3px;
+    font-size: .7rem;
+    color: #adb5bd;
+    cursor: pointer;
+    line-height: 1;
+    vertical-align: baseline;
+  }
+  .btn-desc-toggle:hover { color: #495057; }
 </style>
 
 <div class="incident-hero p-4 mb-4">
@@ -289,6 +313,7 @@
     <div class="card incident-panel h-100">
       <div class="card-body">
         <h5 class="mb-3">По классам</h5>
+        <div class="rank-cols">
         {% for name, cnt, c_id in top_classes %}
           <div class="rank-row">
             <div class="rank-meta"><span><a href="{{ url_for('children.incidents_dashboard', class_id=c_id) }}">{{ name }}</a></span><strong>{{ cnt }}</strong></div>
@@ -297,6 +322,7 @@
             </div>
           </div>
         {% endfor %}
+        </div>
         {% if top_classes|length == 0 %}
         <div class="text-center py-4 text-muted">
           <i class="bi bi-people" style="font-size:1.8rem;opacity:.2;"></i>
@@ -330,45 +356,27 @@
             <div style="width:{{ pct_done }}%;background:#22c55e;" title="Закрыты: {{ status_breakdown.closed }}"></div>
             {% endif %}
           </div>
-          <div class="status-donut-wrap mb-3">
+          <div class="status-donut-wrap">
             <div class="status-donut-item">
               <div class="status-dot" style="background:#4272d4;"></div>
               <div>
-                <div class="fw-bold" style="font-size:1.3rem;line-height:1;">{{ status_breakdown.new }}</div>
-                <div class="text-muted" style="font-size:.8rem;">Новые ({{ pct_new }}%)</div>
+                <div class="fw-bold" style="font-size:1.5rem;line-height:1;">{{ status_breakdown.new }}</div>
+                <div class="text-muted" style="font-size:.78rem;">Новые · {{ pct_new }}%</div>
               </div>
             </div>
             <div class="status-donut-item">
               <div class="status-dot" style="background:#f59e0b;"></div>
               <div>
-                <div class="fw-bold" style="font-size:1.3rem;line-height:1;">{{ status_breakdown.in_progress }}</div>
-                <div class="text-muted" style="font-size:.8rem;">В работе ({{ pct_work }}%)</div>
+                <div class="fw-bold" style="font-size:1.5rem;line-height:1;">{{ status_breakdown.in_progress }}</div>
+                <div class="text-muted" style="font-size:.78rem;">В работе · {{ pct_work }}%</div>
               </div>
             </div>
             <div class="status-donut-item">
               <div class="status-dot" style="background:#22c55e;"></div>
               <div>
-                <div class="fw-bold" style="font-size:1.3rem;line-height:1;">{{ status_breakdown.closed }}</div>
-                <div class="text-muted" style="font-size:.8rem;">Закрыты ({{ pct_done }}%)</div>
+                <div class="fw-bold" style="font-size:1.5rem;line-height:1;">{{ status_breakdown.closed }}</div>
+                <div class="text-muted" style="font-size:.78rem;">Закрыты · {{ pct_done }}%</div>
               </div>
-            </div>
-          </div>
-          <div class="rank-row">
-            <div class="rank-meta"><span>Новые</span><strong>{{ status_breakdown.new }}</strong></div>
-            <div class="progress rank-progress">
-              <div class="progress-bar" role="progressbar" style="width:{{ pct_new }}%;background:#4272d4;"></div>
-            </div>
-          </div>
-          <div class="rank-row">
-            <div class="rank-meta"><span>В работе</span><strong>{{ status_breakdown.in_progress }}</strong></div>
-            <div class="progress rank-progress">
-              <div class="progress-bar" role="progressbar" style="width:{{ pct_work }}%;background:#f59e0b;"></div>
-            </div>
-          </div>
-          <div class="rank-row">
-            <div class="rank-meta"><span>Закрыты</span><strong>{{ status_breakdown.closed }}</strong></div>
-            <div class="progress rank-progress">
-              <div class="progress-bar bg-success" role="progressbar" style="width:{{ pct_done }}%;"></div>
             </div>
           </div>
         {% else %}
@@ -388,7 +396,7 @@
         <div class="text-muted small mb-3">Кто чаще всего регистрирует инциденты — за 30 дней{% if class_id %} · по выбранному классу{% elif grade %} · {{ grade }}-е параллели{% endif %}</div>
         {% if user_activity %}
           {% for row in user_activity %}
-          <div class="rank-row">
+          <div class="rank-row{% if loop.index > 3 %} ua-extra" style="display:none{% endif %}">
             <div class="rank-meta">
               <span>{{ row.name }}</span>
               <strong>{{ row.cnt }}</strong>
@@ -399,6 +407,11 @@
             </div>
           </div>
           {% endfor %}
+          {% if user_activity|length > 3 %}
+          <button type="button" class="btn btn-link btn-sm p-0 mt-2 text-muted" id="ua-toggle-btn" onclick="toggleUserActivity(this)">
+            <span id="ua-toggle-icon">&#9660;</span> Показать ещё {{ user_activity|length - 3 }}
+          </button>
+          {% endif %}
         {% else %}
           <div class="text-center py-4 text-muted">
             <i class="bi bi-person-check" style="font-size:1.8rem;opacity:.2;"></i>
@@ -421,14 +434,14 @@
     <table class="table table-striped mb-0 align-middle incident-table">
       <thead>
         <tr>
-          <th style="width:180px;">Дата/время</th>
-          <th style="width:220px;">Категория</th>
-          <th>Дети</th>
+          <th style="width:140px;">Дата/время</th>
+          <th style="width:160px;">Категория</th>
+          <th style="width:160px;">Дети</th>
           <th>Описание</th>
-          <th style="width:200px;">Автор</th>
-          <th style="width:130px;">Статус</th>
-          <th style="width:160px;">Исполнитель</th>
-          <th style="width:170px;">Действия</th>
+          <th style="width:160px;">Автор</th>
+          <th style="width:110px;">Статус</th>
+          <th style="width:120px;">Исполнитель</th>
+          <th style="width:150px;">Действия</th>
         </tr>
       </thead>
       <tbody>
@@ -444,8 +457,14 @@
                 </div>
               {% endfor %}
             </td>
-            <td class="text-muted">
-              {{ r.inc.description or "—" }}
+            <td class="text-muted" style="max-width:280px;">
+              {% set desc = r.inc.description or "—" %}
+              {% if desc|length > 70 %}
+                <span class="desc-short">{{ desc[:70] }}<span style="color:#adb5bd;">…</span><button type="button" class="btn-desc-toggle" title="Развернуть" onclick="toggleDesc(this)">&#9660;</button></span>
+                <span class="desc-full" style="display:none;">{{ desc }}<button type="button" class="btn-desc-toggle" title="Свернуть" onclick="toggleDesc(this)">&#9650;</button></span>
+              {% else %}
+                {{ desc }}
+              {% endif %}
               {% if r.inc.notes %}
                 {% set ln = r.inc.notes[-1] %}
                 <div class="mt-1" style="font-size:.78rem;color:#495057;border-top:1px solid #dee2e6;padding-top:.25rem;">
@@ -507,6 +526,24 @@
 </div>
 
 <script>
+function toggleUserActivity(btn) {
+  const extras = document.querySelectorAll(".ua-extra");
+  const icon = document.getElementById("ua-toggle-icon");
+  const isHidden = extras[0] && extras[0].style.display === "none";
+  extras.forEach(el => el.style.display = isHidden ? "" : "none");
+  icon.innerHTML = isHidden ? "&#9650;" : "&#9660;";
+  btn.childNodes[1].textContent = isHidden
+    ? " Свернуть"
+    : " Показать ещё " + extras.length;
+}
+function toggleDesc(btn) {
+  const td = btn.closest("td");
+  const short = td.querySelector(".desc-short");
+  const full  = td.querySelector(".desc-full");
+  const isOpen = full.style.display !== "none";
+  short.style.display = isOpen ? "" : "none";
+  full.style.display  = isOpen ? "none" : "";
+}
 (function(){
   const gradeSel = document.getElementById("gradeSelect");
   const classSel = document.getElementById("classSelect");

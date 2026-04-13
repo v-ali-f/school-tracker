@@ -274,7 +274,7 @@ def _main_page_config():
                 "title": "Создать пропуск",
                 "description": "Оформить пропуск для ученика.",
                 "endpoint": "attendance.new_pass",
-                "roles_any": ["CLASS_TEACHER", "TEACHER"],
+                "roles_any": ["CLASS_TEACHER", "TEACHER", "SOCIAL_PEDAGOG"],
                 "accent": "secondary",
             },
             {
@@ -332,7 +332,7 @@ def _main_page_config():
                 "title": "Пропуска и аналитика посещаемости",
                 "description": "Реестр пропусков, аналитика, импорт и начало занятий.",
                 "endpoint": "hub.attendance",
-                "roles_any": ["ADMIN", "CLASS_TEACHER"],
+                "roles_any": ["ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"],
             },
             {
                 "title": "Основные реестры",
@@ -356,13 +356,13 @@ def _main_page_config():
                 "title": "Реестр приказов",
                 "description": "Журнал приказов, шаблоны, поиск и архив.",
                 "endpoint": "hub.orders",
-                "roles_any": ["ADMIN", "METHODIST"],
+                "roles_any": ["ADMIN", "METHODIST", "SOCIAL_PEDAGOG"],
             },
             {
                 "title": "Классное руководство",
                 "description": "Социальный паспорт класса, список класса и аналитика класса.",
                 "endpoint": "hub.classroom",
-                "roles_any": ["ADMIN", "CLASS_TEACHER", "METHODIST"],
+                "roles_any": ["ADMIN", "CLASS_TEACHER", "METHODIST", "SOCIAL_PEDAGOG"],
             },
             {
                 "title": "Социально-психологическая служба",
@@ -379,7 +379,7 @@ def _main_page_config():
                 "title": "План работы школы",
                 "description": "Школьный план мероприятий по дням, периодам, зданиям и классам.",
                 "endpoint": "school_plan.index",
-                "roles_any": ["ADMIN", "METHODIST", "DEPUTY_DIRECTOR"],
+                "roles_any": ["ADMIN", "METHODIST", "DEPUTY_DIRECTOR", "SOCIAL_PEDAGOG"],
             },
             {
                 "title": "База знаний",
@@ -502,7 +502,7 @@ def _theme_configs():
         "attendance": {
             "title": "Пропуска и аналитика посещаемости",
             "subtitle": "Реестр пропусков, аналитика посещаемости, импорт и время начала занятий.",
-            "roles_any": ["ADMIN", "CLASS_TEACHER"],
+            "roles_any": ["ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"],
             "sections": _materialize([
                 {"title": "Реестр пропусков", "description": "Список оформленных пропусков.", "endpoint": "attendance.passes_registry"},
                 {"title": "Создать пропуск", "description": "Оформить новый пропуск.", "endpoint": "attendance.new_pass"},
@@ -556,7 +556,7 @@ def _theme_configs():
         "orders": {
             "title": "Реестр приказов",
             "subtitle": "Журнал приказов, создание, шаблоны и архивное хранение.",
-            "roles_any": ["ADMIN", "METHODIST"],
+            "roles_any": ["ADMIN", "METHODIST", "SOCIAL_PEDAGOG"],
             "sections": _materialize([
                 {"title": "Журнал приказов", "description": "Список всех приказов.", "endpoint": "orders.registry"},
                 {"title": "Создание приказов", "description": "Оформление нового приказа.", "endpoint": "orders.create"},
@@ -568,7 +568,7 @@ def _theme_configs():
         "classroom": {
             "title": "Классное руководство",
             "subtitle": "Социальный паспорт, список класса, результаты и события по классу.",
-            "roles_any": ["ADMIN", "CLASS_TEACHER", "METHODIST"],
+            "roles_any": ["ADMIN", "CLASS_TEACHER", "METHODIST", "SOCIAL_PEDAGOG"],
             "sections": _materialize([
                 {"title": "Социальный паспорт класса", "description": "Реестр и статусы по классам.", "endpoint": "children.social_passport_registry", "permission_any": ["social_passport_registry_view"]},
                 {"title": "Сопровождение класса", "description": "Работа с сопровождением и наблюдением класса.", "endpoint": "children.social_passport_dashboard", "permission_any": ["social_passport_dashboard_view"]},
@@ -576,7 +576,7 @@ def _theme_configs():
                 {"title": "Результаты класса", "description": "Учебные результаты и контрольные работы.", "endpoint": "academic.dashboard", "permission_any": ["control_works_view"]},
                 {"title": "Аналитика успеваемости класса", "description": "Низкие результаты и динамика.", "endpoint": "academic.low_results", "permission_any": ["control_works_view"]},
                 {"title": "Ключевые показатели класса", "description": "Социальные и академические индикаторы.", "endpoint": "children.social_passport_dashboard", "permission_any": ["social_passport_dashboard_view"]},
-                {"title": "Пропуски класса", "description": "Посещаемость и пропуска по классу.", "endpoint": "attendance.analytics", "roles_any": ["ADMIN", "CLASS_TEACHER"]},
+                {"title": "Пропуски класса", "description": "Посещаемость и пропуска по классу.", "endpoint": "attendance.analytics", "roles_any": ["ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"]},
                 {"title": "Инциденты класса", "description": "События и случаи по обучающимся класса.", "endpoint": "children.incidents_registry", "permission_any": ["incident_registry_view"]},
             ]),
         },
