@@ -53,7 +53,7 @@ PERMISSIONS = {
     },
 
     "incident_registry_view": {
-        ADMIN
+        ADMIN, SOCIAL_PEDAGOG, PSYCHOLOGIST, METHODIST
     },
 
     "incident_dashboard_view": {
@@ -133,11 +133,11 @@ PERMISSIONS = {
     },
 
     "social_passport_registry_view": {
-        ADMIN, METHODIST, CLASS_TEACHER
+        ADMIN, METHODIST, CLASS_TEACHER, SOCIAL_PEDAGOG
     },
 
     "social_passport_dashboard_view": {
-        ADMIN, METHODIST
+        ADMIN, METHODIST, SOCIAL_PEDAGOG
     },
 
     "classes_manage": {
@@ -169,7 +169,7 @@ PERMISSIONS = {
     },
 
     "control_works_view": {
-        ADMIN, TEACHER, CLASS_TEACHER, METHODIST
+        ADMIN, TEACHER, CLASS_TEACHER, METHODIST, SOCIAL_PEDAGOG
     },
 
     "control_works_edit": {
@@ -178,7 +178,7 @@ PERMISSIONS = {
 
 
     "olympiad_view": {
-        ADMIN, TEACHER, CLASS_TEACHER, METHODIST
+        ADMIN, TEACHER, CLASS_TEACHER, METHODIST, SOCIAL_PEDAGOG
     },
 
     "olympiad_import": {
@@ -190,7 +190,7 @@ PERMISSIONS = {
     },
 
     "olympiad_dashboard_view": {
-        ADMIN, TEACHER, CLASS_TEACHER, METHODIST
+        ADMIN, TEACHER, CLASS_TEACHER, METHODIST, SOCIAL_PEDAGOG
     },
 
     "olympiad_settings_manage": {
@@ -198,7 +198,7 @@ PERMISSIONS = {
     },
 
     "olympiad_department_summary_view": {
-        ADMIN, METHODIST, TEACHER, CLASS_TEACHER
+        ADMIN, METHODIST, TEACHER, CLASS_TEACHER, SOCIAL_PEDAGOG
     },
 }
 

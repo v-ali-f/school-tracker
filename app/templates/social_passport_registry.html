@@ -5,7 +5,7 @@
   <div>
     <h3 class="mb-0">Социальный паспорт</h3>
     <div class="text-muted">
-      {% if is_admin or is_methodist %}
+      {% if is_admin or is_methodist or is_social_pedagog %}
         Данные по школе
       {% else %}
         Данные по вашему классу
@@ -74,24 +74,25 @@
       </thead>
       <tbody>
         {% for ch in children %}
+          {% set s = ch.social %}
           <tr>
             <td class="text-muted">{{ loop.index }}</td>
             <td><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td>
-            <td>{{ ch.current_class_name or "—" }}</td>
+            <td>{{ ch._cls_name or "—" }}</td>
             <td>{{ ch.mother_fio or "—" }}</td>
             <td>{{ ch.mother_phone or "—" }}</td>
             <td>{{ ch.father_fio or "—" }}</td>
             <td>{{ ch.father_phone or "—" }}</td>
             <td>{{ ch.reg_address or "—" }}</td>
-            <td>{{ ch.family_status or "—" }}</td>
-            <td>{{ "Да" if ch.has_large_family else "—" }}</td>
-            <td>{{ "Да" if ch.has_low_income_family else "—" }}</td>
-            <td>{{ "Да" if ch.has_guardianship else "—" }}</td>
-            <td>{{ "Да" if ch.has_orphan_status else "—" }}</td>
-            <td>{{ "Да" if ch.has_disability_parents else "—" }}</td>
-            <td>{{ "Да" if ch.is_socially_dangerous else "—" }}</td>
-            <td>{{ "Да" if ch.is_hard_life else "—" }}</td>
-            <td>{{ ch.social_notes or "—" }}</td>
+            <td>{{ s.family_status if s else "—" }}</td>
+            <td>{{ "Да" if s and s.has_large_family else "—" }}</td>
+            <td>{{ "Да" if s and s.has_low_income_family else "—" }}</td>
+            <td>{{ "Да" if s and s.has_guardianship else "—" }}</td>
+            <td>{{ "Да" if s and s.has_orphan_status else "—" }}</td>
+            <td>{{ "Да" if s and s.has_disability_parents else "—" }}</td>
+            <td>{{ "Да" if s and s.is_socially_dangerous else "—" }}</td>
+            <td>{{ "Да" if s and s.is_hard_life else "—" }}</td>
+            <td>{{ s.notes if s else "—" }}</td>
           </tr>
         {% endfor %}
         {% if children|length == 0 %}

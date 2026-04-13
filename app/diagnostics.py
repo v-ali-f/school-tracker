@@ -321,6 +321,10 @@ def _is_methodist() -> bool:
     return has_role("METHODIST") or _current_role_code() == "METHODIST"
 
 
+def _is_social_pedagog() -> bool:
+    return has_role("SOCIAL_PEDAGOG") or _current_role_code() == "SOCIAL_PEDAGOG"
+
+
 def _is_class_teacher() -> bool:
     return has_role("CLASS_TEACHER") or _current_role_code() == "CLASS_TEACHER"
 
@@ -368,11 +372,11 @@ def _teacher_visible_class_names() -> set[str]:
 
 
 def _can_manage_diagnostics() -> bool:
-    return _is_admin()
+    return _is_admin() or _is_social_pedagog()
 
 
 def _can_import_diagnostics() -> bool:
-    return _is_admin()
+    return _is_admin() or _is_social_pedagog()
 
 
 def _can_edit_binding() -> bool:
@@ -390,7 +394,7 @@ def _ensure_can_import():
 
 
 def _apply_results_visibility(results: list[DiagnosticResult]) -> list[DiagnosticResult]:
-    if _is_admin():
+    if _is_admin() or _is_social_pedagog():
         return results
 
     leader_department_ids = set(_leader_department_ids())
@@ -430,7 +434,7 @@ def _apply_results_visibility(results: list[DiagnosticResult]) -> list[Diagnosti
 
 def _visible_sessions_with_stats() -> list[DiagnosticSession]:
     sessions = DiagnosticSession.query.order_by(DiagnosticSession.created_at.desc()).all()
-    if _is_admin() or (_is_methodist() and not _leader_department_ids()):
+    if _is_admin() or _is_social_pedagog() or (_is_methodist() and not _leader_department_ids()):
         return sessions
 
     visible_ids = set()
@@ -1247,7 +1251,7 @@ def departments_summary():
 @diagnostics_bp.route("/binding", methods=["GET", "POST"])
 @login_required
 def teacher_binding():
-    if not (_can_edit_binding() or _is_admin() or _is_methodist() or _is_class_teacher() or _is_teacher()):
+    if not (_can_edit_binding() or _is_admin() or _is_methodist() or _is_class_teacher() or _is_teacher() or _is_social_pedagog()):
         abort(403)
 
     current_year = AcademicYear.query.filter_by(is_current=True).first()

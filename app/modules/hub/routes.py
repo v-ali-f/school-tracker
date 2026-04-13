@@ -577,7 +577,7 @@ def _theme_configs():
                 {"title": "Аналитика успеваемости класса", "description": "Низкие результаты и динамика.", "endpoint": "academic.low_results", "permission_any": ["control_works_view"]},
                 {"title": "Ключевые показатели класса", "description": "Социальные и академические индикаторы.", "endpoint": "children.social_passport_dashboard", "permission_any": ["social_passport_dashboard_view"]},
                 {"title": "Пропуски класса", "description": "Посещаемость и пропуска по классу.", "endpoint": "attendance.analytics", "roles_any": ["ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"]},
-                {"title": "Инциденты класса", "description": "События и случаи по обучающимся класса.", "endpoint": "children.incidents_registry", "permission_any": ["incident_registry_view"]},
+                {"title": "Инциденты класса", "description": "События и случаи по обучающимся класса.", "endpoint": "children.incidents_registry", "roles_any": ["ADMIN", "METHODIST", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"]},
             ]),
         },
         "admin": {

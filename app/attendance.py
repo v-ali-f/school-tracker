@@ -654,7 +654,8 @@ def delete_import(session_id: int):
 @attendance_bp.route("/analytics")
 @login_required
 def analytics():
-    if getattr(current_user, "role", None) not in {"ADMIN", "CLASS_TEACHER"}:
+    from app.permissions import has_any_role
+    if not has_any_role("ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"):
         return redirect(url_for("main.dashboard"))
     month = (request.args.get("month") or '').strip()
     if not month:

@@ -71,7 +71,7 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, subqueryload
 from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
@@ -3515,13 +3515,18 @@ def social_passport_registry():
         )
         .outerjoin(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
         .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
+        .options(
+            subqueryload(Child.social),
+            subqueryload(Child.parent_links).subqueryload(ChildParent.parent),
+        )
     )
 
     is_admin_user = has_role("ADMIN")
     is_methodist_user = has_role("METHODIST")
+    is_social_pedagog_user = has_role("SOCIAL_PEDAGOG")
     is_class_teacher_user = has_role("CLASS_TEACHER")
 
-    if is_class_teacher_user and not (is_admin_user or is_methodist_user):
+    if is_class_teacher_user and not (is_admin_user or is_methodist_user or is_social_pedagog_user):
         q = q.filter(SchoolClass.teacher_user_id == current_user.id)
 
     if grade is not None:
@@ -3537,14 +3542,22 @@ def social_passport_registry():
         ))
 
     classes_query = SchoolClass.query.filter_by(academic_year_id=year.id)
-    if is_class_teacher_user and not (is_admin_user or is_methodist_user):
+    if is_class_teacher_user and not (is_admin_user or is_methodist_user or is_social_pedagog_user):
         classes_query = classes_query.filter(SchoolClass.teacher_user_id == current_user.id)
     if grade is not None:
         classes_query = classes_query.filter(SchoolClass.grade == grade)
     classes = classes_query.order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc()).all()
     grades = sorted({c.grade for c in classes if c.grade is not None})
 
-    children = q.order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc()).all()
+    rows = (
+        q.add_columns(SchoolClass.name.label("_cls_name"))
+        .order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc())
+        .all()
+    )
+    children = []
+    for child, cls_name in rows:
+        child._cls_name = cls_name
+        children.append(child)
 
     return render_template(
         "social_passport_registry.html",
@@ -3558,6 +3571,7 @@ def social_passport_registry():
         is_admin=is_admin_user,
         is_methodist=is_methodist_user,
         is_class_teacher=is_class_teacher_user,
+        is_social_pedagog=is_social_pedagog_user,
     )
 
 
@@ -3622,7 +3636,7 @@ def comments_registry():
 
 
 @children_bp.route("/social-passport/dashboard")
-@require_roles("ADMIN")
+@require_roles("ADMIN", "METHODIST", "SOCIAL_PEDAGOG")
 def social_passport_dashboard():
     year = _get_current_year()
     if not year:
