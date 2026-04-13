@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">Список специалистов службы</h2>
+    <div class="text-muted">Реестр специалистов, фильтры, быстрый поиск и переход в карточку.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">К модулю</a>
+    {% if can_edit %}<a class="btn btn-primary" href="{{ url_for('service_staff.specialist_new') }}">Добавить специалиста</a>{% endif %}
+  </div>
+</div>
+
+<form class="card mb-3" method="get">
+  <div class="card-body row g-3 align-items-end">
+    <div class="col-lg-3 col-md-6"><label class="form-label">Поиск по ФИО</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Фамилия, имя или должность"></div>
+    <div class="col-lg-2 col-md-6"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for b in buildings %}<option value="{{ b.id }}" {% if request.args.get('building_id') == b.id|string %}selected{% endif %}>{{ b.short_name or b.name }}</option>{% endfor %}</select></div>
+    <div class="col-lg-3 col-md-6"><label class="form-label">Специализация</label><select class="form-select" name="specialization_id"><option value="">Все</option>{% for s in specializations %}<option value="{{ s.id }}" {% if request.args.get('specialization_id') == s.id|string %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+    <div class="col-lg-2 col-md-6"><label class="form-label">Активность</label><select class="form-select" name="is_active"><option value="">Все</option><option value="1" {% if request.args.get('is_active') == '1' %}selected{% endif %}>Активные</option><option value="0" {% if request.args.get('is_active') == '0' %}selected{% endif %}>Неактивные</option></select></div>
+    <div class="col-lg-2 col-md-6"><label class="form-label">Расширенные права</label><select class="form-select" name="elevated"><option value="">Все</option><option value="1" {% if request.args.get('elevated') == '1' %}selected{% endif %}>Ответственные</option><option value="0" {% if request.args.get('elevated') == '0' %}selected{% endif %}>Без расширенных прав</option></select></div>
+    <div class="col-lg-3 col-md-6"><button class="btn btn-primary" type="submit">Показать</button> <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.registry') }}">Сбросить</a></div>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead><tr><th>№</th><th>ФИО</th><th>Должность</th><th>Специализации</th><th>Здания</th><th>Статус</th><th>Ставка</th><th>Ответственный</th><th></th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="text-muted">{{ pagination.first_item + loop.index0 }}</td>
+          <td>{{ row.fio }}</td>
+          <td>{{ row.position_title or '—' }}</td>
+          <td>{{ row.specializations_text or '—' }}</td>
+          <td>{{ row.buildings_text or '—' }}</td>
+          <td>{% if row.is_active %}<span class="badge text-bg-success">В составе службы</span>{% else %}<span class="badge text-bg-secondary">Исключен из службы</span>{% endif %}</td>
+          <td>{{ row.rate_value if row.rate_value is not none else '—' }}</td>
+          <td>{% if row.is_responsible %}<span class="badge text-bg-primary">Да</span>{% else %}<span class="text-muted">Нет</span>{% endif %}</td>
+          <td class="text-end d-flex gap-1 justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('service_staff.specialist_card', specialist_id=row.id) }}">Открыть</a>{% if can_edit %}<form method="post" action="{{ url_for('service_staff.specialist_toggle', specialist_id=row.id) }}" class="m-0"><button class="btn btn-sm {% if row.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}" type="submit">{% if row.is_active %}Исключить{% else %}Вернуть{% endif %}</button></form>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">По фильтрам записи не найдены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "components/pagination.html" %}
+{% endblock %}

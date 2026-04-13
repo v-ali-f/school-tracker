@@ -1,0 +1,8 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3"><div><h3 class="mb-0">Контроль качества данных</h3><div class="text-muted">Предупреждения, влияющие на корректный расчет нагрузки.</div></div><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.analytics_dashboard') }}">Назад</a></div>
+  <div class="card"><div class="list-group list-group-flush">{% for warning in warnings %}<div class="list-group-item"><span class="badge text-bg-{{ warning.type if warning.type in ['danger','warning','info'] else 'warning' }} me-2">{{ warning.type }}</span>{{ warning.message }}</div>{% else %}<div class="list-group-item text-muted">Проблем качества данных не обнаружено.</div>{% endfor %}</div></div>
+</div>
+{% endblock %}

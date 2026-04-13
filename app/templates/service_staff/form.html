@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">{{ form_title }}</h2>
+    <div class="text-muted">Базовая карточка специалиста службы с несколькими специализациями и закреплением по зданиям.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.registry') }}">К реестру</a>
+</div>
+
+<form method="post" class="card">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-4"><label class="form-label">Связанный пользователь системы</label><select class="form-select" name="user_id"><option value="">Не выбран</option>{% for u in users %}<option value="{{ u.id }}" {% if specialist.user_id == u.id %}selected{% endif %}>{{ u.fio or u.username }}</option>{% endfor %}</select></div>
+      <div class="col-lg-3"><label class="form-label">Фамилия</label><input class="form-control" name="last_name" value="{{ specialist.last_name or '' }}" required></div>
+      <div class="col-lg-3"><label class="form-label">Имя</label><input class="form-control" name="first_name" value="{{ specialist.first_name or '' }}" required></div>
+      <div class="col-lg-2"><label class="form-label">Отчество</label><input class="form-control" name="middle_name" value="{{ specialist.middle_name or '' }}"></div>
+      <div class="col-lg-4"><label class="form-label">Основная должность</label><input class="form-control" name="position_title" value="{{ specialist.position_title or '' }}" placeholder="Например, педагог-психолог"></div>
+      <div class="col-lg-2"><label class="form-label">Ставка / доля ставки</label><input class="form-control" name="rate_value" value="{{ specialist.rate_value if specialist.rate_value is not none else '' }}"></div>
+      <div class="col-lg-3"><label class="form-label">Телефон</label><input class="form-control" name="phone" value="{{ specialist.phone or '' }}"></div>
+      <div class="col-lg-3"><label class="form-label">Email</label><input class="form-control" name="email" value="{{ specialist.email or '' }}"></div>
+      <div class="col-lg-2"><label class="form-label">Статус</label><select class="form-select" name="is_active"><option value="1" {% if specialist.is_active %}selected{% endif %}>Активен</option><option value="0" {% if not specialist.is_active %}selected{% endif %}>Неактивен</option></select></div>
+    </div>
+
+    <hr>
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <label class="form-label">Специализации</label>
+        <div class="card"><div class="card-body">
+          {% for s in specializations %}
+          <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="specialization_ids" value="{{ s.id }}" id="spec_{{ s.id }}" {% if s.id in selected_specs or (not selected_specs and specialist.specialization_links and s.id in specialist.specialization_links|map(attribute='specialization_id')|list) %}checked{% endif %}><label class="form-check-label" for="spec_{{ s.id }}">{{ s.name }}</label></div>
+          {% endfor %}
+        </div></div>
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label">Закрепление по зданиям</label>
+        <div class="card"><div class="card-body">
+          {% set chosen_buildings = selected_buildings if selected_buildings else specialist.building_links|map(attribute='building_id')|list %}
+          {% for b in buildings %}
+          <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="building_ids" value="{{ b.id }}" id="building_{{ b.id }}" {% if b.id in chosen_buildings %}checked{% endif %}><label class="form-check-label" for="building_{{ b.id }}">{{ b.short_name or b.name }}</label></div>
+          {% endfor %}
+        </div></div>
+        <div class="mt-3"><label class="form-label">Основное здание</label><select class="form-select" name="main_building_id"><option value="">Выберите основное здание</option>{% for b in buildings %}<option value="{{ b.id }}" {% if specialist.main_building_id == b.id %}selected{% endif %}>{{ b.short_name or b.name }}</option>{% endfor %}</select></div>
+      </div>
+    </div>
+
+    <hr>
+    <div><label class="form-label">Комментарий администратора</label><textarea class="form-control" rows="4" name="admin_comment">{{ specialist.admin_comment or '' }}</textarea></div>
+  </div>
+  <div class="card-footer d-flex justify-content-end gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.registry') }}">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
+</form>
+{% endblock %}

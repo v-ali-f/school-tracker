@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+{% block content %}
+<h4 class="mb-3">Классы учебного года</h4>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Учебный год</label>
+        <form method="get" action="{{ url_for('children.classes_registry') }}">
+          <select class="form-select" name="academic_year_id" onchange="this.form.submit()">
+            {% for y in all_years %}
+              <option value="{{ y.id }}" {% if year and y.id == year.id %}selected{% endif %}>{{ y.name }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+      <div class="col-md-8 text-md-end">
+        {% if all_years|length > 1 and year %}
+          {% set source_year = (all_years|selectattr('id', 'ne', year.id)|list|first) %}
+          {% if source_year %}
+          <form method="post" action="{{ url_for('children.classes_copy_from_year') }}" class="d-inline">
+            <input type="hidden" name="target_year_id" value="{{ year.id }}">
+            <input type="hidden" name="source_year_id" value="{{ source_year.id }}">
+            <button class="btn btn-outline-secondary">Скопировать классы из {{ source_year.name }}</button>
+          </form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" action="{{ url_for('children.classes_new') }}" class="row g-2">
+      <input type="hidden" name="academic_year_id" value="{{ year.id if year else '' }}">
+      <div class="col-md-2"><input class="form-control" name="name" placeholder="Класс (7А)" required></div>
+      <div class="col-md-2"><input class="form-control" name="max_students" type="number" value="25" min="1"></div>
+      <div class="col-md-4">
+        <select class="form-select" name="teacher_user_id">
+          <option value="">— классный руководитель —</option>
+          {% for u in teachers %}<option value="{{ u.id }}">{{ u.fio }}{% if u.phone %} • {{ u.phone }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select class="form-select" name="building_id">
+          <option value="">— здание —</option>
+          {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Добавить</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Класс</th>
+          <th>Здание</th>
+          <th>Учеников</th>
+          <th>Макс.</th>
+          <th>Классный руководитель</th>
+          <th>Телефон</th>
+          <th class="text-end">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c, teacher_fio, teacher_phone, active_count in classes %}
+        <tr>
+          <td class="fw-bold">{{ c.name }}</td>
+          <td>{{ c.building.name if c.building else '—' }}</td>
+          <td>{{ active_count }}</td>
+          <td>{{ c.max_students or '—' }}</td>
+          <td>{{ teacher_fio or '—' }}</td>
+          <td class="text-muted">{{ teacher_phone or '—' }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#edit-class-{{ c.id }}">Редактировать</a>
+            <form method="post" action="{{ url_for('children.classes_delete', class_id=c.id) }}" class="d-inline" onsubmit="return confirm('Удалить класс?');">
+              <button class="btn btn-sm btn-outline-danger">Удалить</button>
+            </form>
+          </td>
+        </tr>
+        <tr class="collapse" id="edit-class-{{ c.id }}">
+          <td colspan="7" class="bg-light">
+            <form method="post" action="{{ url_for('children.update_class', class_id=c.id) }}">
+              <div class="row g-2 align-items-end">
+                <div class="col-md-2"><label class="form-label">Класс</label><input class="form-control" name="name" value="{{ c.name }}"></div>
+                <div class="col-md-2"><label class="form-label">Макс. мест</label><input class="form-control" type="number" name="max_students" value="{{ c.max_students or 25 }}" min="1"></div>
+                <div class="col-md-4"><label class="form-label">Классный руководитель</label><select class="form-select" name="teacher_user_id"><option value="">—</option>{% for u in teachers %}<option value="{{ u.id }}" {% if c.teacher_user_id == u.id %}selected{% endif %}>{{ u.fio }}{% if u.phone %} • {{ u.phone }}{% endif %}</option>{% endfor %}</select></div>
+                <div class="col-md-3"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">—</option>{% for b in buildings %}<option value="{{ b.id }}" {% if c.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
+                <div class="col-md-1 d-grid"><button class="btn btn-success">OK</button></div>
+              </div>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="text-muted">Пока классов нет.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

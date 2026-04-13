@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Свод по кафедрам</h3>
+    <div class="text-muted">Общий итог по результатам кафедры и детализация по работам, предметам и учителям без лишнего дублирования.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+</div>
+
+{% macro mode_label(mode) -%}
+  {%- if mode == 'level' -%}по уровням
+  {%- elif mode == 'mark' -%}по отметкам
+  {%- elif mode in ['percent', 'score'] -%}по баллам / проценту
+  {%- elif mode == 'mixed' -%}смешанный
+  {%- else -%}универсальный
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro value_or_dash(value, suffix='') -%}
+  {%- if value is not none -%}{{ value }}{{ suffix }}{%- else -%}—{%- endif -%}
+{%- endmacro %}
+
+{% for block in blocks %}
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <h4 class="mb-1">{{ block.department.name }}</h4>
+          <div class="text-muted small">Общий итог по кафедре · режим: {{ mode_label(block.result_mode) }}</div>
+          <div class="small text-muted mt-1">В свод включено работ: <strong>{{ block.sessions_count }}</strong></div>
+        </div>
+        <div class="small text-muted text-end">
+          <div>Педагогов в нагрузке: <strong>{{ block.teachers_count }}</strong></div>
+          <div>Привязанных результатов: <strong>{{ block.bound_results }}</strong></div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Всего результатов</div><div class="fs-4 fw-semibold">{{ block.stats.count or 0 }}</div></div></div>
+        {% if block.result_mode == 'mark' %}
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средняя отметка</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.mark_summary.avg_mark) }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средний %</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.avg_percent, '%') }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Отметка 2</div><div class="fs-4 fw-semibold">{{ block.stats.mark_summary.low_count }}</div><div class="small text-muted">{{ block.stats.mark_summary.low_percent }}%</div></div></div>
+        {% elif block.result_mode in ['percent', 'score'] %}
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средний балл</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.percent_summary.avg_score) }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средний %</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.percent_summary.avg_percent, '%') }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Работ в своде</div><div class="fs-4 fw-semibold">{{ block.sessions_count }}</div></div></div>
+        {% elif block.result_mode == 'mixed' %}
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средний балл</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.percent_summary.avg_score or block.stats.mark_summary.avg_mark) }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средний %</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.avg_percent, '%') }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Проблемный результат</div><div class="fs-4 fw-semibold">{{ block.stats.low_count }}</div><div class="small text-muted">{{ block.stats.low_percent }}%</div></div></div>
+        {% else %}
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Средний %</div><div class="fs-4 fw-semibold">{{ value_or_dash(block.stats.avg_percent, '%') }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">Ниже базового</div><div class="fs-4 fw-semibold">{{ block.stats.low_count }}</div></div></div>
+          <div class="col-xl-3 col-md-6"><div class="border rounded p-3 h-100"><div class="text-muted small">% ниже базового</div><div class="fs-4 fw-semibold">{{ block.stats.low_percent }}%</div></div></div>
+        {% endif %}
+      </div>
+
+      {% if block.show_works %}
+        <h6 class="mb-2">Свод по работам</h6>
+        <div class="small text-muted mb-2">Показатели по отдельным работам, вошедшим в общий итог кафедры.</div>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Работа</th>
+                <th>Тип</th>
+                <th>Предмет</th>
+                <th>Результатов</th>
+                <th>Средний балл</th>
+                <th>Средний %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in block.work_rows %}
+                <tr>
+                  <td>{{ item.title }}</td>
+                  <td>{{ item.diagnostic_type or '—' }}</td>
+                  <td>{{ item.subject_name }}</td>
+                  <td>{{ item.count }}</td>
+                  <td>{{ value_or_dash(item.percent_summary.avg_score or item.mark_summary.avg_mark) }}</td>
+                  <td>{{ value_or_dash(item.avg_percent, '%') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+
+      {% if block.show_subjects %}
+        <h6 class="mb-2">Свод по предметам</h6>
+        <div class="small text-muted mb-2">Расшифровка общего итога по предметам.</div>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Предмет</th>
+                <th>Результатов</th>
+                <th>Средний балл</th>
+                <th>Средний %</th>
+                <th>{% if block.result_mode == 'level' %}% ниже базового{% elif block.result_mode == 'mark' %}% двоек{% else %}Проблемный результат{% endif %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in block.subject_rows %}
+                <tr>
+                  <td>{{ item.subject_name }}</td>
+                  <td>{{ item.count }}</td>
+                  <td>{{ value_or_dash(item.percent_summary.avg_score or item.mark_summary.avg_mark) }}</td>
+                  <td>{{ value_or_dash(item.avg_percent, '%') }}</td>
+                  <td>{% if block.result_mode == 'mark' %}{{ item.mark_summary.low_percent }}%{% else %}{{ item.low_percent }}%{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+
+      {% if block.show_teachers %}
+        <h6 class="mb-2">Свод по учителям</h6>
+        <div class="small text-muted mb-2">Расшифровка общего итога по педагогам.</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Учитель</th>
+                <th>Классы</th>
+                <th>Результатов</th>
+                <th>Средний балл</th>
+                <th>Средний %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in block.teacher_rows %}
+                <tr>
+                  <td>{{ item.teacher_name }}</td>
+                  <td>{{ item.classes or '—' }}</td>
+                  <td>{{ item.count }}</td>
+                  <td>{{ value_or_dash(item.percent_summary.avg_score or item.mark_summary.avg_mark) }}</td>
+                  <td>{{ value_or_dash(item.avg_percent, '%') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% elif not block.show_subjects and not block.show_works %}
+        <div class="small text-muted">Детализация скрыта: в текущем своде один предмет и нет дополнительного разреза по работам или учителям.</div>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-secondary mb-0">Кафедры пока не созданы.</div>
+{% endfor %}
+{% endblock %}

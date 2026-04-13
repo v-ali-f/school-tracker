@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-0">Реестр комментариев</h3>
+    <div class="text-muted">Комментарии по карточкам обучающихся</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Параллель</label>
+        <select name="grade" class="form-select" onchange="this.form.submit()">
+          <option value="">Все</option>
+          {% for grade in grades %}
+            <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Класс</label>
+        <select name="class_id" class="form-select">
+          <option value="">Все</option>
+          {% for cls in classes %}
+            <option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Поиск</label>
+        <input type="text" name="q" value="{{ q_text }}" class="form-control" placeholder="ФИО ученика, автор, текст комментария">
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">Применить</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('children.comments_registry') }}">Сбросить</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped align-middle mb-0">
+      <thead><tr><th class="table-number-col">№</th><th>Дата</th><th>Ученик</th><th>Класс</th><th>Автор</th><th>Комментарий</th></tr></thead>
+      <tbody>
+      {% for c in comments %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td class="text-muted">{{ c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '—' }}</td>
+          <td><a href="{{ url_for('children.child_card', child_id=c.child.id) }}">{{ c.child.fio if c.child else '—' }}</a></td>
+          <td>{{ c.child.current_class_name if c.child else '—' }}</td>
+          <td>{{ c.author.fio if c.author else '—' }}</td>
+          <td>{{ c.text }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-muted">Комментариев пока нет.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

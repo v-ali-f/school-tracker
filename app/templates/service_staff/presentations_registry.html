@@ -1,0 +1,54 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">Этап 4</div>
+      <h1 class="dashboard-title mb-1">Электронные представления</h1>
+      <div class="text-muted classic-hero-note">Реестр представлений по обучающимся, учебным годам и статусам готовности.</div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if can_edit %}<a class="btn zone-btn zone-orange" href="{{ url_for('service_staff.presentation_new') }}">Новое представление</a>{% endif %}
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('service_staff.index') }}">К модулю</a>
+    </div>
+  </div>
+  <section class="dashboard-section dashboard-section-classic mb-3">
+    <div class="row g-3">
+      <div class="col-md-3"><div class="summary-card summary-card-classic"><div class="summary-card-label">Всего</div><div class="summary-card-value">{{ stats.total }}</div></div></div>
+      <div class="col-md-3"><div class="summary-card summary-card-classic"><div class="summary-card-label">Черновики / в работе</div><div class="summary-card-value">{{ stats.draft }}</div></div></div>
+      <div class="col-md-3"><div class="summary-card summary-card-classic"><div class="summary-card-label">На проверке</div><div class="summary-card-value">{{ stats.review }}</div></div></div>
+      <div class="col-md-3"><div class="summary-card summary-card-classic"><div class="summary-card-label">Согласовано</div><div class="summary-card-value">{{ stats.approved }}</div></div></div>
+    </div>
+  </section>
+  <section class="dashboard-section dashboard-section-classic">
+    <form method="get" class="row g-2 mb-3">
+      <div class="col-md-2"><input class="form-control" name="academic_year" placeholder="Учебный год" value="{{ request.args.get('academic_year','') }}"></div>
+      <div class="col-md-2"><select class="form-select" name="status"><option value="">Все статусы</option>{% for code,label in status_choices %}<option value="{{ code }}" {% if request.args.get('status') == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><select class="form-select" name="child_id"><option value="">Все дети</option>{% for child in children %}<option value="{{ child.id }}" {% if request.args.get('child_id') == (child.id|string) %}selected{% endif %}>{{ child.fio }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><select class="form-select" name="methodist_id"><option value="">Все методисты</option>{% for user in methodists %}<option value="{{ user.id }}" {% if request.args.get('methodist_id') == (user.id|string) %}selected{% endif %}>{{ user.fio }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 d-flex gap-2"><button class="btn zone-btn zone-blue w-100">Показать</button><a class="btn zone-btn zone-btn-soft zone-slate w-100" href="{{ url_for('service_staff.presentations_registry') }}">Сброс</a></div>
+    </form>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th>Обучающийся</th><th>Класс</th><th>Учебный год</th><th>Статус</th><th>Готовность</th><th>Методист</th><th></th></tr></thead>
+        <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.child.fio if row.child else '—' }}</td>
+            <td>{{ row.child.current_class_name if row.child else '—' }}</td>
+            <td>{{ row.academic_year }}</td>
+            <td>{{ row.status_label }}</td>
+            <td>{{ row.ready_percent }}%</td>
+            <td>{{ row.methodist.fio if row.methodist else '—' }}</td>
+            <td><a class="btn btn-sm zone-btn zone-btn-soft zone-blue" href="{{ url_for('service_staff.presentation_card', presentation_id=row.id) }}">Открыть</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-muted">Записей пока нет.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'layout.html' %}
+{% block title %}План работы школы{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">План работы школы</h1>
+    <div class="text-muted">Красочный реестр мероприятий с фильтрами, поиском и адресной видимостью.</div>
+  </div>
+  {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+</div>
+{% include 'school_plan/_nav.html' %}
+{% include 'school_plan/_filters.html' %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Дата</th><th>Мероприятие</th><th>Направление</th><th>Категория</th><th>Ответственный</th><th>Видимость</th><th>Статус</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in events %}
+        <tr {% if event.is_archived %}class="table-light"{% endif %}>
+          <td class="text-nowrap">{{ event.display_period }}</td>
+          <td>
+            <div class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('school_plan.view', event_id=event.id) }}">{{ event.title }}</a></div>
+            <div class="small text-muted">
+              {% if event.building %}{{ event.building.short_name or event.building.name }}{% endif %}
+              {% if event.school_class %} · {{ event.school_class.name }}{% endif %}
+              {% if event.location %} · {{ event.location }}{% endif %}
+            </div>
+          </td>
+          <td>{% if event.direction %}<span class="badge" style="background: {{ event.direction.color or '#475569' }}; color: {{ event.direction.text_color or '#fff' }};">{{ event.direction.name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{% if event.category %}<span class="badge" style="background: {{ event.category.color or '#334155' }}; color: {{ event.category.text_color or '#fff' }};">{{ event.category.name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td>{{ event.display_responsible or '—' }}</td>
+          <td>{{ visibility_titles.get(event.visibility_level, event.visibility_level) }}</td>
+          <td>{{ status_titles.get(event.status, event.status) }}</td>
+          <td class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('school_plan.view', event_id=event.id) }}">Открыть</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Мероприятия пока не найдены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

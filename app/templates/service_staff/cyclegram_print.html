@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Циклограмма</title>
+  <style>
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 12px; color: #222; margin: 24px; }
+    h1, h2, h3, p { margin: 0 0 8px 0; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th, td { border: 1px solid #999; padding: 6px; vertical-align: top; }
+    th { background: #f0f2f5; }
+    .meta { margin-bottom: 16px; }
+    .summary { display: flex; gap: 16px; margin-bottom: 16px; }
+    .summary div { padding: 8px 10px; border: 1px solid #bbb; }
+    .muted { color: #666; }
+    @media print { .noprint { display:none; } body { margin: 10mm; } }
+  </style>
+</head>
+<body>
+  {% if not print_mode %}<div class="noprint" style="margin-bottom:16px;"><button onclick="window.print()">Печать</button></div>{% endif %}
+  <div class="meta">
+    <h2>Циклограмма учета рабочего времени специалиста</h2>
+    <p><b>Специалист:</b> {{ cyclegram.specialist.fio if cyclegram.specialist else '—' }}</p>
+    <p><b>Учебный год:</b> {{ cyclegram.academic_year }}</p>
+    <p><b>Должность:</b> {{ cyclegram.position_title or '—' }}</p>
+    <p><b>Здания:</b> {{ cyclegram.buildings_text or '—' }}</p>
+    <p><b>Статус:</b> {{ cyclegram.status_label }}</p>
+  </div>
+  <div class="summary">
+    <div><b>Практическая</b><br>{{ summary.practical_total }} мин. / {{ summary.practical_pct }}%</div>
+    <div><b>Орг.-методическая</b><br>{{ summary.methodical_total }} мин. / {{ summary.methodical_pct }}%</div>
+    <div><b>Итого</b><br>{{ summary.week_total }} мин.</div>
+  </div>
+
+  {% for day in summary.days %}
+  <h3>{{ day.name }}</h3>
+  <table>
+    <thead><tr><th>Временные интервалы</th><th>Содержание работы</th><th>Практическая работа</th><th>Организационно-методическая работа</th><th>Корпус / здание</th></tr></thead>
+    <tbody>
+      {% for row in day.rows %}
+      <tr>
+        <td>{{ row.interval_text }}</td>
+        <td>{{ row.description or row.activity_type.name if row.activity_type else '—' }}{% if row.child %}<br><span class="muted">{{ row.child.fio }}{% if row.child.current_class_name %} — {{ row.child.current_class_name }}{% endif %}</span>{% elif row.group_text %}<br><span class="muted">{{ row.group_text }}</span>{% endif %}</td>
+        <td>{% if row.work_category == 'PRACTICAL' %}{{ row.minutes }}{% endif %}</td>
+        <td>{% if row.work_category != 'PRACTICAL' %}{{ row.minutes }}{% endif %}</td>
+        <td>{% if row.building %}{{ row.building.short_name or row.building.name }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td colspan="2"><b>Итого за день</b></td>
+        <td><b>{{ day.practical_minutes }}</b></td>
+        <td><b>{{ day.methodical_minutes }}</b></td>
+        <td><b>{{ day.total_minutes }}</b></td>
+      </tr>
+    </tbody>
+  </table>
+  {% endfor %}
+</body>
+</html>

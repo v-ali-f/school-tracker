@@ -1,0 +1,377 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">{{ title }}</h2>
+    <div class="text-muted">Компактная форма постановки задачи с единым выбором участников.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К списку</a>
+  </div>
+</div>
+
+{% set current_responsible_id = request.form.get('responsible_user_id', type=int, default=(task.responsible_user_id if task else None)) %}
+{% set current_controller_id = request.form.get('controller_user_id', type=int, default=(task.controller_user_id if task else None)) %}
+{% set current_coexecutors = request.form.getlist('coexecutor_user_ids') if request.form else task.participant_groups.coexecutor|map(attribute='user_id')|list if task else [] %}
+{% set current_observers = request.form.getlist('observer_user_ids') if request.form else task.participant_groups.observer|map(attribute='user_id')|list if task else [] %}
+{% set deadline_value = request.form.get('deadline_at', task.deadline_at.strftime('%Y-%m-%dT%H:%M') if task and task.deadline_at else template_defaults.get('deadline_at','')) %}
+
+<div class="card shadow-sm compact-task-form">
+  <div class="card-body">
+    <form method="post" class="row g-3" enctype="multipart/form-data">
+      {% if selected_template %}
+      <div class="col-12">
+        <div class="alert alert-info py-2 mb-0">Используется шаблон: <b>{{ selected_template.name }}</b></div>
+      </div>
+      {% endif %}
+      {% if parent_task %}
+      <div class="col-12">
+        <div class="alert alert-light border py-2 mb-0">
+          Родительская задача: <b>№{{ parent_task.id }}</b> — {{ parent_task.title }}
+          <input type="hidden" name="parent_task_id" value="{{ parent_task.id }}">
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="col-lg-8">
+        <label class="form-label">Название задачи</label>
+        <input class="form-control" type="text" name="title" value="{{ request.form.get('title', task.title if task else template_defaults.get('title','')) }}" required>
+      </div>
+      <div class="col-lg-4">
+        <label class="form-label">Тип задачи</label>
+        <select class="form-select" name="task_type_id">
+          <option value="">—</option>
+          {% for x in task_types %}<option value="{{ x.id }}" {% if request.form.get('task_type_id', type=int, default=(task.task_type_id if task else template_defaults.get('task_type_id'))) == x.id %}selected{% endif %}>{{ x.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Описание</label>
+        <textarea class="form-control" name="description" rows="3">{{ request.form.get('description', task.description if task else template_defaults.get('description','')) }}</textarea>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Срок</label>
+        <input class="form-control" type="datetime-local" name="deadline_at" value="{{ deadline_value }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Приоритет</label>
+        <select class="form-select" name="priority">{% for x in priority_choices %}<option value="{{ x }}" {% if request.form.get('priority', task.priority if task else template_defaults.get('priority','обычный')) == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Ответственный</label>
+        <input type="hidden" name="responsible_user_id" id="responsible_user_id" value="{{ current_responsible_id or '' }}">
+        <div class="picker-card" data-picker="responsible" data-mode="single" data-hidden-input="responsible_user_id">
+          <div class="picker-toolbar">
+            <input class="form-control form-control-sm picker-search" type="text" placeholder="Поиск по ФИО, логину, email">
+          </div>
+          <div class="picker-summary" data-empty="Не выбран">Не выбран</div>
+          <div class="picker-list">
+            {% for x in users %}
+            {% set checked = current_responsible_id == x.id %}
+            <label class="picker-option{% if checked %} active{% endif %}" data-user-search="{{ ((x.fio or '') ~ ' ' ~ (x.username or '') ~ ' ' ~ (x.email or ''))|lower }}">
+              <input class="picker-input" type="radio" name="responsible_user_id_radio" value="{{ x.id }}" {% if checked %}checked{% endif %}>
+              <span class="picker-meta">
+                <span class="picker-name">{{ x.fio or x.username }}</span>
+                <span class="picker-sub">{{ x.username }}{% if x.email %} · {{ x.email }}{% endif %}</span>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="accordion" id="taskExtraAccordion">
+          <div class="accordion-item border rounded-3 overflow-hidden">
+            <h2 class="accordion-header" id="taskExtraHeading">
+              <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#taskExtraCollapse" aria-expanded="false" aria-controls="taskExtraCollapse">
+                Дополнительные параметры
+              </button>
+            </h2>
+            <div id="taskExtraCollapse" class="accordion-collapse collapse" aria-labelledby="taskExtraHeading" data-bs-parent="#taskExtraAccordion">
+              <div class="accordion-body pt-3">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Контролирующий</label>
+                    <input type="hidden" name="controller_user_id" id="controller_user_id" value="{{ current_controller_id or '' }}">
+                    <div class="picker-card" data-picker="controller" data-mode="single" data-hidden-input="controller_user_id">
+                      <div class="picker-toolbar">
+                        <input class="form-control form-control-sm picker-search" type="text" placeholder="Поиск по ФИО, логину, email">
+                      </div>
+                      <div class="picker-summary" data-empty="Не выбран">Не выбран</div>
+                      <div class="picker-list">
+                        {% for x in users %}
+                        {% set checked = current_controller_id == x.id %}
+                        <label class="picker-option{% if checked %} active{% endif %}" data-user-search="{{ ((x.fio or '') ~ ' ' ~ (x.username or '') ~ ' ' ~ (x.email or ''))|lower }}">
+                          <input class="picker-input" type="radio" name="controller_user_id_radio" value="{{ x.id }}" {% if checked %}checked{% endif %}>
+                          <span class="picker-meta">
+                            <span class="picker-name">{{ x.fio or x.username }}</span>
+                            <span class="picker-sub">{{ x.username }}{% if x.email %} · {{ x.email }}{% endif %}</span>
+                          </span>
+                        </label>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label">Соисполнители</label>
+                    <div class="picker-card" data-picker="coexecutors" data-mode="multi">
+                      <div class="picker-toolbar">
+                        <input class="form-control form-control-sm picker-search" type="text" placeholder="Поиск по ФИО, логину, email">
+                      </div>
+                      <div class="picker-summary" data-empty="Не выбраны">Не выбраны</div>
+                      <div class="picker-list">
+                        {% for x in users %}
+                        {% set checked = x.id|string in current_coexecutors or x.id in current_coexecutors %}
+                        <label class="picker-option{% if checked %} active{% endif %}" data-user-search="{{ ((x.fio or '') ~ ' ' ~ (x.username or '') ~ ' ' ~ (x.email or ''))|lower }}">
+                          <input class="picker-input" type="checkbox" name="coexecutor_user_ids" value="{{ x.id }}" {% if checked %}checked{% endif %}>
+                          <span class="picker-meta">
+                            <span class="picker-name">{{ x.fio or x.username }}</span>
+                            <span class="picker-sub">{{ x.username }}{% if x.email %} · {{ x.email }}{% endif %}</span>
+                          </span>
+                        </label>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label">Наблюдатели</label>
+                    <div class="picker-card" data-picker="observers" data-mode="multi">
+                      <div class="picker-toolbar">
+                        <input class="form-control form-control-sm picker-search" type="text" placeholder="Поиск по ФИО, логину, email">
+                      </div>
+                      <div class="picker-summary" data-empty="Не выбраны">Не выбраны</div>
+                      <div class="picker-list">
+                        {% for x in users %}
+                        {% set checked = x.id|string in current_observers or x.id in current_observers %}
+                        <label class="picker-option{% if checked %} active{% endif %}" data-user-search="{{ ((x.fio or '') ~ ' ' ~ (x.username or '') ~ ' ' ~ (x.email or ''))|lower }}">
+                          <input class="picker-input" type="checkbox" name="observer_user_ids" value="{{ x.id }}" {% if checked %}checked{% endif %}>
+                          <span class="picker-meta">
+                            <span class="picker-name">{{ x.fio or x.username }}</span>
+                            <span class="picker-sub">{{ x.username }}{% if x.email %} · {{ x.email }}{% endif %}</span>
+                          </span>
+                        </label>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-3">
+                    <label class="form-label">Учебный год</label>
+                    <select class="form-select" name="academic_year_id" id="academic_year_id">
+                      <option value="">—</option>
+                      {% for y in years %}<option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Параллель</label>
+                    <select class="form-select" name="grade" id="grade">
+                      <option value="">—</option>
+                      {% for g in grades %}<option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>{{ g }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Класс</label>
+                    <select class="form-select" name="class_id" id="class_id">
+                      <option value="">—</option>
+                      {% for c in classes %}<option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Обучающийся</label>
+                    <select class="form-select" name="child_id" id="child_id">
+                      <option value="">—</option>
+                      {% for ch in children %}<option value="{{ ch.id }}" {% if request.form.get('child_id', type=int, default=(selected_child_id if selected_child_id else (task.child_id if task else None))) == ch.id %}selected{% endif %}>{{ ch.fio }}</option>{% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label">Документы-основания</label>
+                    <input class="form-control" type="file" name="basis_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+                    <div class="form-text">Приказ, письмо, служебная записка и другие основания.</div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Рабочие файлы</label>
+                    <input class="form-control" type="file" name="work_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+                    <div class="form-text">До 10 файлов, не более 30 МБ каждый.</div>
+                  </div>
+
+                  <div class="col-12">
+                    <label class="form-label">Чек-лист (по одному пункту в строке)</label>
+                    <input type="hidden" name="template_id" value="{{ selected_template.id if selected_template else '' }}">
+                    <textarea class="form-control" name="checklist_text" rows="4" placeholder="собрать документы&#10;позвонить родителям&#10;оформить справку">{{ request.form.get('checklist_text', template_defaults.get('checklist_text','')) }}</textarea>
+                  </div>
+
+                  {% if task and task.checklist_items %}
+                  <div class="col-12">
+                    <div class="small text-muted mb-2">Текущие пункты чек-листа</div>
+                    <div class="vstack gap-2 compact-existing-checklist">
+                      {% for item in task.checklist_items %}
+                      <div class="row g-2 align-items-center">
+                        <div class="col-md-1 text-muted">{{ loop.index }}</div>
+                        <div class="col-md-9">
+                          <input type="hidden" name="existing_checklist_id" value="{{ item.id }}">
+                          <input class="form-control" type="text" name="existing_checklist_title" value="{{ item.title }}">
+                        </div>
+                        <div class="col-md-2">
+                          <input type="hidden" name="existing_checklist_done_flags" value="{{ 1 if item.is_done else 0 }}">
+                          <span class="badge {% if item.is_done %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ 'Выполнен' if item.is_done else 'Открыт' }}</span>
+                        </div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  {% endif %}
+
+                  {% if task %}
+                  <div class="col-12">
+                    <label class="form-label">Результат исполнения</label>
+                    <textarea class="form-control" name="result_text" rows="3">{{ request.form.get('result_text', task.result_text or '') }}</textarea>
+                  </div>
+                  {% endif %}
+
+                  <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check me-3"><input class="form-check-input" type="checkbox" name="is_control_required" id="is_control_required" {% if request.form.get('is_control_required') or (task and task.is_control_required and not request.form) %}checked{% endif %}><label class="form-check-label" for="is_control_required">Контроль</label></div>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="is_private" id="is_private" {% if request.form.get('is_private') or (task and task.is_private and not request.form) %}checked{% endif %}><label class="form-check-label" for="is_private">Приватная</label></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 d-flex gap-2 flex-wrap">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+        <a class="btn btn-outline-secondary" href="{% if task %}{{ url_for('tasks.task_card', task_id=task.id) }}{% else %}{{ url_for('tasks.my_tasks') }}{% endif %}">Отмена</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.compact-task-form .form-label{margin-bottom:.35rem;font-weight:600}
+.compact-task-form textarea.form-control{min-height:96px}
+.picker-card{border:1px solid #dee2e6;border-radius:.75rem;background:#fff;padding:.6rem}
+.picker-toolbar{margin-bottom:.45rem}
+.picker-summary{font-size:.85rem;color:#6c757d;margin-bottom:.45rem;min-height:1.2rem}
+.picker-list{max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:.35rem;padding-right:.1rem}
+.picker-option{display:flex;align-items:flex-start;gap:.55rem;padding:.45rem .55rem;border:1px solid #e7e7e7;border-radius:.6rem;background:#fff;cursor:pointer}
+.picker-option.active{border-color:#0d6efd;background:rgba(13,110,253,.06)}
+.picker-option.d-none{display:none !important}
+.picker-input{margin-top:.2rem}
+.picker-meta{display:block;min-width:0}
+.picker-name{display:block;font-weight:600;line-height:1.2}
+.picker-sub{display:block;font-size:.78rem;color:#6c757d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.compact-existing-checklist .form-control{padding-top:.35rem;padding-bottom:.35rem}
+</style>
+<script>
+  async function loadClasses() {
+    const grade = document.getElementById('grade').value;
+    const classSelect = document.getElementById('class_id');
+    const childSelect = document.getElementById('child_id');
+    classSelect.innerHTML = '<option value="">—</option>';
+    childSelect.innerHTML = '<option value="">—</option>';
+    if (!grade) return;
+    const resp = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(grade)}`);
+    const data = await resp.json();
+    data.forEach(row => {
+      const opt = document.createElement('option');
+      opt.value = row.id;
+      opt.textContent = row.name;
+      if ('{{ selected_class_id or "" }}' === String(row.id)) opt.selected = true;
+      classSelect.appendChild(opt);
+    });
+    if (classSelect.value) loadChildren();
+  }
+
+  async function loadChildren() {
+    const classId = document.getElementById('class_id').value;
+    const childSelect = document.getElementById('child_id');
+    childSelect.innerHTML = '<option value="">—</option>';
+    if (!classId) return;
+    const resp = await fetch(`/api/children/by-class?class_id=${encodeURIComponent(classId)}`);
+    const data = await resp.json();
+    data.forEach(row => {
+      const opt = document.createElement('option');
+      opt.value = row.id;
+      opt.textContent = row.fio;
+      if ('{{ request.form.get("child_id", type=int, default=(task.child_id if task else None)) or "" }}' === String(row.id)) opt.selected = true;
+      childSelect.appendChild(opt);
+    });
+  }
+
+  function formatSummary(names, emptyText) {
+    if (!names.length) return emptyText;
+    if (names.length <= 3) return names.join(', ');
+    return `${names.slice(0, 3).join(', ')} + еще ${names.length - 3}`;
+  }
+
+  function initPicker(card) {
+    const mode = card.dataset.mode || 'multi';
+    const hiddenInputId = card.dataset.hiddenInput;
+    const hiddenInput = hiddenInputId ? document.getElementById(hiddenInputId) : null;
+    const searchInput = card.querySelector('.picker-search');
+    const summary = card.querySelector('.picker-summary');
+    const options = Array.from(card.querySelectorAll('.picker-option'));
+    const inputs = Array.from(card.querySelectorAll('.picker-input'));
+    const emptyText = summary.dataset.empty || 'Не выбрано';
+
+    function syncState() {
+      const selected = [];
+      options.forEach(option => {
+        const input = option.querySelector('.picker-input');
+        option.classList.toggle('active', input.checked);
+        if (input.checked) {
+          const name = option.querySelector('.picker-name')?.textContent?.trim() || '';
+          if (name) selected.push({value: input.value, name});
+        }
+      });
+      summary.textContent = formatSummary(selected.map(x => x.name), emptyText);
+      if (hiddenInput) {
+        hiddenInput.value = selected[0]?.value || '';
+      }
+    }
+
+    options.forEach(option => {
+      option.addEventListener('click', (event) => {
+        const input = option.querySelector('.picker-input');
+        if (event.target !== input) {
+          if (mode === 'single') {
+            input.checked = true;
+            inputs.forEach(other => { if (other !== input) other.checked = false; });
+          } else {
+            input.checked = !input.checked;
+          }
+        }
+        syncState();
+      });
+    });
+
+    inputs.forEach(input => input.addEventListener('change', syncState));
+
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const needle = searchInput.value.trim().toLowerCase();
+        options.forEach(option => {
+          const hay = option.dataset.userSearch || '';
+          option.classList.toggle('d-none', needle && !hay.includes(needle));
+        });
+      });
+    }
+
+    syncState();
+  }
+
+  document.getElementById('grade').addEventListener('change', loadClasses);
+  document.getElementById('class_id').addEventListener('change', loadChildren);
+  document.querySelectorAll('.picker-card').forEach(initPicker);
+</script>
+{% endblock %}

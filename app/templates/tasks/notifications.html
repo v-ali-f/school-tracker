@@ -1,0 +1,68 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Внутренние уведомления по задачам, фильтрация и массовая отметка прочтения.</div></div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('tasks.task_notification_settings') }}">Настройки</a>
+    <form method="post" action="{{ url_for('tasks.mark_all_notifications_read') }}">
+      <button class="btn btn-primary" type="submit">Отметить все как прочитанные</button>
+    </form>
+  </div>
+</div>
+
+<form class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-4">
+      <label class="form-label">Поиск</label>
+      <input class="form-control" type="text" name="q" value="{{ request.args.get('q', '') }}" placeholder="Заголовок или текст">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Тип</label>
+      <select class="form-select" name="notification_type">
+        <option value="">Все</option>
+        {% for item in notification_types %}<option value="{{ item }}" {% if request.args.get('notification_type') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Прочтение</label>
+      <select class="form-select" name="unread">
+        <option value="">Все</option>
+        <option value="1" {% if request.args.get('unread') == '1' %}selected{% endif %}>Непрочитанные</option>
+        <option value="0" {% if request.args.get('unread') == '0' %}selected{% endif %}>Прочитанные</option>
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-outline-secondary w-100" type="submit">Применить</button>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <div class="list-group list-group-flush">
+    {% for item in notifications %}
+    <div class="list-group-item {% if not item.is_read %}bg-light{% endif %}">
+      <div class="d-flex justify-content-between gap-3 flex-wrap">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="fw-semibold">{{ item.title }}</div>
+            {% if item.is_important %}<span class="badge text-bg-warning">важное</span>{% endif %}
+            {% if not item.is_read %}<span class="badge text-bg-primary">не прочитано</span>{% endif %}
+          </div>
+          <div>{{ item.message }}</div>
+          <div class="small text-muted mt-1">{{ item.created_at.strftime('%d.%m.%Y %H:%M') if item.created_at else '' }}</div>
+        </div>
+        <div class="d-flex gap-2 align-items-start">
+          <span class="badge text-bg-light">{{ item.notification_type }}</span>
+          <form method="post" action="{{ url_for('tasks.read_notification', notification_id=item.id) }}">
+            <button class="btn btn-sm btn-outline-primary" type="submit">Открыть задачу</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="list-group-item text-muted">Уведомлений пока нет.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

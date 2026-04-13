@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('knowledge.knowledge_list') }}">База знаний</a></li>
+    <li class="breadcrumb-item active">{{ article.title }}</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-9">
+
+    <div class="d-flex align-items-start justify-content-between mb-3 gap-2">
+      <div>
+        <h3 class="mb-1">{{ article.title }}</h3>
+        <div class="text-muted small">
+          {% if article.kind == "file" %}<span class="badge bg-danger-subtle text-danger me-1">PDF / файл</span>
+          {% elif article.kind == "link" %}<span class="badge bg-info-subtle text-info me-1">Ссылка</span>
+          {% else %}<span class="badge bg-primary-subtle text-primary me-1">Статья</span>
+          {% endif %}
+          Обновлено: {{ article.updated_at.strftime("%d.%m.%Y") }}
+        </div>
+      </div>
+      {% if current_user.role == "ADMIN" %}
+      <a class="btn btn-outline-secondary btn-sm flex-shrink-0"
+         href="{{ url_for('knowledge.knowledge_edit', article_id=article.id) }}">
+        <i class="bi bi-pencil me-1"></i>Редактировать
+      </a>
+      {% endif %}
+    </div>
+
+    {% if article.kind == "link" and article.link %}
+    <div class="card mb-4" style="border-radius:12px;">
+      <div class="card-body d-flex align-items-center gap-3">
+        <i class="bi bi-link-45deg text-info fs-2"></i>
+        <div>
+          <div class="fw-semibold">Внешняя ссылка</div>
+          <a href="{{ article.link }}" target="_blank" rel="noopener" class="text-break">{{ article.link }}</a>
+        </div>
+        <a href="{{ article.link }}" target="_blank" rel="noopener"
+           class="btn btn-info ms-auto flex-shrink-0">Открыть <i class="bi bi-box-arrow-up-right ms-1"></i></a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if article.kind == "file" and article.file_path %}
+    <div class="card mb-4" style="border-radius:12px;">
+      <div class="card-body d-flex align-items-center gap-3">
+        <i class="bi bi-file-earmark-pdf text-danger fs-2"></i>
+        <div>
+          <div class="fw-semibold">Прикреплённый файл</div>
+          <div class="text-muted small">{{ article.file_path }}</div>
+        </div>
+        <a href="{{ url_for('knowledge.knowledge_file', filename=article.file_path) }}"
+           class="btn btn-danger ms-auto flex-shrink-0" download>
+          <i class="bi bi-download me-1"></i>Скачать
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if article.body %}
+    <div class="card" style="border-radius:14px;">
+      <div class="card-body knowledge-body">
+        {{ article.body | replace('\n', '<br>') | safe }}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+      <a href="{{ url_for('knowledge.knowledge_list') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>К списку
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.knowledge-body {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: #212529;
+  white-space: pre-wrap;
+}
+</style>
+{% endblock %}

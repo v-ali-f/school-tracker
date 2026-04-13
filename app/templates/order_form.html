@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="mb-3">{{ 'Редактирование приказа' if item else 'Новый приказ' }}</h2>
+<form method="post" class="card">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Номер</label>
+        <input class="form-control" name="number" value="{{ item.number if item else request.form.get('number', '') }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Дата</label>
+        <input class="form-control" type="date" name="order_date" value="{{ item.order_date.isoformat() if item and item.order_date else request.form.get('order_date', '') }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Раздел</label>
+        <select class="form-select" name="section">
+          {% set current_section = item.section if item else request.form.get('section', 'study') %}
+          {% for code, label in sections %}
+            <option value="{{ code }}" {% if current_section == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Срок действия</label>
+        <input class="form-control" type="date" name="valid_until" value="{{ item.valid_until.isoformat() if item and item.valid_until else request.form.get('valid_until', '') }}">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Название</label>
+        <input class="form-control" name="title" value="{{ item.title if item else request.form.get('title', '') }}" required>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Исполнитель</label>
+        <input class="form-control" name="executor" value="{{ item.executor if item else request.form.get('executor', '') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Составитель</label>
+        <input class="form-control" name="author" value="{{ item.author if item else request.form.get('author', '') }}">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Ответственные</label>
+        <div class="border rounded p-2 bg-light" style="max-height: 260px; overflow:auto;">
+          {% for u in users %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="responsible_user_ids" value="{{ u.id }}" id="resp_{{ u.id }}"
+                     {% if u.id in selected_responsible_ids %}checked{% endif %}>
+              <label class="form-check-label" for="resp_{{ u.id }}">{{ u.fio or u.username }}</label>
+            </div>
+          {% else %}
+            <div class="text-muted">Список сотрудников пуст.</div>
+          {% endfor %}
+        </div>
+        <div class="form-text">Можно выбрать нескольких ответственных галочками.</div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="approved_by_deputy" id="approved_by_deputy" {% if (item and item.approved_by_deputy) or request.form.get('approved_by_deputy') %}checked{% endif %}>
+          <label class="form-check-label" for="approved_by_deputy">Согласовано с замом</label>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="original_submitted" id="original_submitted" {% if (item and item.original_submitted) or request.form.get('original_submitted') %}checked{% endif %}>
+          <label class="form-check-label" for="original_submitted">Оригинал сдан</label>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Примечание</label>
+        <textarea class="form-control" rows="3" name="notes">{{ item.notes if item else request.form.get('notes', '') }}</textarea>
+      </div>
+    </div>
+  </div>
+  <div class="card-footer d-flex gap-2">
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('orders.registry') }}">Назад</a>
+  </div>
+</form>
+{% endblock %}

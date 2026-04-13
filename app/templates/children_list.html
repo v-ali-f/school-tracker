@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item active">Список учеников</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h4 class="mb-0">Дети</h4>
+  <div class="d-flex gap-2 flex-wrap justify-content-end">
+    {% if can("children_import") %}<a class="btn btn-outline-primary" href="{{ url_for('children.children_import') }}">Импорт детей Excel</a>{% endif %}
+    {% if can("parents_import") %}<a class="btn btn-outline-primary" href="{{ url_for('children.parents_import') }}">Импорт родителей</a>{% endif %}
+    <a class="btn btn-outline-primary btn-sm" href="/reports/az">Отчёт АЗ</a>
+    {% if can("child_create") %}<a class="btn btn-primary btn-sm" href="/children/new">Добавить ребёнка</a>{% endif %}
+  </div>
+</div>
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-2">
+    <label class="form-label">Параллель</label>
+    <select class="form-select" name="grade" onchange="this.form.submit()"><option value="">Все</option>{% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Класс</label>
+    <select class="form-select" name="class_id"><option value="">Все классы</option>{% for c in classes %}<option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">ФИО</label>
+    <input class="form-control" name="q" placeholder="Поиск по ФИО" value="{{ q or '' }}">
+  </div>
+  <div class="col-md-3 d-flex align-items-end gap-2">
+    <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}"><button class="btn btn-outline-secondary flex-fill">Фильтр</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('children.list_children') }}">Сброс</a>
+  </div>
+</form>
+
+<div class="card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle"><thead><tr><th class="table-number-col">№</th><th style="width: 110px;">Класс</th><th>ФИО</th><th style="width: 100px;">Пол</th><th style="width: 140px;">Дата рождения</th><th style="width: 170px;">Форма обучения</th><th style="width: 120px;"></th></tr></thead><tbody>{% for ch in children %}<tr><td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td><td>{{ ch.current_class_name or "—" }}</td><td>{{ (ch.last_name or "") ~ " " ~ (ch.first_name or "") ~ " " ~ (ch.middle_name or "") }}</td><td>{{ ch.gender or "—" }}</td><td>{% if ch.birth_date %}{{ ch.birth_date.strftime("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}</td><td>{{ ch.education_form or "—" }}</td><td class="text-end">{% if can("child_card_view_basic") %}<a class="btn btn-sm btn-outline-primary" href="/children/{{ ch.id }}">Открыть</a>{% endif %}</td></tr>{% endfor %}{% if children|length == 0 %}<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-person-x" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>{% if q or selected_grade or selected_class_id %}По вашему запросу учеников не найдено. Попробуйте изменить фильтры.{% else %}Список учеников пуст. Используйте импорт для загрузки данных.{% endif %}</td></tr>{% endif %}</tbody></table></div></div>
+{% include "components/pagination.html" %}
+{% endblock %}

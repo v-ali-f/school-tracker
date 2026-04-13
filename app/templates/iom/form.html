@@ -1,0 +1,272 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">СППиСС</div>
+      <h1 class="dashboard-title mb-1">{{ 'Создать ИОМ' if is_new else 'Редактирование ИОМ' }}</h1>
+      <div class="text-muted classic-hero-note">Этап 2.4.1: визуальная шлифовка формы под шаблон ИОМ школы, без лишних дублирующих полей.</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('iom.registry') }}">К реестру</a>
+      {% if not is_new %}
+      <a class="btn zone-btn zone-btn-soft" href="{{ url_for('iom.card_view', card_id=card.id) }}">Открыть карточку</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" class="row g-3">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Титульный лист ИОМ</strong></div>
+        <div class="card-body row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Учебный год *</label>
+            <select class="form-select" name="academic_year_id" required>
+              {% for year in years %}
+              <option value="{{ year.id }}" {% if card.academic_year_id == year.id %}selected{% endif %}>{{ year.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Этап 2.4: система проверяет готовность карточки перед переводом на согласование и утверждение.</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Тип ИОМ *</label>
+            <select class="form-select" name="iom_type" required>
+              <option value="">Выберите тип</option>
+              {% for value, label in iom_type_choices %}
+              <option value="{{ value }}" {% if card.iom_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Статус</label>
+            <select class="form-select" name="status">
+              {% for value, label in status_choices %}
+              <option value="{{ value }}" {% if card.status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Ребенок из реестра ОВЗ *</label>
+            <select class="form-select" name="child_id" id="child_id" required>
+              <option value="">Выберите ребенка</option>
+              {% for child in children %}
+              <option value="{{ child.id }}" {% if card.child_id == child.id %}selected{% endif %} data-education-level="{{ child_form_data.get(child.id, {}).get('education_level', '') }}" data-education-level-label="{{ child_form_data.get(child.id, {}).get('education_level_label', '') }}" data-aop-variant="{{ child_form_data.get(child.id, {}).get('aop_variant', '') }}">{{ child.fio }}{% if child.current_class_name %} — {{ child.current_class_name }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <div class="border rounded-3 p-3 bg-light-subtle">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">ФИО обучающегося</label>
+                  <input class="form-control" value="{{ card.student_fio or selected_child.fio if selected_child else card.student_fio or '' }}" readonly>
+                  <div class="form-text">Подтягивается автоматически из карточки ребенка.</div>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Дата рождения</label>
+                  <input class="form-control" value="{{ card.birth_date.strftime('%d.%m.%Y') if card.birth_date else '' }}" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Год рождения</label>
+                  <input class="form-control" value="{{ card.birth_year or '' }}" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Уровень образования</label>
+                  <input class="form-control" id="education_level_display" value="{{ education_level_labels.get(card.education_level, card.education_level or '') }}" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Класс / группа</label>
+                  <input class="form-control" value="{{ card.class_name or selected_child.current_class_name if selected_child else card.class_name or '' }}" readonly>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Параллель</label>
+                  <input class="form-control" value="{{ card.parallel or '' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Здание / ОП</label>
+                  <input class="form-control" value="{{ card.building_name or (card.building.short_name if card.building and card.building.short_name else (card.building.name if card.building else '')) }}" readonly>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Статус ОВЗ</label>
+                  <input class="form-control" value="{{ card.ovz_status or '' }}" readonly>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Нозология</label>
+                  <input class="form-control" value="{{ card.nosology or '' }}" readonly>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">АООП</label>
+                  <select class="form-select" name="aop_variant" id="aop_variant">
+                    <option value="">Сначала выберите уровень образования</option>
+                    {% set current_level = card.education_level or '' %}
+                    {% for value, label in aop_variant_choices.get(current_level, []) %}
+                    <option value="{{ value }}" {% if card.aop_variant == label or card.aop_variant == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">Список программ меняется по уровню образования: ДО, НОО, ООО, СОО, УО.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Родители (законные представители)</label>
+                  <textarea class="form-control" rows="3" readonly>{{ card.parent_info or '' }}</textarea>
+                  <div class="form-text">Подтягивается автоматически из карточки ребенка.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Срок реализации с *</label>
+            <input class="form-control" type="date" name="start_date" value="{{ card.start_date.isoformat() if card.start_date else '' }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">по *</label>
+            <input class="form-control" type="date" name="end_date" value="{{ card.end_date.isoformat() if card.end_date else '' }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Руководитель СППиСС</label>
+            <input class="form-control" name="sppiss_head_name" value="{{ card.sppiss_head_name or '' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Директор</label>
+            <input class="form-control" name="director_name" value="{{ card.director_name or '' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Отметка об ознакомлении и согласии</label>
+            <input class="form-control" name="consent_mark" value="{{ card.consent_mark or '' }}">
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-light border h-100 mb-0 small">
+              Даты согласования и утверждения в форме этапа 2.1 не заполняются. Их можно будет проставлять позже при выпуске и печати ИОМ.
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Комментарий к карточке</label>
+            <textarea class="form-control" name="notes" rows="4">{{ card.notes or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mb-4">
+        <button class="btn btn-primary" name="save" value="1">Сохранить</button>
+        <button class="btn btn-outline-primary" name="save_and_continue" value="1">Сохранить и продолжить</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('iom.registry') }}">Отмена</a>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Текущий статус</strong></div>
+        <div class="card-body">
+          <div class="fs-5">{{ card.status_label if card.status_label else 'Черновик' }}</div>
+          {% if selected_child %}
+          <hr>
+          <div class="small text-muted">Автоподстановка по ребенку</div>
+          <div><strong>Ребенок:</strong> {{ selected_child.fio }}</div>
+          <div><strong>Класс:</strong> {{ selected_child.current_class_name or '—' }}</div>
+          <div><strong>ОВЗ:</strong> {{ 'Да' if selected_child.is_ovz else 'Нет' }}</div>
+          {% endif %}
+          {% if card.support_staff_summary %}
+          <hr>
+          <div class="small text-muted mb-1">Состав сопровождения</div>
+          <div style="white-space: pre-line;">{{ card.support_staff_summary }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Готовность ИОМ · этап 2.4</strong></div>
+        <div class="card-body">
+          {% if readiness.total %}
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="small text-muted">Заполнено обязательных блоков</div>
+            <div class="fw-semibold">{{ readiness.completed }} / {{ readiness.total }}</div>
+          </div>
+          <div class="progress mb-3" role="progressbar" aria-label="Готовность ИОМ" aria-valuenow="{{ readiness.percent }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width: {{ readiness.percent }}%">{{ readiness.percent }}%</div>
+          </div>
+          <div class="d-flex flex-column gap-2">
+            {% for item in readiness.checks %}
+            <div class="border rounded px-2 py-2 d-flex justify-content-between align-items-start gap-2">
+              <div class="small">{{ item.label }}</div>
+              {% if item.ok %}<span class="badge text-bg-success">OK</span>{% else %}<span class="badge text-bg-warning">Пусто</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-muted">Сначала выберите ребенка и сохраните карточку.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if not is_new %}
+      <div class="card shadow-sm">
+        <div class="card-header bg-white"><strong>История изменений</strong></div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            {% for row in card.history_entries[:10] %}
+            <div class="list-group-item">
+              <div class="fw-semibold">{{ row.comment or row.action }}</div>
+              <div class="small text-muted">{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}{% if row.created_by %} · {{ row.created_by.fio }}{% endif %}</div>
+            </div>
+            {% else %}
+            <div class="list-group-item text-muted">История пока пуста.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const childSelect = document.getElementById('child_id');
+  const educationDisplay = document.getElementById('education_level_display');
+  const aopSelect = document.getElementById('aop_variant');
+  const choicesByLevel = {{ aop_variant_choices_json|safe }};
+
+  function rebuildAopOptions(levelCode, currentText) {
+    if (!aopSelect) return;
+    const items = choicesByLevel[levelCode] || [];
+    aopSelect.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = items.length ? 'Выберите программу' : 'Для выбранного уровня список программ пока пуст';
+    aopSelect.appendChild(placeholder);
+    let matched = false;
+    items.forEach(function (item) {
+      const option = document.createElement('option');
+      option.value = item[0];
+      option.textContent = item[1];
+      if (currentText && (currentText === item[0] || currentText === item[1])) {
+        option.selected = true;
+        matched = true;
+      }
+      aopSelect.appendChild(option);
+    });
+    if (currentText && !matched) {
+      const customOption = document.createElement('option');
+      customOption.value = currentText;
+      customOption.textContent = currentText;
+      customOption.selected = true;
+      aopSelect.appendChild(customOption);
+    }
+  }
+
+  function syncFromChild() {
+    if (!childSelect) return;
+    const selectedOption = childSelect.options[childSelect.selectedIndex];
+    const levelCode = selectedOption ? (selectedOption.dataset.educationLevel || '') : '';
+    const levelLabel = selectedOption ? (selectedOption.dataset.educationLevelLabel || '') : '';
+    const aopVariant = selectedOption ? (selectedOption.dataset.aopVariant || '') : '';
+    if (educationDisplay && levelLabel) {
+      educationDisplay.value = levelLabel;
+    }
+    rebuildAopOptions(levelCode, aopSelect && aopSelect.value ? aopSelect.value : aopVariant);
+  }
+
+  if (childSelect) {
+    childSelect.addEventListener('change', syncFromChild);
+  }
+  syncFromChild();
+})();
+</script>
+{% endblock %}

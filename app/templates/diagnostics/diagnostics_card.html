@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h3 class="mb-1">{{ session.title }}</h3>
+    <div class="text-muted">{{ session.diagnostic_type }} · {{ session.subject or 'Без предмета' }} · статус: {{ session.status }} · режим: {% if result_mode == "level" %}по уровням{% elif result_mode == "mark" %}по отметкам{% elif result_mode == "mixed" %}смешанный{% else %}по баллам / проценту{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_import %}<a class="btn btn-primary" href="{{ url_for('diagnostics.import_view', session_id=session.id) }}">Импорт</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.analytics', session_id=session.id) }}">Отчёт</a>
+    {% if can_manage %}<a class="btn btn-outline-dark" href="{{ url_for('diagnostics.edit', session_id=session.id) }}">Редактировать</a>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Результатов</div><div class="fs-4">{{ stats.count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Привязано</div><div class="fs-4">{{ stats.bound_count }}</div><div class="small text-muted">Не привязано: {{ stats.unbound_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">{% if result_mode == "mark" %}Средняя отметка{% elif result_mode in ["percent", "score"] %}Средний результат{% else %}Средний балл{% endif %}</div><div class="fs-4">{% if result_mode == "mark" %}{{ mark_summary.avg_mark if mark_summary.avg_mark is not none else '—' }}{% elif result_mode in ["percent", "score"] %}{{ percent_summary.avg_score if percent_summary.avg_score is not none else (percent_summary.avg_percent if percent_summary.avg_percent is not none else '—') }}{% else %}{{ stats.avg_score if stats.avg_score is not none else '—' }}{% endif %}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Средний %</div><div class="fs-4">{{ stats.avg_percent if stats.avg_percent is not none else '—' }}</div></div></div></div>
+</div>
+
+{% if result_mode == "mark" %}
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Отметка 5</div><div class="fs-4">{{ mark_summary.counts['5'] }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Отметка 4</div><div class="fs-4">{{ mark_summary.counts['4'] }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Отметка 3</div><div class="fs-4">{{ mark_summary.counts['3'] }}</div></div></div></div>
+  <div class="col-md-3"><div class="card border-danger"><div class="card-body"><div class="text-muted small">Отметка 2</div><div class="fs-4 text-danger">{{ mark_summary.counts['2'] }}</div></div></div></div>
+</div>
+{% elif result_mode in ["percent", "score"] %}
+<div class="row g-3 mb-3">
+  {% for label in ['0–20%', '21–40%', '41–60%', '61–80%'] %}
+    <div class="col-md-3"><div class="card{% if loop.first %} border-danger{% endif %}"><div class="card-body"><div class="text-muted small">{{ label }}</div><div class="fs-4{% if loop.first %} text-danger{% endif %}">{{ percent_summary.bands[label] }}</div></div></div></div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Высокий</div><div class="fs-4">{{ stats.levels['Высокий'] }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Повышенный</div><div class="fs-4">{{ stats.levels['Повышенный'] }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Базовый</div><div class="fs-4">{{ stats.levels['Базовый'] }}</div></div></div></div>
+  <div class="col-md-3"><div class="card border-danger"><div class="card-body"><div class="text-muted small">Ниже базового</div><div class="fs-4 text-danger">{{ stats.levels['Ниже базового'] }}</div></div></div></div>
+</div>
+{% endif %}
+
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-2">
+      <label class="form-label">Учебный год</label>
+      <select class="form-select" name="academic_year_id">
+        <option value="">Все</option>
+        {% for y in years %}<option value="{{ y.id }}" {% if current_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Класс</label>
+      <select class="form-select" name="class_name">
+        <option value="">Все</option>
+        {% for cls in class_options %}<option value="{{ cls }}" {% if class_filter == cls %}selected{% endif %}>{{ cls }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4"><label class="form-label">Поиск по ученику / коду</label><input class="form-control" name="student" value="{{ student_query }}"></div>
+    <div class="col-md-2">
+      <div class="form-check mt-4 pt-2">
+        <input class="form-check-input" type="checkbox" name="only_unbound" value="1" id="only_unbound" {% if only_unbound %}checked{% endif %}>
+        <label class="form-check-label" for="only_unbound">Только непривязанные</label>
+      </div>
+    </div>
+    <div class="col-md-1 d-grid"><button class="btn btn-primary">Показать</button></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Ученик</th><th>Класс</th><th>Код</th><th>Балл</th><th>%</th><th>Отметка</th><th>Уровень</th><th>Учитель</th><th>Источник</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      {% set student_level = result_display_label(row, session) %}
+      {% set student_percent = row.percent if row.percent is not none else none %}
+      {% set student_score = row.total_score if row.total_score is not none else none %}
+      {% set student_mark = mark_display_label(row) %}
+      <tr {% if student_level == 'Ниже базового' %}class="table-danger"{% endif %}>
+        <td>{{ row.full_name_raw or (row.child.fio if row.child else '—') }}</td>
+        <td>{{ row.class_name_raw or (row.school_class.name if row.school_class else '—') }}</td>
+        <td>{{ row.participant_code or '—' }}</td>
+        <td>{% if result_mode in ['percent', 'score'] and student_score is not none and student_score <= 2 %}<span class="text-danger fw-semibold">{{ student_score }}</span>{% else %}{{ student_score if student_score is not none else '—' }}{% endif %}</td>
+        <td{% if result_mode in ['percent', 'score'] and student_percent is not none and student_percent <= 30 %} class="text-danger fw-semibold"{% endif %}>{{ student_percent if student_percent is not none else '—' }}</td>
+        <td{% if result_mode == 'mark' and student_mark == '2' %} class="text-danger fw-semibold"{% endif %}>{{ student_mark or '—' }}</td>
+        <td{% if student_level == 'Ниже базового' %} class="text-danger fw-semibold"{% endif %}>{{ student_level or '—' }}</td>
+        <td>{{ row.teacher_binding.teacher.fio if row.teacher_binding and row.teacher_binding.teacher else '—' }}</td>
+        <td>{{ row.teacher_binding.source if row.teacher_binding else '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="text-center text-muted py-4">Результатов по выбранному фильтру нет.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+{% endblock %}

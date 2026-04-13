@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# База данных
+instance/
+*.db
+*.sqlite3
+
+# Переменные окружения
+.env
+.env.*
+
+# Загруженные файлы
+uploads/
+
+# Логи
+*.log
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Windows
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

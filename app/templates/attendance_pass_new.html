@@ -1,0 +1,162 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Создать пропуск ученика</h3>
+    <div class="text-muted">Классный руководитель оформляет пропуск на выход</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('attendance.passes_registry') }}">Назад к реестру</a>
+</div>
+
+<div class="card"><div class="card-body">
+  <form method="post" class="row g-3" id="passForm">
+    <div class="col-md-3">
+      <label class="form-label">Параллель</label>
+      <select class="form-select" name="grade" id="gradeSelect">
+        <option value="">Выберите параллель</option>
+        {% for grade in available_grades %}
+          <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} параллель</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Класс</label>
+      <select class="form-select" name="class_id" id="classSelect" {% if not selected_grade %}disabled{% endif %}>
+        <option value="">{% if selected_grade %}Выберите класс{% else %}Сначала выберите параллель{% endif %}</option>
+        {% for cls in filtered_classes %}
+          <option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Ученик</label>
+      <select class="form-select" name="child_id" id="childSelect" required {% if not selected_class_id %}disabled{% endif %}>
+        <option value="">{% if selected_class_id %}Выберите ученика{% else %}Сначала выберите класс{% endif %}</option>
+        {% for child in children %}
+          <option value="{{ child.id }}">{{ child.fio }}{% if child.current_class_name %} — {{ child.current_class_name }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Дата</label>
+      <input class="form-control" type="date" name="pass_date" value="{{ today.isoformat() }}" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Время</label>
+      <input class="form-control" type="time" name="pass_time" value="{{ now.strftime('%H:%M') }}" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Причина</label>
+      <input class="form-control" name="reason" placeholder="Например: посещение врача / заявление родителя">
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button class="btn btn-primary">Сохранить пропуск</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('attendance.passes_registry') }}">Отмена</a>
+    </div>
+  </form>
+</div></div>
+
+<script>
+(function(){
+  const gradeSelect = document.getElementById("gradeSelect");
+  const classSelect = document.getElementById("classSelect");
+  const childSelect = document.getElementById("childSelect");
+
+  function resetClasses(placeholder){
+    classSelect.innerHTML = `<option value="">${placeholder}</option>`;
+    classSelect.disabled = true;
+  }
+
+  function resetChildren(placeholder){
+    childSelect.innerHTML = `<option value="">${placeholder}</option>`;
+    childSelect.disabled = true;
+  }
+
+  function setLoading(selectEl, text){
+    selectEl.innerHTML = `<option value="">${text}</option>`;
+    selectEl.disabled = true;
+  }
+
+  async function loadClasses(grade, selectedClassId){
+    resetClasses("Выберите класс");
+    resetChildren("Сначала выберите класс");
+
+    if (!grade) {
+      resetClasses("Сначала выберите параллель");
+      return;
+    }
+
+    try {
+      setLoading(classSelect, "Загрузка классов...");
+      const res = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(grade)}`);
+      const data = await res.json();
+
+      classSelect.innerHTML = `<option value="">Выберите класс</option>`;
+      data.forEach(cls => {
+        const opt = document.createElement("option");
+        opt.value = cls.id;
+        opt.textContent = cls.name;
+        if (selectedClassId && String(selectedClassId) === String(cls.id)) {
+          opt.selected = true;
+        }
+        classSelect.appendChild(opt);
+      });
+      classSelect.disabled = false;
+    } catch (e) {
+      resetClasses("Ошибка загрузки классов");
+    }
+  }
+
+  async function loadChildren(classId, selectedChildId){
+    resetChildren("Выберите ученика");
+
+    if (!classId) {
+      resetChildren("Сначала выберите класс");
+      return;
+    }
+
+    try {
+      setLoading(childSelect, "Загрузка учеников...");
+      const res = await fetch(`/api/children/by-class?class_id=${encodeURIComponent(classId)}`);
+      const data = await res.json();
+
+      childSelect.innerHTML = `<option value="">Выберите ученика</option>`;
+      data.forEach(child => {
+        const opt = document.createElement("option");
+        opt.value = child.id;
+        opt.textContent = child.fio;
+        if (selectedChildId && String(selectedChildId) === String(child.id)) {
+          opt.selected = true;
+        }
+        childSelect.appendChild(opt);
+      });
+      childSelect.disabled = false;
+    } catch (e) {
+      resetChildren("Ошибка загрузки учеников");
+    }
+  }
+
+  gradeSelect.addEventListener("change", async () => {
+    await loadClasses(gradeSelect.value, null);
+  });
+
+  classSelect.addEventListener("change", async () => {
+    await loadChildren(classSelect.value, null);
+  });
+
+  const initialGrade = gradeSelect.value;
+  const initialClassId = {{ selected_class_id or 'null' }};
+
+  if (initialGrade) {
+    loadClasses(initialGrade, initialClassId).then(() => {
+      if (initialClassId) {
+        loadChildren(initialClassId, null);
+      }
+    });
+  } else {
+    resetClasses("Сначала выберите параллель");
+    resetChildren("Сначала выберите класс");
+  }
+})();
+</script>
+{% endblock %}

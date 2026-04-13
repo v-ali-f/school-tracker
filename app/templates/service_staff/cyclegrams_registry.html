@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">Этап 3</div>
+      <h1 class="dashboard-title mb-1">Электронные циклограммы</h1>
+      <div class="text-muted classic-hero-note">Реестр циклограмм по специалистам и учебным годам, статусы согласования и печатные формы.</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('service_staff.index') }}">К модулю</a>
+      {% if can_edit %}<a class="btn zone-btn zone-btn-soft zone-green" href="{{ url_for('service_staff.cyclegram_new') }}">Новая циклограмма</a>{% endif %}
+    </div>
+  </div>
+
+  <section class="dashboard-section dashboard-section-classic mb-3">
+    <div class="row g-3">
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Всего циклограмм</div><div class="summary-card-value">{{ stats.total }}</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Черновики</div><div class="summary-card-value">{{ stats.draft_count }}</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">На проверке</div><div class="summary-card-value">{{ stats.review_count }}</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Утверждено</div><div class="summary-card-value">{{ stats.approved_count }}</div></div></div>
+    </div>
+  </section>
+
+  <form class="card mb-3" method="get">
+    <div class="card-body row g-3 align-items-end">
+      <div class="col-lg-3 col-md-6"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Специалист или название"></div>
+      <div class="col-lg-2 col-md-6"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year"><option value="">Все</option>{% for item in academic_years %}<option value="{{ item }}" {% if request.args.get('academic_year') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-6"><label class="form-label">Специалист</label><select class="form-select" name="specialist_id"><option value="">Все</option>{% for row in specialists %}<option value="{{ row.id }}" {% if request.args.get('specialist_id') == row.id|string %}selected{% endif %}>{{ row.fio }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-6"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for row in buildings %}<option value="{{ row.id }}" {% if request.args.get('building_id') == row.id|string %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-6"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option>{% for code, label in status_choices %}<option value="{{ code }}" {% if request.args.get('status') == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-lg-3 col-md-6"><button class="btn btn-primary" type="submit">Показать</button> <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.cyclegrams_registry') }}">Сбросить</a></div>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Специалист</th><th>Учебный год</th><th>Должность</th><th>Здания</th><th>Статус</th><th>Обновлено</th><th></th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.specialist.fio if row.specialist else '—' }}</td>
+            <td>{{ row.academic_year }}</td>
+            <td>{{ row.position_title or '—' }}</td>
+            <td>{{ row.buildings_text or '—' }}</td>
+            <td><span class="badge text-bg-{% if row.status == 'APPROVED' %}success{% elif row.status == 'REVIEW' %}warning{% elif row.status == 'ARCHIVED' %}secondary{% else %}light{% endif %}">{{ row.status_label }}</span></td>
+            <td>{{ row.updated_at.strftime('%d.%m.%Y %H:%M') if row.updated_at else '—' }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('service_staff.cyclegram_card', cyclegram_id=row.id) }}">Открыть</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">Циклограммы по фильтрам не найдены.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% include "components/pagination.html" %}
+</div>
+{% endblock %}

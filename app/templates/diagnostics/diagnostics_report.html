@@ -1,0 +1,213 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h3 class="mb-1">Отчёт по диагностике</h3>
+    <div class="text-muted">{{ session.title }} · {{ session.subject or '—' }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.detail', session_id=session.id) }}">Назад</a>
+</div>
+
+{% set total_rows = report.rows|length %}
+{% set percents = report.rows|map(attribute='percent')|reject('equalto', none)|list %}
+{% set avg_percent = ((percents|sum) / (percents|length))|round(1) if percents else none %}
+{% set scores = report.rows|map(attribute='total_score')|reject('equalto', none)|list %}
+{% set avg_score = ((scores|sum) / (scores|length))|round(2) if scores else none %}
+{% set below_count = namespace(value=0) %}
+{% for row in report.rows %}
+  {% set marker = (result_display_label(row, session) or '')|string|trim|lower %}
+  {% if marker in ['низкий', 'ниже базового'] %}
+    {% set below_count.value = below_count.value + 1 %}
+  {% endif %}
+{% endfor %}
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><div class="text-muted small">Результатов</div><div class="display-6 fw-semibold">{{ total_rows }}</div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><div class="text-muted small">Классов</div><div class="display-6 fw-semibold">{{ report.by_class|length }}</div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><div class="text-muted small">Средний балл</div><div class="display-6 fw-semibold">{{ avg_score if avg_score is not none else '—' }}</div></div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="card h-100"><div class="card-body"><div class="text-muted small">Средний %</div><div class="display-6 fw-semibold">{{ avg_percent if avg_percent is not none else '—' }}</div><div class="small text-muted">Ниже базового: {{ below_count.value }}</div></div></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Рейтинг классов по среднему проценту</h5>
+      <canvas id="classPercentChart" height="180"></canvas>
+    </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Распределение результатов</h5>
+      <canvas id="resultDistributionChart" height="180"></canvas>
+    </div></div>
+  </div>
+  <div class="col-12">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Успешность по заданиям</h5>
+      <canvas id="tasksChart" height="120"></canvas>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4"><div class="card-body p-0">
+  <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <h5 class="mb-0">Классы</h5>
+      <div class="text-muted small">Карточки с результатом по каждому классу.</div>
+    </div>
+  </div>
+  <div class="px-3 pb-3">
+    <div class="row g-3">
+      {% for class_name, block in report.by_class.items()|sort(attribute='1.avg_percent', reverse=true) %}
+      <div class="col-md-4">
+        <div class="card h-100 border-0 bg-light">
+          <div class="card-body">
+            <div class="fw-semibold fs-5">{{ class_name }}</div>
+            <div class="text-muted small mb-2">Учеников: {{ block.rows|length }}</div>
+            <div class="mb-1">Средний балл: <strong>{{ block.avg_score or '—' }}</strong></div>
+            <div class="mb-2">Средний %: <strong>{{ block.avg_percent or '—' }}</strong></div>
+            {% set class_percent = block.avg_percent or 0 %}
+            <div class="progress" style="height: 10px;">
+              <div class="progress-bar" role="progressbar" style="width: {{ 100 if class_percent > 100 else class_percent }}%" aria-valuenow="{{ class_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div></div>
+
+<div class="card mb-4"><div class="card-body p-0">
+  <div class="px-3 pt-3"><h5 class="mb-0">Анализ по заданиям</h5></div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead><tr><th>Задание</th><th>Успешность, %</th><th>Количество работ</th><th style="width: 220px;">Наглядно</th></tr></thead>
+      <tbody>
+      {% for row in report.task_stats %}
+        {% set task_percent = row.success_percent or 0 %}
+        <tr>
+          <td>{{ row.task_number }}</td>
+          <td>{{ row.success_percent }}</td>
+          <td>{{ row.count }}</td>
+          <td>
+            <div class="progress" style="height: 10px;">
+              <div class="progress-bar" role="progressbar" style="width: {{ 100 if task_percent > 100 else task_percent }}%" aria-valuenow="{{ task_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Нет данных по заданиям.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+  <div class="px-3 pt-3"><h5 class="mb-0">Итоговые результаты</h5></div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead><tr><th>Ученик</th><th>Класс</th><th>Балл</th><th>%</th><th>Отметка</th><th>Источник</th></tr></thead>
+      <tbody>
+      {% for row in report.rows %}
+        {% set marker = ((row.mark or row.level or '')|string|trim|lower) %}
+        <tr {% if marker in ['низкий', 'ниже базового'] %}class="table-danger"{% endif %}>
+          <td>{{ row.full_name_raw or (row.child.fio if row.child else '—') }}</td>
+          <td>{{ row.class_name_raw or (row.school_class.name if row.school_class else '—') }}</td>
+          <td>{{ row.total_score or '—' }}</td>
+          <td>{{ row.percent or '—' }}</td>
+          <td>{{ result_display_label(row, session) or '—' }}</td>
+          <td>{{ row.source_kind }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Нет данных.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+
+<script>
+const levelColors = {
+  'Ниже базового': 'rgba(220, 53, 69, 0.75)',
+  'Высокий': 'rgba(13, 110, 253, 0.75)',
+  'Повышенный': 'rgba(25, 135, 84, 0.75)',
+  'Базовый': 'rgba(255, 193, 7, 0.75)',
+  'Без уровня': 'rgba(108, 117, 125, 0.75)'
+};
+const levelBorderColors = {
+  'Ниже базового': 'rgb(220, 53, 69)',
+  'Высокий': 'rgb(13, 110, 253)',
+  'Повышенный': 'rgb(25, 135, 84)',
+  'Базовый': 'rgb(255, 193, 7)',
+  'Без уровня': 'rgb(108, 117, 125)'
+};
+
+const classRows = [
+  {% for class_name, block in report.by_class.items()|sort(attribute='1.avg_percent', reverse=true) %}
+  { label: {{ class_name|tojson }}, avg_percent: {{ block.avg_percent or 0 }}, avg_score: {{ block.avg_score or 0 }}, count: {{ block.rows|length }} },
+  {% endfor %}
+];
+const taskRows = [
+  {% for row in report.task_stats %}
+  { label: {{ row.task_number|string|tojson }}, success_percent: {{ row.success_percent or 0 }}, count: {{ row.count or 0 }} },
+  {% endfor %}
+];
+const distribution = {
+  'Высокий': 0,
+  'Повышенный': 0,
+  'Базовый': 0,
+  'Ниже базового': 0,
+  'Без уровня': 0
+};
+{% for row in report.rows %}
+distribution[{{ (result_display_label(row, session) or 'Без уровня')|tojson }}] = (distribution[{{ (result_display_label(row, session) or 'Без уровня')|tojson }}] || 0) + 1;
+{% endfor %}
+
+if (classRows.length) {
+  new Chart(document.getElementById('classPercentChart'), {
+    type: 'bar',
+    data: {
+      labels: classRows.map(x => x.label),
+      datasets: [{ label: 'Средний %', data: classRows.map(x => x.avg_percent), backgroundColor: 'rgba(13, 110, 253, 0.75)', borderColor: 'rgb(13, 110, 253)', borderWidth: 1 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: true } },
+      scales: { y: { beginAtZero: true, suggestedMax: 100 } }
+    }
+  });
+}
+
+new Chart(document.getElementById('resultDistributionChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Ниже базового', 'Базовый', 'Повышенный', 'Высокий', 'Без уровня'],
+    datasets: [{
+      data: ['Ниже базового', 'Базовый', 'Повышенный', 'Высокий', 'Без уровня'].map(x => distribution[x] || 0),
+      backgroundColor: ['Ниже базового', 'Базовый', 'Повышенный', 'Высокий', 'Без уровня'].map(x => levelColors[x]),
+      borderColor: ['Ниже базового', 'Базовый', 'Повышенный', 'Высокий', 'Без уровня'].map(x => levelBorderColors[x]),
+      borderWidth: 1
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+});
+
+if (taskRows.length) {
+  new Chart(document.getElementById('tasksChart'), {
+    type: 'bar',
+    data: {
+      labels: taskRows.map(x => x.label),
+      datasets: [{ label: 'Успешность, %', data: taskRows.map(x => x.success_percent), backgroundColor: 'rgba(25, 135, 84, 0.75)', borderColor: 'rgb(25, 135, 84)', borderWidth: 1 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: true } },
+      scales: { y: { beginAtZero: true, suggestedMax: 100 } }
+    }
+  });
+}
+</script>
+{% endblock %}

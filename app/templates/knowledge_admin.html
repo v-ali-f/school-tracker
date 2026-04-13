@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('knowledge.knowledge_list') }}">База знаний</a></li>
+    <li class="breadcrumb-item active">Управление</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+
+{% set role_labels = dict(all_roles) %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h4 class="mb-0">База знаний — управление</h4>
+  <a class="btn btn-primary btn-sm" href="{{ url_for('knowledge.knowledge_new') }}">
+    <i class="bi bi-plus-lg me-1"></i>Добавить материал
+  </a>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="width:40px;">#</th>
+          <th>Заголовок</th>
+          <th style="width:120px;">Тип</th>
+          <th>Роли</th>
+          <th style="width:90px;">Порядок</th>
+          <th style="width:100px;">Статус</th>
+          <th style="width:140px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for article in articles %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <a href="{{ url_for('knowledge.knowledge_view', article_id=article.id) }}">{{ article.title }}</a>
+          </td>
+          <td>
+            {% if article.kind == "file" %}<span class="badge bg-danger-subtle text-danger">Файл</span>
+            {% elif article.kind == "link" %}<span class="badge bg-info-subtle text-info">Ссылка</span>
+            {% else %}<span class="badge bg-primary-subtle text-primary">Статья</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not article.target_roles %}
+              <span class="text-muted small">Для всех</span>
+            {% else %}
+              {% for r in article.target_roles %}
+                <span class="badge bg-secondary-subtle text-secondary me-1">{{ role_labels.get(r, r) }}</span>
+              {% endfor %}
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ article.sort_order }}</td>
+          <td>
+            {% if article.is_published %}
+              <span class="badge bg-success-subtle text-success">Опубликовано</span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary">Черновик</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('knowledge.knowledge_edit', article_id=article.id) }}">Изменить</a>
+              <form method="post"
+                    action="{{ url_for('knowledge.knowledge_delete', article_id=article.id) }}"
+                    onsubmit="return confirm('Удалить материал?');">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">
+            <i class="bi bi-book" style="font-size:1.8rem;opacity:.2;display:block;margin-bottom:.4rem;"></i>
+            Материалов пока нет. Нажмите «Добавить материал».
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

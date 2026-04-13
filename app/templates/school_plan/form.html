@@ -1,0 +1,131 @@
+{% extends 'layout.html' %}
+{% block title %}{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}</h1>
+    <div class="text-muted">Базовая карточка события плана работы школы.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index') }}">К реестру</a>
+</div>
+
+<form method="post" class="card card-body shadow-sm">
+  <div class="row g-3">
+    <div class="col-md-8">
+      <label class="form-label">Название</label>
+      <input class="form-control" name="title" value="{{ event.title or '' }}" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Краткое название</label>
+      <input class="form-control" name="short_title" value="{{ event.short_title or '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label">Описание</label>
+      <textarea class="form-control" name="description" rows="3">{{ event.description or '' }}</textarea>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Дата начала</label>
+      <input class="form-control" type="date" name="start_date" value="{{ event.start_date.isoformat() if event.start_date else '' }}" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Дата окончания</label>
+      <input class="form-control" type="date" name="end_date" value="{{ event.end_date.isoformat() if event.end_date else '' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Тип периода</label>
+      <select class="form-select" name="period_type">
+        {% for value, title in period_choices %}<option value="{{ value }}" {% if (event.period_type or 'day') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Учебный год</label>
+      <select class="form-select" name="academic_year_id">
+        <option value="">Не указан</option>
+        {% for row in years %}<option value="{{ row.id }}" {% if event.academic_year_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Направление</label>
+      <select class="form-select" name="direction_id">
+        <option value="">Не выбрано</option>
+        {% for row in directions %}<option value="{{ row.id }}" {% if event.direction_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Категория</label>
+      <select class="form-select" name="category_id">
+        <option value="">Не выбрано</option>
+        {% for row in categories %}<option value="{{ row.id }}" {% if event.category_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Уровень видимости</label>
+      <select class="form-select" name="visibility_level">
+        {% for value, title in visibility_choices %}<option value="{{ value }}" {% if (event.visibility_level or 'school') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Здание</label>
+      <select class="form-select" name="building_id">
+        <option value="">Не выбрано</option>
+        {% for row in buildings %}<option value="{{ row.id }}" {% if event.building_id == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Класс</label>
+      <select class="form-select" name="class_id">
+        <option value="">Не выбрано</option>
+        {% for row in classes %}<option value="{{ row.id }}" {% if event.class_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Место проведения</label>
+      <input class="form-control" name="location" value="{{ event.location or '' }}">
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Ответственный сотрудник</label>
+      <select class="form-select" name="responsible_user_id">
+        <option value="">Не выбран</option>
+        {% for row in users %}<option value="{{ row.id }}" {% if event.responsible_user_id == row.id %}selected{% endif %}>{{ row.fio or row.username }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Ответственный текстом</label>
+      <input class="form-control" name="responsible_text" value="{{ event.responsible_text or '' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Участники</label>
+      <input class="form-control" name="participants" value="{{ event.participants or '' }}">
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Статус</label>
+      <select class="form-select" name="status">
+        {% for value, title in status_choices %}<option value="{{ value }}" {% if (event.status or 'planned') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Важность</label>
+      <select class="form-select" name="priority">
+        {% for value, title in priority_choices %}<option value="{{ value }}" {% if (event.priority or 'normal') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Цвет события</label>
+      <input class="form-control form-control-color" type="color" name="color" value="{{ event.effective_color if event.id else '#2563eb' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Цвет текста</label>
+      <input class="form-control form-control-color" type="color" name="text_color" value="{{ event.effective_text_color if event.id else '#ffffff' }}">
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Сохранить</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index') }}">Отмена</a>
+  </div>
+</form>
+{% endblock %}

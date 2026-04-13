@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <div class="section-overline">Учебный процесс</div>
+    <h3 class="mb-1">Журнал контрольных работ</h3>
+    <div class="text-muted">Управленческий просмотр по всем работам за выбранный период без перехода в каждую карточку.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_journal_xlsx', **request.args.to_dict(flat=True)) }}">Экспорт Excel</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('control_works.control_works_registry', **request.args.to_dict(flat=True)) }}">К реестру</a>
+  </div>
+</div>
+
+<form method="get" class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-2 col-md-4"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id"><option value="">Все</option>{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><label class="form-label">Предмет</label><select class="form-select" name="subject_id"><option value="">Все</option>{% for s in subjects %}<option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><label class="form-label">Параллель</label><select class="form-select" name="grade"><option value="">Все</option>{% for grade in parallels %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><label class="form-label">Класс</label><select class="form-select" name="class_id"><option value="">Все</option>{% for c in classes %}<option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><label class="form-label">Учитель</label><select class="form-select" name="teacher_id"><option value="">Все</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><label class="form-label">Вид работы</label><select class="form-select" name="work_kind"><option value="">Все</option>{% for value, label in work_kind_choices %}<option value="{{ value }}" {% if selected_work_kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option>{% for status in status_choices %}<option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-4"><div class="form-check mt-4 pt-2"><input class="form-check-input" type="checkbox" name="overdue" value="1" {% if overdue_only %}checked{% endif %} id="jOver"><label class="form-check-label" for="jOver">Только просроченные</label></div></div>
+      <div class="col-lg-2 col-md-4"><div class="form-check mt-4 pt-2"><input class="form-check-input" type="checkbox" name="attention" value="1" {% if attention_only %}checked{% endif %} id="jAtt"><label class="form-check-label" for="jAtt">Только требующие внимания</label></div></div>
+      <div class="col-lg-4 col-md-8 d-flex gap-2"><button class="btn btn-primary w-100" type="submit">Показать</button><a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_journal') }}">Сброс</a></div>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Дата</th><th>Создано</th><th>Класс</th><th>Предмет</th><th>Вид</th><th>Название</th><th>Учитель</th><th>Статус</th><th>По списку</th><th>Заполнено</th><th>Отсутствовали</th><th>Не заполнено</th><th>% заполнения</th><th>Изменено</th></tr></thead>
+      <tbody>
+        {% for row in dataset.rows %}
+        <tr {% if row.is_overdue %}class="table-danger-subtle"{% elif row.requires_attention %}class="table-warning-subtle"{% endif %}>
+          <td>{{ row.work_date.strftime('%d.%m.%Y') if row.work_date else '—' }}</td>
+          <td>{{ row.created_at.strftime('%d.%m.%Y') if row.created_at else '—' }}</td>
+          <td>{{ row.class_names }}</td>
+          <td>{{ row.subject_name }}</td>
+          <td>{{ row.work_kind_label }}</td>
+          <td><a class="text-decoration-none" href="{{ url_for('control_works.view_control_work', work_id=row.work_id) }}">{{ row.theme }}</a>{% if row.requires_attention %}<div class="small text-warning-emphasis">{{ row.attention_reason }}</div>{% endif %}</td>
+          <td>{{ row.teacher_names }}</td>
+          <td><span class="badge text-bg-{{ row.status_badge }}">{{ row.status }}</span></td>
+          <td>{{ row.total_students }}</td>
+          <td>{{ row.processed }}</td>
+          <td>{{ row.absent }}</td>
+          <td>{{ row.unfilled }}</td>
+          <td>{{ row.completion_percent if row.completion_percent is not none else '—' }}</td>
+          <td>{{ row.updated_at.strftime('%d.%m.%Y') if row.updated_at else '—' }}</td>
+        </tr>
+        {% else %}<tr><td colspan="14" class="text-center text-muted py-4">Записей не найдено.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

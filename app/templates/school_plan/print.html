@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>План работы школы</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 12mm;
+    }
+
+    html, body {
+      font-family: "DejaVu Sans", "Arial", sans-serif;
+      color: #111827;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      margin: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-family: "DejaVu Sans", "Arial", sans-serif;
+    }
+
+    .muted {
+      color: #6b7280;
+      margin-bottom: 16px;
+      font-family: "DejaVu Sans", "Arial", sans-serif;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px;
+      font-size: 12px;
+      vertical-align: top;
+      font-family: "DejaVu Sans", "Arial", sans-serif;
+    }
+
+    th {
+      background: #e2e8f0;
+      text-align: left;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    @media print {
+      .noprint {
+        display: none;
+      }
+
+      body {
+        margin: 10mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="noprint" style="margin-bottom:16px;"><button type="button" onclick="window.print()">Печать</button></div>
+  <h1>План работы школы</h1>
+  <div class="muted">Печатная форма</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Период</th>
+        <th>Мероприятие</th>
+        <th>Направление</th>
+        <th>Ответственный</th>
+        <th>Видимость</th>
+        <th>Статус</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td>{{ event.display_period }}</td>
+        <td>{{ event.title }}</td>
+        <td>{{ event.direction.name if event.direction else '—' }}</td>
+        <td>{{ event.display_responsible or '—' }}</td>
+        <td>{{ visibility_titles.get(event.visibility_level, event.visibility_level) }}</td>
+        <td>{{ status_titles.get(event.status, event.status) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Нет данных для печати.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

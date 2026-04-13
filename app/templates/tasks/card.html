@@ -1,0 +1,248 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Задача №{{ task.id }}</h2>
+    <div class="text-muted">Карточка задачи с участниками, чек-листом, историей и подзадачами.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К списку</a>
+    {% if can_edit %}
+    <a class="btn btn-outline-primary" href="{{ url_for('tasks.edit_task', task_id=task.id) }}">Редактировать</a>
+    <a class="btn btn-primary" href="{{ url_for('tasks.new_task', parent_task_id=task.id) }}">Создать подзадачу</a>
+    <a class="btn btn-outline-secondary" target="_blank" href="{{ url_for('tasks.print_task', task_id=task.id) }}">Печать</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <b>{{ task.title }}</b>
+        <span class="badge text-bg-{{ task_status_badge_class(task.display_status) }}">{{ task.display_status }}</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6"><div class="small text-muted">Тип</div><div>{{ task.task_type.name if task.task_type else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Приоритет</div><div>{{ task.priority }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Постановщик</div><div>{{ task.creator.fio or task.creator.username if task.creator else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Ответственный</div><div>{{ task.responsible.fio or task.responsible.username if task.responsible else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Контролирующий</div><div>{{ task.controller.fio or task.controller.username if task.controller else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Срок</div><div>{% if task.deadline_at %}{{ task.deadline_at.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Учебный год</div><div>{{ task.academic_year.name if task.academic_year else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Класс</div><div>{{ task.school_class.name if task.school_class else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Обучающийся</div><div>{{ task.child.fio if task.child else '—' }}</div></div>
+          <div class="col-md-6"><div class="small text-muted">Родительская задача</div><div>{% if task.parent_task %}<a href="{{ url_for('tasks.task_card', task_id=task.parent_task.id) }}">№{{ task.parent_task.id }} — {{ task.parent_task.title }}</a>{% else %}—{% endif %}</div></div>
+          <div class="col-12"><div class="small text-muted">Описание</div><div>{{ task.description or '—' }}</div></div>
+          <div class="col-12"><div class="small text-muted">Результат исполнения</div><div>{{ task.result_text or '—' }}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><b>Участники задачи</b></div>
+      <div class="card-body row g-3">
+        {% for role_code, role_label in task_participant_role_labels.items() %}
+        <div class="col-md-6">
+          <div class="small text-muted text-uppercase">{{ role_label }}</div>
+          {% set items = task.participant_groups[role_code] %}
+          {% if role_code == 'responsible' %}
+            <div>{{ task.responsible.fio or task.responsible.username if task.responsible else '—' }}</div>
+          {% elif items %}
+            <ul class="mb-0 ps-3">
+              {% for p in items %}<li>{{ p.user.fio or p.user.username if p.user else '—' }}</li>{% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted">—</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <b>Чек-лист</b>
+        <span>{{ task.checklist_done }}/{{ task.checklist_total }} • {{ task.checklist_percent }}%</span>
+      </div>
+      <div class="card-body">
+        {% if task.checklist_total %}
+          <div class="progress mb-3" style="height:8px;"><div class="progress-bar" style="width: {{ task.checklist_percent }}%"></div></div>
+          <div class="vstack gap-2">
+            {% for item in task.checklist_items %}
+            <div class="d-flex justify-content-between align-items-center border rounded p-2">
+              <div>
+                <div class="fw-semibold {% if item.is_done %}text-decoration-line-through text-muted{% endif %}">{{ item.title }}</div>
+                {% if item.completed_at %}<div class="small text-muted">{{ item.completed_at.strftime('%d.%m.%Y %H:%M') }}</div>{% endif %}
+              </div>
+              {% if can_edit %}
+              <form method="post" action="{{ url_for('tasks.toggle_checklist', task_id=task.id, item_id=item.id) }}">
+                <button class="btn btn-sm {% if item.is_done %}btn-outline-secondary{% else %}btn-outline-success{% endif %}" type="submit">{% if item.is_done %}Снять{% else %}Выполнить{% endif %}</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-muted">Чек-лист пока не заполнен.</div>
+        {% endif %}
+      </div>
+    </div>
+
+
+    <div class="card mb-3">
+      <div class="card-header"><b>Документы и файлы</b></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="small text-muted text-uppercase mb-2">Документы-основания</div>
+            {% if attachment_groups.basis %}
+              <div class="vstack gap-2">
+                {% for a in attachment_groups.basis %}
+                <div class="border rounded p-2">
+                  <div class="fw-semibold">{{ a.filename }}</div>
+                  <div class="small text-muted">{{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '' }} • {{ a.uploaded_by.fio or a.uploaded_by.username if a.uploaded_by else '—' }} • {{ format_file_size(a.file_size) }}</div>
+                  <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.download_attachment', task_id=task.id, attachment_id=a.id) }}">Скачать</a>
+                    {% if can_delete_attachment(task, a) %}
+                    <form method="post" action="{{ url_for('tasks.delete_attachment', task_id=task.id, attachment_id=a.id) }}" onsubmit="return confirm('Удалить вложение?');">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-muted">Документы-основания пока не прикреплены.</div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <div class="small text-muted text-uppercase mb-2">Рабочие файлы</div>
+            {% if attachment_groups.work %}
+              <div class="vstack gap-2">
+                {% for a in attachment_groups.work %}
+                <div class="border rounded p-2">
+                  <div class="fw-semibold">{{ a.filename }}</div>
+                  <div class="small text-muted">{{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '' }} • {{ a.uploaded_by.fio or a.uploaded_by.username if a.uploaded_by else '—' }} • {{ format_file_size(a.file_size) }}</div>
+                  <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.download_attachment', task_id=task.id, attachment_id=a.id) }}">Скачать</a>
+                    {% if can_delete_attachment(task, a) %}
+                    <form method="post" action="{{ url_for('tasks.delete_attachment', task_id=task.id, attachment_id=a.id) }}" onsubmit="return confirm('Удалить вложение?');">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-muted">Рабочие файлы пока не прикреплены.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><b>Подзадачи</b></div>
+      <div class="card-body">
+        {% if task.subtasks %}
+        <div class="vstack gap-2">
+          {% for subtask in task.subtasks|sort(attribute='created_at') %}
+          <div class="border rounded p-2">
+            <a class="fw-semibold text-decoration-none" href="{{ url_for('tasks.task_card', task_id=subtask.id) }}">№{{ subtask.id }} — {{ subtask.title }}</a>
+            <div class="small text-muted">{{ subtask.responsible.fio or subtask.responsible.username if subtask.responsible else '—' }} • {{ subtask.display_status }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-muted">Подзадач пока нет.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><b>Комментарии</b></div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('tasks.add_comment', task_id=task.id) }}" class="mb-3">
+          <label class="form-label">Новый комментарий</label>
+          <textarea class="form-control mb-2" name="comment_text" rows="3" placeholder="Введите комментарий"></textarea>
+          <button class="btn btn-primary" type="submit">Добавить комментарий</button>
+        </form>
+        <div class="vstack gap-2">
+          {% for c in comments %}
+          <div class="border rounded p-2 {% if c.is_system_comment %}bg-light{% endif %}">
+            <div class="small text-muted">{{ c.author.fio or c.author.username if c.author else 'Система' }} • {{ c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '' }}</div>
+            <div>{{ c.comment_text }}</div>
+          </div>
+          {% else %}
+          <div class="text-muted">Комментариев пока нет.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><b>История изменений</b></div>
+      <div class="card-body">
+        <div class="vstack gap-2">
+          {% for h in history_entries %}
+          <div class="border rounded p-2">
+            <div class="small text-muted">{{ h.actor.fio or h.actor.username if h.actor else 'Система' }} • {{ h.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+            <div>{{ h.message }}</div>
+            {% if h.old_value or h.new_value %}<div class="small text-muted">{{ h.old_value or '—' }} → {{ h.new_value or '—' }}</div>{% endif %}
+          </div>
+          {% else %}
+          <div class="text-muted">История пока пуста.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><b>Быстрые действия</b></div>
+      <div class="card-body">
+        {% if can_edit %}
+        <form method="post" action="{{ url_for('tasks.change_status', task_id=task.id) }}" class="mb-3">
+          <label class="form-label">Изменить статус</label>
+          <select class="form-select mb-2" name="status">{% for x in status_choices %}<option value="{{ x }}" {% if task.status == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select>
+          <button class="btn btn-primary w-100" type="submit">Сохранить статус</button>
+        </form>
+        <a class="btn btn-outline-primary w-100 mb-2" href="{{ url_for('tasks.edit_task', task_id=task.id) }}">Редактировать задачу</a>
+        <form method="post" action="{{ url_for('tasks.upload_attachment', task_id=task.id) }}" enctype="multipart/form-data" class="mb-3">
+          <label class="form-label">Быстро добавить файлы</label>
+          <select class="form-select mb-2" name="file_kind">
+            <option value="basis">Документ-основание</option>
+            <option value="work" selected>Рабочий файл</option>
+          </select>
+          <input class="form-control mb-2" type="file" name="files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+          <button class="btn btn-outline-primary w-100" type="submit">Загрузить файлы</button>
+        </form>
+        <a class="btn btn-outline-secondary w-100 mb-2" href="{{ url_for('tasks.new_task', parent_task_id=task.id) }}">Создать подзадачу</a>
+        <a class="btn btn-outline-secondary w-100 mb-2" target="_blank" href="{{ url_for('tasks.print_task', task_id=task.id) }}">Печать</a>
+        {% if can_delete_task %}
+        <form method="post" action="{{ url_for('tasks.delete_task', task_id=task.id) }}" onsubmit="return confirm('Удалить задачу? Это действие нельзя отменить.');">
+          <button class="btn btn-outline-danger w-100" type="submit">Удалить задачу</button>
+        </form>
+        {% endif %}
+        {% else %}
+        <div class="text-muted">Нет прав на изменение задачи.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><b>Сводка</b></div>
+      <div class="card-body">
+        <div class="small text-muted">Мои задачи</div><div class="fs-5 mb-2">{{ counts.my_total }}</div>
+        <div class="small text-muted">Просроченные</div><div class="fs-5 mb-2 text-danger">{{ counts.my_overdue }}</div>
+        <div class="small text-muted">На проверке</div><div class="fs-5 mb-2">{{ counts.my_review }}</div>
+        <div class="small text-muted">На доработке</div><div class="fs-5">{{ counts.my_rework }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

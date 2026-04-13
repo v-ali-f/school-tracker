@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">История движения учеников</h2>
+  <a class="btn btn-outline-secondary" href="{{ url_for('transfers.index') }}">Массовый перевод</a>
+</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-3">
+    <select class="form-select" name="academic_year_id">
+      <option value="">Все учебные годы</option>
+      {% for year in years %}
+      <option value="{{ year.id }}" {% if year_id == year.id %}selected{% endif %}>{{ year.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select class="form-select" name="movement_type">
+      <option value="">Все типы</option>
+      {% for t, title in [('enroll','Зачисление'),('transfer','Перевод'),('leave','Выбытие'),('repeat','Повторное обучение'),('conditional','Условный перевод')] %}
+      <option value="{{ t }}" {% if movement_type == t %}selected{% endif %}>{{ title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4"><input class="form-control" name="q" value="{{ q }}" placeholder="Поиск по ученику, причине, приказу"></div>
+  <div class="col-md-2 d-grid"><button class="btn btn-primary">Показать</button></div>
+</form>
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light"><tr><th>Дата</th><th>Ученик</th><th>Тип</th><th>Из класса</th><th>В класс</th><th>Причина</th><th>Приказ</th><th>Кто создал</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.movement_date.strftime('%d.%m.%Y') if row.movement_date else '—' }}</td>
+          <td>
+            <a href="{{ url_for('children.child_card', child_id=row.child_id) }}">
+              {{ row.child.last_name }} {{ row.child.first_name }} {{ row.child.middle_name or '' }}
+            </a>
+          </td>
+          <td>{{ {'enroll':'Зачисление','transfer':'Перевод','leave':'Выбытие','repeat':'Повторное','conditional':'Условный'}[row.movement_type] if row.movement_type in ['enroll','transfer','leave','repeat','conditional'] else row.movement_type }}</td>
+          <td>{{ row.from_class.name if row.from_class else '—' }}</td>
+          <td>{{ row.to_class.name if row.to_class else '—' }}</td>
+          <td>{{ row.reason or '—' }}</td>
+          <td>{{ row.order_number or '—' }}</td>
+          <td>{{ row.creator.fio if row.creator and row.creator.fio else (row.creator.username if row.creator else '—') }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Записей пока нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

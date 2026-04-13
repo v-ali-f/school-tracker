@@ -1,0 +1,33 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div><h3 class="mb-0">Нормативы ставок специалистов</h3><div class="text-muted">Справочник нормативов с историей по дате начала действия.</div></div>
+    <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">Назад</a><a class="btn btn-primary" href="{{ url_for('service_staff.norm_new') }}">Добавить норматив</a></div>
+  </div>
+  <form class="card card-body mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label">Специализация</label><select class="form-select" name="specialization_id"><option value="">Все</option>{% for row in specializations %}<option value="{{ row.id }}" {% if request.args.get('specialization_id', type=int) == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for row in buildings %}<option value="{{ row.id }}" {% if request.args.get('building_id', type=int) == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><button class="btn btn-primary">Показать</button></div>
+  </div></form>
+  <div class="card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle">
+    <thead><tr><th>Специализация</th><th>Здание</th><th>Детей на 1 ставку</th><th>Коэф. категории</th><th>Норма часов</th><th>Округление</th><th>Дата действия</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.specialization.name if row.specialization else '—' }}</td>
+        <td>{{ row.building.short_name or row.building.name if row.building else 'Все здания' }}</td>
+        <td>{{ row.children_per_rate }}</td>
+        <td>{{ row.category_coefficient }}</td>
+        <td>{{ row.weekly_hours_norm }}</td>
+        <td>{{ row.rounding_rule_label }}</td>
+        <td>{{ row.effective_from.strftime('%d.%m.%Y') if row.effective_from else '—' }}</td>
+        <td>{% if row.is_active %}<span class="badge text-bg-success">Активен</span>{% else %}<span class="badge text-bg-secondary">Архив</span>{% endif %}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('service_staff.norm_edit', norm_id=row.id) }}">Открыть</a></td>
+      </tr>
+      {% else %}<tr><td colspan="9" class="text-muted">Нормативы пока не добавлены.</td></tr>{% endfor %}
+    </tbody>
+  </table></div></div>
+</div>
+{% endblock %}

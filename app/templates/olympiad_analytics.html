@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Аналитика олимпиад</h3>
+    <div class="text-muted">Срезы по участникам, призёрам, победителям, уровням и предметам.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-dark" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+    {% if can_olympiad_import %}<a class="btn btn-outline-primary" href="{{ url_for('olympiads.import_view') }}">Импорт</a>{% endif %}
+  </div>
+</div>
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2">
+    <div class="col-md-3"><select class="form-select" name="academic_year_id" onchange="this.form.submit()"><option value="">Все годы</option>{% for y in years %}<option value="{{ y.id }}" {% if academic_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select class="form-select" name="department_id" onchange="this.form.submit()"><option value="">Все кафедры</option>{% for d in departments %}<option value="{{ d.id }}" {% if department_id==d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+  </form>
+</div></div>
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Всего участий</div><div class="fs-4 fw-semibold">{{ stats.total_results or 0 }}</div></div></div>
+  <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Участников</div><div class="fs-4 fw-semibold">{{ stats.participants or 0 }}</div></div></div>
+  <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Победителей</div><div class="fs-4 fw-semibold">{{ stats.winners or 0 }}</div></div></div>
+  <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Призёров</div><div class="fs-4 fw-semibold">{{ stats.prizers or 0 }}</div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Динамика по учебным годам</h5><canvas id="yearsChart" height="220"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Статусы</h5><canvas id="statusChart" height="220"></canvas></div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>По уровням олимпиад</h5><canvas id="stageChart" height="220"></canvas><div class="table-responsive mt-3"><table class="table table-sm"><thead><tr><th>Уровень</th><th class="text-end">Количество</th></tr></thead><tbody>{% for name, count in stats.by_stage %}<tr><td>{{ name }}</td><td class="text-end">{{ count }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Топ предметов</h5><canvas id="subjectChart" height="260"></canvas></div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Топ учителей</h5><canvas id="teacherChart" height="260"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>По классам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Класс</th><th class="text-end">Участий</th></tr></thead><tbody>{% for name, count in (by_class or []) %}<tr><td>{{ name }}</td><td class="text-end">{{ count }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const yearlyRows = {{ (yearly_rows or [])|tojson }};
+const stageRows = {{ ((stats.by_stage if stats is defined and stats.by_stage is defined else []) or [])|tojson }};
+const statusRows = {{ (by_status or [])|tojson }};
+const subjectRows = {{ (by_subject or [])|tojson }};
+const teacherRows = {{ (by_teacher or [])|tojson }};
+new Chart(document.getElementById('yearsChart'), {type:'bar', data:{labels: yearlyRows.map(x => x.year_name || ''), datasets:[{label:'Участий', data: yearlyRows.map(x => x.total_results || 0)}]}});
+new Chart(document.getElementById('statusChart'), {type:'doughnut', data:{labels: statusRows.map(x=>x[0]), datasets:[{data: statusRows.map(x=>x[1])}]}});
+new Chart(document.getElementById('stageChart'), {type:'bar', data:{labels: stageRows.map(x=>x[0]), datasets:[{label:'Участий', data: stageRows.map(x=>x[1])}]}});
+new Chart(document.getElementById('subjectChart'), {type:'bar', data:{labels: subjectRows.map(x=>x[0]), datasets:[{label:'Участий', data: subjectRows.map(x=>x[1])}]}, options:{indexAxis:'y'}});
+new Chart(document.getElementById('teacherChart'), {type:'bar', data:{labels: teacherRows.map(x=>x[0]), datasets:[{label:'Участий', data: teacherRows.map(x=>x[1])}]}, options:{indexAxis:'y'}});
+</script>
+{% endblock %}

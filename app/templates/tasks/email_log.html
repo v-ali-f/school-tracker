@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Журнал отправки email-уведомлений по задачам.</div></div>
+  <div><a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a></div>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Дата</th><th>Статус</th><th>Получатель</th><th>Тип</th><th>Тема</th><th>Ошибка</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '' }}</td>
+          <td><span class="badge text-bg-{% if row.status == 'sent' %}success{% elif row.status == 'error' %}danger{% else %}secondary{% endif %}">{{ row.status }}</span></td>
+          <td>{{ row.email_to or '—' }}</td>
+          <td>{{ row.notification_type }}</td>
+          <td>{{ row.subject }}</td>
+          <td class="small text-muted">{{ row.error_text or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-muted">Записей пока нет.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

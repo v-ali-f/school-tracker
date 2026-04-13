@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">Закрепление по зданиям</h2>
+    <div class="text-muted">Распределение специалистов по зданиям и сводка по профилям.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">К модулю</a>
+</div>
+
+<div class="row g-3">
+  {% for row in rows %}
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="mb-2">{{ row.building.short_name or row.building.name }}</h5>
+        <div class="text-muted small mb-3">{{ row.building.address or 'Адрес не указан' }}</div>
+        <div class="mb-3">
+          {% for name, count in row.spec_counts %}
+          <span class="badge rounded-pill text-bg-light me-1 mb-1">{{ name }}: {{ count }}</span>
+          {% else %}
+          <span class="text-muted">Нет активных специалистов.</span>
+          {% endfor %}
+        </div>
+        <div class="list-group list-group-flush">
+          {% for specialist in row.specialists %}
+          <a class="list-group-item list-group-item-action px-0" href="{{ url_for('service_staff.specialist_card', specialist_id=specialist.id) }}">
+            <div class="fw-semibold">{{ specialist.fio }}</div>
+            <div class="small text-muted">{{ specialist.specializations_text or '—' }}</div>
+          </a>
+          {% else %}
+          <div class="text-muted">Закреплений нет.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

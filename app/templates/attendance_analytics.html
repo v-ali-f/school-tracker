@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Аналитика посещаемости и опозданий</h3>
+    <div class="text-muted">Раздел КПП / посещаемость</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if current_user.role == 'ADMIN' %}
+      <a class="btn btn-outline-dark" href="{{ url_for('attendance.import_view') }}">Импорт отчёта</a>
+      <a class="btn btn-outline-dark" href="{{ url_for('attendance.schedule_rules') }}">Начало занятий</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('attendance.passes_registry') }}">Реестр пропусков</a>
+  </div>
+</div>
+
+<div class="alert alert-light border mb-3">
+  Процент посещаемости считается от контингента классов и отмеченных учебных дней месяца. Дни, не отмеченные как учебные, в отчёт не входят.
+</div>
+
+<form method="get" class="row g-3 align-items-end mb-3">
+  <div class="col-md-2"><label class="form-label">Месяц</label><select class="form-select" name="period_month_num">{% for value, title in months %}<option value="{{ value }}" {% if value == selected_mon %}selected{% endif %}>{{ title|capitalize }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Год</label><select class="form-select" name="period_year">{% for y in years %}<option value="{{ y }}" {% if y|string == selected_year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Режим</label><select class="form-select" name="mode"><option value="school" {% if selected_mode=='school' %}selected{% endif %}>Вся школа</option><option value="grade" {% if selected_mode=='grade' %}selected{% endif %}>Параллель</option><option value="class" {% if selected_mode=='class' %}selected{% endif %}>Класс</option></select></div>
+  <div class="col-md-2"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for b in buildings %}<option value="{{ b.id }}" {% if selected_building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Параллель</label><select class="form-select" id="analyticsGradeFilter" name="grade"><option value="">Все</option>{% for g in grades %}<option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Класс</label><select class="form-select" id="analyticsClassFilter" name="class_id"><option value="">Все</option>{% for c in classes %}<option value="{{ c.id }}" data-grade="{{ c.grade if c.grade is not none else '' }}" data-building="{{ c.building_id if c.building_id is not none else '' }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Строк</label><select class="form-select" name="per_page"><option {% if per_page=='20' or per_page==20 %}selected{% endif %}>20</option><option {% if per_page=='50' or per_page==50 %}selected{% endif %}>50</option><option {% if per_page=='100' or per_page==100 %}selected{% endif %}>100</option><option value="all" {% if per_page=='all' %}selected{% endif %}>все</option></select></div>
+  <div class="col-md-2 d-grid"><button class="btn btn-primary">Показать</button></div>
+</form>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Строк в выгрузке</div><div class="fs-4 fw-semibold">{{ stats.entries_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Опозданий</div><div class="fs-4 fw-semibold">{{ stats.lates_month }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Контингент</div><div class="fs-4 fw-semibold">{{ stats.contingent_total }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Учебных дней</div><div class="fs-4 fw-semibold">{{ stats.school_days_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Без входа</div><div class="fs-4 fw-semibold">{{ stats.no_entry_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Без выхода</div><div class="fs-4 fw-semibold">{{ stats.no_exit_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Посещаемость</div><div class="fs-4 fw-semibold">{{ stats.attendance_percent }}%</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Среднее опоздание</div><div class="fs-4 fw-semibold">{{ stats.avg_late_minutes }} мин</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Здания с наибольшими опозданиями</h5>
+      {% for item in stats.chart_top_buildings %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ item.value }}</span></div>
+          <div class="progress" style="height: 10px;"><div class="progress-bar" role="progressbar" style="width: {{ item.width }}%"></div></div>
+          <div class="small text-muted mt-1">{{ item.subtitle }}</div>
+        </div>
+      {% else %}<div class="text-muted">Нет данных.</div>{% endfor %}
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Классы с наибольшими опозданиями</h5>
+      {% for item in stats.chart_top_classes %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ item.value }}</span></div>
+          <div class="progress" style="height: 10px;"><div class="progress-bar bg-warning" role="progressbar" style="width: {{ item.width }}%"></div></div>
+          <div class="small text-muted mt-1">{{ item.subtitle }}</div>
+        </div>
+      {% else %}<div class="text-muted">Нет данных.</div>{% endfor %}
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Ученики с наибольшим числом опозданий</h5>
+      {% for item in stats.chart_top_students %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ item.value }}</span></div>
+          <div class="progress" style="height: 10px;"><div class="progress-bar bg-danger" role="progressbar" style="width: {{ item.width }}%"></div></div>
+        </div>
+      {% else %}<div class="text-muted">Нет данных.</div>{% endfor %}
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По зданиям</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Здание</th><th>Классов</th><th>Контингент</th><th>Дней</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Средний вход</th></tr></thead><tbody>{% for row in stats.building_rows %}<tr><td>{{ row.building_name }}</td><td>{{ row.classes }}</td><td>{{ row.students }}</td><td>{{ row.days }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="10" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По классам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Здание</th><th>Класс</th><th>Контингент</th><th>Учебных дней</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Проблемные</th><th>Средний вход</th></tr></thead><tbody>{% for row in (stats.class_pagination.items if stats and stats.class_pagination else []) %}<tr><td>{{ row.building_name }}</td><td>{{ row.class_name }}</td><td>{{ row.students }}</td><td>{{ row.days }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.problem_passes }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="11" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div><div class="small text-muted">Записей: {{ (stats.class_pagination.total if stats and stats.class_pagination else 0) }}</div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По ученикам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Ученик</th><th>Здание</th><th>Класс</th><th>Учебных дней</th><th>С входом</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Макс. опоздание, мин</th><th>Средний вход</th></tr></thead><tbody>{% for row in (stats.student_pagination.items if stats and stats.student_pagination else []) %}<tr><td>{{ row.name }}</td><td>{{ row.building_name }}</td><td>{{ row.class_name }}</td><td>{{ row.days }}</td><td>{{ row.days_with_entry }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.max_late }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="12" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div><div class="small text-muted">Записей: {{ (stats.student_pagination.total if stats and stats.student_pagination else 0) }}</div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По дням</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Дата</th><th>Присутствовало</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Отсутствовало</th><th>Посещаемость</th></tr></thead><tbody>{% for row in stats.daily_rows %}<tr><td>{{ row.date.strftime('%d.%m.%Y') }}</td><td>{{ row.students }}</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.absent }}</td><td>{{ row.attendance_percent }}%</td></tr>{% else %}<tr><td colspan="8" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+  <h5 class="mb-3">Сессии импорта за месяц</h5>
+  <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Дата</th><th>Файл</th><th>Обработано</th><th>Учеников</th><th>Классов</th><th>Опозданий</th><th>Комментарий</th></tr></thead><tbody>{% for row in (stats.sessions_pagination.items if stats and stats.sessions_pagination else []) %}<tr><td>{{ row.imported_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ row.filename }}</td><td>{{ row.rows_processed }}</td><td>{{ row.unique_children }}</td><td>{{ row.unique_classes }}</td><td>{{ row.rows_late }}</td><td>{{ row.notes or '—' }}</td></tr>{% else %}<tr><td colspan="7" class="text-muted text-center py-4">За выбранный месяц загрузок нет.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="small text-muted">Записей: {{ (stats.sessions_pagination.total if stats and stats.sessions_pagination else 0) }}</div>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  const gradeSelect = document.getElementById('analyticsGradeFilter');
+  const classSelect = document.getElementById('analyticsClassFilter');
+  const buildingSelect = document.querySelector('select[name="building_id"]');
+  if (!gradeSelect || !classSelect) return;
+
+  const allOptions = Array.from(classSelect.querySelectorAll('option')).map(function (option) {
+    return {
+      value: option.value,
+      text: option.textContent,
+      grade: option.dataset.grade || '',
+      building: option.dataset.building || '',
+      selected: option.selected
+    };
+  });
+
+  function rebuildClassOptions() {
+    const grade = gradeSelect.value || '';
+    const building = buildingSelect ? (buildingSelect.value || '') : '';
+    const currentValue = classSelect.value || '';
+    classSelect.innerHTML = '';
+
+    allOptions.forEach(function (option) {
+      if (!option.value) {
+        const el = document.createElement('option');
+        el.value = option.value;
+        el.textContent = option.text;
+        classSelect.appendChild(el);
+        return;
+      }
+      if (grade && option.grade !== grade) {
+        return;
+      }
+      if (building && option.building && option.building !== building) {
+        return;
+      }
+      const el = document.createElement('option');
+      el.value = option.value;
+      el.textContent = option.text;
+      classSelect.appendChild(el);
+    });
+
+    const hasCurrent = Array.from(classSelect.options).some(function (option) {
+      return option.value === currentValue;
+    });
+    classSelect.value = hasCurrent ? currentValue : '';
+  }
+
+  gradeSelect.addEventListener('change', rebuildClassOptions);
+  if (buildingSelect) buildingSelect.addEventListener('change', rebuildClassOptions);
+  rebuildClassOptions();
+})();
+</script>
+{% endblock %}

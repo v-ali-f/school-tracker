@@ -1,0 +1,19 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3"><h3 class="mb-0">{{ 'Редактирование норматива' if norm.id else 'Новый норматив' }}</h3><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.norms_registry') }}">Назад</a></div>
+  <form method="post" class="card"><div class="card-body row g-3">
+    <div class="col-md-4"><label class="form-label">Специализация</label><select class="form-select" name="specialization_id" required>{% for row in specializations %}<option value="{{ row.id }}" {% if norm.specialization_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все здания</option>{% for row in buildings %}<option value="{{ row.id }}" {% if norm.building_id == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Дата начала действия</label><input class="form-control" type="date" name="effective_from" value="{{ norm.effective_from.isoformat() if norm.effective_from else '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Детей на 1 ставку</label><input class="form-control" name="children_per_rate" value="{{ norm.children_per_rate or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Коэффициент категории</label><input class="form-control" name="category_coefficient" value="{{ norm.category_coefficient or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Недельная норма часов</label><input class="form-control" name="weekly_hours_norm" value="{{ norm.weekly_hours_norm or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Коэффициент сложности</label><input class="form-control" name="complexity_coefficient" value="{{ norm.complexity_coefficient or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Правило округления</label><select class="form-select" name="rounding_rule">{% for code,label in rounding_rules %}<option value="{{ code }}" {% if norm.rounding_rule == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-8"><label class="form-label">Комментарий</label><input class="form-control" name="comment" value="{{ norm.comment or '' }}"></div>
+    <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if norm.is_active %}checked{% endif %}><label class="form-check-label" for="is_active">Норматив активен</label></div>
+  </div><div class="card-footer"><button class="btn btn-primary">Сохранить</button></div></form>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">Этап 2</div>
+      <h1 class="dashboard-title mb-1">Реестр сопровождения</h1>
+      <div class="text-muted classic-hero-note">Карточки детей с полным составом специалистов сопровождения.</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('service_staff.index') }}">К модулю</a>
+      <a class="btn zone-btn zone-btn-soft zone-green" href="{{ url_for('service_staff.assignments_export', **request.args) }}">Excel</a>
+      {% if can_edit %}<a class="btn zone-btn zone-btn-soft zone-orange" href="{{ url_for('service_staff.assignment_new') }}">Добавить назначение</a>{% endif %}
+    </div>
+  </div>
+
+  <section class="dashboard-section dashboard-section-classic mb-3">
+    <div class="row g-3">
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Детей на сопровождении</div><div class="summary-card-value">{{ stats.children_count }}</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Активных назначений</div><div class="summary-card-value">{{ stats.active_count }}</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Завершенных</div><div class="summary-card-value">{{ stats.finished_count }}</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Специалистов</div><div class="summary-card-value">{{ stats.specialists_count }}</div></div></div>
+    </div>
+  </section>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-lg-3 col-md-6"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Ребенок или специалист"></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Специалист</label><select class="form-select" name="specialist_id"><option value="">Все</option>{% for row in specialists %}<option value="{{ row.id }}" {% if request.args.get('specialist_id') == row.id|string %}selected{% endif %}>{{ row.fio }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for row in buildings %}<option value="{{ row.id }}" {% if request.args.get('building_id') == row.id|string %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Класс</label><select class="form-select" name="class_id"><option value="">Все</option>{% for row in classes %}<option value="{{ row.id }}" {% if request.args.get('class_id') == row.id|string %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="col-lg-1 col-md-6"><label class="form-label">Параллель</label><input class="form-control" type="number" min="1" max="11" name="grade" value="{{ request.args.get('grade','') }}"></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Категория</label><select class="form-select" name="category"><option value="">Все</option><option value="ovz" {% if request.args.get('category')=='ovz' %}selected{% endif %}>ОВЗ</option><option value="vshu" {% if request.args.get('category')=='vshu' %}selected{% endif %}>ВШУ</option><option value="low" {% if request.args.get('category')=='low' %}selected{% endif %}>Низкие результаты</option><option value="az" {% if request.args.get('category')=='az' %}selected{% endif %}>АЗ</option><option value="disabled" {% if request.args.get('category')=='disabled' %}selected{% endif %}>Инвалидность</option></select></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option>{% for code,label in status_choices %}<option value="{{ code }}" {% if request.args.get('status') == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Роль специалиста</label><input class="form-control" name="role_title" value="{{ request.args.get('role_title','') }}" placeholder="Например, логопед"></div>
+        <div class="col-lg-2 col-md-6"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" value="1" name="active_only" id="active_only" {% if request.args.get('active_only')=='1' %}checked{% endif %}><label class="form-check-label" for="active_only">Только активные</label></div></div>
+        <div class="col-lg-3 col-md-6"><button class="btn btn-primary" type="submit">Показать</button> <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.assignments_registry') }}">Сбросить</a></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Ребенок</th><th>Класс</th><th>Классный руководитель</th><th>Социальный педагог</th><th>Педагог-психолог</th><th>Учитель-логопед</th><th>Учитель-дефектолог</th><th>Тьютор</th><th>Ассистент</th><th>Дата начала</th><th>Статус</th><th class="text-end">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td><a href="{{ url_for('children.child_card', child_id=row.child.id) }}">{{ row.child.fio if row.child else '—' }}</a></td>
+            <td>{{ row.class_name }}</td>
+            <td>{{ row.class_teacher }}</td>
+            <td>{{ row.roles.get('Социальный педагог', '—') }}</td>
+            <td>{{ row.roles.get('Педагог-психолог', '—') }}</td>
+            <td>{{ row.roles.get('Учитель-логопед', '—') }}</td>
+            <td>{{ row.roles.get('Учитель-дефектолог', '—') }}</td>
+            <td>{{ row.roles.get('Тьютор', '—') }}</td>
+            <td>{{ row.roles.get('Ассистент', '—') }}</td>
+            <td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}</td>
+            <td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'FINISHED' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ row.status_label }}</span></td>
+            <td class="text-end">
+              <div class="d-flex justify-content-end gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('service_staff.assignment_edit', assignment_id=row.edit_id) }}">Редактировать</a>
+                {% if can_edit %}
+                <form method="post" action="{{ url_for('service_staff.assignment_delete', assignment_id=row.delete_id) }}" onsubmit="return confirm('Удалить всю карточку сопровождения по ребенку?');">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="12" class="text-muted">Назначения не найдены.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}<div class="card-footer">Страница {{ pagination.page }} из {{ pagination.pages }}</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

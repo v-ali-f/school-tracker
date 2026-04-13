@@ -1,0 +1,42 @@
+{% extends 'layout.html' %}
+{% block title %}План работы школы — неделя{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Недельный план</h1>
+    <div class="text-muted">{{ week_start.strftime('%d.%m.%Y') }} — {{ week_end.strftime('%d.%m.%Y') }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.week_view', date=prev_date.isoformat()) }}">← Предыдущая</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.week_view', date=next_date.isoformat()) }}">Следующая →</a>
+    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+  </div>
+</div>
+{% include 'school_plan/_nav.html' %}
+{% include 'school_plan/_filters.html' %}
+<div class="row g-3">
+  {% for day in days %}
+  <div class="col-lg-4 col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white">
+        <div class="fw-semibold">{{ day.title }}</div>
+        <div class="small text-muted">{{ day.date.strftime('%d.%m.%Y') }}</div>
+      </div>
+      <div class="card-body d-flex flex-column gap-2">
+        {% for event in day.events %}
+        <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
+          <div class="p-3 rounded" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">
+            <div class="fw-semibold">{{ event.display_title }}</div>
+            <div class="small opacity-75">{{ event.direction.name if event.direction else 'Без направления' }}</div>
+            <div class="small opacity-75">{{ event.display_responsible or 'Без ответственного' }}</div>
+          </div>
+        </a>
+        {% else %}
+        <div class="text-muted small">На этот день мероприятий нет.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

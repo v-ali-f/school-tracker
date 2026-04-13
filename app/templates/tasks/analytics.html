@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">{{ title }}</h2>
+    <div class="text-muted">Этап 3: сводная аналитика, интеграция и экспорт по задачам.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-primary" href="{{ url_for('tasks.my_tasks') }}">К списку задач</a>
+    <a class="btn btn-outline-success" href="{{ url_for('tasks.export_tasks_xlsx', scope=scope) }}">Excel</a>
+    <a class="btn btn-primary" href="{{ url_for('tasks.new_task') }}">Новая задача</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.templates_list') }}">Шаблоны</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-2"><div class="card"><div class="card-body"><div class="small text-muted">Активные</div><div class="fs-4 fw-semibold">{{ analytics.active_count }}</div></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><div class="small text-muted">Просроченные</div><div class="fs-4 fw-semibold text-danger">{{ analytics.overdue_count }}</div></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><div class="small text-muted">На проверке</div><div class="fs-4 fw-semibold">{{ analytics.review_count }}</div></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><div class="small text-muted">Выполнено</div><div class="fs-4 fw-semibold text-success">{{ analytics.done_count }}</div></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><div class="small text-muted">Средний срок</div><div class="fs-4 fw-semibold">{{ analytics.avg_days }}</div><div class="small text-muted">дн.</div></div></div></div>
+  <div class="col-md-2"><div class="card"><div class="card-body"><div class="small text-muted">В срок</div><div class="fs-4 fw-semibold">{{ analytics.on_time_percent }}%</div></div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header"><b>По статусам</b></div><div class="card-body"><div class="vstack gap-2">{% for name, value in analytics.by_status %}<div class="d-flex justify-content-between border rounded p-2"><span>{{ name }}</span><span class="badge text-bg-light">{{ value }}</span></div>{% else %}<div class="text-muted">Нет данных</div>{% endfor %}</div></div></div>
+    <div class="card mb-3"><div class="card-header"><b>По исполнителям</b></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Исполнитель</th><th class="text-end">Задач</th></tr></thead><tbody>{% for name, value in analytics.by_executor %}<tr><td>{{ name }}</td><td class="text-end">{{ value }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="card"><div class="card-header"><b>По типам</b></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Тип</th><th class="text-end">Задач</th></tr></thead><tbody>{% for name, value in analytics.by_type %}<tr><td>{{ name }}</td><td class="text-end">{{ value }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header"><b>По классам</b></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Класс</th><th class="text-end">Задач</th></tr></thead><tbody>{% for name, value in analytics.by_class %}<tr><td>{{ name }}</td><td class="text-end">{{ value }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="card mb-3"><div class="card-header"><b>По обучающимся</b></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Обучающийся</th><th class="text-end">Задач</th></tr></thead><tbody>{% for name, value in analytics.by_child %}<tr><td>{{ name }}</td><td class="text-end">{{ value }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="card"><div class="card-header"><b>Примечание</b></div><div class="card-body text-muted">В версии этапа 3 реализованы аналитика, Excel-экспорт, интеграция с карточкой обучающегося и классами. Ручные привязки к другим модулям можно расширить в следующем этапе без ломки структуры.</div></div>
+  </div>
+</div>
+{% endblock %}

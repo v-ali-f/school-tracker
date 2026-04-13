@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Привязка результатов к учителям</h3>
+    <div class="text-muted">Сначала можно назначить учителя целому классу, затем открыть класс и скорректировать отдельных учеников.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Авто</div><div class="fs-4">{{ status_counts['auto'] or 0 }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Вручную</div><div class="fs-4">{{ status_counts['manual'] or 0 }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Не назначено</div><div class="fs-4">{{ status_counts['unassigned'] or 0 }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Требуют уточнения</div><div class="fs-4">{{ status_counts['disputed'] or 0 }}</div></div></div></div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-2"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id"><option value="">Все</option>{% for y in years %}<option value="{{ y.id }}" {% if current_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Диагностика</label><select class="form-select" name="session_id"><option value="">Все</option>{% for s in sessions %}<option value="{{ s.id }}" {% if current_session_id == s.id %}selected{% endif %}>{{ s.title }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Предмет</label><input class="form-control" name="subject" value="{{ subject_filter }}"></div>
+    <div class="col-md-1"><label class="form-label">Параллель</label><input class="form-control" type="number" name="parallel" value="{{ parallel_filter or '' }}"></div>
+    <div class="col-md-2"><label class="form-label">Класс</label><input class="form-control" name="class_name" value="{{ class_filter }}"></div>
+    <div class="col-md-2"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option><option value="auto" {% if status_filter == 'auto' %}selected{% endif %}>Авто</option><option value="manual" {% if status_filter == 'manual' %}selected{% endif %}>Вручную</option><option value="unassigned" {% if status_filter == 'unassigned' %}selected{% endif %}>Не назначено</option><option value="disputed" {% if status_filter == 'disputed' %}selected{% endif %}>Требует уточнения</option></select></div>
+    <div class="col-md-2"><div class="form-check mt-4 pt-2"><input class="form-check-input" type="checkbox" name="only_unassigned" value="1" id="only_unassigned" {% if only_unassigned %}checked{% endif %}><label class="form-check-label" for="only_unassigned">Только непривязанные</label></div></div>
+    <div class="col-md-4 d-flex gap-2"><button class="btn btn-primary">Показать</button><a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.teacher_binding') }}">Сбросить</a></div>
+  </form>
+</div></div>
+
+<div class="card mb-3"><div class="card-body">
+  <h5 class="mb-3">Быстрая привязка по классам</h5>
+  <div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>Класс</th><th>Предмет</th><th>Диагностика</th><th>Найденные учителя из нагрузки</th><th>Назначить</th><th>Строк</th><th></th></tr></thead>
+    <tbody>
+    {% for row in quick_class_rows %}
+      <tr class="{% if row.requires_attention %}table-warning{% endif %}">
+        <td>{{ row.class_name }}</td>
+        <td>{{ row.subject_name }}</td>
+        <td>{{ row.session.title }}</td>
+        <td>{{ row.teachers_found_names|join(', ') if row.teachers_found_names else 'Не найдено' }}</td>
+        <td>
+          {% if can_edit_binding %}
+          <form method="post" class="d-flex gap-2">
+            <input type="hidden" name="action" value="apply_class_binding">
+            <input type="hidden" name="target_session_id" value="{{ row.session.id }}">
+            <input type="hidden" name="target_class_name" value="{{ row.class_name }}">
+            <select class="form-select form-select-sm" name="target_teacher_id">
+              <option value="">Выберите учителя</option>
+              {% for t in teachers %}<option value="{{ t.id }}" {% if row.current_teacher and row.current_teacher.id == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}
+            </select>
+            <button class="btn btn-sm btn-primary">Применить к классу</button>
+          </form>
+          {% else %}
+            {{ row.current_teacher.fio if row.current_teacher else '—' }}
+          {% endif %}
+        </td>
+        <td>{{ row.results_count }}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('diagnostics.teacher_binding', academic_year_id=current_year_id, session_id=current_session_id, subject=subject_filter, parallel=parallel_filter, class_name=class_filter, status=status_filter, focus_class=row.class_name) }}">Открыть класс</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-3">Нет строк для быстрой привязки.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+
+<form method="post">
+  <div class="card mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-center">
+    {% if can_edit_binding %}<button class="btn btn-primary" name="action" value="auto_apply">Применить автоматическую привязку</button>{% endif %}
+    {% if can_edit_binding %}<button class="btn btn-success" name="action" value="save">Сохранить изменения</button>{% endif %}
+    {% if can_edit_binding %}
+    <select class="form-select" name="bulk_teacher_id" style="max-width: 320px;">
+      <option value="">Назначить учителя для выбранных строк</option>
+      {% for t in teachers %}<option value="{{ t.id }}">{{ t.fio or t.username }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-outline-dark" name="action" value="bulk_assign">Применить назначение</button>
+    {% endif %}
+    {% if focus_class %}<span class="badge text-bg-info">Открыт класс: {{ focus_class }}</span>{% endif %}
+  </div></div>
+
+  <div class="card"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+    <thead><tr><th style="width:40px;"></th><th>Ученик</th><th>Класс</th><th>Предмет</th><th>Диагностика</th><th>Текущий учитель</th><th>Источник</th><th>Комментарий</th></tr></thead>
+    <tbody>
+    {% for row in binding_rows %}
+      <tr class="{% if row.status == 'disputed' %}table-warning{% elif row.status == 'unassigned' %}table-danger{% endif %}">
+        <td><input class="form-check-input" type="checkbox" name="selected_result_ids" value="{{ row.result.id }}"></td>
+        <td><div class="fw-semibold">{{ row.result.full_name_raw or (row.result.child.fio if row.result.child else '—') }}</div><div class="small text-muted">{{ row.status_label }}</div></td>
+        <td>{{ row.class_name }}</td>
+        <td>{{ row.subject_name }}</td>
+        <td>{{ row.session.title if row.session else '—' }}</td>
+        <td>
+          {% if can_edit_binding %}
+          <select class="form-select form-select-sm mb-2" name="teacher_id_{{ row.result.id }}">
+            <option value="">— не назначено —</option>
+            {% for t in teachers %}<option value="{{ t.id }}" {% if row.current_teacher and row.current_teacher.id == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}
+          </select>
+          {% else %}
+            {{ row.current_teacher_name }}
+          {% endif %}
+          {% if row.candidate_teacher_names %}<div class="small text-muted">Кандидаты: {{ row.candidate_teacher_names|join(', ') }}</div>{% endif %}
+        </td>
+        <td><span class="badge text-bg-light">{{ row.source_label }}</span></td>
+        <td>
+          {% if can_edit_binding %}<input class="form-control form-control-sm" name="comment_{{ row.result.id }}" value="{{ row.comment or '' }}">{% else %}{{ row.comment or '—' }}{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">По выбранному фильтру строк нет.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div></div></div>
+</form>
+{% endblock %}

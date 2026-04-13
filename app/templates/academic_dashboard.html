@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <div class="section-overline">Академический контур</div>
+    <h3 class="mb-1">Контрольные работы и результаты</h3>
+    <div class="text-muted">Свод по контрольным, качеству знаний, низким результатам и динамике по классам и предметам.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.list_control_works') }}">Реестр контрольных</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_summary') }}">Свод качества</a>
+  </div>
+</div>
+
+{% include '_academic_filters.html' %}
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-2 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Контрольных</div><div class="mini-stat-value">{{ dataset.summary.works_count }}</div></div></div>
+  <div class="col-xl-2 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Результатов</div><div class="mini-stat-value">{{ dataset.summary.results_count }}</div></div></div>
+  <div class="col-xl-2 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Средний %</div><div class="mini-stat-value">{{ dataset.summary.avg_percent if dataset.summary.avg_percent is not none else '—' }}</div></div></div>
+  <div class="col-xl-2 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Качество</div><div class="mini-stat-value">{{ dataset.summary.quality if dataset.summary.quality is not none else '—' }}</div></div></div>
+  <div class="col-xl-2 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Успеваемость</div><div class="mini-stat-value">{{ dataset.summary.success if dataset.summary.success is not none else '—' }}</div></div></div>
+  <div class="col-xl-2 col-md-4"><div class="mini-stat-card"><div class="mini-stat-label">Зона риска</div><div class="mini-stat-value">{{ dataset.summary.low_results_count }}</div></div></div>
+</div>
+
+<div class="card mb-4"><div class="card-body"><div class="d-flex flex-wrap gap-4">
+  <div><strong>2:</strong> {{ dataset.summary.mark_counts[2] }}</div>
+  <div><strong>3:</strong> {{ dataset.summary.mark_counts[3] }}</div>
+  <div><strong>4:</strong> {{ dataset.summary.mark_counts[4] }}</div>
+  <div><strong>5:</strong> {{ dataset.summary.mark_counts[5] }}</div>
+</div></div></div>
+
+<div class="row g-4">
+  <div class="col-xl-6">
+    <div class="card h-100"><div class="card-header bg-white"><strong>По предметам</strong></div>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Предмет</th><th>Классы</th><th>Работ</th><th>Средний %</th><th>Качество</th><th>Статус</th></tr></thead>
+        <tbody>
+          {% for row in dataset.subject_rows %}
+          <tr><td>{{ row.subject_name }}</td><td>{{ row.classes_text }}</td><td>{{ row.results }}</td><td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td><td>{{ row.quality if row.quality is not none else '—' }}</td><td>{{ row.label }}</td></tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Нет данных.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card h-100"><div class="card-header bg-white d-flex justify-content-between"><strong>По классам</strong><a href="{{ url_for('academic.dynamics_view', academic_year_id=selected_year_id, subject_id=selected_subject_id, grade=selected_grade, class_id=selected_class_id) }}">Динамика</a></div>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Класс</th><th>Предметы</th><th>Работ</th><th>Средний %</th><th>Качество</th><th>Статус</th></tr></thead>
+        <tbody>
+          {% for row in dataset.class_rows %}
+          <tr><td>{{ row.class_name }}</td><td>{{ row.subjects_text }}</td><td>{{ row.results }}</td><td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td><td>{{ row.quality if row.quality is not none else '—' }}</td><td>{{ row.label }}</td></tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Нет данных.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card"><div class="card-header bg-white d-flex justify-content-between"><strong>Низкие результаты</strong><a href="{{ url_for('academic.low_results', academic_year_id=selected_year_id, subject_id=selected_subject_id, grade=selected_grade, class_id=selected_class_id) }}">Открыть весь реестр</a></div>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Обучающийся</th><th>Класс</th><th>Предметы</th><th>Работ</th><th>Средний %</th><th>Проблемных работ</th></tr></thead>
+        <tbody>
+          {% for row in dataset.low_results_rows[:15] %}
+          <tr><td>{{ row.child_name }}</td><td>{{ row.class_name }}</td><td>{{ row.subjects_text }}</td><td>{{ row.results }}</td><td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td><td>{{ row.low_count }}</td></tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Зона низких результатов не выявлена.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

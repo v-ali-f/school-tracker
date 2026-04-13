@@ -1,0 +1,297 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <div class="section-overline">Учебный процесс</div>
+    <h3 class="mb-1">Свод качества контрольных работ</h3>
+    <div class="text-muted">Дашборд по контрольным работам, качеству знаний и успеваемости.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_summary_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=selected_class_id) }}">Экспорт Excel</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=selected_class_id) }}">Реестр</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
+</div>
+
+<form method="get" class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учебный год</label>
+        <select class="form-select" name="academic_year_id">
+          <option value="">Все</option>
+          {% for y in years %}
+          <option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Предмет</label>
+        <select class="form-select" name="subject_id">
+          <option value="">Все</option>
+          {% for s in subjects %}
+          <option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" name="grade">
+          <option value="">Все</option>
+          {% for grade in parallels %}
+          <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Класс</label>
+        <select class="form-select" name="class_id">
+          <option value="">Все</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учитель</label>
+        <select class="form-select" name="teacher_id">
+          <option value="">Все</option>
+          {% for t in teachers %}
+          <option value="{{ t.id }}" {% if selected_teacher_id == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-4 d-flex gap-2">
+        <button class="btn btn-primary w-100" type="submit">Показать</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_summary') }}">Сброс</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% if selected_class_id %}
+<div class="alert alert-info mb-4">Открыт детальный свод по выбранному классу. Названия работ ниже ведут в карточку конкретной контрольной работы.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Контрольных работ</div><div class="mini-stat-value">{{ dataset.summary.works_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Записей / писали</div><div class="mini-stat-value">{{ dataset.summary.results_count }} / {{ dataset.summary.participants_count }}</div><div class="small text-muted mt-1">Отсутствовали: {{ dataset.summary.absent_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Средний процент</div><div class="mini-stat-value">{{ dataset.summary.avg_percent if dataset.summary.avg_percent is not none else '—' }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Качество / успеваемость</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.summary.quality if dataset.summary.quality is not none else '—' }} / {{ dataset.summary.success if dataset.summary.success is not none else '—' }}</div></div></div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-4 mb-2">
+      <div><strong>Оценка 5:</strong> {{ dataset.summary.mark_counts[5] }}</div>
+      <div><strong>Оценка 4:</strong> {{ dataset.summary.mark_counts[4] }}</div>
+      <div><strong>Оценка 3:</strong> {{ dataset.summary.mark_counts[3] }}</div>
+      <div><strong>Оценка 2:</strong> {{ dataset.summary.mark_counts[2] }}</div>
+    </div>
+    <div class="small text-muted">Участие: {{ dataset.summary.participation_percent if dataset.summary.participation_percent is not none else "—" }}%</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white"><strong>Свод по учителям</strong></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Учитель</th><th>Предметы</th><th>Записей</th><th>Писали</th><th>Отсутствовали</th><th>Средний %</th><th>Средний балл</th><th>Качество</th><th>Успеваемость</th></tr></thead>
+          <tbody>
+            {% for row in dataset.teacher_rows %}
+            <tr>
+              <td><a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=row.teacher_id if row.teacher_id is defined else None, grade=selected_grade, class_id=selected_class_id) }}">{{ row.teacher_name }}</a></td>
+              <td>{{ row.subjects_text }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.participants }}</td>
+              <td>{{ row.absent }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td>{{ row.avg_mark if row.avg_mark is not none else '—' }}</td>
+              <td>{{ row.quality if row.quality is not none else '—' }}</td>
+              <td>{{ row.success if row.success is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header bg-white"><strong>Свод по классам</strong></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Класс</th><th>Предметы</th><th>Записей</th><th>Писали</th><th>Отсутствовали</th><th>Средний %</th><th>Качество</th></tr></thead>
+          <tbody>
+            {% for row in dataset.class_rows %}
+            <tr>
+              <td>{% if row.class_id %}<a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=row.class_id) }}">{{ row.class_name }}</a>{% else %}{{ row.class_name }}{% endif %}</td>
+              <td>{{ row.subjects_text }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.participants }}</td>
+              <td>{{ row.absent }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td>{{ row.quality if row.quality is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header bg-white"><strong>Свод по обучающимся</strong></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Обучающийся</th><th>Класс</th><th>Предметы</th><th>Записей</th><th>Писал</th><th>Отсутствовал</th><th>Средний %</th></tr></thead>
+          <tbody>
+            {% for row in dataset.child_rows %}
+            <tr>
+              <td>{{ row.child_name }}</td>
+              <td>{% if row.class_id %}<a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=row.class_id) }}">{{ row.class_name }}</a>{% else %}{{ row.class_name }}{% endif %}</td>
+              <td>{{ row.subjects_text }}</td>
+              <td>{{ row.results }}</td>
+              <td>{{ row.participants }}</td>
+              <td>{{ row.absent }}</td>
+              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if selected_class_id and dataset.work_rows %}
+<div class="card mt-4 mb-4">
+  <div class="card-header bg-white"><strong>Работы выбранного класса</strong></div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Дата</th><th>Предмет</th><th>Вид работы</th><th>Название работы</th><th>Учитель</th><th>Писали</th><th>Отсутствовали</th><th>Средний результат</th><th>Средний балл</th></tr></thead>
+      <tbody>
+        {% for row in dataset.work_rows %}
+        <tr>
+          <td>{{ row.work_date }}</td>
+          <td>{{ row.subject_name }}</td>
+          <td>{{ row.work_kind_label }}</td>
+          <td><a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.view_control_work', work_id=row.work_id) }}">{{ row.theme }}</a></td>
+          <td><a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=row.teacher_id if row.teacher_id is defined else None, grade=selected_grade, class_id=selected_class_id) }}">{{ row.teacher_name }}</a></td>
+          <td>{{ row.participants }}</td>
+          <td>{{ row.absent }}</td>
+          <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+          <td>{{ row.avg_mark if row.avg_mark is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if dataset.dictation and dataset.dictation.results_count %}
+<div class="card mt-4 mb-4 border-primary-subtle">
+  <div class="card-header bg-white"><strong>Отдельная аналитика по диктантам</strong></div>
+  <div class="card-body">
+    <div class="row g-3 mb-3">
+      <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Записей / писали</div><div class="mini-stat-value">{{ dataset.dictation.results_count }} / {{ dataset.dictation.participants_count }}</div><div class="small text-muted mt-1">Отсутствовали: {{ dataset.dictation.absent_count }}</div></div></div>
+      <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Средняя итоговая</div><div class="mini-stat-value">{{ dataset.dictation.avg_final_mark if dataset.dictation.avg_final_mark is not none else '—' }}</div></div></div>
+      <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Средние ошибки</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.dictation.avg_spelling_errors if dataset.dictation.avg_spelling_errors is not none else '—' }} / {{ dataset.dictation.avg_punctuation_errors if dataset.dictation.avg_punctuation_errors is not none else '—' }}</div><div class="small text-muted mt-1">орф. / пункт.</div></div></div>
+      <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Качество / низкие</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.dictation.quality if dataset.dictation.quality is not none else '—' }} / {{ dataset.dictation.low_count if dataset.dictation.low_count is not none else '—' }}</div></div></div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-xl-6">
+        <div class="card h-100">
+          <div class="card-header bg-white"><strong>Диктанты по классам</strong></div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr><th>Класс</th><th>Писали</th><th>Отсутствовали</th><th>Ср. диктант</th><th>Ср. грамм.</th><th>Ср. итог</th><th>Орф.</th><th>Пункт.</th></tr></thead>
+              <tbody>
+                {% for row in dataset.dictation.class_rows %}
+                <tr>
+                  <td>{% if row.class_id %}<a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=row.class_id) }}">{{ row.class_name }}</a>{% else %}{{ row.class_name }}{% endif %}</td>
+                  <td>{{ row.participants }}</td>
+                  <td>{{ row.absent }}</td>
+                  <td>{{ row.avg_dictation_mark if row.avg_dictation_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_grammar_mark if row.avg_grammar_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_final_mark if row.avg_final_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_spelling_errors if row.avg_spelling_errors is not none else '—' }}</td>
+                  <td>{{ row.avg_punctuation_errors if row.avg_punctuation_errors is not none else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted py-4">Нет данных по диктантам.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-6">
+        <div class="card h-100">
+          <div class="card-header bg-white"><strong>Диктанты по кафедре / учителям</strong></div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr><th>Учитель</th><th>Писали</th><th>Отсутствовали</th><th>Ср. диктант</th><th>Ср. грамм.</th><th>Ср. итог</th><th>Качество</th></tr></thead>
+              <tbody>
+                {% for row in dataset.dictation.teacher_rows %}
+                <tr>
+                  <td><a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=row.teacher_id if row.teacher_id is defined else None, grade=selected_grade, class_id=selected_class_id) }}">{{ row.teacher_name }}</a></td>
+                  <td>{{ row.participants }}</td>
+                  <td>{{ row.absent }}</td>
+                  <td>{{ row.avg_dictation_mark if row.avg_dictation_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_grammar_mark if row.avg_grammar_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_final_mark if row.avg_final_mark is not none else '—' }}</td>
+                  <td>{{ row.quality if row.quality is not none else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по диктантам.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-white"><strong>Диктанты по обучающимся</strong></div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr><th>Обучающийся</th><th>Класс</th><th>Писал</th><th>Отсутствовал</th><th>Ср. диктант</th><th>Ср. грамм.</th><th>Ср. итог</th><th>Орф.</th><th>Пункт.</th></tr></thead>
+              <tbody>
+                {% for row in dataset.dictation.child_rows %}
+                <tr>
+                  <td>{{ row.child_name }}</td>
+                  <td>{{ row.class_name }}</td>
+                  <td>{{ row.participants }}</td>
+                  <td>{{ row.absent }}</td>
+                  <td>{{ row.avg_dictation_mark if row.avg_dictation_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_grammar_mark if row.avg_grammar_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_final_mark if row.avg_final_mark is not none else '—' }}</td>
+                  <td>{{ row.avg_spelling_errors if row.avg_spelling_errors is not none else '—' }}</td>
+                  <td>{{ row.avg_punctuation_errors if row.avg_punctuation_errors is not none else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-4">Нет данных по диктантам.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

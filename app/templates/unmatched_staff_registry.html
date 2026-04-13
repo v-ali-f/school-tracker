@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">Несопоставленные сотрудники</h4>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}">К пользователям</a>
+  </div>
+</div>
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2">
+    <div class="col-md-3">
+      <select class="form-select" name="status" onchange="this.form.submit()">
+        <option value="NEW" {% if status=='NEW' %}selected{% endif %}>Новые</option>
+        <option value="MATCHED" {% if status=='MATCHED' %}selected{% endif %}>Сопоставленные</option>
+        <option value="IGNORED" {% if status=='IGNORED' %}selected{% endif %}>Пропущенные</option>
+        <option value="ALL" {% if status=='ALL' %}selected{% endif %}>Все</option>
+      </select>
+    </div>
+  </form>
+</div></div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped align-middle mb-0">
+      <thead><tr><th>Сотрудник</th><th>Источник</th><th>Детали</th><th>Статус</th><th style="width:320px;">Действия</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ row.staff_fio }}</div>
+            <div class="small text-muted">Логин: {{ row.username or '—' }} · Телефон: {{ row.phone or '—' }}</div>
+            <div class="small text-muted">Роль/должность: {{ row.role_hint or '—' }}</div>
+          </td>
+          <td>
+            <div>{{ row.source }}</div>
+            <div class="small text-muted">{{ row.import_filename or '—' }}</div>
+            <div class="small text-muted">{{ row.imported_at.strftime('%d.%m.%Y %H:%M') if row.imported_at else '—' }}</div>
+          </td>
+          <td class="small text-muted">{{ row.details or '—' }}</td>
+          <td>
+            {% if row.status == 'MATCHED' %}
+              <span class="badge text-bg-success">Сопоставлен</span>
+              {% if row.matched_user %}<div class="small text-muted mt-1">{{ row.matched_user.fio or row.matched_user.username }}</div>{% endif %}
+            {% elif row.status == 'IGNORED' %}
+              <span class="badge text-bg-secondary">Пропущен</span>
+            {% else %}
+              <span class="badge text-bg-warning">Новый</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.status == 'NEW' %}
+              <form method="post" action="{{ url_for('users.unmatched_staff_match', row_id=row.id) }}" class="d-flex gap-2 mb-2">
+                <select class="form-select form-select-sm" name="user_id">
+                  <option value="">Выберите пользователя</option>
+                  {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.fio or u.username }}{% if u.username %} ({{ u.username }}){% endif %}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-sm btn-success">Сопоставить</button>
+              </form>
+              <form method="post" action="{{ url_for('users.unmatched_staff_ignore', row_id=row.id) }}">
+                <button class="btn btn-sm btn-outline-secondary">Пропустить</button>
+              </form>
+            {% else %}
+              <span class="text-muted small">Обработано</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-muted">Записей нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

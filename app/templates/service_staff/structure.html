@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">Структура службы</h2>
+    <div class="text-muted">Состав специалистов по профилям и организационной структуре.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">К модулю</a>
+</div>
+
+<div class="row g-3">
+  {% for spec_name, specialists in grouped %}
+  <div class="col-xl-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0">{{ spec_name }}</h5><span class="badge text-bg-light">{{ specialists|length }}</span></div>
+        <div class="list-group list-group-flush">
+          {% for specialist in specialists %}
+          <a class="list-group-item list-group-item-action px-0" href="{{ url_for('service_staff.specialist_card', specialist_id=specialist.id) }}">
+            <div class="fw-semibold">{{ specialist.fio }}</div>
+            <div class="small text-muted">{{ specialist.position_title or '—' }} · {{ specialist.buildings_text or 'без закрепления' }}</div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12"><div class="text-muted">Структура службы пока не заполнена.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <div class="section-overline">Учебный процесс</div>
+    <h3 class="mb-1">Реестр контрольных работ</h3>
+    <div class="text-muted">Единая таблица по всем работам со статусами, признаками внимания, массовыми действиями и переходами в карточку.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_registry_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, q=search_text, overdue=1 if overdue_only else 0, has_absent=1 if has_absent is sameas true else (0 if has_absent is sameas false else ''), attention=1 if attention_only else 0, include_archived=1 if include_archived else 0 ) }}">Экспорт Excel</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('control_works.control_works_journal', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, overdue=1 if overdue_only else 0, attention=1 if attention_only else 0) }}">Журнал работ</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade) }}">Сводная аналитика</a>
+  </div>
+</div>
+
+<form method="get" class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учебный год</label>
+        <select class="form-select" name="academic_year_id"><option value="">Все</option>{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Предмет</label>
+        <select class="form-select" name="subject_id"><option value="">Все</option>{% for s in subjects %}<option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" name="grade"><option value="">Все</option>{% for grade in parallels %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Класс</label>
+        <select class="form-select" name="class_id"><option value="">Все</option>{% for c in classes %}<option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Учитель</label>
+        <select class="form-select" name="teacher_id"><option value="">Все</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id == t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Вид работы</label>
+        <select class="form-select" name="work_kind"><option value="">Все</option>{% for value, label in work_kind_choices %}<option value="{{ value }}" {% if selected_work_kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Статус</label>
+        <select class="form-select" name="status"><option value="">Все</option>{% for status in status_choices %}<option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Поиск</label>
+        <input class="form-control" type="text" name="q" value="{{ search_text or '' }}" placeholder="Название, предмет, класс, учитель">
+      </div>
+      <div class="col-lg-2 col-md-4"><div class="form-check mt-4 pt-2"><input class="form-check-input" type="checkbox" name="overdue" value="1" id="overdueOnly" {% if overdue_only %}checked{% endif %}><label class="form-check-label" for="overdueOnly">Только просроченные</label></div></div>
+      <div class="col-lg-2 col-md-4"><div class="form-check mt-4 pt-2"><input class="form-check-input" type="checkbox" name="attention" value="1" id="attentionOnly" {% if attention_only %}checked{% endif %}><label class="form-check-label" for="attentionOnly">Требуют внимания</label></div></div>
+      <div class="col-lg-2 col-md-4"><div class="form-check mt-4 pt-2"><input class="form-check-input" type="checkbox" name="include_archived" value="1" id="includeArchived" {% if include_archived %}checked{% endif %}><label class="form-check-label" for="includeArchived">Включая архив</label></div></div>
+      <div class="col-lg-2 col-md-4">
+        <label class="form-label">Отсутствующие</label>
+        <select class="form-select" name="has_absent"><option value="" {% if has_absent is none %}selected{% endif %}>Все</option><option value="1" {% if has_absent is sameas true %}selected{% endif %}>Есть отсутствующие</option><option value="0" {% if has_absent is sameas false %}selected{% endif %}>Без отсутствующих</option></select>
+      </div>
+      <div class="col-lg-4 col-md-8 d-flex gap-2"><button class="btn btn-primary w-100" type="submit">Показать</button><a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_registry') }}">Сброс</a></div>
+    </div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Работ в реестре</div><div class="mini-stat-value">{{ dataset.summary.works_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Заполнено / просрочено</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.summary.filled_count }} / {{ dataset.summary.overdue_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Требуют внимания</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.summary.attention_count }}</div></div></div>
+  <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Среднее заполнение</div><div class="mini-stat-value">{{ dataset.summary.completion_avg if dataset.summary.completion_avg is not none else '—' }}</div></div></div>
+</div>
+
+{% set attention_rows = dataset.rows|selectattr('requires_attention')|list %}
+{% if attention_rows %}
+<div class="card border-warning mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div>
+        <h5 class="mb-1">Требуют внимания</h5>
+        <div class="text-muted small">Работы с незаполненными результатами, просрочкой или другими признаками контроля.</div>
+      </div>
+      <a class="btn btn-sm btn-outline-warning" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, q=search_text, attention=1) }}">Открыть только проблемные</a>
+    </div>
+    <div class="table-responsive mt-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Класс</th><th>Предмет</th><th>Работа</th><th>Дата</th><th>Статус</th><th>Причина</th><th></th></tr></thead>
+        <tbody>
+          {% for row in attention_rows[:8] %}
+          <tr>
+            <td>{{ row.class_names }}</td>
+            <td>{{ row.subject_name }}</td>
+            <td>{{ row.theme }}</td>
+            <td>{{ row.work_date.strftime('%d.%m.%Y') if row.work_date else '—' }}</td>
+            <td><span class="badge text-bg-{{ row.status_badge }}">{{ row.status }}</span></td>
+            <td class="small">{{ row.attention_reason or 'Требует проверки' }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('control_works.view_control_work', work_id=row.work_id) }}">Карточка</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('control_works.control_works_registry_bulk', **request.args.to_dict(flat=True)) }}">
+  <div class="card mb-3">
+    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+      <strong>Групповые действия:</strong>
+      <button class="btn btn-sm btn-outline-secondary" name="action" value="to_draft" type="submit" onclick="return confirm('Перевести выбранные работы в статус Черновик?');">В Черновик</button>
+      <button class="btn btn-sm btn-outline-warning" name="action" value="to_fill" type="submit">В Заполнение</button>
+      <button class="btn btn-sm btn-outline-primary" name="action" value="to_checked" type="submit">Отметить как Проверено</button>
+      <button class="btn btn-sm btn-outline-dark" name="action" value="to_closed" type="submit">Закрыть</button>
+      <button class="btn btn-sm btn-outline-danger" name="action" value="to_archive" type="submit" onclick="return confirm('Архивировать выбранные записи?');">В Архив</button>
+      <button class="btn btn-sm btn-outline-success" name="action" value="export_selected" type="submit">Выгрузить выбранные</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th><input class="form-check-input" type="checkbox" onclick="document.querySelectorAll('.bulk-work').forEach(x => x.checked = this.checked)"></th>
+            <th>Дата</th>
+            <th>Работа</th>
+            <th>Предмет</th>
+            <th>Классы</th>
+            <th>Учитель</th>
+            <th>Статус</th>
+            <th>Контроль</th>
+            <th>Заполнение</th>
+            <th>Создано / изменено</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dataset.rows %}
+          <tr {% if row.is_overdue %}class="table-danger-subtle"{% elif row.requires_attention %}class="table-warning-subtle"{% endif %}>
+            <td><input class="form-check-input bulk-work" type="checkbox" name="work_ids" value="{{ row.work_id }}"></td>
+            <td>{{ row.work_date.strftime('%d.%m.%Y') if row.work_date else '—' }}</td>
+            <td>
+              <div><a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.view_control_work', work_id=row.work_id) }}">{{ row.theme }}</a></div>
+              <div class="small text-muted">{{ row.work_kind_label }}{% if row.parallel %} · {{ row.parallel }} параллель{% endif %}</div>
+              {% if row.attention_reasons %}<div class="small text-warning-emphasis">{{ row.attention_reason }}</div>{% endif %}
+            </td>
+            <td>{{ row.subject_name }}</td>
+            <td>{{ row.class_names }}</td>
+            <td>{{ row.teacher_names }}</td>
+            <td><span class="badge text-bg-{{ row.status_badge }}">{{ row.status }}</span></td>
+            <td>
+              <div>{{ row.participants }} / {{ row.total_students }}</div>
+              <div class="small text-muted">отсутствовали: {{ row.absent }}</div>
+              <div class="small {% if row.requires_attention %}text-warning{% else %}text-muted{% endif %}">{{ 'Требует внимания' if row.requires_attention else 'Норма' }}</div>
+            </td>
+            <td>
+              <div>{{ row.processed }} / {{ row.total_students }}</div>
+              <div class="small text-muted">не заполнено: {{ row.unfilled }}</div>
+            </td>
+            <td>
+              <div class="small">{{ row.created_at.strftime('%d.%m.%Y') if row.created_at else '—' }} · {{ row.created_by_name }}</div>
+              <div class="small text-muted">{{ row.updated_at.strftime('%d.%m.%Y') if row.updated_at else '—' }} · {{ row.updated_by_name }}</div>
+            </td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('control_works.view_control_work', work_id=row.work_id) }}">Карточка</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="11" class="text-center text-muted py-4">По выбранным фильтрам работ не найдено.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+{% endblock %}

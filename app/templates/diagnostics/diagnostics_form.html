@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block content %}
+{% set is_edit = session_obj is not none %}
+<h3 class="mb-3">{{ 'Редактировать диагностику' if is_edit else 'Новая диагностика' }}</h3>
+<div class="card"><div class="card-body">
+  <form method="post" class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Название</label>
+      <input class="form-control" name="title" required value="{{ session_obj.title if is_edit else '' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Тип</label>
+      <select class="form-select" name="diagnostic_type">
+        {% set current_type = session_obj.diagnostic_type if is_edit else 'MCKO' %}
+        {% for code, label in [('MCKO','МЦКО'), ('EKR','ЕКР'), ('FG','ФГ')] %}
+          <option value="{{ code }}" {% if current_type == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Параллель</label>
+      <input class="form-control" type="number" name="parallel" value="{{ session_obj.parallel if is_edit and session_obj.parallel is not none else '' }}">
+    </div>
+
+        {% set current_subject = session_obj.subject if is_edit and session_obj.subject else '' %}
+    <div class="col-md-6">
+      <label class="form-label">Предмет</label>
+      <input class="form-control" name="subject" list="diagnostic-subject-options" placeholder="Начните вводить или выберите предмет" value="{{ current_subject }}">
+      <datalist id="diagnostic-subject-options">
+        {% for subject_name in subjects or [] %}
+          <option value="{{ subject_name }}"></option>
+        {% endfor %}
+      </datalist>
+      <div class="form-text">Можно выбрать предмет из перечня или ввести вручную.</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Основной день</label>
+      <input class="form-control" type="date" name="date_main" value="{{ session_obj.date_main.strftime('%Y-%m-%d') if is_edit and session_obj.date_main else '' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Резервный день</label>
+      <input class="form-control" type="date" name="date_reserve" value="{{ session_obj.date_reserve.strftime('%Y-%m-%d') if is_edit and session_obj.date_reserve else '' }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Учебный год</label>
+      <select class="form-select" name="academic_year_id">
+        <option value="">—</option>
+        {% for y in years %}
+          <option value="{{ y.id }}" {% if is_edit and session_obj.academic_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary">{{ 'Сохранить' if is_edit else 'Создать' }}</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.detail', session_id=session_obj.id) if is_edit else url_for('diagnostics.index') }}">Отмена</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

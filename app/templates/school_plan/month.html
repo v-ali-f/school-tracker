@@ -1,0 +1,50 @@
+{% extends 'layout.html' %}
+{% block title %}План работы школы — месяц{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Месячный план</h1>
+    <div class="text-muted">{{ month_title }} {{ year }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.month_view', month=prev_month, year=prev_year) }}">← Предыдущий</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.month_view', month=next_month, year=next_year) }}">Следующий →</a>
+    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+  </div>
+</div>
+{% include 'school_plan/_nav.html' %}
+{% include 'school_plan/_filters.html' %}
+<div class="card shadow-sm overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-bordered align-top mb-0">
+      <thead>
+        <tr>
+          {% for title in ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}<th class="text-center bg-light">{{ title }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for week in weeks %}
+        <tr>
+          {% for day in week %}
+          <td style="width:14.2%; min-width:160px; height:160px; {% if not day.in_month %}background:#f8fafc;{% endif %}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold {% if day.is_today %}text-primary{% endif %}">{{ day.date.day }}</span>
+              {% if day.events %}<span class="badge text-bg-light">{{ day.events|length }}</span>{% endif %}
+            </div>
+            <div class="d-flex flex-column gap-1">
+              {% for event in day.events[:4] %}
+              <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
+                <div class="px-2 py-1 rounded small" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">{{ event.display_title }}</div>
+              </a>
+              {% endfor %}
+              {% if day.events|length > 4 %}<div class="small text-muted">Еще: {{ day.events|length - 4 }}</div>{% endif %}
+            </div>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

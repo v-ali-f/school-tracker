@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h4 class="mb-3">Импорт предметов из Excel</h4>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Excel файл</label>
+        <input type="file" class="form-control" name="file" accept=".xlsx" required>
+      </div>
+
+      <div class="alert alert-light">
+        В первой строке должны быть заголовки:<br>
+        <b>name</b> — обязательно<br>
+        <b>short_name</b> — необязательно
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary" type="submit">Загрузить</button>
+        <a href="{{ url_for('children.subjects_registry') }}" class="btn btn-outline-secondary">Назад</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

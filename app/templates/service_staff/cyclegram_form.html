@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">{{ form_title }}</h2>
+    <div class="text-muted">Карточка циклограммы специалиста на учебный год.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.cyclegrams_registry') }}">К реестру</a>
+    {% if cyclegram.id %}<a class="btn btn-outline-primary" href="{{ url_for('service_staff.cyclegram_card', cyclegram_id=cyclegram.id) }}">Открыть циклограмму</a>{% endif %}
+  </div>
+</div>
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-lg-4"><label class="form-label">Специалист</label><select class="form-select" name="specialist_id" required>{% for row in specialists %}<option value="{{ row.id }}" {% if cyclegram.specialist_id == row.id %}selected{% endif %}>{{ row.fio }}</option>{% endfor %}</select></div>
+    <div class="col-lg-2"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year" required><option value="">Выберите</option>{% for row in academic_years %}<option value="{{ row.name }}" {% if cyclegram.academic_year == row.name %}selected{% endif %}>{{ row.name }}{% if row.is_current %} (текущий){% endif %}</option>{% endfor %}</select></div>
+    <div class="col-lg-6"><label class="form-label">Название</label><input class="form-control" name="title" value="{{ cyclegram.title or '' }}" placeholder="Циклограмма специалиста"></div>
+    <div class="col-lg-4"><label class="form-label">Должность</label><select class="form-select" name="position_title"><option value="">Выберите</option>{% for row in position_choices %}<option value="{{ row }}" {% if cyclegram.position_title == row %}selected{% endif %}>{{ row }}</option>{% endfor %}</select></div>
+    <div class="col-lg-2"><label class="form-label">Ставка</label><input class="form-control" name="rate_value" value="{{ cyclegram.rate_value if cyclegram.rate_value is not none else '' }}"></div>
+    <div class="col-lg-6"><label class="form-label">Здания</label><select class="form-select" name="building_ids" multiple size="5">{% for row in buildings %}<option value="{{ row.id }}" {% if row.id in selected_building_ids %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select><div class="form-text">Выберите одно или несколько зданий из списка. Если ничего не выбрано, подтянется закрепление специалиста.</div></div>
+  </div>
+  <div class="card-footer d-flex justify-content-end gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.cyclegrams_registry') }}">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
+</form>
+{% endblock %}

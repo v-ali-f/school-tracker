@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Настройка предметных кафедр</h3>
+    <div class="text-muted">Создание кафедр, назначение руководителей и закрепление предметов.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-success" href="{{ url_for('departments.summary') }}">Свод по кафедрам</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('departments.loads') }}">Нагрузка</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <div class="col-md-4"><input class="form-control" name="name" placeholder="Название кафедры" required></div>
+      <div class="col-md-3"><input class="form-control" name="code" placeholder="Код (необязательно)"></div>
+      <div class="col-md-3"><input class="form-control" name="description" placeholder="Описание"></div>
+      <div class="col-md-2 d-grid"><button class="btn btn-primary">Добавить кафедру</button></div>
+    </form>
+  </div>
+</div>
+
+{% for dep in departments %}
+<div class="card mb-4">
+  <div class="card-header bg-white">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <div class="fw-semibold">{{ dep.name }}</div>
+        <div class="small text-muted">Код: {{ dep.code or '—' }}</div>
+      </div>
+      <span class="badge text-bg-light">Участников по нагрузке: {{ dep.teacher_loads|length if dep.teacher_loads is defined else dep.subject_links|length }}</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('departments.settings_update', department_id=dep.id) }}" class="mb-4">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <label class="form-label">Название</label>
+          <input class="form-control" name="name" value="{{ dep.name }}">
+        </div>
+        <div class="col-lg-8">
+          <label class="form-label">Описание</label>
+          <input class="form-control" name="description" value="{{ dep.description or '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Предметы кафедры</label>
+          {% set selected = dep.subject_links | map(attribute='subject_id') | list %}
+          <div class="border rounded p-3 bg-light" style="max-height: 280px; overflow:auto;">
+            <div class="row">
+              {% for subject in subjects %}
+              <div class="col-md-6 col-xl-4 mb-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="subject_ids" value="{{ subject.id }}" id="subject_{{ dep.id }}_{{ subject.id }}"
+                         {% if subject.id in selected %}checked{% endif %}>
+                  <label class="form-check-label" for="subject_{{ dep.id }}_{{ subject.id }}">{{ subject.name }}</label>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="form-text">Теперь множественный выбор предметов сделан галочками.</div>
+        </div>
+        <div class="col-12 text-end"><button class="btn btn-success">Сохранить настройки</button></div>
+      </div>
+    </form>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <h6>Руководители кафедры</h6>
+        <form method="post" action="{{ url_for('departments.add_leader', department_id=dep.id) }}" class="mb-3">
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label">Сотрудники</label>
+              <div class="border rounded p-3 bg-light" style="max-height: 240px; overflow:auto;">
+                {% for u in users %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="user_ids" value="{{ u.id }}" id="leader_{{ dep.id }}_{{ u.id }}">
+                  <label class="form-check-label" for="leader_{{ dep.id }}_{{ u.id }}">{{ u.fio or u.username }}</label>
+                </div>
+                {% endfor %}
+              </div>
+              <div class="form-text">Можно выбрать нескольких руководителей кафедры галочками.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Здание</label>
+              <select class="form-select" name="building_id">
+                <option value="">По всей школе</option>
+                {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+              </select>
+              <div class="d-grid mt-3"><button class="btn btn-outline-primary">Назначить</button></div>
+            </div>
+          </div>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>ФИО</th><th>Здание</th><th></th></tr></thead>
+            <tbody>
+              {% for leader in dep.leaders %}
+              <tr>
+                <td>{{ leader.user.fio if leader.user else '—' }}</td>
+                <td>{{ leader.building.name if leader.building else 'Вся школа' }}</td>
+                <td class="text-end">
+                  <form method="post" action="{{ url_for('departments.delete_leader', leader_id=leader.id) }}" onsubmit="return confirm('Удалить руководителя кафедры?');">
+                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-muted">Руководители не назначены</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <h6>Закреплённые предметы</h6>
+        <div class="border rounded p-3 bg-light-subtle">
+          {% if dep.subject_links %}
+            <div class="d-flex flex-wrap gap-2">
+              {% for link in dep.subject_links %}
+                <span class="badge text-bg-light border">{{ link.subject.name if link.subject else '—' }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted">Предметы пока не закреплены.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,31 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3"><div><h3 class="mb-0">Сводка по специалистам</h3><div class="text-muted">Нагрузка, нормативы, циклограммы и представления.</div></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.analytics_dashboard') }}">Назад</a><a class="btn btn-outline-primary" href="{{ url_for('service_staff.analytics_specialists_export_xlsx', **request.args) }}">Excel</a></div></div>
+  <form class="card card-body mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ filters.query or '' }}"></div>
+    <div class="col-md-2"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for row in buildings %}<option value="{{ row.id }}" {% if filters.building_id == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Специализация</label><select class="form-select" name="specialization_id"><option value="">Все</option>{% for row in specializations %}<option value="{{ row.id }}" {% if filters.specialization_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Специалист</label><select class="form-select" name="specialist_id"><option value="">Все</option>{% for row in specialists %}<option value="{{ row.id }}" {% if filters.specialist_id == row.id %}selected{% endif %}>{{ row.fio }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><label class="form-label">Параллель</label><select class="form-select" name="grade"><option value="">Все</option>{% for row in grade_choices %}<option value="{{ row }}" {% if filters.grade == row %}selected{% endif %}>{{ row }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary">Показать</button></div>
+  </div></form>
+  {% for warning in warnings[:10] %}<div class="alert alert-{{ warning.type if warning.type in ['danger','warning','info'] else 'warning' }} py-2">{{ warning.message }}</div>{% endfor %}
+  <div class="card"><div class="table-responsive"><table class="table table-striped align-middle mb-0"><thead><tr><th>Специалист</th><th>Специализации</th><th>Здание</th><th>Детей</th><th>Приведено</th><th>Норматив</th><th>Реком. ставки</th><th>Факт</th><th>Отклонение</th><th>Часы</th><th>Представления</th></tr></thead><tbody>
+  {% for row in rows %}<tr>
+    <td>{{ row.specialist.fio }}</td>
+    <td>{{ row.specialist.specializations_text or '—' }}</td>
+    <td>{{ row.specialist.main_building.short_name or row.specialist.main_building.name if row.specialist.main_building else '—' }}</td>
+    <td>{{ row.children_count }}</td>
+    <td>{{ row.weighted_children }}</td>
+    <td>{{ row.children_per_rate or '—' }}</td>
+    <td>{{ row.recommended_rate }}</td>
+    <td>{{ row.actual_rate }}</td>
+    <td>{% if row.deviation < 0 %}<span class="badge text-bg-danger">{{ row.deviation }}</span>{% elif row.deviation == 0 %}<span class="badge text-bg-success">{{ row.deviation }}</span>{% else %}<span class="badge text-bg-warning">+{{ row.deviation }}</span>{% endif %}</td>
+    <td>{{ row.weekly_hours }} / {{ row.weekly_norm }}</td>
+    <td>{{ row.presentations_in_work }}</td>
+  </tr>{% else %}<tr><td colspan="11" class="text-muted">Нет данных.</td></tr>{% endfor %}
+  </tbody></table></div></div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="btn {% if active_view=='list' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.index') }}">Реестр</a>
+  <a class="btn {% if active_view=='week' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.week_view') }}">Неделя</a>
+  <a class="btn {% if active_view=='month' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.month_view') }}">Месяц</a>
+  <a class="btn {% if active_view=='day' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.day_view') }}">День</a>
+  <a class="btn {% if active_view=='weeks' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.weeks_view') }}">Учебные недели</a>
+  <a class="btn {% if active_view=='legend' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('school_plan.legend') }}">Легенда</a>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="btn btn-outline-success" href="{{ url_for('school_plan.export_xlsx', **current_args) }}">Excel</a>
+  <a class="btn btn-outline-danger" href="{{ url_for('school_plan.export_pdf', **current_args) }}">PDF</a>
+  <a class="btn btn-outline-dark" href="{{ url_for('school_plan.print_view_export', **current_args) }}" target="_blank">Печать</a>
+</div>

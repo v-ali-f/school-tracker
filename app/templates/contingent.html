@@ -1,0 +1,362 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">Сводный контингент</h4>
+    <div class="text-muted" style="font-size:0.95em;">Статистика по классам, параллелям и зданиям</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Учебный год</label>
+        <select class="form-select" name="year_id" onchange="this.form.submit()">
+          {% for y in years %}
+            <option value="{{ y.id }}" {% if y.id == year_id %}selected{% endif %}>
+              {{ y.name }}{% if y.is_current %} • текущий{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-5">
+        <label class="form-label">Здание</label>
+        <select class="form-select" name="building_id" onchange="this.form.submit()">
+          <option value="">— все здания —</option>
+          {% for b in buildings %}
+            <option value="{{ b.id }}" {% if b.id == building_id %}selected{% endif %}>
+              {{ b.name }}{% if b.address %} • {{ b.address }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <a class="btn btn-outline-secondary w-100"
+           href="{{ url_for('children.contingent', year_id=year_id) }}">
+          Сбросить фильтры
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-2 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Всего по школе</div>
+        <div class="fs-3 fw-bold">{{ totals.school }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-2 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">1–4 классы</div>
+        <div class="fs-3 fw-bold">{{ totals.grades_1_4 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-2 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">5–9 классы</div>
+        <div class="fs-3 fw-bold">{{ totals.grades_5_9 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-2 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">10–11 классы</div>
+        <div class="fs-3 fw-bold">{{ totals.grades_10_11 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-2 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Мальчики</div>
+        <div class="fs-3 fw-bold">{{ totals.boys }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-2 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted">Девочки</div>
+        <div class="fs-3 fw-bold">{{ totals.girls }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <a href="{{ url_for('children.registry_ovz') }}" class="text-decoration-none text-reset">
+      <div class="card h-100 border-primary">
+        <div class="card-body">
+          <div class="text-muted">ОВЗ</div>
+          <div class="fs-3 fw-bold">{{ totals.ovz or 0 }}</div>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a href="{{ url_for('children.registry_vshu') }}" class="text-decoration-none text-reset">
+      <div class="card h-100 border-warning">
+        <div class="card-body">
+          <div class="text-muted">ВШУ</div>
+          <div class="fs-3 fw-bold">{{ totals.vshu or 0 }}</div>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a href="{{ url_for('children.registry_kdn') }}" class="text-decoration-none text-reset">
+      <div class="card h-100 border-danger">
+        <div class="card-body">
+          <div class="text-muted">КДН</div>
+          <div class="fs-3 fw-bold">{{ totals.kdn or 0 }}</div>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">Количество классов</h5>
+
+    <div class="row g-2">
+      <div class="col-md-3">
+        <div class="border rounded p-2">
+          <div class="text-muted small">Всего классов</div>
+          <div class="fs-5 fw-bold">{{ totals.classes_total }}</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="border rounded p-2">
+          <div class="text-muted small">1–4 классы</div>
+          <div class="fs-5 fw-bold">{{ totals.classes_1_4 }}</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="border rounded p-2">
+          <div class="text-muted small">5–9 классы</div>
+          <div class="fs-5 fw-bold">{{ totals.classes_5_9 }}</div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="border rounded p-2">
+          <div class="text-muted small">10–11 классы</div>
+          <div class="fs-5 fw-bold">{{ totals.classes_10_11 }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">Свод по параллелям</h5>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="width:120px;">Параллель</th>
+            <th style="width:140px;">Классов</th>
+            <th style="width:140px;">Детей</th>
+            <th style="width:140px;">Мальчики</th>
+            <th style="width:140px;">Девочки</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for grade, stat in totals.parallel_stats|dictsort %}
+            <tr>
+              <td><b>{{ grade }}</b></td>
+              <td>{{ stat.classes }}</td>
+              <td>{{ stat.children }}</td>
+              <td>{{ stat.boys }}</td>
+              <td>{{ stat.girls }}</td>
+            </tr>
+          {% endfor %}
+
+          {% if totals.parallel_stats|length == 0 %}
+            <tr>
+              <td colspan="5" class="text-muted">Нет данных</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">Формы обучения</h5>
+
+    {% if totals.education_forms %}
+      <div class="row g-2">
+        {% for form_name, cnt in totals.education_forms.items() %}
+          <div class="col-md-3">
+            <div class="border rounded p-2">
+              <div class="text-muted small">{{ form_name }}</div>
+              <div class="fs-5 fw-bold">{{ cnt }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-muted">Нет данных</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between">
+      <h5 class="mb-0">Итоги по зданиям</h5>
+      <span class="text-muted" style="font-size:0.9em;">учитываются дети с активным enrollment</span>
+    </div>
+
+    <div class="table-responsive mt-3">
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Здание</th>
+            <th style="width:140px;">Численность</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bname, cnt in totals.by_building.items() %}
+            <tr>
+              <td class="fw-semibold">{{ bname }}</td>
+              <td>{{ cnt }}</td>
+            </tr>
+          {% endfor %}
+          {% if totals.by_building|length == 0 %}
+            <tr>
+              <td colspan="2" class="text-muted">Нет данных</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="min-width:90px;">Класс</th>
+          <th style="min-width:160px;">Здание</th>
+          <th style="min-width:240px;">Классный руководитель</th>
+          <th style="min-width:150px;">Телефон</th>
+          <th style="width:120px;">Обучающихся</th>
+          <th style="width:120px;">Мальчики</th>
+          <th style="width:120px;">Девочки</th>
+          <th style="width:140px;">Свободно</th>
+          <th style="width:120px;">Макс.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+
+          {% if loop.first and r.class.grade in [1, 2, 3, 4] %}
+            <tr class="table-dark">
+              <td colspan="9"><b>Начальная школа (1–4)</b></td>
+            </tr>
+          {% endif %}
+
+          {% if loop.index > 1 and rows[loop.index0 - 1].class.grade in [1, 2, 3, 4] and r.class.grade in [5, 6, 7, 8, 9] %}
+            <tr class="table-dark">
+              <td colspan="9"><b>Основная школа (5–9)</b></td>
+            </tr>
+          {% endif %}
+
+          {% if loop.index > 1 and rows[loop.index0 - 1].class.grade in [5, 6, 7, 8, 9] and r.class.grade in [10, 11] %}
+            <tr class="table-dark">
+              <td colspan="9"><b>Старшая школа (10–11)</b></td>
+            </tr>
+          {% endif %}
+
+          <tr>
+            <td class="fw-bold">
+              <a href="{{ url_for('children.list_children', cls=r.class.name) }}" class="text-decoration-none">
+                {{ r.class.name }}
+              </a>
+            </td>
+
+            <td class="text-muted">
+              {% if r.class.building %}
+                {{ r.class.building.name }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td>{{ r.teacher_fio or "—" }}</td>
+
+            <td class="text-muted">
+              {% if r.teacher_phone %}
+                <a href="tel:{{ r.teacher_phone }}" class="text-decoration-none">
+                  {{ r.teacher_phone }}
+                </a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td>{{ r.total }}</td>
+            <td>{{ r.boys }}</td>
+            <td>{{ r.girls }}</td>
+
+            <td class="text-center">
+              {% if r.free is not none %}
+                {% if r.free <= 0 %}
+                  <span class="badge bg-danger fs-6 px-3 py-2">{{ r.free }}</span>
+                {% elif r.free <= 2 %}
+                  <span class="badge bg-warning text-dark fs-6 px-3 py-2">{{ r.free }}</span>
+                {% else %}
+                  <span class="badge bg-success fs-6 px-3 py-2">{{ r.free }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+
+            <td class="text-muted">{{ r.class.max_students }}</td>
+          </tr>
+        {% endfor %}
+
+        {% if rows|length == 0 %}
+          <tr>
+            <td colspan="9" class="text-muted">Нет классов по выбранным фильтрам</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

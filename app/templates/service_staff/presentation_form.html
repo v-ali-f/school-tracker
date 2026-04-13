@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="mb-0">{{ form_title }}</h3>
+    <div class="d-flex gap-2 flex-wrap">
+      {% if presentation.id %}
+      <form method="post" action="{{ url_for('service_staff.presentation_delete', presentation_id=presentation.id) }}" onsubmit="return confirm('Удалить представление?');">
+        <button class="btn btn-outline-danger" type="submit">Удалить</button>
+      </form>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.presentations_registry') }}">Назад</a>
+    </div>
+  </div>
+  <form method="post" class="card">
+    <div class="card-body row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Параллель</label>
+        <select class="form-select" id="grade_filter">
+          <option value="">Выберите параллель</option>
+          {% for grade in grade_choices %}<option value="{{ grade }}">{{ grade }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Класс</label>
+        <select class="form-select" id="class_filter" {% if not grade_choices %}disabled{% endif %}>
+          <option value="">Сначала выберите параллель</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Обучающийся</label>
+        <select class="form-select" name="child_id" id="child_select" required>
+          <option value="">Сначала выберите класс</option>
+        </select>
+      </div>
+      <div class="col-md-3"><label class="form-label">Учебный год</label><input class="form-control" name="academic_year" value="{{ presentation.academic_year or '' }}"></div>
+      <div class="col-md-3"><label class="form-label">Основание</label><select class="form-select" name="basis">{% for code,label in basis_choices %}<option value="{{ code }}" {% if presentation.basis == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label">Название</label><input class="form-control" name="title" value="{{ presentation.title or '' }}"></div>
+      <div class="col-md-6"><label class="form-label">Ответственный методист</label><select class="form-select" name="methodist_user_id"><option value="">Не выбран</option>{% for user in methodists %}<option value="{{ user.id }}" {% if presentation.methodist_user_id == user.id %}selected{% endif %}>{{ user.fio }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary">Сохранить</button></div>
+  </form>
+</div>
+
+<select id="class_options_source" class="d-none">
+  {% for row in presentation_classes %}<option value="{{ row.id }}" data-grade="{{ row.grade or '' }}" {% if presentation.school_class_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
+</select>
+<select id="child_options_source" class="d-none">
+  {% for child in children %}
+    <option value="{{ child.id }}" data-class-id="{{ child.current_class.id if child.current_class else '' }}" data-grade="{{ child.current_class.grade if child.current_class else '' }}" {% if presentation.child_id == child.id %}selected{% endif %}>{{ child.fio }}{% if child.current_class_name %} — {{ child.current_class_name }}{% endif %}</option>
+  {% endfor %}
+</select>
+<script>
+(function(){
+  const grade = document.getElementById('grade_filter');
+  const klass = document.getElementById('class_filter');
+  const child = document.getElementById('child_select');
+  const classSource = document.getElementById('class_options_source');
+  const childSource = document.getElementById('child_options_source');
+  const selectedChildId = '{{ presentation.child_id or "" }}';
+  const selectedClassId = '{{ presentation.school_class_id or "" }}';
+  const selectedGrade = '{{ presentation.child.current_class.grade if presentation.child and presentation.child.current_class else presentation.school_class.grade if presentation.school_class and presentation.school_class.grade is not none else "" }}';
+
+  function option(label, value='') {
+    const o = document.createElement('option');
+    o.value = value;
+    o.textContent = label;
+    return o;
+  }
+
+  function refreshClasses(preserve=true){
+    const g = String(grade.value || '');
+    const previous = preserve ? String(klass.value || selectedClassId || '') : '';
+    klass.innerHTML = '';
+    klass.appendChild(option(g ? 'Выберите класс' : 'Сначала выберите параллель'));
+    let count = 0;
+    Array.from(classSource.options).forEach(opt => {
+      if (!opt.value) return;
+      if (String(opt.dataset.grade || '') === g) {
+        const copy = opt.cloneNode(true);
+        if (String(copy.value) === previous) copy.selected = true;
+        klass.appendChild(copy);
+        count += 1;
+      }
+    });
+    klass.disabled = !g || count === 0;
+    if (!g || count === 0) klass.value = '';
+    refreshChildren(preserve);
+  }
+
+  function refreshChildren(preserve=true){
+    const classId = String(klass.value || '');
+    const previous = preserve ? String(child.value || selectedChildId || '') : '';
+    child.innerHTML = '';
+    child.appendChild(option(classId ? 'Выберите обучающегося' : 'Сначала выберите класс'));
+    let count = 0;
+    Array.from(childSource.options).forEach(opt => {
+      if (!opt.value) return;
+      if (String(opt.dataset.classId || '') === classId) {
+        const copy = opt.cloneNode(true);
+        if (String(copy.value) === previous) copy.selected = true;
+        child.appendChild(copy);
+        count += 1;
+      }
+    });
+    child.disabled = !classId || count === 0;
+    if (!classId || count === 0) child.value = '';
+  }
+
+  grade.addEventListener('change', function(){ klass.value=''; child.value=''; refreshClasses(false); });
+  klass.addEventListener('change', function(){ child.value=''; refreshChildren(false); });
+
+  if (selectedGrade) grade.value = selectedGrade;
+  refreshClasses(true);
+})();
+</script>
+{% endblock %}

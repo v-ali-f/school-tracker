@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Личные настройки внутренних уведомлений, звука и email по задачам.</div></div>
+  <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('tasks.notifications') }}">Все уведомления</a><a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a></div>
+</div>
+<form method="post" class="card card-body" style="max-width: 760px;">
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="task_notifications_enabled" id="task_notifications_enabled" {% if current_user.task_notifications_enabled is not sameas false %}checked{% endif %}>
+    <label class="form-check-label" for="task_notifications_enabled">Включить внутренние уведомления</label>
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="task_sound_enabled" id="task_sound_enabled" {% if current_user.task_sound_enabled is not sameas false %}checked{% endif %}>
+    <label class="form-check-label" for="task_sound_enabled">Включить звуковой сигнал</label>
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="task_email_enabled" id="task_email_enabled" {% if current_user.task_email_enabled %}checked{% endif %}>
+    <label class="form-check-label" for="task_email_enabled">Включить email-уведомления</label>
+    <div class="form-text">Письма отправляются только если у пользователя указан email и SMTP настроен на сервере.</div>
+  </div>
+  <div class="form-check mb-4">
+    <input class="form-check-input" type="checkbox" name="task_notify_only_important" id="task_notify_only_important" {% if current_user.task_notify_only_important %}checked{% endif %}>
+    <label class="form-check-label" for="task_notify_only_important">Получать только важные уведомления</label>
+  </div>
+  <div class="small text-muted mb-3">К важным относятся: новая задача, изменение срока, просрочка, возврат на доработку, отправка на проверку, закрытие и автозадачи.</div>
+  <div><button class="btn btn-primary" type="submit">Сохранить настройки</button></div>
+</form>
+{% endblock %}

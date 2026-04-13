@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item active">База знаний</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h3 class="mb-0">База знаний</h3>
+    <div class="text-muted" style="font-size:.95em;">Инструкции и материалы для работы в системе</div>
+  </div>
+  {% if is_admin %}
+  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('knowledge.knowledge_admin') }}">
+    <i class="bi bi-gear me-1"></i>Управление
+  </a>
+  {% endif %}
+</div>
+
+{% if total == 0 %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-book" style="font-size:3rem;opacity:.18;display:block;margin-bottom:.75rem;"></i>
+  <div class="fw-semibold">Материалов пока нет</div>
+  <div class="small mt-1">Администратор добавит инструкции для вашей роли.</div>
+</div>
+{% else %}
+{% for key, section in sorted_sections %}
+<div class="mb-4">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-bookmark-fill text-primary" style="font-size:1rem;"></i>
+    <h5 class="mb-0">{{ section.label }}</h5>
+    <span class="badge bg-light text-secondary border" style="font-size:.8rem;">{{ section.articles|length }}</span>
+  </div>
+  <div class="row g-3">
+    {% for article in section.articles %}
+    <div class="col-12 col-md-6 col-xl-4">
+      <a href="{{ url_for('knowledge.knowledge_view', article_id=article.id) }}"
+         class="card h-100 text-decoration-none knowledge-card">
+        <div class="card-body d-flex gap-3 align-items-start">
+          <div class="knowledge-icon flex-shrink-0">
+            {% if article.kind == "file" %}
+              <i class="bi bi-file-earmark-pdf text-danger fs-3"></i>
+            {% elif article.kind == "link" %}
+              <i class="bi bi-link-45deg text-info fs-3"></i>
+            {% else %}
+              <i class="bi bi-file-text text-primary fs-3"></i>
+            {% endif %}
+          </div>
+          <div>
+            <div class="fw-semibold text-dark" style="font-size:.97rem;">{{ article.title }}</div>
+            {% if article.body %}
+            <div class="text-muted small mt-1" style="line-height:1.4;">
+              {{ article.body[:120] }}{% if article.body|length > 120 %}…{% endif %}
+            </div>
+            {% endif %}
+            <div class="mt-2">
+              {% if article.kind == "file" %}
+                <span class="badge bg-danger-subtle text-danger">PDF / файл</span>
+              {% elif article.kind == "link" %}
+                <span class="badge bg-info-subtle text-info">Ссылка</span>
+              {% else %}
+                <span class="badge bg-primary-subtle text-primary">Статья</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<style>
+.knowledge-card {
+  border: 1px solid #e9ecef;
+  border-radius: 14px;
+  transition: box-shadow .15s, border-color .15s;
+}
+.knowledge-card:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,.09);
+  border-color: #c5d8f8;
+}
+</style>
+{% endblock %}

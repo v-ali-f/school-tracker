@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Этап 4: шаблоны для типовых школьных задач.</div></div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a>
+    <a class="btn btn-primary" href="{{ url_for('tasks.template_new') }}">Новый шаблон</a>
+  </div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Шаблон</th><th>Тип</th><th>Приоритет</th><th>Срок</th><th></th></tr></thead><tbody>{% for template in templates %}<tr><td><div class="fw-semibold">{{ template.name }}</div><div class="small text-muted">{{ template.title_template }}</div></td><td>{{ template.task_type.name if template.task_type else '—' }}</td><td>{{ template.priority }}</td><td>{% if template.default_deadline_days %}{{ template.default_deadline_days }} дн.{% else %}—{% endif %}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.apply_template', template_id=template.id) }}">Создать задачу</a></td></tr>{% else %}<tr><td colspan="5" class="text-center text-muted py-4">Шаблоны пока не созданы.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

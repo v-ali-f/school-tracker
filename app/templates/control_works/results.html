@@ -1,0 +1,109 @@
+{% extends "layout.html" %}
+{% block content %}
+<h4 class="mb-1">Заполнение результатов</h4>
+<div class="text-muted mb-3">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %} · {{ assignment.school_class.name if assignment.school_class else 'Класс не указан' }}</div>
+<div class="alert alert-info">{% if is_dictation %}Для диктанта заполняются две основные отметки: за диктант и за грамматическое задание. Пустая строка не считается результатом. Отсутствующих можно отметить отдельно.{% else %}Максимум за работу: <strong>{{ max_total }}</strong>. Можно отметить отсутствие ученика — в этом случае баллы и отметка не заполняются.{% endif %}</div>
+<form method="post" class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead>
+        {% if is_dictation %}
+        <tr>
+          <th>Ученик</th><th class="text-center">Статус</th><th class="text-center">Орф. ошибки</th><th class="text-center">Пункт. ошибки</th><th class="text-center">Грамм. ошибки</th><th class="text-center">Исправления</th><th class="text-center">Отметка за диктант</th><th class="text-center">Отметка за грамм. задание</th><th class="text-center">Итог (опц.)</th><th>Комментарий</th>
+        </tr>
+        {% else %}
+        <tr>
+          <th>Ученик</th>
+          {% for task in tasks %}<th class="text-center" style="min-width: 120px">Задание {{ task.task_number }}<br><small class="text-muted">0–{{ task.max_score }}</small></th>{% endfor %}
+          <th class="text-center" style="min-width: 120px">Статус</th><th class="text-center" style="min-width: 120px">Сумма</th><th class="text-center" style="min-width: 120px">%</th><th class="text-center" style="min-width: 120px">Отметка</th>
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+      {% for en in enrollments %}
+        {% set row = existing.get(en.child_id) %}
+        {% set is_absent = posted_absent.get('absent_' ~ en.child_id|string) == '1' or (row and row.is_absent and not posted_absent) %}
+        <tr class="{% if is_absent %}table-warning{% endif %}">
+          <td>{{ en.child.fio }}</td>
+          {% if is_dictation %}
+            <td class="text-center"><div class="form-check d-inline-flex align-items-center gap-2 justify-content-center"><input class="form-check-input absent-toggle" type="checkbox" value="1" id="absent_{{ en.child_id }}" name="absent_{{ en.child_id }}" data-child="{{ en.child_id }}" {% if is_absent %}checked{% endif %}><label class="form-check-label small" for="absent_{{ en.child_id }}">Отсутствовал</label></div></td>
+            <td><input class="form-control form-control-sm text-center dictation-field" type="number" min="0" name="spelling_errors_{{ en.child_id }}" data-child="{{ en.child_id }}" value="{{ request.form.get('spelling_errors_' ~ en.child_id) if request.form else (row.spelling_errors if row and row.spelling_errors is not none else '') }}" {% if is_absent %}disabled{% endif %}></td>
+            <td><input class="form-control form-control-sm text-center dictation-field" type="number" min="0" name="punctuation_errors_{{ en.child_id }}" data-child="{{ en.child_id }}" value="{{ request.form.get('punctuation_errors_' ~ en.child_id) if request.form else (row.punctuation_errors if row and row.punctuation_errors is not none else '') }}" {% if is_absent %}disabled{% endif %}></td>
+            <td><input class="form-control form-control-sm text-center dictation-field" type="number" min="0" name="grammar_errors_{{ en.child_id }}" data-child="{{ en.child_id }}" value="{{ request.form.get('grammar_errors_' ~ en.child_id) if request.form else (row.grammar_errors if row and row.grammar_errors is not none else '') }}" {% if is_absent %}disabled{% endif %}></td>
+            <td><input class="form-control form-control-sm text-center dictation-field" type="number" min="0" name="corrections_count_{{ en.child_id }}" data-child="{{ en.child_id }}" value="{{ request.form.get('corrections_count_' ~ en.child_id) if request.form else (row.corrections_count if row and row.corrections_count is not none else '') }}" {% if is_absent %}disabled{% endif %}></td>
+            <td class="text-center fw-semibold dictation-mark-cell" data-child="{{ en.child_id }}">{% if is_absent %}Н{% else %}{{ row.dictation_mark if row and row.dictation_mark is not none and not request.form else '' }}{% endif %}</td>
+            <td><input class="form-control form-control-sm text-center dictation-field" type="number" min="2" max="5" name="grammar_mark_{{ en.child_id }}" data-child="{{ en.child_id }}" value="{{ request.form.get('grammar_mark_' ~ en.child_id) if request.form else (row.grammar_mark if row and row.grammar_mark is not none else '') }}" {% if is_absent %}disabled{% endif %}></td>
+            <td class="text-center fw-semibold final-mark-cell" data-child="{{ en.child_id }}">{% if is_absent %}Н{% else %}{{ row.final_mark if row and row.final_mark is not none and not request.form else '' }}{% endif %}</td>
+            <td><textarea class="form-control form-control-sm dictation-field" rows="2" name="teacher_comment_{{ en.child_id }}" data-child="{{ en.child_id }}" {% if is_absent %}disabled{% endif %}>{{ request.form.get('teacher_comment_' ~ en.child_id) if request.form else (row.teacher_comment if row and row.teacher_comment else '') }}</textarea></td>
+          {% else %}
+            {% for task in tasks %}{% set value = posted_scores.get((en.child_id, task.id), '') %}<td><input class="form-control form-control-sm text-center task-score" type="number" min="0" max="{{ task.max_score }}" step="1" data-max="{{ task.max_score }}" data-child="{{ en.child_id }}" name="task_{{ task.id }}_{{ en.child_id }}" value="{{ value }}" {% if is_absent %}disabled{% endif %}></td>{% endfor %}
+            <td class="text-center"><div class="form-check d-inline-flex align-items-center gap-2 justify-content-center"><input class="form-check-input absent-toggle" type="checkbox" value="1" id="absent_{{ en.child_id }}" name="absent_{{ en.child_id }}" data-child="{{ en.child_id }}" {% if is_absent %}checked{% endif %}><label class="form-check-label small" for="absent_{{ en.child_id }}">Отсутствовал</label></div></td>
+            <td class="text-center fw-semibold total-cell" data-child="{{ en.child_id }}">{% if is_absent %}Н{% elif row and not posted_scores %}{{ row.total_score if row.total_score is not none else '—' }}{% else %}—{% endif %}</td>
+            <td class="text-center percent-cell" data-child="{{ en.child_id }}">{% if is_absent %}Н{% elif row and row.percent is not none and not posted_scores %}{{ '%.0f'|format(row.percent) }}%{% else %}—{% endif %}</td>
+            <td class="text-center fw-semibold mark-cell" data-child="{{ en.child_id }}">{% if is_absent %}Н{% else %}{{ row.mark if row and row.mark is not none and not posted_scores else '—' }}{% endif %}</td>
+          {% endif %}
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ 10 if is_dictation else 5 + (tasks|length) }}" class="text-muted">В текущем учебном году у класса нет активных учеников.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body pt-3">
+    <div class="small text-muted mb-3">{% if is_dictation %}Отметка за диктант рассчитывается автоматически по настроенным критериям: {{ dictation_rules_text }}. Итоговая отметка считается как среднее между диктантом и грамматическим заданием.{% else %}Отметка рассчитывается автоматически по проценту: 85–100% = 5, 65–84% = 4, 45–64% = 3, ниже 45% = 2.{% endif %}</div>
+    <button class="btn btn-success">Сохранить результаты</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.view_control_work', work_id=work.id) }}">Назад</a>
+  </div>
+</form>
+<script>
+(function(){
+  const isDictation = {{ 'true' if is_dictation else 'false' }};
+  const maxTotal = {{ max_total or 0 }};
+  function markFromPercent(percent){ if(percent===null||Number.isNaN(percent)) return '—'; if(percent>=85) return '5'; if(percent>=65) return '4'; if(percent>=45) return '3'; return '2'; }
+  function dictationMark(sp, pu){
+    if ((sp === '' || sp === null || typeof sp === 'undefined') && (pu === '' || pu === null || typeof pu === 'undefined')) return null;
+    sp=Number(sp||0); pu=Number(pu||0);
+    const cfg = {
+      g5s: {{ work.dictation_grade5_spelling_max if work else 0 }},
+      g5p: {{ work.dictation_grade5_punctuation_max if work else 0 }},
+      g4s: {{ work.dictation_grade4_spelling_max if work else 2 }},
+      g4p: {{ work.dictation_grade4_punctuation_max if work else 2 }},
+      g3s: {{ work.dictation_grade3_spelling_max if work else 4 }},
+      g3p: {{ work.dictation_grade3_punctuation_max if work else 4 }},
+    };
+    if(sp<=cfg.g5s&&pu<=cfg.g5p) return 5;
+    if(sp<=cfg.g4s&&pu<=cfg.g4p) return 4;
+    if(sp<=cfg.g3s&&pu<=cfg.g3p) return 3;
+    return 2;
+  }
+  function recalc(childId){
+    const absent = document.querySelector('.absent-toggle[data-child="'+childId+'"]');
+    if (isDictation) {
+      const fields = Array.from(document.querySelectorAll('.dictation-field[data-child="'+childId+'"]'));
+      const sp = document.querySelector('input[name="spelling_errors_'+childId+'"]');
+      const pu = document.querySelector('input[name="punctuation_errors_'+childId+'"]');
+      const gm = document.querySelector('input[name="grammar_mark_'+childId+'"]');
+      const markCell = document.querySelector('.dictation-mark-cell[data-child="'+childId+'"]');
+      const finalCell = document.querySelector('.final-mark-cell[data-child="'+childId+'"]');
+      if (absent && absent.checked) { fields.forEach(f=>f.disabled=true); markCell.textContent='Н'; finalCell.textContent='Н'; return; }
+      fields.forEach(f=>f.disabled=false);
+      const spVal = sp && sp.value !== '' ? sp.value : '';
+      const puVal = pu && pu.value !== '' ? pu.value : '';
+      const mark = dictationMark(spVal, puVal);
+      markCell.textContent = mark === null ? '—' : mark;
+      finalCell.textContent = '—';
+      return;
+    }
+    const inputs = Array.from(document.querySelectorAll('.task-score[data-child="' + childId + '"]'));
+    let total = 0; let hasValue = false;
+    inputs.forEach((input) => { const raw = input.value.trim(); const max = Number(input.dataset.max || 0); if (raw === '') return; hasValue = true; let value = Number(raw); if (!Number.isInteger(value)) return; if (value < 0) value = 0; if (value > max) value = max; total += value; });
+    const totalCell = document.querySelector('.total-cell[data-child="' + childId + '"]'); const percentCell = document.querySelector('.percent-cell[data-child="' + childId + '"]'); const markCell = document.querySelector('.mark-cell[data-child="' + childId + '"]');
+    if (absent && absent.checked) { inputs.forEach((input) => { input.disabled = true; }); totalCell.textContent='Н'; percentCell.textContent='Н'; markCell.textContent='Н'; return; }
+    inputs.forEach((input)=>{input.disabled=false;}); if(!hasValue){ totalCell.textContent='—'; percentCell.textContent='—'; markCell.textContent='—'; return; }
+    totalCell.textContent = total; const percent = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : null; percentCell.textContent = percent===null ? '—' : percent + '%'; markCell.textContent = markFromPercent(percent);
+  }
+  document.querySelectorAll('[data-child]').forEach((input)=>{ input.addEventListener('input', ()=>recalc(input.dataset.child)); input.addEventListener('change', ()=>recalc(input.dataset.child)); });
+  [...new Set(Array.from(document.querySelectorAll('[data-child]')).map(el=>el.dataset.child))].forEach(recalc);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Начало занятий</h3>
+    <div class="text-muted">Служебная настройка правил по параллели и выбранным классам</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('attendance.analytics') }}">К аналитике</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="mb-3">{% if edit_rule %}Редактирование правила{% else %}Новое правило{% endif %}</h5>
+        <form method="post" class="row g-3">
+          <input type="hidden" name="rule_id" value="{{ edit_rule.id if edit_rule else '' }}">
+          <div class="col-12">
+            <label class="form-label">Название</label>
+            <input class="form-control" name="title" value="{{ edit_rule.title if edit_rule else '' }}" placeholder="Например, 2 параллель">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Параллель</label>
+            <select class="form-select" name="grade" id="grade-select">
+              <option value="">— выберите —</option>
+              {% for grade in classes_by_grade.keys()|list|sort %}
+              <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Начало</label>
+            <input class="form-control" type="time" name="start_time" value="{{ edit_rule.start_time.strftime('%H:%M') if edit_rule else '08:30' }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Точечный класс</label>
+            <select class="form-select" name="school_class_id">
+              <option value="">— не задан —</option>
+              {% for c in classes %}
+              <option value="{{ c.id }}" {% if edit_rule and edit_rule.school_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Классы правила</label>
+            <div class="border rounded p-2" style="max-height: 260px; overflow:auto;">
+              {% for grade, grade_classes in classes_by_grade|dictsort %}
+              <div class="small fw-semibold text-muted mb-1">{{ grade }} параллель</div>
+              <div class="mb-2">
+                {% for c in grade_classes %}
+                <div class="form-check">
+                  <input class="form-check-input grade-checkbox grade-{{ grade }}" type="checkbox" name="class_ids" value="{{ c.id }}" id="class-{{ c.id }}"
+                    {% if c.id in edit_rule_class_ids %}checked{% elif not edit_rule and selected_grade == grade %}checked{% endif %}>
+                  <label class="form-check-label" for="class-{{ c.id }}">{{ c.name }}</label>
+                </div>
+                {% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Комментарий</label>
+            <input class="form-control" name="comment" value="{{ edit_rule.comment if edit_rule else '' }}">
+          </div>
+          <div class="col-12 d-grid gap-2">
+            <button class="btn btn-primary" name="action" value="save">Сохранить</button>
+            {% if edit_rule %}<a class="btn btn-outline-secondary" href="{{ url_for('attendance.schedule_rules') }}">Отменить редактирование</a>{% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr><th>Название</th><th>Тип</th><th>Классы</th><th>Время</th><th>Статус</th><th>Действия</th></tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ row.title }}</div>
+                  <div class="small text-muted">{{ row.comment or '—' }}</div>
+                </td>
+                <td>{{ row.mode_label }}</td>
+                <td>
+                  {{ row.class_count }}
+                  {% if row.classes %}
+                  <div class="small text-muted">{{ row.classes|map(attribute='name')|join(', ') }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ row.start_time.strftime('%H:%M') }}</td>
+                <td>{% if row.is_active %}<span class="badge text-bg-success">Активно</span>{% else %}<span class="badge text-bg-secondary">Отключено</span>{% endif %}</td>
+                <td>
+                  <div class="d-flex gap-1 flex-wrap">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('attendance.schedule_rules', edit=row.id) }}">Редактировать</a>
+                    <form method="post" class="d-inline">
+                      <input type="hidden" name="rule_id" value="{{ row.id }}">
+                      <button class="btn btn-sm btn-outline-dark" name="action" value="toggle">{% if row.is_active %}Отключить{% else %}Включить{% endif %}</button>
+                    </form>
+                    <form method="post" class="d-inline" onsubmit="return confirm('Удалить правило?');">
+                      <input type="hidden" name="rule_id" value="{{ row.id }}">
+                      <button class="btn btn-sm btn-outline-danger" name="action" value="delete">Удалить</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="text-muted text-center py-4">Настроек пока нет.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const gradeSelect = document.getElementById('grade-select');
+  if (!gradeSelect) return;
+  gradeSelect.addEventListener('change', function () {
+    document.querySelectorAll('.grade-checkbox').forEach(cb => cb.checked = false);
+    if (!this.value) return;
+    document.querySelectorAll('.grade-' + this.value).forEach(cb => cb.checked = true);
+  });
+});
+</script>
+{% endblock %}

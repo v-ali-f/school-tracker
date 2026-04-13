@@ -1,0 +1,55 @@
+{% extends 'layout.html' %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">{{ event.title }}</h1>
+    <div class="text-muted">{{ event.display_period }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index') }}">К реестру</a>
+    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.edit', event_id=event.id) }}">Редактировать</a>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          {% if event.direction %}<span class="badge fs-6" style="background: {{ event.direction.color or '#475569' }}; color: {{ event.direction.text_color or '#fff' }};">{{ event.direction.name }}</span>{% endif %}
+          {% if event.category %}<span class="badge fs-6" style="background: {{ event.category.color or '#334155' }}; color: {{ event.category.text_color or '#fff' }};">{{ event.category.name }}</span>{% endif %}
+        </div>
+        {% if event.description %}<div style="white-space: pre-line;">{{ event.description }}</div>{% else %}<div class="text-muted">Описание пока не заполнено.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="p-3 rounded mb-3" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">
+          <div class="fw-semibold">{{ status_titles.get(event.status, event.status) }}</div>
+          <div>{{ priority_titles.get(event.priority, event.priority) }}</div>
+        </div>
+        <div class="small text-muted mb-1">Видимость</div><div class="mb-3">{{ visibility_titles.get(event.visibility_level, event.visibility_level) }}</div>
+        <div class="small text-muted mb-1">Ответственный</div><div class="mb-3">{{ event.display_responsible or '—' }}</div>
+        <div class="small text-muted mb-1">Место</div><div class="mb-3">{{ event.location or '—' }}</div>
+        <div class="small text-muted mb-1">Участники</div><div class="mb-3">{{ event.participants or '—' }}</div>
+        <div class="small text-muted mb-1">Здание</div><div class="mb-3">{{ event.building.short_name or event.building.name if event.building else '—' }}</div>
+        <div class="small text-muted mb-1">Класс</div><div class="mb-3">{{ event.school_class.name if event.school_class else '—' }}</div>
+        <div class="small text-muted mb-1">Автор</div><div class="mb-3">{{ event.created_by.fio if event.created_by else '—' }}</div>
+        <div class="small text-muted mb-1">Создано</div><div>{{ event.created_at.strftime('%d.%m.%Y %H:%M') if event.created_at else '—' }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% if can_manage %}
+<div class="d-flex gap-2 flex-wrap mt-3">
+  {% if not event.is_archived %}
+    <form method="post" action="{{ url_for('school_plan.archive', event_id=event.id) }}"><button class="btn btn-outline-warning" type="submit">В архив</button></form>
+  {% else %}
+    <form method="post" action="{{ url_for('school_plan.restore', event_id=event.id) }}"><button class="btn btn-outline-success" type="submit">Восстановить</button></form>
+  {% endif %}
+  <form method="post" action="{{ url_for('school_plan.delete', event_id=event.id) }}" onsubmit="return confirm('Удалить мероприятие?');"><button class="btn btn-outline-danger" type="submit">Удалить</button></form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Шаблон можно использовать для бесед с родителями, проверок документов, характеристик и других повторяющихся поручений.</div></div>
+  <div><a class="btn btn-outline-secondary" href="{{ url_for('tasks.templates_list') }}">К шаблонам</a></div>
+</div>
+<div class="card"><div class="card-body"><form method="post" class="row g-3">
+<div class="col-md-6"><label class="form-label">Название шаблона</label><input class="form-control" type="text" name="name" required></div>
+<div class="col-md-6"><label class="form-label">Заголовок задачи</label><input class="form-control" type="text" name="title_template" required></div>
+<div class="col-12"><label class="form-label">Описание</label><textarea class="form-control" name="description_template" rows="4"></textarea></div>
+<div class="col-md-3"><label class="form-label">Тип</label><select class="form-select" name="task_type_id"><option value="">—</option>{% for x in task_types %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Приоритет</label><select class="form-select" name="priority">{% for x in priority_choices %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Срок по умолчанию, дней</label><input class="form-control" type="number" min="1" name="default_deadline_days"></div>
+<div class="col-md-3 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_control_required" id="is_control_required"><label class="form-check-label" for="is_control_required">Контроль обязателен</label></div></div>
+<div class="col-12"><label class="form-label">Чек-лист</label><textarea class="form-control" name="checklist_text" rows="6" placeholder="собрать документы&#10;созвониться с родителями&#10;подготовить справку"></textarea></div>
+<div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Сохранить шаблон</button><a class="btn btn-outline-secondary" href="{{ url_for('tasks.templates_list') }}">Отмена</a></div>
+</form></div></div>
+{% endblock %}

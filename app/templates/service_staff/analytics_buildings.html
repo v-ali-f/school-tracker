@@ -1,0 +1,16 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3"><div><h3 class="mb-0">Сводка по зданиям</h3><div class="text-muted">Нагрузка службы по корпусам.</div></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.analytics_dashboard') }}">Назад</a><a class="btn btn-outline-primary" href="{{ url_for('service_staff.analytics_buildings_export_xlsx', **request.args) }}">Excel</a></div></div>
+  <form class="card card-body mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ filters.query or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все</option>{% for row in buildings %}<option value="{{ row.id }}" {% if filters.building_id == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Параллель</label><select class="form-select" name="grade"><option value="">Все</option>{% for row in grade_choices %}<option value="{{ row }}" {% if filters.grade == row %}selected{% endif %}>{{ row }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><button class="btn btn-primary">Показать</button></div>
+  </div></form>
+  <div class="card"><div class="table-responsive"><table class="table table-striped align-middle mb-0"><thead><tr><th>Здание</th><th>Детей</th><th>Специалистов</th><th>Назначений</th><th>Дефицит</th><th>Представлений в работе</th></tr></thead><tbody>
+  {% for row in rows %}<tr><td>{{ row.building.short_name or row.building.name }}</td><td>{{ row.children_count }}</td><td>{{ row.specialists_count }}</td><td>{{ row.active_assignments }}</td><td>{% if row.deficit_count %}<span class="badge text-bg-warning">{{ row.deficit_count }}</span>{% else %}<span class="badge text-bg-success">0</span>{% endif %}</td><td>{{ row.presentations_in_work }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных.</td></tr>{% endfor %}
+  </tbody></table></div></div>
+</div>
+{% endblock %}

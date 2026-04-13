@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="hub-shell theme-hub-classic">
+  <section class="hub-header mb-4">
+    <div>
+      <div class="section-overline">Тематический раздел</div>
+      <h3 class="mb-1">Предметные кафедры</h3>
+      <div class="text-muted">Быстрый доступ к настройкам, нагрузке и аналитике.</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </section>
+
+  <div class="row g-3 mb-4 align-items-stretch">
+    {% if is_admin or is_methodist %}
+    <div class="col-lg-4"><div class="card hub-grid-card h-100"><div class="card-body d-flex flex-column"><div class="hub-card-title-row"><span class="hub-card-icon"><i class="bi bi-sliders"></i></span><h5>Настройка предметных кафедр</h5></div><div class="text-muted mb-3">Кафедры, руководители, предметы и состав участников.</div><a class="btn btn-primary mt-auto" href="{{ url_for('departments.settings') if is_admin else url_for('departments.summary') }}">Открыть</a></div></div></div>
+    <div class="col-lg-4"><div class="card hub-grid-card h-100"><div class="card-body d-flex flex-column"><div class="hub-card-title-row"><span class="hub-card-icon"><i class="bi bi-bar-chart"></i></span><h5>Свод по кафедрам</h5></div><div class="text-muted mb-3">Результаты контрольных, МЦКО и курсы повышения квалификации.</div><a class="btn btn-outline-primary mt-auto" href="{{ url_for('departments.summary') }}">Открыть</a></div></div></div>
+    <div class="col-lg-4"><div class="card hub-grid-card h-100"><div class="card-body d-flex flex-column"><div class="hub-card-title-row"><span class="hub-card-icon"><i class="bi bi-people"></i></span><h5>Нагрузка учителей</h5></div><div class="text-muted mb-3">Импорт Excel, распределение по кафедрам и ручная корректировка.</div><a class="btn btn-outline-secondary mt-auto" href="{{ url_for('departments.loads') }}">Открыть</a></div></div></div>
+    {% else %}
+    <div class="col-lg-12"><div class="card hub-grid-card h-100"><div class="card-body d-flex flex-column"><div class="hub-card-title-row"><span class="hub-card-icon"><i class="bi bi-person-workspace"></i></span><h5>Моя нагрузка</h5></div><div class="text-muted mb-3">Учитель видит только свою нагрузку по текущему учебному году.</div><a class="btn btn-outline-secondary mt-auto" href="{{ url_for('departments.loads') }}">Открыть</a></div></div></div>
+    {% endif %}
+  </div>
+
+  <div class="card hub-list-card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h5 class="mb-0">Кафедры школы</h5>
+        <div class="text-muted small">Справочный список раздела</div>
+      </div>
+      <div class="row g-3">
+        {% for dep in departments %}
+        <div class="col-lg-6">
+          <div class="hub-mini-card h-100">
+            <div class="fw-semibold">{{ dep.name }}</div>
+            <div class="small text-muted">Предметов: {{ dep.subject_links|length }} · Руководителей: {{ dep.leaders|length }}</div>
+            {% if dep.description %}<div class="small mt-2">{{ dep.description }}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

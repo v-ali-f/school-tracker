@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">{{ specialist.fio }}</h2>
+    <div class="text-muted">Базовая карточка специалиста службы</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.registry') }}">К реестру</a>{% if can_edit %}<form method="post" action="{{ url_for('service_staff.specialist_toggle', specialist_id=specialist.id) }}" class="d-inline"><button class="btn {% if specialist.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">{% if specialist.is_active %}Исключить из службы{% else %}Вернуть в службу{% endif %}</button></form>{% endif %}
+    {% if can_edit %}<a class="btn btn-primary" href="{{ url_for('service_staff.specialist_edit', specialist_id=specialist.id) }}">Редактировать</a>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card h-100"><div class="card-body">
+      <h5 class="mb-3">Основные сведения</h5>
+      <div class="row g-3">
+        <div class="col-md-6"><div class="text-muted small">Должность</div><div>{{ specialist.position_title or '—' }}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Статус</div><div>{% if specialist.is_active %}Активен{% else %}Неактивен{% endif %}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Специализации</div><div>{{ specialist.specializations_text or '—' }}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Основное здание</div><div>{{ specialist.main_building.short_name or specialist.main_building.name if specialist.main_building else '—' }}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Все здания закрепления</div><div>{{ specialist.buildings_text or '—' }}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Ставка</div><div>{{ specialist.rate_value if specialist.rate_value is not none else '—' }}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Телефон</div><div>{{ specialist.phone or '—' }}</div></div>
+        <div class="col-md-6"><div class="text-muted small">Email</div><div>{{ specialist.email or '—' }}</div></div>
+        <div class="col-md-12"><div class="text-muted small">Комментарий администратора</div><div>{{ specialist.admin_comment or '—' }}</div></div>
+      </div>
+    </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-body">
+      <h5 class="mb-3">Права доступа модуля</h5>
+      <div class="mb-2">Ответственный за службу: {% if specialist.is_responsible %}<span class="badge text-bg-primary">Да</span>{% else %}<span class="badge text-bg-secondary">Нет</span>{% endif %}</div>
+      <div class="mb-2">Связанный пользователь: {{ specialist.user.fio if specialist.user else 'не привязан' }}</div>
+      <div class="text-muted small">Администратор системы имеет полный доступ. Ответственный получает расширенные права внутри модуля службы.</div>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <h5 class="mb-3">Зарезервировано для следующих этапов</h5>
+      <ul class="mb-0 text-muted">
+        <li>дети и сопровождение</li>
+        <li>циклограмма специалиста</li>
+        <li>электронные представления</li>
+        <li>расчет нагрузки и ставок</li>
+      </ul>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center"><b>Закрепленные дети</b><span class="badge text-bg-light border text-dark">{{ specialist_assignments|length }}</span></div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Ребенок</th><th>Класс</th><th>Роль</th><th>Статус</th><th>Дата начала</th></tr></thead>
+      <tbody>
+        {% for row in specialist_assignments %}<tr><td><a href="{{ url_for('children.child_card', child_id=row.child.id) }}">{{ row.child.fio if row.child else '—' }}</a></td><td>{{ row.child.current_class_name if row.child else '—' }}</td><td>{{ row.role_title or '—' }}</td><td>{{ row.status_label }}</td><td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">Назначений пока нет.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

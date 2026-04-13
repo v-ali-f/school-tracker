@@ -1,0 +1,115 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Импорт отчёта пропусков и посещаемости</h3>
+    <div class="text-muted">Загрузка месячного отчёта КПП / прохода в школу</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('attendance.analytics') }}">К аналитике</a>
+    <a class="btn btn-outline-dark" href="{{ url_for('attendance.imports_registry') }}">Все импорты</a>
+    <a class="btn btn-outline-dark" href="{{ url_for('attendance.schedule_rules') }}">Начало занятий</a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card"><div class="card-body">
+      <form method="post" enctype="multipart/form-data" class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Месяц</label>
+          <select class="form-select" id="period_month_num" name="period_month_num">{% for value, title in months %}<option value="{{ value }}" {% if value == default_mon %}selected{% endif %}>{{ title|capitalize }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Год</label>
+          <select class="form-select" id="period_year" name="period_year">{% for y in years %}<option value="{{ y }}" {% if y|string == default_year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4 d-grid align-items-end">
+          <a class="btn btn-outline-secondary mt-4" id="refreshCalendarBtn" href="{{ url_for('attendance.import_view', period_year=default_year, period_month_num=default_mon) }}">Обновить календарь</a>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Здание</label>
+          <select class="form-select" name="building_id">
+            <option value="">Все / не указано</option>
+            {% for b in buildings %}<option value="{{ b.id }}" {% if selected_building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Файл Excel</label>
+          <input class="form-control" type="file" name="file" accept=".xlsx,.xlsm,.xltx,.xltm" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Учебные дни месяца</label>
+          <div class="small text-muted mb-2">Отметьте только те дни, которые нужно учитывать в процентах посещаемости. Выходные и дни допзанятий можно снять.</div>
+          <div class="border rounded p-3" style="max-height:280px; overflow:auto;">
+            <div class="row row-cols-2 row-cols-md-3 g-2">
+              {% for day in school_days %}
+                <div class="col">
+                  <label class="form-check">
+                    <input class="form-check-input" type="checkbox" name="school_days" value="{{ day.day_date.isoformat() }}" {% if day.is_school_day %}checked{% endif %}>
+                    <span class="form-check-label">{{ day.day_date.strftime('%d.%m.%Y') }}{% if day.day_date.weekday() >= 5 %} <span class="text-muted">(выходной)</span>{% endif %}</span>
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="col-12 d-grid"><button class="btn btn-primary">Загрузить отчёт</button></div>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card"><div class="card-body">
+      <h5 class="mb-3">Последние загрузки</h5>
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead><tr><th>Дата</th><th>Файл</th><th>Месяц</th><th>Здание</th><th>Строк</th><th>Классов</th><th>Учеников</th><th>Опозданий</th></tr></thead>
+          <tbody>
+          {% for row in sessions %}
+            <tr>
+              <td>{{ row.imported_at.strftime('%d.%m.%Y %H:%M') }}</td>
+              <td>{{ row.filename }}</td>
+              <td>{{ row.period_month or '—' }}</td>
+              <td>{{ row.building.name if row.building else '—' }}</td>
+              <td>{{ row.rows_processed }}</td>
+              <td>{{ row.unique_classes }}</td>
+              <td>{{ row.unique_children }}</td>
+              <td>{{ row.rows_late }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8" class="text-muted text-center py-4">Загрузок пока не было.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  const monthSelect = document.getElementById('period_month_num');
+  const yearSelect = document.getElementById('period_year');
+  const refreshBtn = document.getElementById('refreshCalendarBtn');
+  if (!monthSelect || !yearSelect || !refreshBtn) return;
+
+  function syncRefreshLink() {
+    const baseUrl = {{ url_for('attendance.import_view')|tojson }};
+    const params = new URLSearchParams({
+      period_year: yearSelect.value,
+      period_month_num: monthSelect.value
+    });
+    refreshBtn.href = `${baseUrl}?${params.toString()}`;
+  }
+
+  monthSelect.addEventListener('change', syncRefreshLink);
+  yearSelect.addEventListener('change', syncRefreshLink);
+  refreshBtn.addEventListener('click', function (event) {
+    syncRefreshLink();
+  });
+  syncRefreshLink();
+})();
+</script>
+{% endblock %}

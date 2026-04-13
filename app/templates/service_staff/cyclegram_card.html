@@ -1,0 +1,220 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">Электронная циклограмма</div>
+      <h1 class="dashboard-title mb-1">{{ cyclegram.specialist.fio if cyclegram.specialist else 'Специалист' }}</h1>
+      <div class="text-muted classic-hero-note">{{ cyclegram.academic_year }} · {{ cyclegram.position_title or 'должность не указана' }} · {{ cyclegram.status_label }}</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('service_staff.cyclegrams_registry') }}">К реестру</a>
+      {% if can_manage %}<a class="btn zone-btn zone-btn-soft zone-blue" href="{{ url_for('service_staff.cyclegram_edit', cyclegram_id=cyclegram.id) }}">Изменить карточку</a>{% endif %}
+      <a class="btn zone-btn zone-btn-soft zone-green" href="{{ url_for('service_staff.cyclegram_export_excel', cyclegram_id=cyclegram.id) }}">Excel</a>
+      <a class="btn zone-btn zone-btn-soft zone-orange" href="{{ url_for('service_staff.cyclegram_export_pdf', cyclegram_id=cyclegram.id) }}">PDF</a>
+      <a class="btn zone-btn zone-btn-soft zone-rose" href="{{ url_for('service_staff.cyclegram_print', cyclegram_id=cyclegram.id) }}" target="_blank">Печать</a>
+    </div>
+  </div>
+
+  <section class="dashboard-section dashboard-section-classic mb-3">
+    <div class="row g-3">
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Практическая работа</div><div class="summary-card-value">{{ summary.practical_total }}</div><div class="summary-card-subtext">минут · {{ summary.practical_pct }}%</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Методическая работа</div><div class="summary-card-value">{{ summary.methodical_total }}</div><div class="summary-card-subtext">минут · {{ summary.methodical_pct }}%</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Итого за неделю</div><div class="summary-card-value">{{ summary.week_total|format_minutes_hm }}</div><div class="summary-card-subtext">{{ summary.week_total }} минут</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic"><div class="summary-card-label">Норматив</div><div class="summary-card-value">{% if summary.norm_ok %}OK{% else %}!</div><div class="summary-card-subtext">{% endif %}{% if summary.norm_ok %}Практической не менее 50%{% else %}Нужно скорректировать соотношение{% endif %}</div></div></div>
+    </div>
+  </section>
+
+  {% if can_manage %}
+  <div class="card mb-3">
+    <div class="card-header"><b>Быстрое добавление записи</b></div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('service_staff.cyclegram_entry_new', cyclegram_id=cyclegram.id) }}" class="row g-2 align-items-end">
+        <div class="col-lg-2 col-md-4"><label class="form-label">День</label><select class="form-select" name="weekday" required>{% for code, label in [(1,'Понедельник'),(2,'Вторник'),(3,'Среда'),(4,'Четверг'),(5,'Пятница'),(6,'Суббота')] %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2 col-md-6">
+          <label class="form-label">С</label>
+          <div class="d-flex gap-2">
+            <select class="form-select cyclegram-time-hour" data-target="start_time" aria-label="Часы начала" required>
+              {% for hour in range(0, 24) %}<option value="{{ '%02d'|format(hour) }}" {% if hour == 8 %}selected{% endif %}>{{ '%02d'|format(hour) }}</option>{% endfor %}
+            </select>
+            <select class="form-select cyclegram-time-minute" data-target="start_time" aria-label="Минуты начала" required>
+              {% for minute in range(0, 60, 5) %}<option value="{{ '%02d'|format(minute) }}" {% if minute == 0 %}selected{% endif %}>{{ '%02d'|format(minute) }}</option>{% endfor %}
+            </select>
+          </div>
+          <input type="hidden" name="start_time" value="08:00">
+        </div>
+        <div class="col-lg-2 col-md-6">
+          <label class="form-label">До</label>
+          <div class="d-flex gap-2">
+            <select class="form-select cyclegram-time-hour" data-target="end_time" aria-label="Часы окончания" required>
+              {% for hour in range(0, 24) %}<option value="{{ '%02d'|format(hour) }}" {% if hour == 8 %}selected{% endif %}>{{ '%02d'|format(hour) }}</option>{% endfor %}
+            </select>
+            <select class="form-select cyclegram-time-minute" data-target="end_time" aria-label="Минуты окончания" required>
+              {% for minute in range(0, 60, 5) %}<option value="{{ '%02d'|format(minute) }}" {% if minute == 5 %}selected{% endif %}>{{ '%02d'|format(minute) }}</option>{% endfor %}
+            </select>
+          </div>
+          <input type="hidden" name="end_time" value="08:05">
+        </div>
+        <div class="col-lg-3 col-md-6"><label class="form-label">Вид деятельности</label><select class="form-select" name="activity_type_id" required>{% for row in activity_types %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Параллель</label><select class="form-select cyclegram-parallel-select" name="parallel_value"><option value="">—</option>{% for value in parallel_choices %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Класс</label><select class="form-select cyclegram-class-select" name="class_name"><option value="">—</option>{% for row in school_classes %}<option value="{{ row.name }}" data-parallel="{{ extract_parallel_from_class_name(row.name) or '' }}">{{ row.name }}</option>{% endfor %}</select></div>
+        <div class="col-lg-3 col-md-6"><label class="form-label">ФИО обучающегося</label><select class="form-select cyclegram-child-select"><option value="">—</option>{% for row in children %}<option value="{{ row.id }}" data-class="{{ row.current_class_name or '' }}">{{ row.fio }}{% if row.current_class_name %} — {{ row.current_class_name }}{% endif %}</option>{% endfor %}</select><input type="hidden" name="child_id"></div>
+        <div class="col-lg-2 col-md-6"><label class="form-label">Название группы</label><input class="form-control cyclegram-group-name" name="group_name" placeholder="Например, Группа 5"></div>
+        <input type="hidden" name="group_text">
+        <div class="col-lg-2 col-md-6"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">—</option>{% for row in buildings %}<option value="{{ row.id }}">{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+        <div class="col-lg-5 col-md-12"><label class="form-label">Описание / содержание работы</label><input class="form-control" name="description" placeholder="Можно оставить пустым — шаблон подставится автоматически"></div>
+        <div class="col-lg-3 col-md-6"><label class="form-label">Комментарий</label><input class="form-control" name="comment"></div>
+        <div class="col-lg-2 col-md-6"><button class="btn btn-primary" type="submit">Добавить запись</button></div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% for day in summary.days %}
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div><b>{{ day.name }}</b></div>
+      <div class="small text-muted">Практическая: {{ day.practical_minutes }} мин · Методическая: {{ day.methodical_minutes }} мин · Итого: {{ day.total_minutes }} мин</div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Интервал</th><th>Вид деятельности</th><th>Описание</th><th>Ребенок / группа</th><th>Категория</th><th>Минуты</th><th>Здание</th><th></th></tr></thead>
+        <tbody>
+          {% for row in day.rows %}
+          <tr>
+            <td>{{ row.interval_text }}</td>
+            <td>{{ row.activity_type.name if row.activity_type else '—' }}</td>
+            <td>{{ row.description or '—' }}</td>
+            <td>{% if row.child %}{{ row.child.fio }}{% if row.child.current_class_name %} — {{ row.child.current_class_name }}{% endif %}{% elif row.group_text %}{{ row.group_text }}{% else %}—{% endif %}</td>
+            <td>{% if row.work_category == 'PRACTICAL' %}<span class="badge text-bg-success">Практическая</span>{% else %}<span class="badge text-bg-secondary">Орг.-методическая</span>{% endif %}</td>
+            <td>{{ row.minutes }}</td>
+            <td>{% if row.building %}{{ row.building.short_name or row.building.name }}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if can_manage %}<form method="post" action="{{ url_for('service_staff.cyclegram_entry_delete', cyclegram_id=cyclegram.id, entry_id=row.id) }}" class="m-0" onsubmit="return confirm('Удалить запись?');"><button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button></form>{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-center text-muted py-3">На этот день записи пока не добавлены.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header"><b>Согласование и статусы</b></div>
+        <div class="card-body">
+          <div class="mb-3">Текущий статус: <span class="badge text-bg-primary">{{ cyclegram.status_label }}</span></div>
+          {% if can_manage or can_review %}
+          <form method="post" action="{{ url_for('service_staff.cyclegram_change_status', cyclegram_id=cyclegram.id) }}" class="row g-2 align-items-end">
+            <div class="col-lg-4"><label class="form-label">Новый статус</label><select class="form-select" name="status">{% for code, label in status_choices %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+            <div class="col-lg-5"><label class="form-label">Комментарий</label><input class="form-control" name="comment" value="{{ cyclegram.reviewer_comment or '' }}"></div>
+            <div class="col-lg-3"><button class="btn btn-primary" type="submit">Обновить статус</button></div>
+          </form>
+          {% endif %}
+          {% if cyclegram.reviewer_comment %}<div class="mt-3 text-muted">Комментарий: {{ cyclegram.reviewer_comment }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header"><b>Журнал изменений</b></div>
+        <div class="card-body">
+          {% for row in cyclegram.history_entries|sort(attribute='created_at', reverse=True) %}
+          <div class="mb-2 pb-2 border-bottom">
+            <div class="fw-semibold">{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}</div>
+            <div class="small text-muted">{{ row.changed_by.fio if row.changed_by else 'Система' }}</div>
+            <div>{{ row.action }}{% if row.old_status or row.new_status %}: {{ row.old_status or '—' }} → {{ row.new_status or '—' }}{% endif %}</div>
+            {% if row.comment %}<div class="small text-muted">{{ row.comment }}</div>{% endif %}
+          </div>
+          {% else %}
+          <div class="text-muted">Журнал пока пуст.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  function syncCyclegramTimeInputs() {
+    document.querySelectorAll('.cyclegram-time-hour').forEach(function (hourSelect) {
+      var target = hourSelect.dataset.target;
+      var minuteSelect = document.querySelector('.cyclegram-time-minute[data-target="' + target + '"]');
+      var hiddenInput = document.querySelector('input[name="' + target + '"]');
+      if (!minuteSelect || !hiddenInput) return;
+      hiddenInput.value = hourSelect.value + ':' + minuteSelect.value;
+    });
+  }
+
+  function syncCyclegramChildAndGroup() {
+    var parallelSelect = document.querySelector('.cyclegram-parallel-select');
+    var classSelect = document.querySelector('.cyclegram-class-select');
+    var childSelect = document.querySelector('.cyclegram-child-select');
+    var childHidden = document.querySelector('input[name="child_id"]');
+    var groupHidden = document.querySelector('input[name="group_text"]');
+    var groupInput = document.querySelector('.cyclegram-group-name');
+    if (!classSelect || !childSelect || !childHidden || !groupHidden || !groupInput) return;
+
+    var selectedParallel = parallelSelect ? String(parallelSelect.value || '') : '';
+    Array.prototype.forEach.call(classSelect.options, function (option) {
+      if (!option.value) {
+        option.hidden = false;
+        option.disabled = false;
+        return;
+      }
+      var visible = !selectedParallel || String(option.dataset.parallel || '') === selectedParallel;
+      option.hidden = !visible;
+      option.disabled = !visible;
+    });
+    if (classSelect.value && classSelect.selectedOptions[0] && classSelect.selectedOptions[0].hidden) {
+      classSelect.value = '';
+    }
+
+    var selectedClass = classSelect.value || '';
+    Array.prototype.forEach.call(childSelect.options, function (option) {
+      if (!option.value) {
+        option.hidden = false;
+        option.disabled = false;
+        return;
+      }
+      var optionClass = option.dataset.class || '';
+      var visible = !!selectedClass && optionClass === selectedClass;
+      option.hidden = !visible;
+      option.disabled = !visible;
+    });
+    if (!selectedClass) {
+      childSelect.value = '';
+    }
+    if (childSelect.value && childSelect.selectedOptions[0] && childSelect.selectedOptions[0].hidden) {
+      childSelect.value = '';
+    }
+
+    childHidden.value = childSelect.value || '';
+    var groupName = (groupInput.value || '').trim();
+    if (groupName) {
+      groupHidden.value = groupName;
+    } else if (childSelect.value) {
+      groupHidden.value = '';
+    } else if (selectedClass) {
+      groupHidden.value = selectedClass;
+    } else if (selectedParallel) {
+      groupHidden.value = selectedParallel + ' классы';
+    } else {
+      groupHidden.value = '';
+    }
+  }
+
+  document.querySelectorAll('.cyclegram-time-hour, .cyclegram-time-minute').forEach(function (select) {
+    select.addEventListener('change', syncCyclegramTimeInputs);
+  });
+  document.querySelectorAll('.cyclegram-parallel-select, .cyclegram-class-select, .cyclegram-child-select, .cyclegram-group-name').forEach(function (field) {
+    field.addEventListener('change', syncCyclegramChildAndGroup);
+    field.addEventListener('input', syncCyclegramChildAndGroup);
+  });
+  syncCyclegramTimeInputs();
+  syncCyclegramChildAndGroup();
+})();
+</script>
+{% endblock %}

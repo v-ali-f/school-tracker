@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">Тематический раздел</div>
+      <h1 class="dashboard-title mb-1">Социально-психологическая служба</h1>
+      <div class="text-muted classic-hero-note">Специалисты, сопровождение, электронные циклограммы, представления и аналитика службы.</div>
+    </div>
+    <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
+
+  <section class="dashboard-section dashboard-section-classic mb-3">
+    <div class="row g-3">
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic text-decoration-none"><div class="summary-card-label">Всего специалистов</div><div class="summary-card-value">{{ stats.total }}</div><div class="summary-card-subtext">Активные карточки службы</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic text-decoration-none"><div class="summary-card-label">Здания</div><div class="summary-card-value">{{ stats.buildings_count }}</div><div class="summary-card-subtext">Есть закрепление специалистов</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic text-decoration-none"><div class="summary-card-label">Ответственные</div><div class="summary-card-value">{{ stats.responsible_count }}</div><div class="summary-card-subtext">Расширенные права модуля</div></div></div>
+      <div class="col-lg-3 col-md-6"><div class="summary-card summary-card-classic text-decoration-none"><div class="summary-card-label">Детей на сопровождении</div><div class="summary-card-value">{{ stats.children_count }}</div><div class="summary-card-subtext">По активным назначениям</div></div></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section dashboard-section-classic">
+    <div class="section-head mb-2">
+      <div>
+        <div class="section-overline">Содержимое раздела</div>
+        <h4 class="section-title mb-0">Внутренние разделы</h4>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-blue h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-person-workspace"></i></span><h5 class="mb-0">Специалисты службы</h5></div><p class="text-muted classic-nav-text">Карточки специалистов, профили и закрепление по зданиям.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.registry') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-green h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-people"></i></span><h5 class="mb-0">Реестр сопровождения</h5></div><p class="text-muted classic-nav-text">Назначения детей специалистам, статусы и история сопровождения.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.assignments_registry') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-orange h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-calendar3-week"></i></span><h5 class="mb-0">Электронные циклограммы</h5></div><p class="text-muted classic-nav-text">Годовые циклограммы специалистов, интервалы и выгрузка.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.cyclegrams_registry') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-purple h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-file-earmark-text"></i></span><h5 class="mb-0">Электронные представления</h5></div><p class="text-muted classic-nav-text">Представления по обучающимся, блоки заполнения и согласование.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.presentations_registry') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-blue h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-journal-richtext"></i></span><h5 class="mb-0">Электронный ИОМ</h5></div><p class="text-muted classic-nav-text">Реестр ИОМ, карточки обучающихся с ОВЗ, статусы и история изменений.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('iom.registry') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-rose h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-person-check"></i></span><h5 class="mb-0">Ответственные за службу</h5></div><p class="text-muted classic-nav-text">Распределение расширенных прав и ответственных пользователей.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.responsibles') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-slate h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-buildings"></i></span><h5 class="mb-0">Закрепление по зданиям</h5></div><p class="text-muted classic-nav-text">Корпуса, распределение специалистов и списки детей по зданиям.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.buildings_summary') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-blue h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-bar-chart"></i></span><h5 class="mb-0">Аналитика службы</h5></div><p class="text-muted classic-nav-text">Дашборд, показатели, расчет нагрузки и ставки специалистов.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.analytics_dashboard') }}">Открыть</a></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card classic-nav-card theme-summary-card zone-card zone-slate h-100"><div class="card-body d-flex flex-column"><div class="classic-nav-icon-row"><span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-sliders"></i></span><h5 class="mb-0">Нормативы ставок</h5></div><p class="text-muted classic-nav-text">Настройка нормативов для расчета рекомендуемой нагрузки.</p><a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('service_staff.norms_registry') }}">Открыть</a></div></div></div>
+    </div>
+  </section>
+</div>
+{% endblock %}

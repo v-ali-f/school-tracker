@@ -1,0 +1,355 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Мои заявки</a></li>
+    <li class="breadcrumb-item active">Редактировать инцидент</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">Изменить инцидент</h4>
+    <div class="text-muted" style="font-size:0.95em;">Можно исправить дату, время, категорию, описание и участников.</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can("incident_registry_view") %}<a class="btn btn-outline-warning" href="{{ url_for('children.incidents_registry') }}">Реестр</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" id="incidentForm">
+      <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Дата</label>
+          <input class="form-control" type="date" name="occurred_date" value="{{ incident.occurred_at.strftime('%Y-%m-%d') if incident.occurred_at else '' }}" required>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Время</label>
+          <div class="d-flex gap-2">
+            <select class="form-select" name="occurred_hour" required>
+              {% set current_hour = incident.occurred_at.strftime('%H') if incident.occurred_at else '' %}
+              {% for h in range(0,24) %}
+                {% set val = "%02d"|format(h) %}
+                <option value="{{ val }}" {% if current_hour == val %}selected{% endif %}>{{ val }}</option>
+              {% endfor %}
+            </select>
+
+            <select class="form-select" name="occurred_minute" required>
+              {% set current_minute = incident.occurred_at.strftime('%M') if incident.occurred_at else '' %}
+              {% for m in range(0,60,5) %}
+                {% set val = "%02d"|format(m) %}
+                <option value="{{ val }}" {% if current_minute == val %}selected{% endif %}>{{ val }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-text text-muted">Минуты с шагом 5</div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Категория</label>
+          <select class="form-select" name="category" required>
+            <option value="">— выбрать —</option>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if incident.category == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <hr class="my-3">
+
+      <label class="form-label mb-1">Участники (дети)</label>
+      <div id="participants"></div>
+
+      <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addParticipantBtn">
+        + Добавить ученика
+      </button>
+
+      <div class="mt-3">
+        <label class="form-label">Описание <span class="text-danger">*</span></label>
+        <textarea class="form-control" name="description" rows="4" placeholder="Кратко опишите ситуацию" required>{{ incident.description or '' }}</textarea>
+        <div class="invalid-feedback">Заполните описание инцидента</div>
+      </div>
+
+      {% if can_change_status %}
+      <div class="row g-3 mt-1">
+        <div class="col-auto">
+          <label class="form-label">Статус</label>
+          <select class="form-select" name="status" style="max-width:200px;">
+            <option value="new" {% if (incident.status or 'new') == 'new' %}selected{% endif %}>Новый</option>
+            <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>В работе</option>
+            <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Закрыт</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label">Исполнитель</label>
+          <select class="form-select" name="assignee_id" style="max-width:280px;">
+            <option value="">— не назначен —</option>
+            {% for u in assignees %}
+            <option value="{{ u.id }}" {% if incident.assignee_id == u.id %}selected{% endif %}>
+              {{ u.last_name }} {{ u.first_name }}{% if u.middle_name %} {{ u.middle_name }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary">Сохранить изменения</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_my') }}">Отмена</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{# ---- Журнал работы с инцидентом ---- #}
+<div class="card mt-4">
+  <div class="card-body">
+    <h5 class="mb-1">Журнал работы</h5>
+    <div class="text-muted small mb-3">Заметки о ходе урегулирования инцидента — видны всем причастным сотрудникам</div>
+
+    <div id="notesList">
+      {% if notes %}
+        {% for n in notes %}
+        <div class="d-flex gap-2 mb-3" id="note-{{ n.id }}">
+          <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.85rem;">
+            {{ (n.author.last_name or n.author.username or "?")[:1] }}
+          </div>
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <span class="fw-semibold" style="font-size:.9rem;">
+                {{ (n.author.last_name or "") }} {{ (n.author.first_name or "")[:1] }}{% if n.author.first_name %}.{% endif %}
+              </span>
+              <span class="text-muted" style="font-size:.8rem;">{{ n.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+            </div>
+            <div style="background:#f8f9fa;border-radius:8px;padding:.5rem .75rem;white-space:pre-wrap;font-size:.9rem;">{{ n.text }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-muted small mb-3" id="noNotesMsg">Заметок пока нет. Добавьте первую ниже.</div>
+      {% endif %}
+    </div>
+
+    {% if can_add_note %}
+    <div class="mt-3 d-flex gap-2 align-items-start" id="addNoteForm">
+      <textarea id="noteText" class="form-control" rows="2" placeholder="Напишите заметку о ходе работы…" style="resize:vertical;"></textarea>
+      <button class="btn btn-primary btn-sm" id="addNoteBtn" style="white-space:nowrap;">Добавить</button>
+    </div>
+    <div id="noteError" class="text-danger small mt-1" style="display:none;"></div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+const ADD_NOTE_URL = "{{ url_for('children.incident_add_note', incident_id=incident.id) }}";
+const CURRENT_USER_INITIAL = "{{ (current_user.last_name or current_user.username or '?')[:1] }}";
+const CURRENT_USER_NAME = "{{ (current_user.last_name or '') }} {{ (current_user.first_name or '')[:1] }}{% if current_user.first_name %}.{% endif %}";
+
+(function(){
+  const btn = document.getElementById("addNoteBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async function() {
+    const ta = document.getElementById("noteText");
+    const errEl = document.getElementById("noteError");
+    const text = ta.value.trim();
+    if (!text) { errEl.textContent = "Введите текст заметки."; errEl.style.display = ""; return; }
+    errEl.style.display = "none";
+    btn.disabled = true; btn.textContent = "…";
+    const fd = new FormData(); fd.append("text", text);
+    try {
+      const res = await fetch(ADD_NOTE_URL, {method:"POST", body:fd});
+      const data = await res.json();
+      if (data.ok) {
+        ta.value = "";
+        const noMsg = document.getElementById("noNotesMsg");
+        if (noMsg) noMsg.remove();
+        const list = document.getElementById("notesList");
+        const div = document.createElement("div");
+        div.className = "d-flex gap-2 mb-3";
+        div.id = "note-" + data.id;
+        div.innerHTML = `
+          <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.85rem;">${CURRENT_USER_INITIAL}</div>
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <span class="fw-semibold" style="font-size:.9rem;">${data.author}</span>
+              <span class="text-muted" style="font-size:.8rem;">${data.created_at}</span>
+            </div>
+            <div style="background:#f8f9fa;border-radius:8px;padding:.5rem .75rem;white-space:pre-wrap;font-size:.9rem;">${data.text.replace(/</g,"&lt;")}</div>
+          </div>`;
+        list.appendChild(div);
+      } else {
+        errEl.textContent = "Ошибка: " + (data.error || "неизвестно");
+        errEl.style.display = "";
+      }
+    } catch(e) {
+      errEl.textContent = "Сетевая ошибка";
+      errEl.style.display = "";
+    }
+    btn.disabled = false; btn.textContent = "Добавить";
+  });
+})();
+</script>
+
+<script>
+const initialBlocks = {{ selected_blocks|tojson }};
+let idx = 0;
+
+function participantBlock(i) {
+  const grades = Array.from({length: 11}, (_,k)=>k+1)
+    .map(n=>`<option value="${n}">${n}</option>`)
+    .join("");
+
+  return `
+  <div class="border rounded p-2 mb-2" data-i="${i}">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Параллель</label>
+        <select class="form-select gradeSel">
+          <option value="">—</option>
+          ${grades}
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Класс</label>
+        <select class="form-select classSel" disabled>
+          <option value="">—</option>
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Ученик(и)</label>
+        <select class="form-select childSel" name="child_ids" multiple size="10" disabled required>
+          <option value="">—</option>
+        </select>
+        <div class="form-text text-muted">Можно выбрать несколько: Ctrl/⌘ + клик</div>
+      </div>
+
+      <div class="col-md-1 text-end">
+        <button type="button" class="btn btn-outline-danger btn-sm removeBtn" title="Убрать">×</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setLoading(selectEl, text){
+  selectEl.innerHTML = `<option value="">${text || "Загрузка..."}</option>`;
+  selectEl.disabled = true;
+}
+
+async function loadClasses(grade, classSelect, selectedClassId) {
+  classSelect.innerHTML = `<option value="">—</option>`;
+  classSelect.disabled = true;
+  if (!grade) return;
+
+  try {
+    setLoading(classSelect, "Загрузка классов...");
+    const res = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(grade)}`);
+    const data = await res.json();
+
+    classSelect.innerHTML = `<option value="">— выбрать —</option>`;
+    data.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      if (String(selectedClassId || "") === String(c.id)) opt.selected = true;
+      classSelect.appendChild(opt);
+    });
+    classSelect.disabled = false;
+  } catch(e) {
+    classSelect.innerHTML = `<option value="">Ошибка загрузки</option>`;
+    classSelect.disabled = true;
+  }
+}
+
+async function loadChildren(classId, childSelect, selectedChildIds) {
+  childSelect.innerHTML = "";
+  childSelect.disabled = true;
+  if (!classId) return;
+
+  const res = await fetch(`/api/children/by-class?class_id=${encodeURIComponent(classId)}`);
+  const data = await res.json();
+
+  data.forEach(ch => {
+    const opt = document.createElement("option");
+    opt.value = ch.id;
+    opt.textContent = ch.fio;
+    if ((selectedChildIds || []).map(String).includes(String(ch.id))) opt.selected = true;
+    childSelect.appendChild(opt);
+  });
+  childSelect.disabled = false;
+}
+
+async function addParticipant(initialData) {
+  const container = document.getElementById("participants");
+  container.insertAdjacentHTML("beforeend", participantBlock(idx));
+
+  const block = container.querySelector(`[data-i="${idx}"]`);
+  const gradeSel = block.querySelector(".gradeSel");
+  const classSel = block.querySelector(".classSel");
+  const childSel = block.querySelector(".childSel");
+
+  gradeSel.addEventListener("change", async () => {
+    childSel.innerHTML = "";
+    childSel.disabled = true;
+    await loadClasses(gradeSel.value, classSel, "");
+  });
+
+  classSel.addEventListener("change", async () => {
+    childSel.innerHTML = "";
+    childSel.disabled = true;
+    await loadChildren(classSel.value, childSel, []);
+  });
+
+  block.querySelector(".removeBtn").addEventListener("click", () => {
+    block.remove();
+  });
+
+  idx += 1;
+
+  if (initialData) {
+    if (initialData.grade) gradeSel.value = String(initialData.grade);
+    if (initialData.grade) {
+      await loadClasses(initialData.grade, classSel, initialData.class_id || "");
+    }
+    if (initialData.class_id) {
+      await loadChildren(initialData.class_id, childSel, initialData.child_ids || []);
+    }
+  }
+}
+
+document.getElementById("addParticipantBtn").addEventListener("click", () => addParticipant(null));
+
+(async function init(){
+  if (initialBlocks.length > 0) {
+    for (const block of initialBlocks) {
+      await addParticipant(block);
+    }
+  } else {
+    await addParticipant(null);
+  }
+})();
+
+document.getElementById("incidentForm").addEventListener("submit", (e) => {
+  const selects = Array.from(document.querySelectorAll('select[name="child_ids"]'));
+  const chosen = selects.flatMap(s => Array.from(s.selectedOptions).map(o => o.value)).filter(v => v && v !== "");
+  if (chosen.length === 0){
+    e.preventDefault();
+    alert("Выберите хотя бы одного ребёнка.");
+  }
+});
+</script>
+
+{% endblock %}

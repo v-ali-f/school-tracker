@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Предпросмотр импорта — {{ session.title }}</h3>
+<div class="alert alert-info">Строк: {{ preview.rows|length }}{% if preview.issues %} · Предупреждений: {{ preview.issues|length }}{% endif %}</div>
+{% if preview.issues %}
+<div class="card mb-3"><div class="card-body"><h5>Предупреждения</h5><ul class="mb-0">{% for i in preview.issues %}<li>{{ i.message }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+<form method="post">
+  <input type="hidden" name="filename" value="{{ filename }}">
+  <div class="card"><div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead><tr><th>Ученик</th><th>Класс</th><th>Код</th><th>Балл</th><th>%</th><th>Отметка/уровень</th><th>Сообщение</th><th>Действие</th></tr></thead>
+        <tbody>
+        {% for row in preview.rows %}
+          {% set key = (row.participant_code or '') ~ '|' ~ (row.list_number or '') ~ '|' ~ (row.matched_child_id or '') ~ '|' ~ (row.class_name or '') %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ row.full_name or 'Не определён' }}</div>
+              <div class="text-muted small">№ по списку: {{ row.list_number or '—' }}{% if row.variant %} · вариант {{ row.variant }}{% endif %}</div>
+            </td>
+            <td>{{ row.class_name or '—' }}</td>
+            <td>{{ row.participant_code or '—' }}</td>
+            <td>{{ row.total_score or '—' }}</td>
+            <td>{{ row.percent or '—' }}</td>
+            <td>{{ row.level or (('Ниже базового' if session.diagnostic_type == 'FG' and row.total_score is not none and row.total_score <= 7 else None)) or row.mark or '—' }}</td>
+            <td class="small {% if row.conflict_result_id %}text-warning{% elif row.message %}text-danger{% else %}text-muted{% endif %}">{{ row.message or 'OK' }}</td>
+            <td>
+              <select class="form-select form-select-sm" name="action_{{ key }}">
+                <option value="import" {% if row.recommended_action == 'import' %}selected{% endif %}>Импортировать</option>
+                <option value="keep_existing" {% if row.recommended_action == 'keep_existing' %}selected{% endif %}>Оставить текущий</option>
+                <option value="replace" {% if row.recommended_action == 'replace' %}selected{% endif %}>Заменить итог</option>
+                <option value="store_both" {% if row.recommended_action == 'store_both' %}selected{% endif %}>Сохранить оба</option>
+                <option value="skip" {% if row.recommended_action == 'skip' %}selected{% endif %}>Пропустить</option>
+              </select>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div></div>
+  <div class="mt-3"><button class="btn btn-primary">Подтвердить импорт</button> <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.import_view', session_id=session.id) }}">Назад</a></div>
+</form>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Нагрузка учителей</h3>
+    <div class="text-muted">{% if teacher_view_only %}В этом разделе учитель видит только свою нагрузку.{% else %}Импорт нагрузки, распределение по кафедрам и ручная корректировка.{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if not teacher_view_only %}<a class="btn btn-outline-success" href="{{ url_for('departments.summary') }}">Свод</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
+</div>
+
+{% if is_admin %}
+<div class="card mb-4"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-2">
+    <div class="col-md-9"><input class="form-control" type="file" name="file" accept=".xlsx,.xlsm,.xltx,.xltm" required></div>
+    <div class="col-md-3 d-grid"><button class="btn btn-primary">Импортировать Excel</button></div>
+  </form>
+</div></div>
+{% endif %}
+
+<div class="card mb-4"><div class="card-body">
+  <form method="get" class="row g-2">
+    <div class="col-md-3"><input class="form-control" name="q" value="{{ q or '' }}" placeholder="Предмет, класс, ФИО"></div>
+    <div class="col-md-2"><select class="form-select" name="department_id"><option value="">Все кафедры</option>{% for dep in departments %}<option value="{{ dep.id }}" {% if department_id==dep.id %}selected{% endif %}>{{ dep.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select class="form-select" name="subject_id"><option value="">Все предметы</option>{% for s in subjects %}<option value="{{ s.id }}" {% if subject_id==s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+    {% if not teacher_view_only %}<div class="col-md-2"><select class="form-select" name="teacher_id"><option value="">Все учителя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="col-md-1 d-grid"><button class="btn btn-outline-primary">OK</button></div>
+  </form>
+</div></div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h5>Часы по учителям</h5>
+      <div class="table-responsive" style="max-height: 320px;">
+        <table class="table table-sm align-middle mb-0"><thead><tr><th>Учитель</th><th class="text-end">Часы</th></tr></thead><tbody>{% for fio, hours in teacher_hours %}<tr><td>{{ fio }}</td><td class="text-end">{{ '%.1f'|format(hours) }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table>
+      </div>
+    </div></div>
+  </div>
+  {% if is_admin %}
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <h5>Добавить нагрузку вручную</h5>
+      <form method="post" action="{{ url_for('departments.load_new') }}" class="row g-2">
+        <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Учитель</option>{% for t in teachers %}<option value="{{ t.id }}">{{ t.fio or t.username }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><input class="form-control" name="class_name" placeholder="Классы"></div>
+        <div class="col-md-2"><input class="form-control" name="group_name" placeholder="Группа"></div>
+        <div class="col-md-3"><input class="form-control" type="number" step="0.1" name="hours" placeholder="Часы"></div>
+        <div class="col-md-5"><select class="form-select" name="building_id"><option value="">Здание</option>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-4 d-grid"><button class="btn btn-success">Добавить</button></div>
+      </form>
+    </div></div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card"><div class="table-responsive">
+<table class="table table-striped align-middle mb-0">
+  <thead><tr><th>Учитель</th><th>Год</th><th>Предмет</th><th>Кафедра</th><th>Классы</th><th>Группа</th><th>Тип</th><th class="text-end">Часы</th>{% if is_admin %}<th class="text-end">Действия</th>{% endif %}</tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.teacher.fio if row.teacher else '—' }}<div class="small text-muted">{{ row.building_name or (row.building.name if row.building else '') }}</div></td>
+      <td>{{ row.academic_year.name if row.academic_year else "—" }}</td><td>{{ row.subject_name }}</td>
+      <td>{{ row.department.name if row.department else 'Не определена' }}</td>
+      <td>{% if is_admin %}<form method="post" action="{{ url_for('departments.load_update', load_id=row.id) }}" class="d-flex gap-2"><input class="form-control form-control-sm" name="class_name" value="{{ row.class_name or '' }}">{% else %}{{ row.class_name or '—' }}{% endif %}</td>
+      <td>{% if is_admin %}<input class="form-control form-control-sm" name="group_name" value="{{ row.group_name or '' }}">{% else %}{{ row.group_name or '—' }}{% endif %}</td>
+      <td>{% if row.is_meta_group %}<span class="badge text-bg-warning">Мета-группа</span>{% elif row.is_whole_class %}<span class="badge text-bg-light border">Весь класс</span>{% else %}<span class="badge text-bg-secondary">Группа</span>{% endif %}</td>
+      <td class="text-end">{% if is_admin %}<input class="form-control form-control-sm text-end" type="number" step="0.1" name="hours" value="{{ row.hours or 0 }}">{% else %}{{ '%.1f'|format(row.hours or 0) }}{% endif %}</td>
+      {% if is_admin %}<td class="text-end"><button class="btn btn-sm btn-success" type="submit">Сохранить</button></form><form method="post" action="{{ url_for('departments.load_delete', load_id=row.id) }}" class="d-inline" onsubmit="return confirm('Удалить строку нагрузки?');"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td>{% endif %}
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="text-muted">Нагрузка пока не загружена.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

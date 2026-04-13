@@ -1,0 +1,128 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Этап 4: массовая постановка задач сотрудникам или по списку обучающихся.</div></div>
+  <div><a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a></div>
+</div>
+<div class="card"><div class="card-body"><form method="post" class="row g-3">
+<div class="col-md-4"><label class="form-label">Режим</label><select class="form-select" name="target_mode" id="target_mode"><option value="employees">Нескольким сотрудникам</option><option value="children">По списку обучающихся</option></select></div>
+<div class="col-md-8"><label class="form-label">Название задачи</label><input class="form-control" type="text" name="title" required></div>
+<div class="col-12"><label class="form-label">Описание</label><textarea class="form-control" name="description" rows="3"></textarea></div>
+<div class="col-md-3"><label class="form-label">Тип</label><select class="form-select" name="task_type_id"><option value="">—</option>{% for x in task_types %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Приоритет</label><select class="form-select" name="priority">{% for x in priority_choices %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Контролирующий</label><select class="form-select" name="controller_user_id"><option value="">—</option>{% for x in users %}<option value="{{ x.id }}">{{ x.fio or x.username }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Срок</label><input class="form-control" type="datetime-local" name="deadline_at"></div>
+<div class="col-md-4"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id"><option value="">—</option>{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+<div class="col-md-2"><label class="form-label">Параллель</label><select class="form-select" name="grade" id="grade"><option value="">—</option>{% for g in grades %}<option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Класс</label><select class="form-select" name="class_id" id="class_id"><option value="">—</option>{% for c in classes %}<option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+<div class="col-md-3 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_control_required" id="is_control_required"><label class="form-check-label" for="is_control_required">Контроль</label></div></div>
+
+<div class="col-md-6" id="employees_block">
+  <label class="form-label">Исполнители</label>
+  <div class="border rounded p-2 bg-light-subtle">
+    <input class="form-control mb-2" type="text" id="employee_search" placeholder="Поиск сотрудника по ФИО, логину или email">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <div class="small text-muted">Отмечайте сотрудников галочками</div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge text-bg-primary" id="employee_counter">Выбрано: 0</span>
+        <button class="btn btn-sm btn-outline-secondary" type="button" id="select_all_employees">Выбрать всех</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" id="clear_all_employees">Снять выделение</button>
+      </div>
+    </div>
+    <div id="employee_list" class="task-user-checklist">
+      {% for x in users %}
+      <label class="task-check-option" data-user-search="{{ ((x.fio or '') ~ ' ' ~ (x.username or '') ~ ' ' ~ (x.email or ''))|lower }}">
+        <input class="form-check-input employee-checkbox me-2" type="checkbox" name="responsible_user_ids" value="{{ x.id }}">
+        <span>
+          <span class="fw-semibold">{{ x.fio or x.username }}</span>
+          <span class="text-muted small d-block">{{ x.username }}{% if x.email %} · {{ x.email }}{% endif %}{% if x.role %} · {{ x.role }}{% endif %}</span>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="col-md-6 d-none" id="single_responsible_block">
+  <label class="form-label">Ответственный</label>
+  <select class="form-select" name="responsible_user_id"><option value="">Выберите</option>{% for x in users %}<option value="{{ x.id }}">{{ x.fio or x.username }}</option>{% endfor %}</select>
+</div>
+<div class="col-md-6 d-none" id="children_block"><label class="form-label">Обучающиеся</label><select class="form-select" name="child_ids" multiple size="8">{% for ch in children %}<option value="{{ ch.id }}">{{ ch.fio }}</option>{% endfor %}</select></div>
+<div class="col-12"><label class="form-label">Чек-лист</label><textarea class="form-control" name="checklist_text" rows="4"></textarea></div>
+<div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Создать задачи</button><a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">Отмена</a></div>
+</form></div></div>
+{% endblock %}
+{% block scripts %}
+<style>
+.task-user-checklist{max-height:360px;overflow:auto;display:flex;flex-direction:column;gap:.35rem}
+.task-check-option{display:flex;align-items:flex-start;padding:.55rem .65rem;border:1px solid #dee2e6;border-radius:.5rem;background:#fff;cursor:pointer}
+.task-check-option.active{border-color:#0d6efd;background:rgba(13,110,253,.08)}
+.task-check-option.d-none{display:none !important}
+</style>
+<script>
+const mode=document.getElementById('target_mode');
+function syncMode(){
+  const children=mode.value==='children';
+  document.getElementById('children_block').classList.toggle('d-none',!children);
+  document.getElementById('single_responsible_block').classList.toggle('d-none',!children);
+  document.getElementById('employees_block').classList.toggle('d-none',children);
+}
+mode.addEventListener('change',syncMode);
+syncMode();
+
+function initEmployeeChecklist(){
+  const searchInput = document.getElementById('employee_search');
+  const options = Array.from(document.querySelectorAll('.task-check-option'));
+  const checkboxes = Array.from(document.querySelectorAll('.employee-checkbox'));
+  const counter = document.getElementById('employee_counter');
+  const selectAllBtn = document.getElementById('select_all_employees');
+  const clearAllBtn = document.getElementById('clear_all_employees');
+
+  function updateCounter(){
+    const checked = checkboxes.filter(x => x.checked).length;
+    counter.textContent = `Выбрано: ${checked}`;
+    options.forEach(option => {
+      const input = option.querySelector('.employee-checkbox');
+      option.classList.toggle('active', input.checked);
+    });
+  }
+
+  searchInput.addEventListener('input', () => {
+    const needle = searchInput.value.trim().toLowerCase();
+    options.forEach(option => {
+      const hay = option.dataset.userSearch || '';
+      option.classList.toggle('d-none', needle && !hay.includes(needle));
+    });
+  });
+
+  checkboxes.forEach(input => input.addEventListener('change', updateCounter));
+
+  selectAllBtn.addEventListener('click', () => {
+    const visible = options.filter(option => !option.classList.contains('d-none'));
+    visible.forEach(option => {
+      option.querySelector('.employee-checkbox').checked = true;
+    });
+    updateCounter();
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    checkboxes.forEach(input => input.checked = false);
+    updateCounter();
+  });
+
+  options.forEach(option => {
+    option.addEventListener('click', (event) => {
+      if (event.target.tagName !== 'INPUT') {
+        const input = option.querySelector('.employee-checkbox');
+        input.checked = !input.checked;
+        updateCounter();
+      }
+    });
+  });
+
+  updateCounter();
+}
+initEmployeeChecklist();
+</script>
+{% endblock %}

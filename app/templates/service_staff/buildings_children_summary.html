@@ -1,0 +1,11 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap"><div><h3 class="mb-1">Списки детей по зданиям</h3><div class="text-muted">Распределение сопровождения по корпусам</div></div><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">К модулю</a></div>
+{% for building, items in grouped %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center"><b>{{ building.short_name or building.name if building else 'Без здания' }}</b><span class="badge text-bg-light border text-dark">{{ items|length }}</span></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Ребенок</th><th>Специалист</th><th>Роль</th><th>Статус</th></tr></thead><tbody>{% for row in items %}<tr><td><a href="{{ url_for('children.child_card', child_id=row.child.id) }}">{{ row.child.fio if row.child else '—' }}</a></td><td>{{ row.specialist.fio if row.specialist else '—' }}</td><td>{{ row.role_title or '—' }}</td><td>{{ row.status_label }}</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% else %}<div class="text-muted">Данные отсутствуют.</div>{% endfor %}
+{% endblock %}

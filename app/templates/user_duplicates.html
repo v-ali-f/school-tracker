@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">Потенциальные дубли пользователей</h4>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}">К пользователям</a>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped align-middle mb-0">
+      <thead><tr><th>Признак</th><th>Ключ</th><th>Записи</th></tr></thead>
+      <tbody>
+      {% for group in groups %}
+        <tr>
+          <td>
+            {% if group.kind == 'normalized_fio' %}Нормализованное ФИО{% elif group.kind == 'phone' %}Телефон{% else %}Email{% endif %}
+          </td>
+          <td class="small text-muted">{{ group.key }}</td>
+          <td>
+            {% for u in group.users %}
+              <div class="border rounded p-2 mb-2">
+                <div class="fw-semibold">{{ u.fio or u.username }}</div>
+                <div class="small text-muted">Логин: {{ u.username }} · Роль: {{ role_labels.get(u.role, u.role) }} · Телефон: {{ u.phone or '—' }} · Email: {{ u.email or '—' }}</div>
+                <a class="btn btn-sm btn-outline-primary mt-2" href="{{ url_for('users.users_edit', user_id=u.id) }}">Открыть</a>
+              </div>
+            {% endfor %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-muted">Потенциальные дубли не найдены</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

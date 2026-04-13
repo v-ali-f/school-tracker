@@ -1,0 +1,185 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+.control-work-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.control-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;width:100%}
+.control-topbar__group{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.control-topbar__status{display:flex;align-items:center;gap:.75rem;flex-wrap:nowrap;flex:0 0 auto}
+.control-topbar .btn,.control-topbar .form-select{height:48px;min-height:48px;padding:.55rem 1rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:18px}
+.control-topbar .form-select{width:220px;max-width:220px;padding-right:2.5rem}
+.control-topbar form{margin:0}
+.control-topbar__status form,.control-topbar__danger-form{display:flex;align-items:center;margin:0}
+@media (max-width: 1400px){
+  .control-topbar{align-items:flex-start}
+  .control-topbar__group--actions{margin-left:auto}
+}
+@media (max-width: 1100px){
+  .control-topbar{flex-direction:column;align-items:flex-start}
+  .control-topbar__group,.control-topbar__status{width:100%}
+  .control-topbar__group--actions{margin-left:0}
+}
+@media (max-width: 768px){
+  .control-topbar__status{flex-wrap:wrap}
+  .control-topbar .form-select{width:100%;max-width:100%}
+}
+</style>
+<div class="control-work-head">
+  <div>
+    <h4 class="mb-1">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %}</h4>
+    <div class="text-muted">
+      {% if work.work_date %}Дата проведения: {{ work.work_date.strftime("%d.%m.%Y") }}{% endif %}
+      {% if work.deadline_date %} · Срок сдачи отчёта: {{ work.deadline_date.strftime("%d.%m.%Y") }}{% endif %}
+    </div>
+  </div>
+  <div class="control-topbar">
+    <div class="control-topbar__group control-topbar__group--nav">
+      <a class="btn btn-dark" href="{{ url_for('control_works.control_work_report', work_id=work.id) }}">Сводный отчёт</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_registry', academic_year_id=work.academic_year_id, subject_id=work.subject_id, **return_args) }}">Реестр</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_archive', academic_year_id=work.academic_year_id, subject_id=work.subject_id) }}">Архив по предмету</a>
+    </div>
+    {% if can('control_works_edit') %}
+    <div class="control-topbar__status">
+      <form method="post" action="{{ url_for('control_works.control_work_set_status', work_id=work.id, **return_args) }}" class="control-topbar__status">
+        <select class="form-select" name="status">
+          {% for s in ['Черновик','Заполнение','Заполнено','Проверено','Закрыто','Архив'] %}
+          <option value="{{ s }}" {% if registry_row.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline-dark" type="submit">Сменить статус</button>
+      </form>
+    </div>
+    <div class="control-topbar__group control-topbar__group--actions">
+      <a class="btn btn-outline-primary" href="{{ url_for('control_works.edit_control_work', work_id=work.id) }}">Изменить настройки</a>
+      <form method="post" action="{{ url_for('control_works.delete_control_work', work_id=work.id) }}" class="control-topbar__danger-form" onsubmit="return confirm('Удалить контрольную работу?');">
+        <button class="btn btn-outline-danger" type="submit">Удалить</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h6 class="mb-3">Карточка работы</h6>
+      <div class="small text-muted mb-2">Полное название работы</div>
+      <div class="fw-semibold mb-3">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %}</div>
+
+      <div class="row g-2 small">
+        <div class="col-6 text-muted">Вид работы</div><div class="col-6">{{ work.work_kind_label }}</div>
+        <div class="col-6 text-muted">Предмет</div><div class="col-6">{{ work.subject_name }}</div>
+        <div class="col-6 text-muted">Параллель</div><div class="col-6">{{ work.parallel or 'Все параллели' }}</div>
+        <div class="col-6 text-muted">Дата проведения</div><div class="col-6">{{ work.work_date.strftime('%d.%m.%Y') if work.work_date else '—' }}</div>
+        <div class="col-6 text-muted">Срок сдачи отчёта</div><div class="col-6">{{ work.deadline_date.strftime('%d.%m.%Y') if work.deadline_date else '—' }}</div>
+        <div class="col-6 text-muted">Статус заполнения</div><div class="col-6"><span class="badge text-bg-{{ registry_row.status_badge }}">{{ registry_row.status }}</span></div>
+        <div class="col-6 text-muted">Обработано / по списку</div><div class="col-6">{{ registry_row.processed }} из {{ registry_row.total_students }}</div>
+        <div class="col-6 text-muted">Не заполнено</div><div class="col-6">{{ registry_row.unfilled }}</div>
+      </div>
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="row g-3">
+      <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Количество учеников по списку</div><div class="fs-4">{{ registry_row.total_students if registry_row.total_students else report.results }}</div></div></div></div>
+      <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Писали</div><div class="fs-4">{{ registry_row.participants }}</div></div></div></div>
+      <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Отсутствовали</div><div class="fs-4">{{ registry_row.absent }}</div></div></div></div>
+      <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Процент участия</div><div class="fs-4">{{ registry_row.participation_percent if registry_row.participation_percent is not none else '—' }}{% if registry_row.participation_percent is not none %}%{% endif %}</div></div></div></div>
+      {% if is_dictation %}
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Отметка за диктант</div><div class="fs-4">{{ report.avg_dictation_mark if report.avg_dictation_mark is not none else '—' }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Отметка за грамматическое задание</div><div class="fs-4">{{ report.avg_grammar_mark if report.avg_grammar_mark is not none else '—' }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Итоговая отметка</div><div class="fs-4">{{ report.avg_final_mark if report.avg_final_mark is not none else '—' }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Среднее число ошибок</div><div class="fs-4">{{ report.avg_spelling_errors if report.avg_spelling_errors is not none else '—' }} / {{ report.avg_punctuation_errors if report.avg_punctuation_errors is not none else '—' }}</div><div class="small text-muted">орфографические / пунктуационные</div></div></div></div>
+      {% else %}
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Средний результат</div><div class="fs-4">{{ report.avg_percent if report.avg_percent is not none else '—' }}{% if report.avg_percent is not none %}%{% endif %}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Средняя отметка</div><div class="fs-4">{{ report.avg_mark if report.avg_mark is not none else '—' }}</div></div></div></div>
+                <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Классов в работе</div><div class="fs-4">{{ report.classes }}</div></div></div></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h6>Критерии оценивания</h6>
+      {% if is_dictation %}
+        <div class="small text-muted mb-2">Для диктанта используется отдельная логика оценки по ошибкам и дополнительным параметрам.</div>
+        <div class="small mb-2"><strong>Критерии:</strong> {{ dictation_rules_text }}</div>
+        <div class="row g-2 small">
+          <div class="col-7 text-muted">Грамматическое задание</div><div class="col-5">Да</div>
+          <div class="col-7 text-muted">Используется итоговая отметка</div><div class="col-5">Да</div>
+          <div class="col-7 text-muted">Учитывать грамматические ошибки</div><div class="col-5">{{ 'Да' if work.dictation_use_grammar_errors else 'Нет' }}</div>
+          <div class="col-7 text-muted">Учитывать исправления</div><div class="col-5">{{ 'Да' if work.dictation_use_corrections else 'Нет' }}</div>
+        </div>
+      {% else %}
+        <div class="small text-muted mb-2">5 — от {{ work.grade5_percent or 85 }}%, 4 — от {{ work.grade4_percent or 65 }}%, 3 — от {{ work.grade3_percent or 45 }}%</div>
+        <ul class="mb-0">
+        {% for task in work.tasks|sort(attribute='task_number') %}
+          <li>Задание {{ task.task_number }} — максимум {{ task.max_score }} б.{% if task.description %} · {{ task.description }}{% endif %}{% if task.topic %} · тема: {{ task.topic }}{% endif %}</li>
+        {% else %}
+          <li class="text-muted">Нет заданий</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <h6>Классы и учителя</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Класс</th><th>Учитель</th><th>Статус</th><th class="text-center">Переход</th></tr></thead>
+          <tbody>
+          {% for a in work.assignments %}
+            {% if can('control_works_edit') or a.teacher_id == current_user.id %}
+            <tr>
+              <td>{{ a.school_class.name if a.school_class else '—' }}</td>
+              <td>{{ a.teacher.fio if a.teacher else '—' }}</td>
+              <td>{{ 'Заполнено' if a.status == 'FILLED' else 'Назначено' }}</td>
+              <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('control_works.assignment_results', work_id=work.id, assignment_id=a.id) }}">{% if a.status == 'FILLED' %}Открыть{% else %}Заполнить{% endif %}</a></td>
+            </tr>
+            {% endif %}
+          {% else %}
+            <tr><td colspan="4" class="text-muted">Классы пока не назначены.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <h6 class="mb-1">История изменений</h6>
+            <div class="small text-muted">Последние действия по этой контрольной работе.</div>
+          </div>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('control_works.control_works_journal', academic_year_id=work.academic_year_id, subject_id=work.subject_id) }}">К журналу работ</a>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Дата и время</th><th>Пользователь</th><th>Событие</th><th>Старое значение</th><th>Новое значение</th><th>Описание</th></tr></thead>
+            <tbody>
+              {% for row in history_rows %}
+              <tr>
+                <td>{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}</td>
+                <td>{{ row.user.fio if row.user else '—' }}</td>
+                <td>{{ row.title }}</td>
+                <td>{{ row.old_value or '—' }}</td>
+                <td>{{ row.new_value or '—' }}</td>
+                <td class="small text-muted">{{ row.details or '—' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-muted">История изменений пока отсутствует.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

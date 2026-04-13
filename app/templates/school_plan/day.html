@@ -1,0 +1,44 @@
+{% extends 'layout.html' %}
+{% block title %}План работы школы — день{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Дневной план</h1>
+    <div class="text-muted">{{ selected_date.strftime('%d.%m.%Y') }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.day_view', date=prev_date.isoformat()) }}">← Предыдущий</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.day_view', date=next_date.isoformat()) }}">Следующий →</a>
+    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+  </div>
+</div>
+{% include 'school_plan/_nav.html' %}
+{% include 'school_plan/_filters.html' %}
+<div class="d-flex flex-column gap-3">
+  {% for event in events %}
+  <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
+    <div class="card shadow-sm border-0" style="border-left: 8px solid {{ event.effective_color }} !important;">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+          <div>
+            <div class="fw-semibold fs-5 text-dark">{{ event.title }}</div>
+            <div class="text-muted">{{ event.display_period }}</div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            {% if event.direction %}<span class="badge" style="background: {{ event.direction.color or '#475569' }}; color: {{ event.direction.text_color or '#fff' }};">{{ event.direction.name }}</span>{% endif %}
+            {% if event.category %}<span class="badge" style="background: {{ event.category.color or '#334155' }}; color: {{ event.category.text_color or '#fff' }};">{{ event.category.name }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="row g-2 mt-2 text-dark">
+          <div class="col-md-4"><strong>Ответственный:</strong> {{ event.display_responsible or '—' }}</div>
+          <div class="col-md-4"><strong>Видимость:</strong> {{ visibility_titles.get(event.visibility_level, event.visibility_level) }}</div>
+          <div class="col-md-4"><strong>Важность:</strong> {{ priority_titles.get(event.priority, event.priority) }}</div>
+        </div>
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="card shadow-sm"><div class="card-body text-muted">На выбранный день мероприятий нет.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

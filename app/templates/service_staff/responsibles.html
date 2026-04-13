@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1">Ответственные за службу</h2>
+    <div class="text-muted">Назначение специалистов с расширенными правами внутри модуля.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">К модулю</a>
+</div>
+
+{% if can_edit %}
+<div class="card mb-3"><div class="card-body">
+  <form method="post" class="row g-3 align-items-end">
+    <div class="col-lg-8"><label class="form-label">Назначить ответственного</label><select class="form-select" name="user_id">{% for row in candidates %}<option value="{{ row.id }}">{{ row.fio or ((row.last_name or '') ~ ' ' ~ (row.first_name or '') ~ ' ' ~ (row.middle_name or ''))|trim }} — {{ row.username }}</option>{% endfor %}</select></div>
+    <div class="col-lg-3"><input type="hidden" name="action" value="assign"><button class="btn btn-primary" type="submit">Назначить</button></div>
+  </form>
+</div></div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0 align-middle">
+      <thead><tr><th>Специалист</th><th>Профиль</th><th>Основное здание</th><th>Статус</th><th>Кем изменен</th><th>Дата</th><th></th></tr></thead>
+      <tbody>
+        {% for row in responsibles %}
+        <tr>
+          <td><a href="{{ url_for('service_staff.specialist_card', specialist_id=row.specialist.id) }}">{{ row.specialist.fio }}</a></td>
+          <td>{{ row.specialist.specializations_text or '—' }}</td>
+          <td>{{ row.specialist.main_building.short_name or row.specialist.main_building.name if row.specialist.main_building else '—' }}</td>
+          <td>{% if row.is_active %}<span class="badge text-bg-primary">Ответственный</span>{% else %}<span class="badge text-bg-secondary">Снят</span>{% endif %}</td>
+          <td>{{ row.assigned_by.fio if row.assigned_by else '—' }}</td>
+          <td>{{ row.updated_at.strftime('%d.%m.%Y %H:%M') if row.updated_at else '—' }}</td>
+          <td class="text-end">{% if can_edit and row.is_active %}<form method="post" class="m-0"><input type="hidden" name="specialist_id" value="{{ row.specialist.id }}"><input type="hidden" name="action" value="remove"><button class="btn btn-sm btn-outline-danger" type="submit">Снять</button></form>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Ответственные пока не назначены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

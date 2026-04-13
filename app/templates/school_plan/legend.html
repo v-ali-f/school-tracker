@@ -1,0 +1,33 @@
+{% extends 'layout.html' %}
+{% block title %}Легенда плана работы{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Легенда цветов</h1>
+    <div class="text-muted">Базовые направления и категории для модуля «План работы школы».</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index') }}">К реестру</a>
+</div>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <h5>Направления</h5>
+      <div class="d-flex flex-column gap-2">
+      {% for row in directions %}
+        <div class="p-2 rounded" style="background: {{ row.color or '#334155' }}; color: {{ row.text_color or '#fff' }};">{{ row.name }}</div>
+      {% endfor %}
+      </div>
+    </div></div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <h5>Категории</h5>
+      <div class="d-flex flex-column gap-2">
+      {% for row in categories %}
+        <div class="p-2 rounded" style="background: {{ row.color or '#334155' }}; color: {{ row.text_color or '#fff' }};">{{ row.name }}</div>
+      {% endfor %}
+      </div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('knowledge.knowledge_list') }}">База знаний</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('knowledge.knowledge_admin') }}">Управление</a></li>
+    <li class="breadcrumb-item active">{{ "Редактировать" if article else "Новый материал" }}</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <h4 class="mb-4">{{ "Редактировать материал" if article else "Новый материал" }}</h4>
+
+    <form method="post" enctype="multipart/form-data">
+
+      <div class="card mb-3" style="border-radius:14px;">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Заголовок <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="title"
+                   value="{{ article.title if article else '' }}" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Тип материала</label>
+            <select class="form-select" name="kind" id="kindSelect">
+              <option value="article" {% if not article or article.kind == 'article' %}selected{% endif %}>Статья (текст)</option>
+              <option value="link" {% if article and article.kind == 'link' %}selected{% endif %}>Ссылка (внешний URL)</option>
+              <option value="file" {% if article and article.kind == 'file' %}selected{% endif %}>Файл (загрузить PDF и др.)</option>
+            </select>
+          </div>
+
+          <div class="mb-3" id="bodySection">
+            <label class="form-label fw-semibold">Текст статьи</label>
+            <textarea class="form-control" name="body" rows="12"
+                      placeholder="Текст инструкции. Можно использовать абзацы и переносы строк.">{{ article.body if article and article.body else '' }}</textarea>
+            <div class="form-text">Переносы строк сохраняются при отображении.</div>
+          </div>
+
+          <div class="mb-3" id="linkSection" style="display:none;">
+            <label class="form-label fw-semibold">URL ссылки</label>
+            <input type="url" class="form-control" name="link"
+                   value="{{ article.link if article and article.link else '' }}"
+                   placeholder="https://...">
+          </div>
+
+          <div class="mb-3" id="fileSection" style="display:none;">
+            <label class="form-label fw-semibold">Загрузить файл</label>
+            <input type="file" class="form-control" name="file"
+                   accept=".pdf,.doc,.docx,.pptx,.xlsx,.png,.jpg,.jpeg">
+            {% if article and article.file_path %}
+            <div class="form-text">Текущий файл: <strong>{{ article.file_path }}</strong>. Загрузите новый, чтобы заменить.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3" style="border-radius:14px;">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Видно ролям</label>
+            <div class="row g-2">
+              {% for code, label in all_roles %}
+              <div class="col-6 col-md-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="target_roles"
+                         value="{{ code }}" id="role_{{ code }}"
+                         {% if article and code in article.target_roles %}checked{% endif %}>
+                  <label class="form-check-label" for="role_{{ code }}">{{ label }}</label>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="form-text">Если ничего не выбрано — материал виден всем авторизованным.</div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Порядок сортировки</label>
+              <input type="number" class="form-control" name="sort_order"
+                     value="{{ article.sort_order if article else 0 }}" min="0">
+              <div class="form-text">Меньше = выше в списке</div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="is_published"
+                       id="isPublished"
+                       {% if not article or article.is_published %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="isPublished">Опубликовано</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a href="{{ url_for('knowledge.knowledge_admin') }}" class="btn btn-outline-secondary">Отмена</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  const kindSel = document.getElementById("kindSelect");
+  const bodySection = document.getElementById("bodySection");
+  const linkSection = document.getElementById("linkSection");
+  const fileSection = document.getElementById("fileSection");
+
+  function updateSections() {
+    const v = kindSel.value;
+    bodySection.style.display = (v === "article") ? "" : "none";
+    linkSection.style.display  = (v === "link")    ? "" : "none";
+    fileSection.style.display  = (v === "file")    ? "" : "none";
+  }
+
+  kindSel.addEventListener("change", updateSections);
+  updateSections();
+})();
+</script>
+{% endblock %}

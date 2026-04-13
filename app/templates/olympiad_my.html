@@ -1,0 +1,10 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Мои олимпиады</h3>
+<div class="card"><div class="table-responsive">
+<table class="table table-striped align-middle mb-0">
+  <thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Ученик</th><th>Класс</th><th>Балл</th><th>Статус</th><th>Кафедра</th></tr></thead>
+  <tbody>{% for row in rows %}<tr><td>{{ row.academic_year.name if row.academic_year else '—' }}</td><td>{{ row.stage or '—' }}</td><td>{{ row.subject.name if row.subject else (row.subject_name or '—') }}</td><td>{{ row.child.fio if row.child else '—' }}</td><td>{{ row.class_study_text or '—' }}</td><td>{{ row.score if row.score is not none else '—' }}</td><td>{{ row.status or '—' }}</td><td>{{ row.department.name if row.department else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="text-muted">Пока нет результатов, связанных с вашей нагрузкой.</td></tr>{% endfor %}</tbody>
+</table>
+</div></div>
+{% endblock %}

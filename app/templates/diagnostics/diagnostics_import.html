@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Импорт результатов — {{ session.title }}</h3>
+<div class="card"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Архив результатов ZIP</label>
+      <input class="form-control" type="file" name="result_zip" accept=".zip" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Архив списков кодов / листов фиксации ZIP</label>
+      <input class="form-control" type="file" name="codes_zip" accept=".zip">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Тип загрузки</label>
+      <select class="form-select" name="source_kind"><option value="main">Основной день</option><option value="reserve">Резерв</option></select>
+    </div>
+    <div class="col-12 text-muted small">
+      В предпросмотре можно по каждому ученику выбрать: оставить текущий результат, заменить резервом, сохранить оба или пропустить.
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary">Разобрать архив и открыть предпросмотр</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.detail', session_id=session.id) }}">Назад</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

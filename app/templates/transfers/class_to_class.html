@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block content %}
+<h3 class="mb-3">Перевод класс → класс</h3>
+<div class="card mb-3"><div class="card-body">
+<form method="get" class="row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label">Год-источник</label><select class="form-select" name="from_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == from_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Год-назначение</label><select class="form-select" name="to_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == to_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Исходный класс</label><select class="form-select" name="source_class_id"><option value="">—</option>{% for c in from_classes %}<option value="{{ c.id }}" {% if c.id == source_class_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label">Целевой класс</label><select class="form-select" name="target_class_id"><option value="">—</option>{% for c in to_classes %}<option value="{{ c.id }}" {% if c.id == target_class_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-12"><button class="btn btn-primary">Показать список</button>{% if suggested_target %}<span class="ms-3 text-muted">Система предложила: <b>{{ suggested_target.name }}</b></span>{% endif %}</div>
+</form></div></div>
+
+{% if rows %}
+<div class="card"><div class="card-body">
+<form method="post">
+  <input type="hidden" name="action" value="execute">
+  <input type="hidden" name="from_year_id" value="{{ from_year_id }}">
+  <input type="hidden" name="to_year_id" value="{{ to_year_id }}">
+  <input type="hidden" name="source_class_id" value="{{ source_class_id }}">
+  <input type="hidden" name="target_class_id" value="{{ target_class_id }}">
+  <div class="row g-2 mb-3">
+    <div class="col-md-3"><label class="form-label">Дата перевода</label><input type="date" class="form-control" name="transfer_date"></div>
+    <div class="col-md-3"><label class="form-label">№ приказа</label><input class="form-control" name="order_number"></div>
+    <div class="col-md-3"><label class="form-label">Дата приказа</label><input type="date" class="form-control" name="order_date"></div>
+  </div>
+  <div class="table-responsive"><table class="table align-middle"><thead><tr><th><input type="checkbox" checked onclick="document.querySelectorAll('.enr').forEach(x=>x.checked=this.checked)"></th><th>ФИО</th><th>Текущий класс</th><th>Целевой класс</th></tr></thead><tbody>{% for row in rows %}<tr><td><input class="form-check-input enr" type="checkbox" name="enrollment_ids" value="{{ row.enrollment.id }}" checked></td><td>{{ row.child.fio }}</td><td>{{ row.enrollment.school_class.name if row.enrollment.school_class else '—' }}</td><td>{% for c in to_classes %}{% if c.id == row.target_class_id %}{{ c.name }}{% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table></div>
+  <button class="btn btn-success">Выполнить перевод</button>
+</form></div></div>
+{% endif %}
+{% endblock %}

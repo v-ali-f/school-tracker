@@ -1,0 +1,44 @@
+{% extends 'layout.html' %}
+{% block title %}План работы школы — учебные недели{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">План по учебным неделям</h1>
+    <div class="text-muted">Административный вид с группировкой мероприятий по неделям учебного года.</div>
+  </div>
+  {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+</div>
+{% include 'school_plan/_nav.html' %}
+{% include 'school_plan/_filters.html' %}
+<div class="d-flex flex-column gap-3">
+  {% for week_no, events in week_groups %}
+  <div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <div class="fw-semibold">Неделя {{ week_no }}</div>
+      <span class="badge text-bg-light">{{ events|length }}</span>
+    </div>
+    <div class="card-body">
+      <div class="row g-2">
+        {% for event in events %}
+        <div class="col-lg-6">
+          <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
+            <div class="p-3 rounded" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">
+              <div class="fw-semibold">{{ event.title }}</div>
+              <div class="small opacity-75">{{ event.display_period }}</div>
+              <div class="small opacity-75">{{ event.display_responsible or 'Без ответственного' }}</div>
+              <div class="small opacity-75">
+                {% if event.building %}{{ event.building.short_name or event.building.name }}{% endif %}
+                {% if event.school_class %} · {{ event.school_class.name }}{% endif %}
+              </div>
+            </div>
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card shadow-sm"><div class="card-body text-muted">Нет мероприятий для отображения.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

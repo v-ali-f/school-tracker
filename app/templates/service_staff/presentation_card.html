@@ -1,0 +1,89 @@
+
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">Карточка документа</div>
+      <h1 class="dashboard-title mb-1">{{ presentation.title or 'Представление' }}</h1>
+      <div class="text-muted classic-hero-note">{{ presentation.child.fio if presentation.child else '—' }} · {{ presentation.child.current_class_name if presentation.child else '—' }} · {{ presentation.status_label }} · Готовность {{ presentation.ready_percent }}%</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('service_staff.presentations_registry') }}">К реестру</a>
+      <a class="btn zone-btn zone-green" href="{{ url_for('service_staff.presentation_export_docx', presentation_id=presentation.id) }}">Скачать DOCX</a>
+      <a class="btn zone-btn zone-rose" href="{{ url_for('service_staff.presentation_export_pdf', presentation_id=presentation.id) }}">Скачать PDF</a>
+      {% if can_manage %}
+      <form method="post" action="{{ url_for('service_staff.presentation_delete', presentation_id=presentation.id) }}" onsubmit="return confirm('Удалить представление?');" class="d-inline">
+        <button class="btn zone-btn zone-btn-soft zone-slate" type="submit">Удалить</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <section class="dashboard-section dashboard-section-classic h-100">
+        <div class="section-head mb-2"><h4 class="section-title mb-0">Блоки документа</h4></div>
+        <div class="list-group">
+          {% for block in blocks %}
+          <a class="list-group-item list-group-item-action {% if selected_block and selected_block.id == block.id %}active{% endif %}" href="{{ url_for('service_staff.presentation_card', presentation_id=presentation.id, block_id=block.id) }}">
+            <div class="fw-semibold">{{ loop.index }}. {{ block.title }}</div>
+            <div class="small">{{ block.status_label }}{% if block.is_required %} · обязательный{% endif %}</div>
+          </a>
+          {% endfor %}
+        </div>
+        {% if can_manage %}
+        <form method="post" action="{{ url_for('service_staff.presentation_change_status', presentation_id=presentation.id) }}" class="mt-3">
+          <label class="form-label">Статус документа</label>
+          <div class="input-group">
+            <select class="form-select" name="status">{% for code,label in presentation_status_choices %}<option value="{{ code }}" {% if presentation.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+            <button class="btn btn-primary">Изменить</button>
+          </div>
+        </form>
+        {% endif %}
+      </section>
+    </div>
+    <div class="col-lg-8">
+      {% if selected_block %}
+      <section class="dashboard-section dashboard-section-classic mb-3">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+          <div>
+            <h4 class="section-title mb-1">{{ selected_block.title }}</h4>
+            <div class="text-muted small">Статус: {{ selected_block.status_label }}{% if selected_block.source_name %} · Источник: {{ selected_block.source_name }}{% endif %}</div>
+          </div>
+          {% if can_manage %}
+          <form method="post" action="{{ url_for('service_staff.presentation_assign_block', presentation_id=presentation.id) }}" class="d-flex gap-2 flex-wrap">
+            <input type="hidden" name="block_id" value="{{ selected_block.id }}">
+            <select class="form-select form-select-sm" name="executor_user_id"><option value="">Исполнитель (пользователь)</option>{% for user in users %}<option value="{{ user.id }}" {% if selected_block.executor_user_id == user.id %}selected{% endif %}>{{ user.fio }}</option>{% endfor %}</select>
+            <select class="form-select form-select-sm" name="executor_specialist_id"><option value="">Специалист службы</option>{% for sp in specialists %}<option value="{{ sp.id }}" {% if selected_block.executor_specialist_id == sp.id %}selected{% endif %}>{{ sp.fio }}</option>{% endfor %}</select>
+            <button class="btn btn-sm btn-outline-primary">Назначить</button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="alert alert-light border">
+          <div class="fw-semibold mb-1">Подсказка</div>
+          <div class="small text-muted">{{ selected_block.hint_text or 'Подсказка не задана.' }}</div>
+          {% if selected_block.reviewer_comment %}<hr><div class="small"><span class="fw-semibold">Комментарий проверяющего:</span> {{ selected_block.reviewer_comment }}</div>{% endif %}
+        </div>
+        <form method="post" action="{{ url_for('service_staff.presentation_block_save', presentation_id=presentation.id, block_id=selected_block.id) }}">
+          <div class="mb-2"><textarea class="form-control" name="content_text" rows="16" {% if not can_edit_selected %}readonly{% endif %}>{{ selected_block.content_text or '' }}</textarea></div>
+          <div class="d-flex gap-2 flex-wrap">
+            <select class="form-select" style="max-width:220px" name="status" {% if not can_edit_selected %}disabled{% endif %}>{% for code,label in block_status_choices %}<option value="{{ code }}" {% if selected_block.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+            {% if can_edit_selected %}<button class="btn btn-primary">Сохранить</button>{% endif %}
+          </div>
+        </form>
+      </section>
+      {% if can_manage %}
+      <section class="dashboard-section dashboard-section-classic">
+        <h5>Проверка блока</h5>
+        <form method="post" action="{{ url_for('service_staff.presentation_block_review', presentation_id=presentation.id, block_id=selected_block.id) }}" class="row g-2 align-items-end">
+          <div class="col-md-7"><label class="form-label">Комментарий</label><input class="form-control" name="reviewer_comment"></div>
+          <div class="col-md-3"><label class="form-label">Действие</label><select class="form-select" name="review_action"><option value="check">Проверен</option><option value="return">Вернуть на доработку</option></select></div>
+          <div class="col-md-2"><button class="btn btn-outline-primary w-100">Выполнить</button></div>
+        </form>
+      </section>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

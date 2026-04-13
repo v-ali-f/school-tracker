@@ -1,0 +1,181 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-start justify-content-between gap-2 mb-3 flex-wrap">
+  <div>
+    <h3 class="mb-1">{{ form_title }}</h3>
+    <div class="text-muted">Управление карточкой сопровождения ребенка</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.assignments_registry') }}">К реестру</a>
+    {% if assignment.child_id and can("child_card_view_basic") %}<a class="btn btn-outline-primary" href="{{ url_for('children.child_card', child_id=assignment.child_id) }}">Карточка ребенка</a>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form method="post" class="card">
+      <div class="card-body row g-3">
+        {% set selected_child_id = (form_state.child_id if form_state else assignment.child_id|string if assignment.child_id else '') %}
+        {% set selected_building_id = (form_state.building_id if form_state else assignment.building_id|string if assignment.building_id else '') %}
+        {% set selected_status = (form_state.status if form_state else assignment.status) %}
+        {% set selected_start_date = (form_state.start_date if form_state else assignment.start_date.isoformat() if assignment.start_date else '') %}
+        {% set selected_end_date = (form_state.end_date if form_state else assignment.end_date.isoformat() if assignment.end_date else '') %}
+        {% set selected_basis = (form_state.basis if form_state else assignment.basis or '') %}
+        {% set selected_comment = (form_state.comment if form_state else assignment.comment or '') %}
+        {% set enabled_roles = (form_state.enabled_roles if form_state else []) %}
+        {% set selected_role_specialists = (form_state.role_specialists if form_state else {}) %}
+
+        <div class="col-md-3"><label class="form-label">Параллель</label><select class="form-select" id="grade_select"><option value="">Сначала выберите параллель</option>{% for grade in classes|map(attribute='grade')|list|unique|sort %}{% if grade is not none %}<option value="{{ grade }}">{{ grade }}</option>{% endif %}{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label">Класс</label><select class="form-select" id="class_select"><option value="">Сначала выберите параллель</option></select></div>
+        <div class="col-md-6"><label class="form-label">Ребенок</label><select class="form-select" name="child_id" id="child_select" required><option value="">Сначала выберите класс</option>{% for row in children %}<option value="{{ row.id }}" data-class-id="{{ row.current_class.id if row.current_class else '' }}" data-grade="{{ row.current_class.grade if row.current_class and row.current_class.grade is not none else '' }}" data-class-name="{{ row.current_class.name if row.current_class else '' }}" data-teacher="{{ row.current_class.teacher_user.fio if row.current_class and row.current_class.teacher_user else (row.current_class.teacher_name if row.current_class else '') }}" {% if selected_child_id == row.id|string %}selected{% endif %}>{{ row.fio }}{% if row.current_class_name %} — {{ row.current_class_name }}{% endif %}</option>{% endfor %}</select><div class="form-text">Можно найти ребенка после выбора параллели и класса.</div></div>
+        <div class="col-md-6"><label class="form-label">Классный руководитель</label><input class="form-control" id="class_teacher_name" value="{{ assignment.child.current_class.teacher_user.fio if assignment.child and assignment.child.current_class and assignment.child.current_class.teacher_user else (assignment.child.current_class.teacher_name if assignment.child and assignment.child.current_class else '') }}" readonly placeholder="Подтягивается автоматически"></div>
+
+        {% if multi_mode %}
+        <div class="col-12">
+          <div class="card border-light-subtle">
+            <div class="card-header bg-white"><b>Специалисты сопровождения</b></div>
+            <div class="card-body row g-3">
+              {% for role_key, role_label, role_code in assignment_role_choices %}
+              {% set checked = role_key in enabled_roles %}
+              <div class="col-12">
+                <div class="border rounded-3 p-3">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input role-checkbox" type="checkbox" name="enabled_roles" value="{{ role_key }}" id="role_{{ role_key }}" {% if checked %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="role_{{ role_key }}">{{ role_label }}</label>
+                  </div>
+                  <div class="role-select-wrap {% if not checked %}d-none{% endif %}" data-role-wrap="{{ role_key }}">
+                    <label class="form-label">Специалист</label>
+                    <select class="form-select" name="role_{{ role_key }}_specialist_id">
+                      <option value="">Выберите</option>
+                      {% for row in role_specialists.get(role_key, []) %}
+                      <option value="{{ row.id }}" {% if selected_role_specialists.get(role_key) == row.id|string %}selected{% endif %}>{{ row.fio }}{% if row.position_title %} — {{ row.position_title }}{% elif row.specializations_text %} — {{ row.specializations_text }}{% endif %}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="col-md-6"><label class="form-label">Специалист службы</label><select class="form-select" name="specialist_id" required><option value="">Выберите</option>{% for row in specialists %}<option value="{{ row.id }}" {% if assignment.specialist_id == row.id %}selected{% endif %}>{{ row.fio }}{% if row.position_title %} — {{ row.position_title }}{% endif %}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label">Роль специалиста по ребенку</label><input class="form-control" name="role_title" value="{{ assignment.role_title or '' }}" placeholder="Например, учитель-логопед"></div>
+        {% endif %}
+
+        <div class="col-md-6"><label class="form-label">Здание сопровождения</label><select class="form-select" name="building_id"><option value="">—</option>{% for row in buildings %}<option value="{{ row.id }}" {% if selected_building_id == row.id|string %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label">Дата начала</label><input class="form-control" type="date" name="start_date" value="{{ selected_start_date }}"></div>
+        <div class="col-md-4"><label class="form-label">Дата окончания</label><input class="form-control" type="date" name="end_date" value="{{ selected_end_date }}"></div>
+        <div class="col-md-4"><label class="form-label">Статус</label><select class="form-select" name="status">{% for code,label in status_choices %}<option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-12"><label class="form-label">Основание назначения</label><textarea class="form-control" rows="3" name="basis">{{ selected_basis }}</textarea></div>
+        <div class="col-12"><label class="form-label">Комментарий</label><textarea class="form-control" rows="3" name="comment">{{ selected_comment }}</textarea></div>
+        {% if is_admin_user %}
+        {% set selected_incident_id = (form_state.incident_id if form_state else assignment.incident_id|string if assignment.incident_id else '') %}
+        <div class="col-12">
+          <label class="form-label">Прикреплённый инцидент <span class="text-muted fw-normal">(необязательно)</span></label>
+          <select class="form-select" name="incident_id">
+            <option value="">— не прикреплять —</option>
+            {% for inc in incidents_list %}
+            <option value="{{ inc.id }}" {% if selected_incident_id == inc.id|string %}selected{% endif %}>
+              {{ inc.occurred_at.strftime('%d.%m.%Y') }} — {{ inc.category }}{% if inc.description %}: {{ inc.description[:60] }}{% if inc.description|length > 60 %}…{% endif %}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Можно прикрепить конкретный инцидент, по которому создаётся поручение.</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-footer d-flex justify-content-end gap-2">{% if assignment.id and multi_mode %}<button class="btn btn-outline-danger" type="submit" formaction="{{ url_for('service_staff.assignment_delete', assignment_id=assignment.id) }}" formmethod="post" onclick="return confirm('Удалить всю карточку сопровождения по ребенку?');">Удалить</button>{% endif %}<a class="btn btn-outline-secondary" href="{{ url_for('service_staff.assignments_registry') }}">Отмена</a><button class="btn btn-primary" type="submit">Сохранить</button></div>
+    </form>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><b>История изменений</b></div>
+      <div class="card-body">
+        {% if history_rows %}
+          <div class="list-group list-group-flush">
+            {% for row in history_rows %}
+            <div class="list-group-item px-0">
+              <div class="fw-semibold">{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}</div>
+              <div class="small text-muted">{{ row.changed_by.fio if row.changed_by else 'Система' }}</div>
+              <div>{{ row.old_status or '—' }} → {{ row.new_status or '—' }}</div>
+              {% if row.comment %}<div class="small text-muted">{{ row.comment }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-muted">История изменений по всей карточке появится после сохранения.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const gradeSelect = document.getElementById('grade_select');
+  const classSelect = document.getElementById('class_select');
+  const childSelect = document.getElementById('child_select');
+  const teacherInput = document.getElementById('class_teacher_name');
+  if (!gradeSelect || !classSelect || !childSelect) return;
+  const allChildOptions = Array.from(childSelect.querySelectorAll('option')).filter(o => o.value);
+  const classes = [{% for row in classes %}{id: '{{ row.id }}', grade: '{{ row.grade if row.grade is not none else '' }}', name: '{{ row.name }}', teacher: '{{ row.teacher_user.fio if row.teacher_user else (row.teacher_name or '') }}'},{% endfor %}];
+  function rebuildClasses(selectedClassId){
+    const grade = gradeSelect.value;
+    classSelect.innerHTML = '';
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = grade ? 'Выберите класс' : 'Сначала выберите параллель';
+    classSelect.appendChild(first);
+    classes.filter(c => !grade || c.grade === grade).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.name;
+      if (selectedClassId && selectedClassId === c.id) opt.selected = true;
+      classSelect.appendChild(opt);
+    });
+  }
+  function rebuildChildren(selectedChildId){
+    const classId = classSelect.value;
+    childSelect.innerHTML = '';
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = classId ? 'Выберите обучающегося' : 'Сначала выберите класс';
+    childSelect.appendChild(first);
+    allChildOptions
+      .filter(o => !classId || o.dataset.classId === classId)
+      .forEach(o => childSelect.appendChild(o));
+    if (selectedChildId) childSelect.value = selectedChildId;
+    updateTeacher();
+  }
+  function updateTeacher(){
+    const cls = classes.find(c => c.id === classSelect.value);
+    teacherInput.value = (cls && cls.teacher) ? cls.teacher : '';
+  }
+  gradeSelect.addEventListener('change', function(){ rebuildClasses(''); rebuildChildren(''); });
+  classSelect.addEventListener('change', function(){ rebuildChildren(''); });
+  childSelect.addEventListener('change', function(){
+    const selected = childSelect.options[childSelect.selectedIndex];
+    if (selected && selected.dataset.teacher) teacherInput.value = selected.dataset.teacher;
+  });
+  const preselected = childSelect.querySelector('option[selected]');
+  const initialClass = preselected ? preselected.dataset.classId : '{{ assignment.child.current_class.id if assignment.child and assignment.child.current_class else '' }}';
+  const initialGrade = preselected ? preselected.dataset.grade : '{{ assignment.child.current_class.grade if assignment.child and assignment.child.current_class and assignment.child.current_class.grade is not none else '' }}';
+  if (initialGrade) gradeSelect.value = initialGrade;
+  rebuildClasses(initialClass);
+  rebuildChildren(preselected ? preselected.value : '{{ selected_child_id }}');
+
+  document.querySelectorAll('.role-checkbox').forEach(function(checkbox){
+    checkbox.addEventListener('change', function(){
+      const wrap = document.querySelector('[data-role-wrap="' + checkbox.value + '"]');
+      if (!wrap) return;
+      wrap.classList.toggle('d-none', !checkbox.checked);
+      if (!checkbox.checked) {
+        const select = wrap.querySelector('select');
+        if (select) select.value = '';
+      }
+    });
+  });
+})();
+</script>
+
+{% endblock %}

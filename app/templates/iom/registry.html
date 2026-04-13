@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">СППиСС</div>
+      <h1 class="dashboard-title mb-1">Электронный ИОМ</h1>
+      <div class="text-muted classic-hero-note">Реестр индивидуальных образовательных маршрутов, фильтры, статусы и история изменений.</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('service_staff.index') }}">К разделу СППиСС</a>
+      {% if current_user.is_authenticated %}
+      <a class="btn zone-btn zone-btn-soft" href="{{ url_for('iom.create_card') }}">Создать ИОМ</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label">Учебный год</label>
+          <select class="form-select" name="academic_year_id">
+            <option value="">Все</option>
+            {% for year in years %}
+            <option value="{{ year.id }}" {% if request.args.get('academic_year_id') == year.id|string %}selected{% endif %}>{{ year.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Тип ИОМ</label>
+          <select class="form-select" name="iom_type">
+            <option value="">Все</option>
+            {% for value, label in iom_type_choices %}
+            <option value="{{ value }}" {% if request.args.get('iom_type') == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Уровень</label>
+          <select class="form-select" name="education_level">
+            <option value="">Все</option>
+            {% for value, label in education_level_choices %}
+            <option value="{{ value }}" {% if request.args.get('education_level') == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Здание</label>
+          <select class="form-select" name="building_id">
+            <option value="">Все</option>
+            {% for row in buildings %}
+            <option value="{{ row.id }}" {% if request.args.get('building_id') == row.id|string %}selected{% endif %}>{{ row.short_name or row.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Параллель</label>
+          <input class="form-control" name="parallel" value="{{ request.args.get('parallel', '') }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Статус</label>
+          <select class="form-select" name="status">
+            <option value="">Все</option>
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if request.args.get('status') == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Класс / группа</label>
+          <select class="form-select" name="school_class_id">
+            <option value="">Все</option>
+            {% for row in classes %}
+            <option value="{{ row.id }}" {% if request.args.get('school_class_id') == row.id|string %}selected{% endif %}>{{ row.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Поиск</label>
+          <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="ФИО ребенка, класс, комментарий">
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+          <button class="btn btn-primary">Применить</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('iom.registry') }}">Сбросить</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Учебный год</th>
+            <th>Тип</th>
+            <th>Обучающийся</th>
+            <th>Класс / группа</th>
+            <th>Параллель</th>
+            <th>Уровень</th>
+            <th>Статус</th>
+            <th>Куратор</th>
+            <th>Создан</th>
+            <th>Изменен</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for card in cards %}
+          <tr>
+            <td>{{ card.academic_year.name if card.academic_year else '—' }}</td>
+            <td>{{ card.iom_type_label }}</td>
+            <td>
+              <div>{{ card.student_fio }}</div>
+              <div class="small text-muted">{{ card.birth_date.strftime('%d.%m.%Y') if card.birth_date else (card.birth_year or '—') }}</div>
+            </td>
+            <td>{{ card.class_name or '—' }}</td>
+            <td>{{ card.parallel or '—' }}</td>
+            <td>{{ {'DO':'ДО','NOO':'НОО','OOO':'ООО','SOO':'СОО','UO':'УО'}.get(card.education_level, card.education_level or '—') }}</td>
+            <td><span class="badge text-bg-light">{{ card.status_label }}</span></td>
+            <td>{{ card.curator_name or '—' }}</td>
+            <td>{{ card.created_at.strftime('%d.%m.%Y %H:%M') if card.created_at else '—' }}</td>
+            <td>{{ card.updated_at.strftime('%d.%m.%Y %H:%M') if card.updated_at else '—' }}</td>
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('iom.card_view', card_id=card.id) }}">Открыть</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('iom.edit_card', card_id=card.id) }}">Редактировать</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="11" class="text-center text-muted py-4">Карточек ИОМ пока нет.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer bg-white">
+      <nav aria-label="Пагинация ИОМ">
+        <ul class="pagination pagination-sm mb-0">
+          {% for page_num in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+            {% if page_num %}
+              <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('iom.registry', page=page_num, academic_year_id=request.args.get('academic_year_id'), iom_type=request.args.get('iom_type'), education_level=request.args.get('education_level'), building_id=request.args.get('building_id'), parallel=request.args.get('parallel'), school_class_id=request.args.get('school_class_id'), status=request.args.get('status'), q=request.args.get('q')) }}">{{ page_num }}</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,294 @@
+{% extends "layout.html" %}
+{% block content %}
+
+{# ── Вспомогательный макрос: чекбокс-тоггл ── #}
+{% macro access_toggle(name, checked) %}
+  <div class="form-check form-switch d-flex justify-content-center m-0">
+    <input class="form-check-input" type="checkbox" name="{{ name }}" value="1" role="switch"
+           {% if checked %}checked{% endif %}>
+  </div>
+{% endmacro %}
+
+{# ── Уровни доступа: метки для select ── #}
+{% set level_labels = {
+  "hidden": "Скрыт",
+  "view":   "Просмотр",
+  "edit":   "Редактирование",
+  "full":   "Полный",
+} %}
+{% set level_colors = {
+  "hidden": "secondary",
+  "view":   "info",
+  "edit":   "warning",
+  "full":   "success",
+} %}
+
+<div class="page-header mb-3">
+  <h1 class="mb-0">Настройка доступа по ролям</h1>
+  <p class="text-muted mb-0">Управляйте тем, что видит и может делать каждая роль в системе.</p>
+</div>
+
+{# ── Выбор роли ── #}
+<form method="get" class="card mb-4 border-0 shadow-sm">
+  <div class="card-body d-flex flex-wrap gap-3 align-items-end">
+    <div>
+      <label for="role" class="form-label fw-semibold mb-1">Роль</label>
+      <select name="role" id="role" class="form-select" onchange="this.form.submit()" style="min-width:260px">
+        {% for role in roles %}
+          <option value="{{ role }}" {% if role == selected_role %}selected{% endif %}>
+            {{ role_labels.get(role, role) }}{% if role_labels.get(role) %} ({{ role }}){% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if selected_role %}
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="badge bg-primary fs-6 px-3 py-2">
+        {{ role_labels.get(selected_role, selected_role) }}
+      </span>
+      <span class="text-muted small">{{ selected_role }}</span>
+      <a href="{{ url_for('main.dashboard') }}?preview_role={{ selected_role }}"
+         class="btn btn-sm btn-outline-secondary ms-2" target="_blank">
+        <i class="bi bi-eye me-1"></i>Посмотреть как эта роль
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</form>
+
+{% if selected_role %}
+<form method="post" class="d-flex flex-column gap-4">
+  <input type="hidden" name="role" value="{{ selected_role }}">
+
+  {# ─── ПОЯСНЕНИЕ КОЛОНОК ─── #}
+  <div class="alert alert-light border d-flex gap-4 flex-wrap py-2 px-3 small mb-0">
+    <span>
+      <strong>Виден</strong> — элемент отображается в интерфейсе
+      <i class="bi bi-question-circle text-muted ms-1"
+         data-bs-toggle="tooltip"
+         title="Если выключено — раздел не виден в меню, даже если технически включён"></i>
+    </span>
+    <span>
+      <strong>Включён</strong> — раздел активен и доступен для перехода
+      <i class="bi bi-question-circle text-muted ms-1"
+         data-bs-toggle="tooltip"
+         title="Если выключено — раздел виден, но при клике недоступен (серый)"></i>
+    </span>
+    <span>
+      <strong>Уровень</strong> — глубина доступа внутри раздела
+      <i class="bi bi-question-circle text-muted ms-1"
+         data-bs-toggle="tooltip"
+         title="Скрыт: не видно. Просмотр: только чтение. Редактирование: можно менять. Полный: без ограничений."></i>
+    </span>
+  </div>
+
+  {# ─── МОДУЛИ И РАЗДЕЛЫ ─── #}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
+      <i class="bi bi-grid-3x3-gap text-primary"></i>
+      <strong>Модули и разделы</strong>
+      <span class="text-muted small ms-1">— что видно в навигации</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="min-width:220px">Раздел</th>
+              <th class="text-center" style="width:80px">
+                Виден
+              </th>
+              <th class="text-center" style="width:80px">
+                Включён
+              </th>
+              <th style="width:160px">Уровень</th>
+              <th style="width:90px">Порядок</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for module_code, title in default_modules %}
+            {% set row = module_rows.get(module_code) %}
+            {% set default_vis = module_defaults.get(module_code, true) %}
+            {% set is_visible = row.is_visible if row else default_vis %}
+            {% set is_enabled = row.is_enabled if row else default_vis %}
+            {% set cur_level = (row.access_level if row else 'view') %}
+            <tr class="{% if not is_visible %}table-secondary text-muted{% endif %}">
+              <td>
+                <div class="fw-semibold">{{ title }}</div>
+                {% set desc = module_descriptions.get(module_code) %}
+                {% if desc %}
+                  <div class="text-muted small">{{ desc }}</div>
+                {% endif %}
+                <div class="text-muted" style="font-size:0.7rem;opacity:0.5">{{ module_code }}</div>
+              </td>
+              <td class="text-center">
+                {{ access_toggle("module_visible__" ~ module_code, is_visible) }}
+              </td>
+              <td class="text-center">
+                {{ access_toggle("module_enabled__" ~ module_code, is_enabled) }}
+              </td>
+              <td>
+                <select name="module_access_level__{{ module_code }}" class="form-select form-select-sm">
+                  {% for level in access_levels %}
+                    <option value="{{ level }}" {% if cur_level == level %}selected{% endif %}>
+                      {{ level_labels.get(level, level) }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" name="module_order__{{ module_code }}" class="form-control form-control-sm"
+                       value="{{ row.display_order if row else loop.index * 10 }}" min="1" max="999">
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ─── БЫСТРЫЕ КНОПКИ ─── #}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
+      <i class="bi bi-lightning-charge text-warning"></i>
+      <strong>Быстрые кнопки</strong>
+      <span class="text-muted small ms-1">— блок быстрых действий на главной</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="min-width:220px">Кнопка</th>
+              <th class="text-center" style="width:80px">Видна</th>
+              <th class="text-center" style="width:80px">Включена</th>
+              <th style="width:160px">Уровень</th>
+              <th style="width:90px">Порядок</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for quick_code, title in default_quick_links %}
+            {% set row = quick_rows.get(quick_code) %}
+            {% set is_visible = not row or row.is_visible %}
+            {% set is_enabled = not row or row.is_enabled %}
+            {% set cur_level = (row.access_level if row else 'view') %}
+            <tr class="{% if not is_visible %}table-secondary text-muted{% endif %}">
+              <td>
+                <div class="fw-semibold">{{ title }}</div>
+                {% set desc = quick_link_descriptions.get(quick_code) %}
+                {% if desc %}
+                  <div class="text-muted small">{{ desc }}</div>
+                {% endif %}
+                <div class="text-muted" style="font-size:0.7rem;opacity:0.5">{{ quick_code }}</div>
+              </td>
+              <td class="text-center">
+                {{ access_toggle("quick_visible__" ~ quick_code, is_visible) }}
+              </td>
+              <td class="text-center">
+                {{ access_toggle("quick_enabled__" ~ quick_code, is_enabled) }}
+              </td>
+              <td>
+                <select name="quick_access_level__{{ quick_code }}" class="form-select form-select-sm">
+                  {% for level in access_levels %}
+                    <option value="{{ level }}" {% if cur_level == level %}selected{% endif %}>
+                      {{ level_labels.get(level, level) }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" name="quick_order__{{ quick_code }}" class="form-control form-control-sm"
+                       value="{{ row.display_order if row else loop.index * 10 }}" min="1" max="999">
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ─── БЛОКИ ГЛАВНОЙ СТРАНИЦЫ ─── #}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
+      <i class="bi bi-layout-text-window text-success"></i>
+      <strong>Блоки главной страницы</strong>
+      <span class="text-muted small ms-1">— какие секции видны на главной</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="min-width:220px">Блок</th>
+              <th class="text-center" style="width:80px">Виден</th>
+              <th class="text-center" style="width:80px">Включён</th>
+              <th style="width:160px">Уровень</th>
+              <th style="width:90px">Порядок</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for block in dashboard_catalog %}
+            {% set row = block_rows.get(block.block_code) %}
+            {% set is_visible = not row or (row.is_visible and row.is_enabled and row.access_level != "hidden") %}
+            {% set is_vis_raw = not row or row.is_visible %}
+            {% set is_ena_raw = not row or row.is_enabled %}
+            {% set cur_level = (row.access_level if row else 'view') %}
+            <tr class="{% if not is_visible %}table-secondary text-muted{% endif %}">
+              <td>
+                <div class="fw-semibold">{{ block.title }}</div>
+                {% if block.description %}
+                  <div class="text-muted small">{{ block.description }}</div>
+                {% endif %}
+                <div class="text-muted" style="font-size:0.7rem;opacity:0.5">{{ block.block_code }}</div>
+              </td>
+              <td class="text-center">
+                {{ access_toggle("block_visible__" ~ block.block_code, is_vis_raw) }}
+              </td>
+              <td class="text-center">
+                {{ access_toggle("block_enabled__" ~ block.block_code, is_ena_raw) }}
+              </td>
+              <td>
+                <select name="block_access_level__{{ block.block_code }}" class="form-select form-select-sm">
+                  {% for level in access_levels %}
+                    <option value="{{ level }}" {% if cur_level == level %}selected{% endif %}>
+                      {{ level_labels.get(level, level) }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" name="block_order__{{ block.block_code }}" class="form-control form-control-sm"
+                       value="{{ row.display_order if row else block.default_order }}" min="1" max="999">
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ─── КНОПКИ ─── #}
+  <div class="d-flex gap-2 pb-4">
+    <button type="submit" class="btn btn-primary px-4">
+      <i class="bi bi-check-lg me-1"></i>Сохранить
+    </button>
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">Отмена</a>
+  </div>
+
+</form>
+{% endif %}
+
+<script>
+// Инициализация Bootstrap tooltips на этой странице
+document.addEventListener('DOMContentLoaded', function () {
+  const tooltipEls = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  tooltipEls.forEach(function (el) {
+    new bootstrap.Tooltip(el, { trigger: 'hover focus' });
+  });
+});
+</script>
+
+{% endblock %}

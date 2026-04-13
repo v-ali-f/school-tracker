@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-1">Диагностики МЦКО / ЕКР / ФГ</h3>
+    <div class="text-muted">Фильтры по учебному году, предмету, параллели и статусу. В таблице сразу видны импорты, результаты и привязка к учителям.</div>
+  </div>
+  {% if can_manage %}
+  <a class="btn btn-primary" href="{{ url_for('diagnostics.create') }}">Создать диагностику</a>
+  {% endif %}
+</div>
+
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-md-2">
+      <label class="form-label">Учебный год</label>
+      <select class="form-select" name="academic_year_id">
+        <option value="">Все</option>
+        {% for y in years %}<option value="{{ y.id }}" {% if current_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Тип</label>
+      <select class="form-select" name="diagnostic_type">
+        <option value="">Все</option>
+        {% for code in ['MCKO', 'EKR', 'FG'] %}<option value="{{ code }}" {% if diagnostic_type == code %}selected{% endif %}>{{ code }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Предмет</label>
+      <select class="form-select" name="subject">
+        <option value="">Все</option>
+        {% for subject in subjects %}<option value="{{ subject }}" {% if subject_filter == subject %}selected{% endif %}>{{ subject }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2"><label class="form-label">Параллель</label><input class="form-control" type="number" name="parallel" value="{{ parallel_filter or '' }}"></div>
+    <div class="col-md-2"><label class="form-label">Статус</label><input class="form-control" name="status" value="{{ status_filter }}"></div>
+    <div class="col-md-1 d-grid"><button class="btn btn-primary">Показать</button></div>
+  </form>
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead><tr><th>Название</th><th>Тип</th><th>Предмет</th><th>Параллель</th><th>Импорты</th><th>Результаты</th><th>Привязка</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ row.title }}</div>
+            <div class="text-muted small">Основной день: {{ row.date_main or '—' }}{% if row.date_reserve %} · Резерв: {{ row.date_reserve }}{% endif %}</div>
+          </td>
+          <td>{{ row.diagnostic_type }}</td>
+          <td>{{ row.subject or '—' }}</td>
+          <td>{{ row.parallel or '—' }}</td>
+          <td>{{ row.imports_count }}</td>
+          <td>{{ row.results_count }}</td>
+          <td>
+            {% if row.results_count %}
+              {{ row.bound_count }} / {{ row.results_count }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td><span class="badge text-bg-secondary">{{ row.status }}</span></td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-2 flex-wrap justify-content-end">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('diagnostics.detail', session_id=row.id) }}">Открыть</a>
+              {% if can_manage %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('diagnostics.edit', session_id=row.id) }}">Редактировать</a>{% endif %}
+              {% if row.can_delete %}
+                <form method="post" action="{{ url_for('diagnostics.delete_session', session_id=row.id) }}" onsubmit="return confirm('Удалить диагностику?');">
+                  <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">Диагностик пока нет.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div></div>
+{% endblock %}

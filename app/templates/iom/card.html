@@ -1,0 +1,667 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+.iom-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.iom-summary-item{border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff;min-width:0;}
+.iom-summary-label{font-size:.78rem;color:#6b7280;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+.iom-summary-value{font-weight:600;word-break:break-word;}
+@media (max-width: 991px){.iom-summary-grid{grid-template-columns:1fr;}}
+.iom-card-wrap{max-width:1120px;margin:0 auto;}
+</style>
+<div class="dashboard-shell theme-hub-classic zone-page zone-blue">
+  <div class="iom-card-wrap">
+  <div class="classic-page-header mb-3 zone-header zone-blue">
+    <div>
+      <div class="section-overline">СППиСС</div>
+      <h1 class="dashboard-title mb-1">{{ card.student_fio }}</h1>
+      <div class="text-muted classic-hero-note">{{ card.iom_type_label }} · {{ card.status_label }}</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('iom.registry') }}">К реестру</a>
+      {% if can_edit %}<a class="btn zone-btn zone-btn-soft" href="{{ url_for('iom.edit_card', card_id=card.id) }}">Редактировать</a>{% endif %}
+      {% if can_export %}<a class="btn zone-btn zone-btn-soft" href="{{ url_for('iom.export_docx', card_id=card.id) }}">Скачать DOCX</a><a class="btn zone-btn zone-btn-soft" href="{{ url_for('iom.export_pdf', card_id=card.id) }}">Скачать PDF</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-white"><strong>Действия этапа 4</strong></div>
+    <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+      {% if can_archive %}
+      <form method="post" action="{{ url_for('iom.archive_card', card_id=card.id) }}">
+        <button class="btn btn-outline-secondary" {% if card.status == 'ARCHIVED' %}disabled{% endif %}>Перевести в архив</button>
+      </form>
+      <form method="post" action="{{ url_for('iom.restore_card', card_id=card.id) }}">
+        <button class="btn btn-outline-secondary" {% if card.status != 'ARCHIVED' %}disabled{% endif %}>Восстановить из архива</button>
+      </form>
+      <form method="post" action="{{ url_for('iom.duplicate_card', card_id=card.id) }}" class="d-flex flex-wrap gap-2 align-items-end">
+        <div>
+          <label class="form-label mb-1">Новый учебный год</label>
+          <select class="form-select form-select-sm" name="target_year_id" required>
+            <option value="">Выберите</option>
+            {% for year in years %}<option value="{{ year.id }}">{{ year.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label mb-1">Режим копирования</label>
+          <select class="form-select form-select-sm" name="copy_mode">
+            <option value="STRUCTURE">Структура без мониторинга</option>
+            <option value="WITH_SCHEDULE">Структура + специалисты + расписание</option>
+          </select>
+        </div>
+        <button class="btn btn-outline-primary">Дублировать на новый год</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-white"><strong>Основные сведения</strong></div>
+    <div class="card-body">
+      <div class="iom-summary-grid">
+        <div class="iom-summary-item"><div class="iom-summary-label">ФИО обучающегося</div><div class="iom-summary-value">{{ card.student_fio or '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Учебный год</div><div class="iom-summary-value">{{ card.academic_year.name if card.academic_year else '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Тип ИОМ</div><div class="iom-summary-value">{{ card.iom_type_label }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Статус</div><div class="iom-summary-value">{{ card.status_label }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Уровень образования</div><div class="iom-summary-value">{{ {'DO':'ДО','NOO':'НОО','OOO':'ООО','SOO':'СОО','UO':'УО'}.get(card.education_level, card.education_level or '—') }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">АООП</div><div class="iom-summary-value">{{ card.aop_variant or '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Класс / группа</div><div class="iom-summary-value">{{ card.class_name or '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Год рождения</div><div class="iom-summary-value">{{ card.birth_year or '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Срок реализации</div><div class="iom-summary-value">{{ card.start_date.strftime('%d.%m.%Y') if card.start_date else '—' }} — {{ card.end_date.strftime('%d.%m.%Y') if card.end_date else '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Родители (законные представители)</div><div class="iom-summary-value">{{ card.parent_info or '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Руководитель СППиСС</div><div class="iom-summary-value">{{ card.sppiss_head_name or '—' }}</div></div>
+        <div class="iom-summary-item"><div class="iom-summary-label">Директор</div><div class="iom-summary-value">{{ card.director_name or '—' }}</div></div>
+      </div>
+      <div class="small text-muted mt-3">Печатная шапка ИОМ скрыта в электронной карточке и остается только в выгрузке DOCX/PDF.</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <strong>Расписание ребенка и сетка занятости · этап 2.4.1</strong>
+          <div class="small text-muted">Только время и предмет · понедельник–пятница</div>
+        </div>
+        <div class="card-body">
+          <div class="row g-2 mb-3">
+            <div class="col-md-3"><div class="border rounded p-2 bg-light"><div class="small text-muted">Всего строк</div><div class="fw-semibold">{{ schedule_stats.total }}</div></div></div>
+            <div class="col-md-3"><div class="border rounded p-2 bg-light"><div class="small text-muted">Импортировано</div><div class="fw-semibold">{{ schedule_stats.imported }}</div></div></div>
+            <div class="col-md-3"><div class="border rounded p-2 bg-light"><div class="small text-muted">Добавлено вручную</div><div class="fw-semibold">{{ schedule_stats.manual }}</div></div></div>
+            <div class="col-md-3"><div class="border rounded p-2 bg-light"><div class="small text-muted">Последняя загрузка</div><div class="fw-semibold">{{ schedule_stats.last_import.imported_at.strftime('%d.%m.%Y %H:%M') if schedule_stats.last_import else '—' }}</div></div></div>
+          </div>
+
+          {% if can_edit %}
+          <form method="post" action="{{ url_for('iom.import_schedule', card_id=card.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end mb-3">
+            <div class="col-md-8">
+              <label class="form-label">Файл выгрузки МЭШ</label>
+              <input class="form-control" type="file" name="schedule_file" accept=".xlsx,.xlsm,.xltx,.xltm" required>
+            </div>
+            <div class="col-md-4 d-grid">
+              <button class="btn btn-primary">Загрузить / перезагрузить расписание</button>
+            </div>
+          </form>
+          {% endif %}
+
+          <form method="post" action="{{ url_for('iom.save_schedule', card_id=card.id) }}">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th style="width: 160px;">День</th>
+                    <th style="width: 160px;">Время</th>
+                    <th>Предмет</th>
+                    <th style="width: 140px;">Источник</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for weekday in weekday_order %}
+                    {% set day_rows = schedule_by_day.get(weekday, []) %}
+                    {% if day_rows %}
+                      {% for lesson in day_rows %}
+                      <tr>
+                        <td>
+                          <input type="hidden" name="lesson_id" value="{{ lesson.id }}">
+                          <select class="form-select form-select-sm" name="lesson_weekday" {% if not can_edit %}disabled{% endif %}>
+                            {% for wd in weekday_order %}
+                            <option value="{{ wd }}" {% if lesson.weekday == wd %}selected{% endif %}>{{ weekday_labels[wd] }}</option>
+                            {% endfor %}
+                          </select>
+                        </td>
+                        <td><input class="form-control form-control-sm" name="lesson_time" value="{{ lesson.start_time }}" {% if not can_edit %}readonly{% endif %}></td>
+                        <td><input class="form-control form-control-sm" name="lesson_subject" value="{{ lesson.subject_name }}" {% if not can_edit %}readonly{% endif %}></td>
+                        <td>
+                          {% if (lesson.source_type or '').upper() == 'MANUAL' %}
+                            <span class="badge text-bg-secondary">Вручную</span>
+                          {% else %}
+                            <span class="badge text-bg-primary">Импорт</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    {% else %}
+                    <tr>
+                      <td>{{ weekday_labels[weekday] }}</td>
+                      <td colspan="3" class="text-muted">Пока нет уроков.</td>
+                    </tr>
+                    {% endif %}
+                  {% endfor %}
+                  {% if can_edit %}
+                  <tr class="table-light">
+                    <td>
+                      <select class="form-select form-select-sm" name="new_weekday">
+                        <option value="">Добавить день</option>
+                        {% for wd in weekday_order %}
+                        <option value="{{ wd }}">{{ weekday_labels[wd] }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input class="form-control form-control-sm" name="new_time" placeholder="Например, 09:00"></td>
+                    <td><input class="form-control form-control-sm" name="new_subject" placeholder="Предмет"></td>
+                    <td class="small text-muted">Новая ручная строка</td>
+                  </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            {% if can_edit %}
+            <div class="d-flex gap-2 flex-wrap mt-2">
+              <button class="btn btn-outline-primary">Сохранить сетку расписания</button>
+            </div>
+            {% endif %}
+          </form>
+
+          {% if can_edit %}
+          <form method="post" action="{{ url_for('iom.clear_schedule', card_id=card.id) }}" class="mt-2" onsubmit="return confirm('Очистить школьное расписание полностью?');">
+            <button class="btn btn-outline-danger">Очистить школьное расписание</button>
+          </form>
+          {% endif %}
+
+          <div class="alert alert-light border mt-3 mb-0">
+            Школьное расписание показывает занятость ребенка по времени. Ниже специалисты из сопровождения могут поставить коррекционные занятия в свободные интервалы, включая окна, время до уроков и после уроков.
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <strong>Коррекционные занятия специалистов · визуальная версия 2.4.1</strong>
+          <div class="small text-muted">Без пересечений со школьным расписанием и уже занятыми слотами</div>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 mb-3">
+            {% for weekday in weekday_order %}
+            <div class="col-lg-6">
+              <div class="border rounded h-100">
+                <div class="px-3 py-2 border-bottom bg-light fw-semibold">{{ weekday_labels[weekday] }}</div>
+                <div class="p-3">
+                  <div class="small text-muted mb-2">Школьная занятость</div>
+                  {% set school_rows = schedule_with_ranges.get(weekday, []) %}
+                  {% if school_rows %}
+                    <div class="d-flex flex-column gap-2 mb-3">
+                      {% for row in school_rows %}
+                      <div class="border rounded px-2 py-1">
+                        <div class="fw-semibold">{{ row.start_time }}{% if row.end_time %}–{{ row.end_time }}{% endif %}</div>
+                        <div>{{ row.subject_name }}</div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="text-muted mb-3">Школьных уроков нет.</div>
+                  {% endif %}
+
+                  <div class="small text-muted mb-2">Коррекционные занятия</div>
+                  {% set correction_rows = corrections_by_day.get(weekday, []) %}
+                  {% if correction_rows %}
+                    <div class="d-flex flex-column gap-2">
+                      {% for row in correction_rows %}
+                      <div class="border rounded px-2 py-2">
+                        <div class="fw-semibold">{{ row.start_time }}–{{ row.end_time }}</div>
+                        <div>{{ row.course_name }}</div>
+                        <div class="small text-muted">{{ row.specialist.fio if row.specialist else '—' }}{% if row.notes %} · {{ row.notes }}{% endif %}</div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="text-muted">Занятия пока не добавлены.</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          {% if can_manage_corrections %}
+          <form method="post" action="{{ url_for('iom.save_corrections', card_id=card.id) }}">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th style="width: 210px;">Специалист</th>
+                    <th style="width: 150px;">День</th>
+                    <th style="width: 120px;">С</th>
+                    <th style="width: 120px;">По</th>
+                    <th>Занятие / курс</th>
+                    <th>Комментарий</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in card.schedule_corrections %}
+                  <tr>
+                    <td>
+                      <input type="hidden" name="correction_id" value="{{ row.id }}">
+                      <select class="form-select form-select-sm" name="correction_specialist_id">
+                        {% for item in assigned_specialists %}
+                        <option value="{{ item.specialist.id }}" {% if row.specialist_id == item.specialist.id %}selected{% endif %}>{{ item.display_name }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="correction_weekday">
+                        {% for wd in weekday_order %}
+                        <option value="{{ wd }}" {% if row.weekday == wd %}selected{% endif %}>{{ weekday_labels[wd] }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input class="form-control form-control-sm" name="correction_start_time" value="{{ row.start_time }}" placeholder="08:30"></td>
+                    <td><input class="form-control form-control-sm" name="correction_end_time" value="{{ row.end_time }}" placeholder="09:10"></td>
+                    <td><input class="form-control form-control-sm" name="correction_course_name" value="{{ row.course_name }}" placeholder="Например, логопедическое занятие"></td>
+                    <td><input class="form-control form-control-sm" name="correction_notes" value="{{ row.notes or '' }}" placeholder="Форма, группа, примечание"></td>
+                  </tr>
+                  {% endfor %}
+                  <tr class="table-light">
+                    <td>
+                      <select class="form-select form-select-sm" name="new_correction_specialist_id">
+                        <option value="">Добавить специалиста</option>
+                        {% for item in assigned_specialists %}
+                        <option value="{{ item.specialist.id }}">{{ item.display_name }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="new_correction_weekday">
+                        <option value="">День</option>
+                        {% for wd in weekday_order %}
+                        <option value="{{ wd }}">{{ weekday_labels[wd] }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                    <td><input class="form-control form-control-sm" name="new_correction_start_time" placeholder="08:30"></td>
+                    <td><input class="form-control form-control-sm" name="new_correction_end_time" placeholder="09:10"></td>
+                    <td><input class="form-control form-control-sm" name="new_correction_course_name" placeholder="Например, коррекционно-развивающее занятие"></td>
+                    <td><input class="form-control form-control-sm" name="new_correction_notes" placeholder="Индивидуально / группа и т.д."></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="d-flex gap-2 flex-wrap mt-2">
+              <button class="btn btn-outline-primary">Сохранить коррекционные занятия</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="alert alert-light border mb-0">Коррекционные занятия могут добавлять назначенные специалисты сопровождения, руководитель СППиСС или администратор.</div>
+          {% endif %}
+        </div>
+      </div>
+
+
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2"><strong>Связка ИОМ ↔ сопровождение ↔ циклограммы · этап 2.3</strong></div>
+        <div class="card-body">
+          <div class="small text-muted mb-3">Коррекционные занятия из ИОМ можно синхронизировать в циклограммы назначенных специалистов. Если у одного специалиста в одно и то же время стоит несколько детей, запись в циклограмме собирается как групповая и время считается один раз.</div>
+          {% if related_cyclegrams %}
+          <div class="list-group mb-3">
+            {% for row in related_cyclegrams %}
+            <div class="list-group-item d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="fw-semibold">{{ row.specialist.fio if row.specialist else 'Специалист' }}</div>
+                <div class="small text-muted">{{ row.position_title or (row.specialist.position_title if row.specialist else '') or '—' }} · {{ row.academic_year or '—' }}</div>
+                <div class="small text-muted">Статус циклограммы: {{ row.status_label }}</div>
+              </div>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('service_staff.cyclegram_card', cyclegram_id=row.id) }}">Открыть циклограмму</a>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="alert alert-light border mb-3">По назначенным специалистам пока не найдены циклограммы на этот учебный год. Сначала создайте циклограмму специалиста, затем выполните синхронизацию из ИОМ.</div>
+          {% endif %}
+          {% if can_edit %}
+          <form method="post" action="{{ url_for('iom.sync_cyclegram', card_id=card.id) }}">
+            <button class="btn btn-outline-primary">Синхронизировать коррекционные занятия в циклограммы</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Этап 3 · Анализ рекомендаций ЦПМПК / ИПРА</strong></div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('iom.save_analysis_section', card_id=card.id) }}">
+            <div class="row g-3">
+              <div class="col-md-3"><label class="form-label">№ заключения</label><input class="form-control" name="conclusion_number" value="{{ analysis_section.conclusion_number or '' }}"></div>
+              <div class="col-md-3"><label class="form-label">Дата заключения</label><input class="form-control" name="conclusion_date" value="{{ analysis_section.conclusion_date or '' }}" placeholder="Например, 12.09.2025"></div>
+              <div class="col-md-3"><label class="form-label">Срок действия</label><input class="form-control" name="valid_until" value="{{ analysis_section.valid_until or '' }}"></div>
+              <div class="col-md-3"><label class="form-label">Отметка о реализации</label><input class="form-control" name="implementation_mark" value="{{ analysis_section.implementation_mark or '' }}" placeholder="обеспечено"></div>
+              <div class="col-md-6"><label class="form-label">Рекомендации ЦПМПК</label><textarea class="form-control" rows="5" name="pmpk_recommendations">{{ analysis_section.pmpk_recommendations or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Рекомендации ИПРА / ИПР</label><textarea class="form-control" rows="5" name="ipra_recommendations">{{ analysis_section.ipra_recommendations or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Специальные условия</label><textarea class="form-control" rows="5" name="special_conditions">{{ analysis_section.special_conditions or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Требуемые условия / обеспеченность</label><textarea class="form-control" rows="5" name="required_conditions">{{ analysis_section.required_conditions or '' }}</textarea></div>
+              <div class="col-12"><label class="form-label">Комментарий</label><textarea class="form-control" rows="3" name="comment">{{ analysis_section.comment or '' }}</textarea></div>
+            </div>
+            {% if can_edit %}<div class="mt-3"><button class="btn btn-outline-primary">Сохранить раздел</button></div>{% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Этап 3 · Цель, задачи и взаимодействие с родителями</strong></div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('iom.save_goals_section', card_id=card.id) }}">
+            <div class="row g-3">
+              <div class="col-12"><label class="form-label">Цель создания ИОМ</label><textarea class="form-control" rows="4" name="main_goal">{{ goals_section.main_goal or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Задачи сопровождения</label><textarea class="form-control" rows="4" name="support_tasks">{{ goals_section.support_tasks or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Образовательные задачи</label><textarea class="form-control" rows="4" name="learning_tasks">{{ goals_section.learning_tasks or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Коррекционные задачи</label><textarea class="form-control" rows="4" name="correction_tasks">{{ goals_section.correction_tasks or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Задачи социализации</label><textarea class="form-control" rows="4" name="socialization_tasks">{{ goals_section.socialization_tasks or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Формы взаимодействия с родителями</label><textarea class="form-control" rows="4" name="parent_interaction_forms">{{ goals_section.parent_interaction_forms or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Используемые технологии</label><textarea class="form-control" rows="4" name="technologies">{{ goals_section.technologies or '' }}</textarea></div>
+              <div class="col-12"><label class="form-label">Дополнительный комментарий</label><textarea class="form-control" rows="3" name="extra_comment">{{ goals_section.extra_comment or '' }}</textarea></div>
+            </div>
+            {% if can_edit %}<div class="mt-3"><button class="btn btn-outline-primary">Сохранить раздел</button></div>{% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Этап 3 · Коллегиальное заключение ППк</strong></div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('iom.save_ppk_section', card_id=card.id) }}">
+            <div class="row g-3">
+              <div class="col-md-6"><label class="form-label">Общие сведения</label><textarea class="form-control" rows="4" name="general_info">{{ ppk_section.general_info or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Причина направления на ППк</label><textarea class="form-control" rows="4" name="reason_text">{{ ppk_section.reason_text or '' }}</textarea></div>
+              <div class="col-12"><label class="form-label">Коллегиальное заключение ППк</label><textarea class="form-control" rows="5" name="ppk_conclusion">{{ ppk_section.ppk_conclusion or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Направления коррекционной работы</label><textarea class="form-control" rows="5" name="correction_directions">{{ ppk_section.correction_directions or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Рекомендации педагогам</label><textarea class="form-control" rows="5" name="teacher_recommendations">{{ ppk_section.teacher_recommendations or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Рекомендации родителям</label><textarea class="form-control" rows="5" name="parent_recommendations">{{ ppk_section.parent_recommendations or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Индивидуализированные рекомендации</label><textarea class="form-control" rows="5" name="individual_recommendations">{{ ppk_section.individual_recommendations or '' }}</textarea></div>
+              <div class="col-md-4"><label class="form-label">Срок повторного рассмотрения</label><input class="form-control" name="repeat_review_term" value="{{ ppk_section.repeat_review_term or '' }}"></div>
+            </div>
+            {% if can_edit %}<div class="mt-3"><button class="btn btn-outline-primary">Сохранить раздел</button></div>{% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <strong>Этап 3 · Раздел реализации коррекционной работы специалистов</strong>
+          {% if can_edit %}
+          <form method="post" action="{{ url_for('iom.sync_specialists', card_id=card.id) }}">
+            <button class="btn btn-sm btn-outline-secondary">Подтянуть специалистов из сопровождения</button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('iom.save_specialist_plans', card_id=card.id) }}">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th style="min-width:160px;">Роль</th>
+                    <th style="min-width:180px;">Специалист</th>
+                    <th style="min-width:180px;">Рекомендация ЦПМПК</th>
+                    <th style="min-width:180px;">Дефициты</th>
+                    <th style="min-width:180px;">Ресурсы</th>
+                    <th style="min-width:220px;">Задачи на год</th>
+                    <th style="min-width:150px;">Форма работы</th>
+                    <th style="min-width:120px;">Занятий в неделю</th>
+                    <th style="min-width:180px;">Коррекционный курс</th>
+                    <th style="min-width:140px;">Периодичность</th>
+                    <th style="min-width:180px;">Ожидаемый результат</th>
+                    <th style="min-width:150px;">Мониторинг</th>
+                    <th style="min-width:160px;">Комментарий</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in card.specialist_plans %}
+                  <tr>
+                    <td>
+                      <input type="hidden" name="plan_id" value="{{ row.id }}">
+                      <select class="form-select form-select-sm" name="plan_role_title">{% for title in specialist_role_choices %}<option value="{{ title }}" {% if row.role_title == title %}selected{% endif %}>{{ title }}</option>{% endfor %}</select>
+                    </td>
+                    <td><select class="form-select form-select-sm" name="plan_specialist_id"><option value="">—</option>{% for item in assigned_specialists %}<option value="{{ item.specialist.id }}" {% if row.specialist_id == item.specialist.id %}selected{% endif %}>{{ item.display_name }}</option>{% endfor %}</select></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="plan_recommendation_text">{{ row.recommendation_text or '' }}</textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="plan_deficits_text">{{ row.deficits_text or '' }}</textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="plan_resources_text">{{ row.resources_text or '' }}</textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="plan_tasks_text">{{ row.tasks_text or '' }}</textarea></td>
+                    <td><input class="form-control form-control-sm" name="plan_work_form" value="{{ row.work_form or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="plan_sessions_per_week" value="{{ row.sessions_per_week or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="plan_course_name" value="{{ row.course_name or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="plan_frequency" value="{{ row.frequency or '' }}"></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="plan_expected_result">{{ row.expected_result or '' }}</textarea></td>
+                    <td><input class="form-control form-control-sm" name="plan_monitoring_terms" value="{{ row.monitoring_terms or '' }}"></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="plan_comment">{{ row.comment or '' }}</textarea></td>
+                  </tr>
+                  {% endfor %}
+                  <tr class="table-light">
+                    <td><select class="form-select form-select-sm" name="new_plan_role_title"><option value="">Добавить роль</option>{% for title in specialist_role_choices %}<option value="{{ title }}">{{ title }}</option>{% endfor %}</select></td>
+                    <td><select class="form-select form-select-sm" name="new_plan_specialist_id"><option value="">—</option>{% for item in assigned_specialists %}<option value="{{ item.specialist.id }}">{{ item.display_name }}</option>{% endfor %}</select></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="new_plan_recommendation_text"></textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="new_plan_deficits_text"></textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="new_plan_resources_text"></textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="new_plan_tasks_text"></textarea></td>
+                    <td><input class="form-control form-control-sm" name="new_plan_work_form"></td>
+                    <td><input class="form-control form-control-sm" name="new_plan_sessions_per_week"></td>
+                    <td><input class="form-control form-control-sm" name="new_plan_course_name"></td>
+                    <td><input class="form-control form-control-sm" name="new_plan_frequency"></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="new_plan_expected_result"></textarea></td>
+                    <td><input class="form-control form-control-sm" name="new_plan_monitoring_terms"></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="new_plan_comment"></textarea></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {% if can_edit %}<div class="mt-3"><button class="btn btn-outline-primary">Сохранить раздел специалистов</button></div>{% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Этап 3 · Раздел классного руководителя / педагогов</strong></div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('iom.save_teacher_section', card_id=card.id) }}">
+            <div class="row g-3">
+              <div class="col-md-6"><label class="form-label">Особенности освоения программы</label><textarea class="form-control" rows="5" name="program_features">{{ teacher_section.program_features or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Метапредметные результаты</label><textarea class="form-control" rows="5" name="meta_results">{{ teacher_section.meta_results or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Личностные результаты</label><textarea class="form-control" rows="5" name="personal_results">{{ teacher_section.personal_results or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">УУД / БУД</label><textarea class="form-control" rows="5" name="uud_bud">{{ teacher_section.uud_bud or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Причины неуспешности</label><textarea class="form-control" rows="4" name="difficulty_reasons">{{ teacher_section.difficulty_reasons or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Формы преодоления неуспешности</label><textarea class="form-control" rows="4" name="overcoming_forms">{{ teacher_section.overcoming_forms or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Рекомендации педагогам</label><textarea class="form-control" rows="4" name="teacher_recommendations">{{ teacher_section.teacher_recommendations or '' }}</textarea></div>
+              <div class="col-md-6"><label class="form-label">Меры поддержки / воспитательная работа</label><textarea class="form-control" rows="4" name="support_measures">{{ teacher_section.support_measures or '' }}</textarea></div>
+              <div class="col-12"><label class="form-label">Комментарий классного руководителя</label><textarea class="form-control" rows="3" name="class_teacher_comment">{{ teacher_section.class_teacher_comment or '' }}</textarea></div>
+            </div>
+            {% if can_edit %}<div class="mt-3"><button class="btn btn-outline-primary">Сохранить раздел</button></div>{% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Этап 3 · Работа с родителями</strong></div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('iom.save_parent_work_section', card_id=card.id) }}">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Направление</th>
+                    <th>Планируемый результат</th>
+                    <th>Форма работы</th>
+                    <th>Частота</th>
+                    <th>Ответственный</th>
+                    <th>Комментарий</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in parent_work_rows %}
+                  <tr>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="direction">{{ row.direction or '' }}</textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="planned_result">{{ row.planned_result or '' }}</textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="work_form">{{ row.work_form or '' }}</textarea></td>
+                    <td><input class="form-control form-control-sm" name="frequency" value="{{ row.frequency or '' }}"></td>
+                    <td><input class="form-control form-control-sm" name="responsible" value="{{ row.responsible or '' }}"></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="parent_comment">{{ row.comment or '' }}</textarea></td>
+                  </tr>
+                  {% endfor %}
+                  {% for _ in range(3) %}
+                  <tr class="table-light">
+                    <td><textarea class="form-control form-control-sm" rows="2" name="direction"></textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="planned_result"></textarea></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="work_form"></textarea></td>
+                    <td><input class="form-control form-control-sm" name="frequency"></td>
+                    <td><input class="form-control form-control-sm" name="responsible"></td>
+                    <td><textarea class="form-control form-control-sm" rows="2" name="parent_comment"></textarea></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if can_edit %}<div class="mt-3"><button class="btn btn-outline-primary">Сохранить раздел</button></div>{% endif %}
+          </form>
+        </div>
+      </div>
+      {% if can_delete %}
+      <form method="post" action="{{ url_for('iom.delete_card', card_id=card.id) }}" onsubmit="return confirm('Удалить черновик ИОМ?');">
+        <button class="btn btn-outline-danger">Удалить черновик</button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="col-lg-4">
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Готовность ИОМ · этап 2.4</strong></div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="small text-muted">Заполнено обязательных блоков</div>
+            <div class="fw-semibold">{{ readiness.completed }} / {{ readiness.total }}</div>
+          </div>
+          <div class="progress mb-3" role="progressbar" aria-label="Готовность ИОМ" aria-valuenow="{{ readiness.percent }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width: {{ readiness.percent }}%">{{ readiness.percent }}%</div>
+          </div>
+          <div class="small text-muted mb-2">Проверка перед переводом статуса</div>
+          <div class="d-flex flex-column gap-2">
+            {% for item in readiness.checks %}
+            <div class="border rounded px-2 py-2 d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="fw-semibold">{{ item.label }}</div>
+                {% if item.hint and not item.ok %}<div class="small text-muted">{{ item.hint }}</div>{% endif %}
+              </div>
+              {% if item.ok %}
+              <span class="badge text-bg-success">OK</span>
+              {% else %}
+              <span class="badge text-bg-warning">Нужно заполнить</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="alert alert-light border mt-3 mb-0 small">
+            Для статуса <strong>«На согласовании»</strong> должны быть готовы основные сведения, специалисты, школьное расписание и коррекционные занятия.
+            Для <strong>«Согласован руководителем СППиСС»</strong> дополнительно нужен руководитель СППиСС.
+            Для <strong>«Утвержден»</strong> дополнительно нужны директор и отметка об ознакомлении / согласии.
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>История изменений</strong></div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            {% for row in card.history_entries %}
+            <div class="list-group-item">
+              <div class="fw-semibold">{{ row.comment or row.action }}</div>
+              <div class="small text-muted">{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}{% if row.created_by %} · {{ row.created_by.fio }}{% endif %}</div>
+            </div>
+            {% else %}
+            <div class="list-group-item text-muted">История пока пуста.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white"><strong>Последние загрузки расписания</strong></div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            {% for row in card.schedule_import_sessions[:5] %}
+            <div class="list-group-item">
+              <div class="fw-semibold">{{ row.filename }}</div>
+              <div class="small text-muted">{{ row.imported_at.strftime('%d.%m.%Y %H:%M') if row.imported_at else '—' }}{% if row.imported_by %} · {{ row.imported_by.fio }}{% endif %}</div>
+              <div class="small text-muted">Строк загружено: {{ row.rows_loaded }}</div>
+            </div>
+            {% else %}
+            <div class="list-group-item text-muted">Загрузок пока не было.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-white"><strong>Раздел «Мониторинг»</strong></div>
+    <div class="card-body">
+      {% for period, blocks in monitoring_templates.items() %}
+      <div class="mb-4">
+        <h5 class="mb-3">{{ monitoring_period_choices|selectattr(0, 'equalto', period) }}</h5>
+        <div class="fw-semibold mb-2">{{ {'INTERIM':'Промежуточный мониторинг','FINAL':'Итоговый мониторинг'}.get(period, period) }}</div>
+        {% for block_code, lines in blocks.items() %}
+        {% set data = monitoring_payloads.get(period, {}).get(block_code, {}) %}
+        <form method="post" action="{{ url_for('iom.save_monitoring', card_id=card.id) }}" class="mb-3">
+          <input type="hidden" name="period" value="{{ period }}">
+          <input type="hidden" name="block_code" value="{{ block_code }}">
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle">
+              <thead><tr><th style="min-width:280px;">Показатель</th><th style="width:180px;">Значение</th><th>Комментарий</th></tr></thead>
+              <tbody>
+                {% for row in lines %}
+                <tr>
+                  <td>{{ row.line_title }}</td>
+                  <td>
+                    {% set current_value = (data.get('values') or {}).get(row.line_code, '') %}
+                    {% if row.scale_type in monitoring_scale_options and monitoring_scale_options[row.scale_type] %}
+                    <select class="form-select form-select-sm" name="value_{{ row.line_code }}">
+                      {% for option in monitoring_scale_options[row.scale_type] %}<option value="{{ option }}" {% if current_value == option %}selected{% endif %}>{{ option or '—' }}</option>{% endfor %}
+                    </select>
+                    {% else %}
+                    <input class="form-control form-control-sm" name="value_{{ row.line_code }}" value="{{ current_value }}">
+                    {% endif %}
+                  </td>
+                  <td><input class="form-control form-control-sm" name="comment_{{ row.line_code }}" value="{{ (data.get('comments') or {}).get(row.line_code, '') }}"></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Заключение</label>
+            <textarea class="form-control" name="conclusion" rows="2">{{ data.get('conclusion', '') }}</textarea>
+          </div>
+          <button class="btn btn-sm btn-primary">Сохранить</button>
+        </form>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-white"><strong>Журнал экспорта</strong></div>
+    <div class="card-body">
+      {% if export_logs %}
+      <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Дата</th><th>Формат</th><th>Статус</th><th>Пользователь</th></tr></thead><tbody>{% for row in export_logs %}<tr><td>{{ row.exported_at.strftime('%d.%m.%Y %H:%M') if row.exported_at else '—' }}</td><td>{{ row.export_format }}</td><td>{{ row.status_snapshot or '—' }}</td><td>{{ row.exported_by.fio if row.exported_by else '—' }}</td></tr>{% endfor %}</tbody></table></div>
+      {% else %}<div class="text-muted">Экспортов пока не было.</div>{% endif %}
+    </div>
+  </div>
+  </div>
+</div>
+{% endblock %}
