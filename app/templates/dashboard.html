@@ -141,6 +141,19 @@
         </div>
       </div>
 
+      <div class="col-xl-3 col-md-6">
+        <div class="card classic-nav-card classic-nav-card-quick classic-nav-card-quick-v109 zone-card zone-rose h-100">
+          <div class="card-body d-flex flex-column">
+            <div class="classic-nav-icon-row">
+              <span class="classic-nav-icon"><i class="bi bi-clipboard-check"></i></span>
+              <h5 class="mb-0">Мои заявки</h5>
+            </div>
+            <p class="text-muted classic-nav-text">Поданные инциденты, статусы и история.</p>
+            <a class="btn zone-btn mt-auto" href="{{ url_for('children.incidents_my') }}">Открыть</a>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 
@@ -289,15 +302,27 @@
         if (data.length === 0) {
           dropdown.innerHTML = '<div class="list-group-item text-muted small py-2">Ничего не найдено</div>';
         } else {
-          dropdown.innerHTML = data.map(item =>
-            `<a href="${item.url}" class="list-group-item list-group-item-action py-2">
-              <span class="fw-semibold">${item.name}</span>
-              <span class="text-muted small ms-2">${item.class}</span>
-            </a>`
-          ).join('');
-          dropdown.innerHTML += `<a href="/children?q=${encodeURIComponent(q)}" class="list-group-item list-group-item-action text-primary small py-2">
-            <i class="bi bi-list me-1"></i>Показать всех в списке учеников
-          </a>`;
+          dropdown.innerHTML = '';
+          data.forEach(item => {
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.className = 'list-group-item list-group-item-action py-2';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'fw-semibold';
+            nameSpan.textContent = item.name;
+            const classSpan = document.createElement('span');
+            classSpan.className = 'text-muted small ms-2';
+            classSpan.textContent = item.class;
+            a.appendChild(nameSpan);
+            a.appendChild(classSpan);
+            dropdown.appendChild(a);
+          });
+          const showAll = document.createElement('a');
+          showAll.href = '/children?q=' + encodeURIComponent(q);
+          showAll.className = 'list-group-item list-group-item-action text-primary small py-2';
+          showAll.innerHTML = '<i class="bi bi-list me-1"></i>';
+          showAll.appendChild(document.createTextNode('Показать всех в списке учеников'));
+          dropdown.appendChild(showAll);
         }
         dropdown.style.display = 'block';
         if (note) note.style.display = 'none';

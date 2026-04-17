@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, render_template
 
 from app.core.extensions import db, migrate, login_manager
 from app.core import (
@@ -46,8 +46,10 @@ def create_app():
         from app.services.org_settings_service import ensure_single_active_organization_settings
         from app.role_access_admin import role_access_admin_bp
         from app.models.role_access import DashboardBlockCatalog
+        from app.core.profiler import init_profiler
         db.create_all()
         ensure_runtime_schema()
+        init_profiler(app, db.engine)
         app.register_blueprint(role_access_admin_bp)
         try:
             ensure_single_active_organization_settings()
@@ -82,6 +84,14 @@ def create_app():
             kpp_user.set_password("123")
             db.session.add(kpp_user)
             db.session.commit()
+
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        return render_template("errors/500.html"), 500
 
     app.logger.info("UPLOAD_FOLDER = %s", app.config.get("UPLOAD_FOLDER"))
 

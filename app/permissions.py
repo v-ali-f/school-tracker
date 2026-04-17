@@ -53,7 +53,7 @@ PERMISSIONS = {
     },
 
     "incident_registry_view": {
-        ADMIN, SOCIAL_PEDAGOG, PSYCHOLOGIST, METHODIST
+        ADMIN, SOCIAL_PEDAGOG, PSYCHOLOGIST
     },
 
     "incident_dashboard_view": {

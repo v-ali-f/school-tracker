@@ -20,7 +20,7 @@ SECTION_MAP = dict(SECTIONS)
 
 
 def _orders_access_required():
-    if not has_any_role("ADMIN", "METHODIST"):
+    if not has_any_role("ADMIN", "METHODIST", "SOCIAL_PEDAGOG"):
         abort(403)
 
 

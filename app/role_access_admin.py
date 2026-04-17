@@ -83,13 +83,13 @@ MODULE_DEFAULT_ROLES = {
     "children":     None,  # все (карточки ограничены на уровне маршрутов)
     "attendance":   {"ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"},
     "incidents":    {"ADMIN", "TEACHER", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
-    "control_works":{"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST"},
+    "control_works":{"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST", "SOCIAL_PEDAGOG"},
     "diagnostics":  None,  # все
-    "olympiads":    {"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST"},
+    "olympiads":    {"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST", "SOCIAL_PEDAGOG"},
     "departments":  None,  # все
     "service_staff":{"ADMIN", "METHODIST", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
     "iom":          {"ADMIN", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "METHODIST"},
-    "orders":       {"ADMIN", "METHODIST"},
+    "orders":       {"ADMIN", "METHODIST", "SOCIAL_PEDAGOG"},
     "documents":    {"ADMIN", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
     "analytics":    {"ADMIN", "METHODIST"},
     "admin":        {"ADMIN"},

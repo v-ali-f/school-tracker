@@ -12,7 +12,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for, current_app
 from flask_login import current_user, login_required
 from openpyxl import Workbook
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy import or_
 
 from app.core.extensions import db
@@ -1072,10 +1072,24 @@ def structure():
 def buildings_summary():
     _require_view()
     buildings = Building.query.order_by(Building.name.asc()).all()
+    # Batch load all building-specialist links with eager-loaded specialist + specializations
+    all_links = (
+        ServiceSpecialistBuilding.query
+        .options(
+            joinedload(ServiceSpecialistBuilding.specialist)
+            .subqueryload(ServiceSpecialist.specialization_links)
+            .joinedload(ServiceSpecialistSpecialization.specialization)
+        )
+        .all()
+    )
+    links_by_building = defaultdict(list)
+    for lk in all_links:
+        links_by_building[lk.building_id].append(lk)
+
     rows = []
     for building in buildings:
-        links = ServiceSpecialistBuilding.query.filter_by(building_id=building.id).all()
-        specialists = [link.specialist for link in links if link.specialist and link.specialist.is_active]
+        links = links_by_building.get(building.id, [])
+        specialists = [lk.specialist for lk in links if lk.specialist and lk.specialist.is_active]
         spec_counts = defaultdict(int)
         for specialist in specialists:
             for spec_link in specialist.specialization_links:

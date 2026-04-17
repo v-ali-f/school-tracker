@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
 from app.core.cache import cache
+from app.permissions import has_any_role
 from app.models import AcademicYear, Building, Child, ChildEnrollment, SchoolClass, User
 from app.services.attendance_import_service import import_attendance_report, delete_import_session
 from app.services.attendance_stats_service import (
@@ -290,7 +291,7 @@ def _ensure_schedule_rules() -> None:
 
 
 def _can_issue_pass() -> bool:
-    return getattr(current_user, "role", None) in {"ADMIN", "CLASS_TEACHER"}
+    return has_any_role("ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG")
 
 
 def _can_import() -> bool:
@@ -441,7 +442,7 @@ def _attendance_bootstrap_once():
 @attendance_bp.route("/passes")
 @login_required
 def passes_registry():
-    if getattr(current_user, "role", None) not in {"ADMIN", "CLASS_TEACHER", "KPP"}:
+    if not has_any_role("ADMIN", "CLASS_TEACHER", "KPP", "SOCIAL_PEDAGOG"):
         return redirect(url_for("main.dashboard"))
     status = (request.args.get("status") or "").strip().lower()
     q = _filter_passes_query()
@@ -654,7 +655,6 @@ def delete_import(session_id: int):
 @attendance_bp.route("/analytics")
 @login_required
 def analytics():
-    from app.permissions import has_any_role
     if not has_any_role("ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"):
         return redirect(url_for("main.dashboard"))
     month = (request.args.get("month") or '').strip()

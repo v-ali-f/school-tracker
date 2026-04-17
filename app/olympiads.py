@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
 from .models import (
@@ -26,7 +27,7 @@ from .models import (
 from .permissions import CLASS_TEACHER, METHODIST, TEACHER, has_permission
 from .services.olympiad_import_service import execute_import, extract_unique_subjects, filter_school_rows, preview_import, read_excel, read_zip
 from .services.olympiad_matcher import find_department_for_row, find_teacher_for_row
-from .services.olympiad_stats_service import class_stats, dashboard_stats, department_stats, subject_stats, teacher_stats, yearly_comparison
+from .services.olympiad_stats_service import all_analytics, class_stats, dashboard_stats, department_stats, subject_stats, teacher_stats, yearly_comparison
 
 olympiads_bp = Blueprint("olympiads", __name__, url_prefix="/olympiads")
 STAGES = ["школьный", "муниципальный", "региональный", "заключительный"]
@@ -216,7 +217,13 @@ def registry():
         if not department_id and len(allowed_dep_ids) == 1:
             department_id = allowed_dep_ids[0]
 
-    rows_q = OlympiadResult.query.filter(OlympiadResult.is_archived.is_(False))
+    rows_q = OlympiadResult.query.options(
+        joinedload(OlympiadResult.child),
+        joinedload(OlympiadResult.teacher),
+        joinedload(OlympiadResult.subject),
+        joinedload(OlympiadResult.school_class),
+        joinedload(OlympiadResult.department),
+    ).filter(OlympiadResult.is_archived.is_(False))
     if academic_year_id:
         rows_q = rows_q.filter(OlympiadResult.academic_year_id == academic_year_id)
     if stage:
@@ -246,7 +253,14 @@ def registry():
         rows_q = rows_q.filter(OlympiadResult.teacher_id == current_user.id)
 
     rows = rows_q.order_by(OlympiadResult.created_at.desc()).limit(500).all()
-    teacher_options_by_result = {row.id: _teacher_options_for_result(row) for row in rows}
+    # Batch teacher options: group rows by (subject_id, year_id, dept_id) to avoid N queries
+    _teacher_cache = {}
+    teacher_options_by_result = {}
+    for row in rows:
+        cache_key = (row.subject_id, row.academic_year_id, row.department_id)
+        if cache_key not in _teacher_cache:
+            _teacher_cache[cache_key] = _teacher_options_for_result(row)
+        teacher_options_by_result[row.id] = _teacher_cache[cache_key]
     return render_template(
         "olympiad_registry.html",
         rows=rows,
@@ -708,12 +722,9 @@ def analytics():
     teacher_id = request.args.get("teacher_id", type=int)
     department_id = request.args.get("department_id", type=int)
 
-    summary = dashboard_stats(academic_year_id)
-    by_teacher = teacher_stats(academic_year_id, teacher_id)
-    by_department = department_stats(academic_year_id, department_id)
-    by_subject = subject_stats(academic_year_id)
-    by_class = class_stats(academic_year_id)
-    comparison = yearly_comparison()
+    summary, by_teacher, by_department, by_subject, by_class, comparison = all_analytics(
+        academic_year_id, teacher_id, department_id
+    )
 
     return render_template(
         "olympiad_analytics.html",

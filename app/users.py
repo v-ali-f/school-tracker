@@ -17,7 +17,7 @@ users_bp = Blueprint("users", __name__)
 
 ROLE_OPTIONS = [
     "ADMIN", "CLASS_TEACHER", "CURATOR", "TEACHER", "VIEWER", "METHODIST", "KPP",
-    "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOGUE", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT",
+    "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT",
 ]
 ROLE_LABELS = {
     "ADMIN": "Администратор",
@@ -28,7 +28,7 @@ ROLE_LABELS = {
     "METHODIST": "Методист",
     "KPP": "КПП",
     "OLIGOPHRENOPEDAGOG": "Олигофренопедагог",
-    "SOCIAL_PEDAGOGUE": "Социальный педагог",
+    "SOCIAL_PEDAGOG": "Социальный педагог",
     "LOGOPEDIST": "Учитель-логопед",
     "PSYCHOLOGIST": "Педагог-психолог",
     "DEFECTOLOGIST": "Учитель-дефектолог",
@@ -44,7 +44,7 @@ RUSSIAN_ROLE_MAP = {
     "методист": "METHODIST",
     "кпп": "KPP",
     "олигофренопедагог": "OLIGOPHRENOPEDAGOG",
-    "социальный педагог": "SOCIAL_PEDAGOGUE",
+    "социальный педагог": "SOCIAL_PEDAGOG",
     "учитель-логопед": "LOGOPEDIST",
     "учитель логопед": "LOGOPEDIST",
     "педагог-психолог": "PSYCHOLOGIST",
@@ -54,7 +54,7 @@ RUSSIAN_ROLE_MAP = {
     "тьютор": "TUTOR",
     "ассистент": "ASSISTANT",
 }
-SERVICE_ROLE_CODES = {"METHODIST", "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOGUE", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT"}
+SERVICE_ROLE_CODES = {"METHODIST", "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT"}
 
 
 

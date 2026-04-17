@@ -2581,6 +2581,34 @@ body {
   align-self: center;
 }
 
+/* Мобильный навбар: toggler + collapse */
+.app-navbar .navbar-toggler {
+  border-color: var(--v109-border);
+  padding: .25rem .5rem;
+}
+.app-navbar .navbar-toggler:focus {
+  box-shadow: none;
+}
+@media (max-width: 991.98px) {
+  .app-navbar .navbar-collapse {
+    padding-top: .75rem;
+  }
+  .app-navbar .app-navbar-actions {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .app-navbar .app-navbar-actions .btn-app-nav,
+  .app-navbar .app-navbar-actions .btn-app-exit {
+    text-align: left;
+  }
+  .app-navbar .app-user-block {
+    align-items: flex-start;
+  }
+  .app-navbar #navSearch {
+    width: 100% !important;
+  }
+}
+
 /* Блок пользователя: ФИО + роль двумя строками */
 .app-user-block {
   display: flex;

@@ -71,12 +71,12 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload, subqueryload
+from sqlalchemy.orm import joinedload, subqueryload, contains_eager
 from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
 from app.core.extensions import db
-from app.core.pagination import paginate_list, resolve_pagination
+from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
 from .models import (
     AcademicYear,
     Building,
@@ -570,14 +570,16 @@ def list_children():
             SchoolClass.name.ilike(like),
         ))
 
-    children = (
-        query
-        .order_by(SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc())
-        .all()
-    )
+    query = query.order_by(SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc())
 
     page, per_page = resolve_pagination()
-    children_page, pagination = paginate_list(children, page=page, per_page=per_page)
+    total = query.count()
+    pagination = SimplePagination(page=page, per_page=per_page, total=total)
+    if per_page == "all":
+        children_page = query.all()
+    else:
+        offset = (pagination.page - 1) * pagination.per_page_num
+        children_page = query.offset(offset).limit(pagination.per_page_num).all()
 
     return render_template(
         "children_list.html",
@@ -2729,10 +2731,16 @@ _ROLE_LABELS = {
 }
 
 
+_author_label_cache = {}
+
+
 def _get_author_label(user):
     """Return human-readable 'ФИО, должность [класс]' for incident author."""
     if not user:
         return "—"
+    uid = user.id
+    if uid in _author_label_cache:
+        return _author_label_cache[uid]
     fio = (user.fio or "").strip() or "—"
     role = getattr(user, "role", None)
     if role == "CLASS_TEACHER":
@@ -2743,10 +2751,14 @@ def _get_author_label(user):
             .first()
         )
         if cls:
-            return f"{fio}, кл. рук. {cls.name}"
-        return f"{fio}, классный руководитель"
-    role_label = _ROLE_LABELS.get(role, role or "")
-    return f"{fio}, {role_label}" if role_label else fio
+            label = f"{fio}, кл. рук. {cls.name}"
+        else:
+            label = f"{fio}, классный руководитель"
+    else:
+        role_label = _ROLE_LABELS.get(role, role or "")
+        label = f"{fio}, {role_label}" if role_label else fio
+    _author_label_cache[uid] = label
+    return label
 
 
 def _can_change_status():
@@ -2759,13 +2771,33 @@ def _can_change_status():
     )
 
 
-def _can_assign():
-    """Только ADMIN, SOCIAL_PEDAGOG, DEPUTY_DIRECTOR могут назначать исполнителя."""
-    return (
-        has_role("ADMIN")
-        or has_role("SOCIAL_PEDAGOG")
-        or has_role("DEPUTY_DIRECTOR")
+def _build_incident_rows(incidents, include_author=False):
+    """Batch-load children for a list of incidents (eliminates N+1)."""
+    if not incidents:
+        return []
+    inc_ids = [inc.id for inc in incidents]
+    # one query: all IncidentChild + Child for all incidents at once
+    links = (
+        db.session.query(IncidentChild, Child)
+        .join(Child, Child.id == IncidentChild.child_id)
+        .filter(IncidentChild.incident_id.in_(inc_ids))
+        .all()
     )
+    # group by incident_id
+    kids_map = {}
+    for lk, ch in links:
+        kids_map.setdefault(lk.incident_id, []).append({
+            "id": ch.id,
+            "fio": ch.fio,
+            "class": ch.current_class_name or "—",
+        })
+    rows = []
+    for inc in incidents:
+        row = {"inc": inc, "children": kids_map.get(inc.id, [])}
+        if include_author:
+            row["author_label"] = _get_author_label(inc.author)
+        rows.append(row)
+    return rows
 
 
 def _can_manage_incident(incident):
@@ -2826,7 +2858,7 @@ def incident_edit(incident_id):
         if new_status in ("new", "in_progress", "closed") and _can_change_status():
             inc.status = new_status
 
-        if _can_assign():
+        if _can_change_status():
             assignee_id = request.form.get("assignee_id", type=int)
             inc.assignee_id = assignee_id or None
 
@@ -2861,13 +2893,13 @@ def incident_edit(incident_id):
     selected_blocks = list(grouped.values()) or [{"grade": "", "class_id": "", "child_ids": []}]
 
     assignees = []
-    if _can_assign():
+    if _can_change_status():
         from app.models_legacy import User as _User, UserRole as _UserRole, Role as _Role
         assignees = (
             _User.query
             .join(_UserRole, _UserRole.user_id == _User.id)
             .join(_Role, _Role.id == _UserRole.role_id)
-            .filter(_Role.code.in_(["ADMIN", "SOCIAL_PEDAGOG", "DEPUTY_DIRECTOR"]))
+            .filter(_Role.code.in_(["ADMIN", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "METHODIST"]))
             .order_by(_User.last_name, _User.first_name)
             .all()
         )
@@ -2882,7 +2914,6 @@ def incident_edit(incident_id):
         categories=INCIDENT_CATEGORIES,
         selected_blocks=selected_blocks,
         can_change_status=_can_change_status(),
-        can_assign=_can_assign(),
         assignees=assignees,
         notes=inc.notes,
         can_add_note=can_add_note,
@@ -3004,20 +3035,7 @@ def incidents_registry():
 
     incidents = iq.order_by(Incident.occurred_at.desc(), Incident.id.desc()).all()
 
-    rows = []
-    for idx, inc in enumerate(incidents, start=1):
-        links = IncidentChild.query.filter_by(incident_id=inc.id).all()
-        kids = []
-        for lk in links:
-            ch = Child.query.get(lk.child_id)
-            if not ch:
-                continue
-            kids.append({
-                "id": ch.id,
-                "fio": ch.fio,
-                "class": ch.current_class_name or "—"
-            })
-        rows.append({"inc": inc, "children": kids, "author_label": _get_author_label(inc.author)})
+    rows = _build_incident_rows(incidents, include_author=True)
 
     classes = (
         SchoolClass.query
@@ -3088,31 +3106,25 @@ def incidents_registry_export():
 
     incidents = iq.order_by(Incident.occurred_at.desc(), Incident.id.desc()).all()
 
+    rows = _build_incident_rows(incidents, include_author=True)
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Инциденты"
     ws.append(["№", "Дата/время", "Категория", "Обучающиеся", "Классы", "Описание", "Автор"])
 
-    for idx, inc in enumerate(incidents, start=1):
-        links = IncidentChild.query.filter_by(incident_id=inc.id).all()
-        children = []
-        classes = []
-        for lk in links:
-            ch = Child.query.get(lk.child_id)
-            if not ch:
-                continue
-            children.append(ch.fio)
-            cls_name = ch.current_class_name or "—"
-            if cls_name not in classes:
-                classes.append(cls_name)
+    for idx, r in enumerate(rows, start=1):
+        inc = r["inc"]
+        children_names = [k["fio"] for k in r["children"]]
+        classes_list = list(dict.fromkeys(k["class"] for k in r["children"]))
         ws.append([
             idx,
             inc.occurred_at.strftime("%d.%m.%Y %H:%M") if inc.occurred_at else "",
             inc.category or "",
-            "; ".join(children),
-            "; ".join(classes),
+            "; ".join(children_names),
+            "; ".join(classes_list),
             inc.description or "",
-            inc.author.fio if getattr(inc, "author", None) else "",
+            r.get("author_label", ""),
         ])
 
     bio = BytesIO()
@@ -3130,18 +3142,6 @@ def incidents_registry_export():
 @children_bp.route("/incidents/my")
 @login_required
 def incidents_my():
-    def _build_rows(incidents_qs):
-        rows = []
-        for inc in incidents_qs:
-            links = IncidentChild.query.filter_by(incident_id=inc.id).all()
-            kids = []
-            for lk in links:
-                ch = Child.query.get(lk.child_id)
-                if ch:
-                    kids.append({"id": ch.id, "fio": ch.fio, "class": ch.current_class_name or "—"})
-            rows.append({"inc": inc, "children": kids})
-        return rows
-
     my_incidents = (
         db.session.query(Incident)
         .filter(Incident.author_id == current_user.id)
@@ -3163,8 +3163,8 @@ def incidents_my():
 
     return render_template(
         "incidents_my.html",
-        rows=_build_rows(my_incidents),
-        assigned_rows=_build_rows(assigned_incidents),
+        rows=_build_incident_rows(my_incidents),
+        assigned_rows=_build_incident_rows(assigned_incidents),
         can_change_status=_can_change_status(),
     )
 
@@ -3181,6 +3181,7 @@ def incidents_dashboard_legacy():
     grade = request.args.get("grade", type=int)
     class_id = request.args.get("class_id", type=int)
     category = (request.args.get("category") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
 
     year = _get_current_year()
     year_id = year.id if year else None
@@ -3193,6 +3194,8 @@ def incidents_dashboard_legacy():
 
     if category:
         base = base.filter(Incident.category == category)
+    if status_filter:
+        base = base.filter(Incident.status == status_filter)
 
     if year_id and (grade or class_id):
         base = base.join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
@@ -3308,18 +3311,27 @@ def incidents_dashboard_legacy():
             .all()
         )
 
+    # daily counts — 1 query with GROUP BY instead of 7 separate COUNTs
+    week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+    _day_expr = func.date(Incident.occurred_at)
+    daily_q = (
+        base.with_entities(
+            _day_expr.label("day"),
+            func.count(func.distinct(Incident.id)),
+        )
+        .filter(Incident.occurred_at >= week_start)
+        .group_by(_day_expr)
+        .all()
+    )
+    daily_map = {str(d): c for d, c in daily_q}
     recent_daily = []
     daily_labels = []
     max_daily = 0
     for i in range(6, -1, -1):
-        day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
-        cnt = base.filter(Incident.occurred_at >= day_start, Incident.occurred_at < day_end).count()
-        recent_daily.append({
-            "label": day_start.strftime("%d.%m"),
-            "count": cnt,
-        })
-        daily_labels.append(day_start.strftime("%d.%m"))
+        day = (now - timedelta(days=i)).date()
+        cnt = daily_map.get(str(day), 0)
+        recent_daily.append({"label": day.strftime("%d.%m"), "count": cnt})
+        daily_labels.append(day.strftime("%d.%m"))
         max_daily = max(max_daily, cnt)
 
     max_category = max([cnt for _, cnt in top_categories], default=0)
@@ -3369,27 +3381,21 @@ def incidents_dashboard_legacy():
     ]
     max_user_activity = max((r["cnt"] for r in user_activity), default=0)
 
+    # status_breakdown — 1 query with GROUP BY instead of 3 separate COUNTs
+    _sb_q = (
+        base.with_entities(Incident.status, func.count(func.distinct(Incident.id)))
+        .group_by(Incident.status)
+        .all()
+    )
+    _sb_map = {s: c for s, c in _sb_q}
     status_breakdown = {
-        "new": base.filter(Incident.status == "new").count(),
-        "in_progress": base.filter(Incident.status == "in_progress").count(),
-        "closed": base.filter(Incident.status == "closed").count(),
+        "new": _sb_map.get("new", 0),
+        "in_progress": _sb_map.get("in_progress", 0),
+        "closed": _sb_map.get("closed", 0),
     }
 
     recent = base.order_by(Incident.occurred_at.desc(), Incident.id.desc()).limit(20).all()
-    rows = []
-    for inc in recent:
-        links = IncidentChild.query.filter_by(incident_id=inc.id).all()
-        kids = []
-        for lk in links:
-            ch = Child.query.get(lk.child_id)
-            if not ch:
-                continue
-            kids.append({
-                "id": ch.id,
-                "fio": ch.fio,
-                "class": ch.current_class_name or "—"
-            })
-        rows.append({"inc": inc, "children": kids, "author_label": _get_author_label(inc.author)})
+    rows = _build_incident_rows(recent, include_author=True)
 
     classes = (
         SchoolClass.query
@@ -3426,6 +3432,7 @@ def incidents_dashboard_legacy():
         max_user_activity=max_user_activity,
         status_breakdown=status_breakdown,
         can_change_status=_can_change_status(),
+        status_filter=status_filter,
     )
 
 
@@ -3516,15 +3523,16 @@ def social_passport_registry():
         .outerjoin(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
         .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
         .options(
-            subqueryload(Child.social),
+            joinedload(Child.social),
             subqueryload(Child.parent_links).subqueryload(ChildParent.parent),
         )
+        .add_columns(SchoolClass.name.label("_cls_name"))
     )
 
     is_admin_user = has_role("ADMIN")
     is_methodist_user = has_role("METHODIST")
-    is_social_pedagog_user = has_role("SOCIAL_PEDAGOG")
     is_class_teacher_user = has_role("CLASS_TEACHER")
+    is_social_pedagog_user = has_role("SOCIAL_PEDAGOG")
 
     if is_class_teacher_user and not (is_admin_user or is_methodist_user or is_social_pedagog_user):
         q = q.filter(SchoolClass.teacher_user_id == current_user.id)
@@ -3549,15 +3557,14 @@ def social_passport_registry():
     classes = classes_query.order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc()).all()
     grades = sorted({c.grade for c in classes if c.grade is not None})
 
-    rows = (
-        q.add_columns(SchoolClass.name.label("_cls_name"))
-        .order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc())
-        .all()
-    )
+    rows = q.order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc()).all()
+
+    # Кэшируем class_name из add_columns, чтобы шаблон не делал N+1
     children = []
-    for child, cls_name in rows:
-        child._cls_name = cls_name
-        children.append(child)
+    for row in rows:
+        ch = row[0]
+        ch._cls_name = row[1] or ""
+        children.append(ch)
 
     return render_template(
         "social_passport_registry.html",
@@ -3571,7 +3578,6 @@ def social_passport_registry():
         is_admin=is_admin_user,
         is_methodist=is_methodist_user,
         is_class_teacher=is_class_teacher_user,
-        is_social_pedagog=is_social_pedagog_user,
     )
 
 
@@ -3643,8 +3649,10 @@ def social_passport_dashboard():
         flash("Не найден текущий учебный год", "danger")
         return redirect(url_for("children.home"))
 
-    base = (
-        Child.query
+    # Single query: Child + ChildSocial + Building.name via JOIN (no lazy loading)
+    rows = (
+        db.session.query(ChildSocial, Building.name.label("bname"))
+        .select_from(Child)
         .outerjoin(
             ChildEnrollment,
             (ChildEnrollment.child_id == Child.id)
@@ -3654,45 +3662,41 @@ def social_passport_dashboard():
         .outerjoin(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
         .outerjoin(Building, Building.id == SchoolClass.building_id)
         .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
+        .add_columns(Child.id)
+        .distinct()
+        .all()
     )
 
-    children = base.distinct().all()
-
-    def s(ch):
-        return ch.social
-
     totals = {
-        "school_total": len(children),
-        "large_family": sum(1 for ch in children if s(ch) and s(ch).has_large_family),
-        "low_income": sum(1 for ch in children if s(ch) and s(ch).has_low_income_family),
-        "guardianship": sum(1 for ch in children if s(ch) and s(ch).has_guardianship),
-        "orphan": sum(1 for ch in children if s(ch) and s(ch).has_orphan_status),
-        "parents_disability": sum(1 for ch in children if s(ch) and s(ch).has_disability_parents),
-        "socially_dangerous": sum(1 for ch in children if s(ch) and s(ch).is_socially_dangerous),
-        "hard_life": sum(1 for ch in children if s(ch) and s(ch).is_hard_life),
+        "school_total": 0,
+        "large_family": 0,
+        "low_income": 0,
+        "guardianship": 0,
+        "orphan": 0,
+        "parents_disability": 0,
+        "socially_dangerous": 0,
+        "hard_life": 0,
     }
-
     by_building = {}
-    for ch in children:
-        bname = "Без здания"
-        if ch.current_building:
-            bname = ch.current_building.name
 
-        if bname not in by_building:
-            by_building[bname] = {
-                "total": 0,
-                "large_family": 0,
-                "low_income": 0,
-                "guardianship": 0,
-                "orphan": 0,
-                "parents_disability": 0,
-                "socially_dangerous": 0,
-                "hard_life": 0,
+    for social, bname, _child_id in rows:
+        totals["school_total"] += 1
+        totals["large_family"] += 1 if social and social.has_large_family else 0
+        totals["low_income"] += 1 if social and social.has_low_income_family else 0
+        totals["guardianship"] += 1 if social and social.has_guardianship else 0
+        totals["orphan"] += 1 if social and social.has_orphan_status else 0
+        totals["parents_disability"] += 1 if social and social.has_disability_parents else 0
+        totals["socially_dangerous"] += 1 if social and social.is_socially_dangerous else 0
+        totals["hard_life"] += 1 if social and social.is_hard_life else 0
+
+        bkey = bname or "Без здания"
+        if bkey not in by_building:
+            by_building[bkey] = {
+                "total": 0, "large_family": 0, "low_income": 0,
+                "guardianship": 0, "orphan": 0, "parents_disability": 0,
+                "socially_dangerous": 0, "hard_life": 0,
             }
-
-        row = by_building[bname]
-        social = ch.social
-
+        row = by_building[bkey]
         row["total"] += 1
         row["large_family"] += 1 if social and social.has_large_family else 0
         row["low_income"] += 1 if social and social.has_low_income_family else 0
@@ -4339,7 +4343,7 @@ def roles_admin():
 
         # Keep legacy user.role in sync so old single-role checks still work
         _ROLE_PRIORITY = ["ADMIN", "DEPUTY_DIRECTOR", "METHODIST", "PSYCHOLOGIST",
-                          "SOCIAL_PEDAGOG", "SOCIAL_PEDAGOGUE", "LOGOPEDIST",
+                          "SOCIAL_PEDAGOG", "LOGOPEDIST",
                           "DEFECTOLOGIST", "OLIGOPHRENOPEDAGOG", "CLASS_TEACHER",
                           "TEACHER", "EDUCATOR", "SENIOR_EDUCATOR", "SPECIALIST",
                           "TUTOR", "KPP", "VIEWER"]

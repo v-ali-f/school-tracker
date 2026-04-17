@@ -9,22 +9,122 @@
 {% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <div>
-    <h3 class="mb-0">{{ title }}</h3>
-    <div class="text-muted" style="font-size:0.95em;">Фильтры: параллель → класс → категория → ФИО</div>
-  </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-success" href="{{ export_url }}">Excel</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+<style>
+  .incident-hero { background:#fff; border:1px solid #e9ecef; border-radius:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }
+  .incident-panel { border:0; border-radius:16px; box-shadow:0 10px 24px rgba(0,0,0,.06); }
+  .incident-chip { display:inline-block; padding:.22rem .55rem; border-radius:999px; background:#fff1e6; color:#c25b00; font-size:.82rem; font-weight:600; }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .65rem;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .status-badge::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-badge.s-new         { background: #fff3e0; color: #92400e; }
+  .status-badge.s-new::before { background: #f59e0b; }
+  .status-badge.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
+  .status-badge.s-in_progress::before { background: #3b82f6; }
+  .status-badge.s-closed         { background: #f0fdf4; color: #15803d; }
+  .status-badge.s-closed::before { background: #22c55e; }
+
+  /* ── status picker (Notion-style) ── */
+  .status-picker { position: relative; display: inline-block; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .22rem .65rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 500; white-space: nowrap;
+    border: none; cursor: pointer; line-height: 1.4;
+  }
+  .status-pill::before {
+    content: ''; display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-pill.s-new         { background: #fff3e0; color: #92400e; }
+  .status-pill.s-new::before { background: #f59e0b; }
+  .status-pill.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
+  .status-pill.s-in_progress::before { background: #3b82f6; }
+  .status-pill.s-closed         { background: #f0fdf4; color: #15803d; }
+  .status-pill.s-closed::before { background: #22c55e; }
+  .status-picker-menu {
+    display: none; position: absolute; left: 0; top: calc(100% + 4px);
+    background: #fff; border: 1px solid #e9ecef; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.13); padding: .4rem;
+    min-width: 170px; z-index: 1050;
+  }
+  .status-picker-menu.open { display: block; }
+  .sp-group {
+    font-size: .7rem; font-weight: 700; color: #adb5bd;
+    text-transform: uppercase; letter-spacing: .07em;
+    padding: .4rem .5rem .15rem;
+  }
+  .sp-sep { height: 1px; background: #f1f3f5; margin: .3rem 0; }
+  .sp-opt {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .35rem .5rem; border-radius: 6px; cursor: pointer; font-size: .83rem;
+  }
+  .sp-opt:hover { background: #f8f9fa; }
+  .sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sp-dot.d-new         { background: #f59e0b; }
+  .sp-dot.d-in_progress { background: #3b82f6; }
+  .sp-dot.d-closed      { background: #22c55e; }
+  .sp-pill {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .15rem .5rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 500;
+  }
+  .sp-pill.s-new         { background: #fff3e0; color: #92400e; }
+  .sp-pill.s-in_progress { background: #eff6ff; color: #1d4ed8; }
+  .sp-pill.s-closed      { background: #f0fdf4; color: #15803d; }
+
+  .view-btn { padding:.3rem .75rem; border-radius:8px; border:1px solid #dee2e6; background:#fff; cursor:pointer; font-size:.85rem; color:#495057; }
+  .view-btn.active { background:#ff7043; color:#fff; border-color:#ff7043; }
+
+  .col-picker-dropdown { min-width:200px; padding:.5rem .75rem; font-size:.85rem; }
+  .col-picker-dropdown label { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; cursor:pointer; }
+
+  .inc-list { display:flex; flex-direction:column; gap:.5rem; padding:1rem; }
+  .inc-list-item { display:flex; flex-direction:column; gap:.2rem; padding:.75rem 1rem; border:1px solid #e9ecef; border-radius:10px; background:#fff; }
+  .inc-list-item:hover { background:#f8f9fa; }
+  .inc-list-row { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .inc-list-date { font-size:.82rem; color:#6c757d; white-space:nowrap; }
+  .inc-list-desc { font-size:.88rem; color:#495057; }
+  .inc-list-meta { font-size:.78rem; color:#6c757d; }
+  .incident-table thead th { white-space:nowrap; background:#fff8ef; }
+  .desc-toggle { background:none; border:none; color:#6c757d; cursor:pointer; padding:0 .15rem; font-size:.85rem; vertical-align:middle; }
+  .desc-toggle:hover { color:#ff7043; }
+</style>
+
+<!-- Hero -->
+<div class="incident-hero p-4 mb-4">
+  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+    <div>
+      <div class="incident-chip mb-2">Инциденты · реестр</div>
+      <h2 class="mb-0">{{ title }}</h2>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-warning fw-semibold" href="{{ url_for('children.incidents_dashboard') }}">Дашборд</a>
+      <a class="btn btn-success fw-semibold" href="{{ export_url }}">Excel</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+    </div>
   </div>
 </div>
 
-<div class="card mb-3">
+<!-- Фильтр-панель -->
+<div class="card incident-panel mb-4">
   <div class="card-body">
     <form method="get" class="row g-2 align-items-end">
-
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Параллель</label>
         <select class="form-select" name="grade" id="gradeSelect">
           <option value="">—</option>
@@ -33,8 +133,7 @@
           {% endfor %}
         </select>
       </div>
-
-      <div class="col-md-3">
+      <div class="col-6 col-md-2">
         <label class="form-label">Класс</label>
         <select class="form-select" name="class_id" id="classSelect">
           <option value="">—</option>
@@ -42,10 +141,8 @@
             <option value="{{ c.id }}" {% if class_id==c.id %}selected{% endif %}>{{ c.name }}</option>
           {% endfor %}
         </select>
-        <div class="form-text text-muted">Если выберешь класс — параллель не нужна</div>
       </div>
-
-      <div class="col-md-3">
+      <div class="col-6 col-md-2">
         <label class="form-label">Категория</label>
         <select class="form-select" name="category">
           <option value="">— все —</option>
@@ -54,55 +151,83 @@
           {% endfor %}
         </select>
       </div>
-
-      <div class="col-md-2">
-        <label class="form-label">ФИО (поиск)</label>
-        <input class="form-control" name="q" value="{{ q or '' }}" placeholder="Иванов Иван">
-      </div>
-
-      <div class="col-md-2">
+      <div class="col-6 col-md-2">
         <label class="form-label">Статус</label>
         <select class="form-select" name="status">
           <option value="">— все —</option>
-          <option value="new" {% if status_filter == 'new' %}selected{% endif %}>Новый</option>
+          <option value="new"         {% if status_filter == 'new' %}selected{% endif %}>Новый</option>
           <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>В работе</option>
-          <option value="closed" {% if status_filter == 'closed' %}selected{% endif %}>Закрыт</option>
+          <option value="closed"      {% if status_filter == 'closed' %}selected{% endif %}>Закрыт</option>
         </select>
       </div>
-
-      <div class="col-md-1 d-grid">
-        <button class="btn btn-primary">Ок</button>
+      <div class="col-6 col-md-2">
+        <label class="form-label">ФИО</label>
+        <input class="form-control" name="q" value="{{ q or '' }}" placeholder="Иванов Иван">
       </div>
-
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Применить</button>
+      </div>
+      <div class="col-auto">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incidents_registry') }}">Сброс</a>
+      </div>
     </form>
   </div>
 </div>
 
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-striped mb-0 align-middle">
+<!-- Таблица/список -->
+<div class="card incident-panel">
+  <div class="card-body pb-2">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h5 class="mb-0">Записи реестра</h5>
+      <div class="d-flex align-items-center gap-2">
+        <!-- Col-picker -->
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="regColPickerBtn" title="Настроить колонки">
+            <i class="bi bi-layout-three-columns"></i> Колонки
+          </button>
+          <div class="dropdown-menu col-picker-dropdown" id="regColPickerMenu">
+            <label><input type="checkbox" class="col-toggle" data-col="col-num"      checked> №</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-dt"       checked> Дата</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-cat"      checked> Категория</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-children" checked> Дети</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-desc"     checked> Описание</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-status"   checked> Статус</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-assignee" checked> Исполнитель</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-author"   checked> Автор</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-actions"  checked> Действия</label>
+          </div>
+        </div>
+        <!-- View switcher -->
+        <button class="view-btn active" id="btnTable" title="Таблица"><i class="bi bi-table"></i></button>
+        <button class="view-btn" id="btnList" title="Список"><i class="bi bi-list-ul"></i></button>
+        <span class="text-muted small">{{ rows|length }} записей</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE VIEW -->
+  <div id="viewTable" class="table-responsive">
+    <table class="table mb-0 align-middle incident-table">
       <thead>
         <tr>
-          <th class="table-number-col">№</th>
-          <th style="width:180px;">Дата/время</th>
-          <th style="width:220px;">Категория</th>
-          <th>Дети</th>
-          <th>Описание</th>
-          <th style="width:130px;">Статус</th>
-          <th style="width:180px;">Исполнитель</th>
-          <th style="width:200px;">Автор</th>
-          <th style="width:170px;">Действия</th>
+          <th class="col-num" style="width:50px;">№</th>
+          <th class="col-dt" style="width:160px;">Дата/время</th>
+          <th class="col-cat" style="width:200px;">Категория</th>
+          <th class="col-children">Дети</th>
+          <th class="col-desc">Описание</th>
+          <th class="col-status" style="width:130px;">Статус</th>
+          <th class="col-assignee" style="width:160px;">Исполнитель</th>
+          <th class="col-author" style="width:180px;">Автор</th>
+          <th class="col-actions" style="width:100px;">Действия</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
           <tr>
-            <td class="text-muted">{{ loop.index }}</td>
-            <td class="text-muted">
-              {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
-            </td>
-            <td>{{ r.inc.category }}</td>
-            <td>
+            <td class="text-muted col-num">{{ loop.index }}</td>
+            <td class="text-muted col-dt">{{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</td>
+            <td class="col-cat">{{ r.inc.category }}</td>
+            <td class="col-children">
               {% for ch in r.children %}
                 <div>
                   <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
@@ -110,50 +235,68 @@
                 </div>
               {% endfor %}
             </td>
-            <td class="text-muted">{{ r.inc.description or "—" }}</td>
-            <td>
-              {% set s = r.inc.status or 'new' %}
-              {% if can_change_status %}
-              <select class="inc-status-select status-{{ s }}" data-incident-id="{{ r.inc.id }}" title="Сменить статус">
-                <option value="new" {% if s == 'new' %}selected{% endif %}>Новый</option>
-                <option value="in_progress" {% if s == 'in_progress' %}selected{% endif %}>В работе</option>
-                <option value="closed" {% if s == 'closed' %}selected{% endif %}>Закрыт</option>
-              </select>
+            <td class="text-muted col-desc">
+              {% if r.inc.description and r.inc.description|length > 60 %}
+                <span class="desc-short">{{ r.inc.description[:60] }}…
+                  <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.nextElementSibling.style.display='inline';" title="Развернуть">▸</button>
+                </span>
+                <span class="desc-full" style="display:none;">{{ r.inc.description }}
+                  <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.previousElementSibling.style.display='inline';" title="Свернуть">▾</button>
+                </span>
               {% else %}
-                {% if s == 'new' %}<span class="badge bg-warning text-dark">Новый</span>
-                {% elif s == 'in_progress' %}<span class="badge bg-primary">В работе</span>
-                {% else %}<span class="badge bg-success">Закрыт</span>{% endif %}
+                {{ r.inc.description or "—" }}
               {% endif %}
             </td>
-            <td class="text-muted small">
-              {% if r.inc.assignee %}
-                {{ r.inc.assignee.last_name }} {{ r.inc.assignee.first_name[0] if r.inc.assignee.first_name else '' }}.{% if r.inc.assignee.middle_name %}{{ r.inc.assignee.middle_name[0] }}.{% endif %}
+            <td class="col-status">
+              {% set s = r.inc.status or 'new' %}
+              {% set _lbl = {'new':'Новый','in_progress':'В работе','closed':'Закрыт'} %}
+              {% if can_change_status %}
+                <div class="status-picker" data-incident-id="{{ r.inc.id }}">
+                  <button type="button" class="status-pill s-{{ s }}"><span class="sp-label">{{ _lbl[s] }}</span></button>
+                  <div class="status-picker-menu">
+                    <div class="sp-group">To-do</div>
+                    <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
+                    <div class="sp-sep"></div>
+                    <div class="sp-group">In progress</div>
+                    <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
+                    <div class="sp-sep"></div>
+                    <div class="sp-group">Complete</div>
+                    <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
+                  </div>
+                </div>
+              {% else %}
+                <span class="status-badge s-{{ s }}">{{ r.inc.status_label }}</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small col-assignee">
+              {% if r.inc.assignee %}{% set a = r.inc.assignee %}
+                {{ (a.last_name or "") }} {{ (a.first_name or "")[:1] }}{% if a.first_name %}.{% endif %}{{ (a.middle_name or "")[:1] }}{% if a.middle_name %}.{% endif %}
               {% else %}—{% endif %}
             </td>
-            <td class="text-muted small">{{ r.author_label }}</td>
-          <td>
-            {% if can_change_status or r.inc.author_id == current_user.id %}
-              <div class="d-flex gap-2 flex-wrap">
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}">Изменить</a>
-                <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');">
-                  <input type="hidden" name="next" value="{{ request.full_path }}">
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
-                </form>
-              </div>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </td>
+            <td class="text-muted small col-author">{{ r.author_label }}</td>
+            <td class="col-actions">
+              {% if can_change_status or r.inc.author_id == current_user.id %}
+                <div class="d-flex gap-1">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
+                  <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');">
+                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+                  </form>
+                </div>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
         {% if rows|length == 0 %}
           <tr>
             <td colspan="9" class="text-center py-5 text-muted">
               <i class="bi bi-search" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>
-              {% if q or grade or class_id or category %}
+              {% if q or grade or class_id or category or status_filter %}
                 По вашему запросу инцидентов не найдено. Попробуйте изменить фильтры.
               {% else %}
-                Инцидентов пока нет. Хорошее начало.
+                Инцидентов пока нет.
               {% endif %}
             </td>
           </tr>
@@ -161,67 +304,169 @@
       </tbody>
     </table>
   </div>
+
+  <!-- LIST VIEW -->
+  <div id="viewList" class="inc-list" style="display:none;">
+    {% for r in rows %}
+      {% set s = r.inc.status or 'new' %}
+      {% set _lbl = {'new':'Новый','in_progress':'В работе','closed':'Закрыт'} %}
+      <div class="inc-list-item">
+        <div class="inc-list-row">
+          <span class="inc-list-date col-dt"><i class="bi bi-calendar3"></i> {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</span>
+          <span class="text-dark small fw-semibold col-cat">{{ r.inc.category }}</span>
+          <span class="col-status">
+            {% if can_change_status %}
+              <div class="status-picker" data-incident-id="{{ r.inc.id }}">
+                <button type="button" class="status-pill s-{{ s }}"><span class="sp-label">{{ _lbl[s] }}</span></button>
+                <div class="status-picker-menu">
+                  <div class="sp-group">To-do</div>
+                  <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
+                  <div class="sp-sep"></div>
+                  <div class="sp-group">In progress</div>
+                  <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
+                  <div class="sp-sep"></div>
+                  <div class="sp-group">Complete</div>
+                  <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
+                </div>
+              </div>
+            {% else %}
+              <span class="status-badge s-{{ s }}">{{ r.inc.status_label }}</span>
+            {% endif %}
+          </span>
+          <span class="col-assignee">{% if r.inc.assignee %}{% set a = r.inc.assignee %}<span class="inc-list-meta">&#128100; {{ (a.last_name or "") }} {{ (a.first_name or "")[:1] }}{% if a.first_name %}.{% endif %}</span>{% endif %}</span>
+        </div>
+        <div class="inc-list-row col-children">
+          {% for ch in r.children %}
+            <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="inc-list-meta fw-semibold">{{ ch.fio }}</a>
+            <span class="inc-list-meta text-muted">{{ ch.class }}</span>
+          {% endfor %}
+        </div>
+        {% if r.inc.description %}
+          <div class="inc-list-desc col-desc">{{ r.inc.description }}</div>
+        {% endif %}
+        <div class="inc-list-row mt-1">
+          <span class="inc-list-meta col-author">{{ r.author_label }}</span>
+          <span class="col-actions d-inline-flex gap-1 align-items-center">
+            {% if can_change_status or r.inc.author_id == current_user.id %}
+              <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
+              <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+              </form>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+    {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-inbox" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>
+        Инцидентов пока нет.
+      </div>
+    {% endfor %}
+  </div>
 </div>
 
-<style>
-.inc-status-select {
-  appearance: none; -webkit-appearance: none;
-  border: 1.5px solid; border-radius: 6px;
-  padding: 2px 8px; font-size: .8rem; font-weight: 600;
-  cursor: pointer; white-space: nowrap;
-}
-.inc-status-select.status-new        { color: #856404; background: #fff8e1; border-color: #ffc107; }
-.inc-status-select.status-in_progress{ color: #0a58ca; background: #e7f0ff; border-color: #0d6efd; }
-.inc-status-select.status-closed     { color: #146c43; background: #e9f5ee; border-color: #198754; }
-.inc-status-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(13,110,253,.25); }
-</style>
 <script>
 (function(){
-  // AJAX смена статуса — без перехода на страницу с JSON
-  document.querySelectorAll('.inc-status-select').forEach(function(sel) {
-    sel.addEventListener('change', function() {
-      var id = this.dataset.incidentId;
-      var status = this.value;
-      var fd = new FormData(); fd.append('status', status);
-      fetch('/children/incidents/' + id + '/set-status', {method:'POST', body:fd})
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-          if (data.ok) {
-            sel.className = 'inc-status-select status-' + data.status;
-          } else {
-            alert('Ошибка: ' + (data.error || 'неизвестно'));
-          }
-        }).catch(function(){ alert('Ошибка сети'); });
+  // Status picker
+  const SP_LABELS = {new:'Новый', in_progress:'В работе', closed:'Закрыт'};
+  document.querySelectorAll('.status-picker .status-pill').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const menu = this.closest('.status-picker').querySelector('.status-picker-menu');
+      document.querySelectorAll('.status-picker-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+      menu.classList.toggle('open');
     });
   });
-})();
+  document.querySelectorAll('.sp-opt').forEach(opt => {
+    opt.addEventListener('click', async function() {
+      const picker = this.closest('.status-picker');
+      const id = picker.dataset.incidentId;
+      const newStatus = this.dataset.value;
+      picker.querySelector('.status-picker-menu').classList.remove('open');
+      const fd = new FormData(); fd.append('status', newStatus);
+      try {
+        const res = await fetch('/incidents/' + id + '/set-status', {method:'POST', body:fd});
+        const data = await res.json();
+        if (data.ok) {
+          const s = data.status;
+          document.querySelectorAll('.status-picker[data-incident-id="' + id + '"]').forEach(p => {
+            const pill = p.querySelector('.status-pill');
+            pill.className = 'status-pill s-' + s;
+            pill.querySelector('.sp-label').textContent = SP_LABELS[s] || s;
+          });
+        } else { alert('Ошибка: ' + (data.error || 'неизвестно')); }
+      } catch(e) { alert('Ошибка сети'); }
+    });
+  });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.status-picker-menu.open').forEach(m => m.classList.remove('open'));
+  });
 
-(function(){
+  // Параллель → классы AJAX
   const gradeSel = document.getElementById("gradeSelect");
   const classSel = document.getElementById("classSelect");
+  if (gradeSel && classSel) {
+    classSel.addEventListener("change", () => { if (classSel.value) gradeSel.value = ""; });
+    gradeSel.addEventListener("change", async () => {
+      const g = gradeSel.value;
+      if (!g) return;
+      const res  = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(g)}`);
+      const data = await res.json();
+      classSel.innerHTML = `<option value="">—</option>`;
+      data.forEach(x => {
+        const opt = document.createElement("option");
+        opt.value = x.id; opt.textContent = x.name;
+        classSel.appendChild(opt);
+      });
+    });
+  }
 
-  // если выбран класс вручную — сбрасываем параллель (чтобы не путалось)
-  classSel.addEventListener("change", () => {
-    if (classSel.value) gradeSel.value = "";
+  // View switcher
+  const btnTable  = document.getElementById("btnTable");
+  const btnList   = document.getElementById("btnList");
+  const viewTable = document.getElementById("viewTable");
+  const viewList  = document.getElementById("viewList");
+  btnTable.addEventListener("click", () => {
+    viewTable.style.display = ""; viewList.style.display  = "none";
+    btnTable.classList.add("active"); btnList.classList.remove("active");
+    localStorage.setItem("reg_inc_view", "table");
   });
+  btnList.addEventListener("click", () => {
+    viewTable.style.display = "none"; viewList.style.display  = "";
+    btnList.classList.add("active"); btnTable.classList.remove("active");
+    localStorage.setItem("reg_inc_view", "list");
+  });
+  if (localStorage.getItem("reg_inc_view") === "list") btnList.click();
 
-  gradeSel.addEventListener("change", async () => {
-    const g = gradeSel.value;
-    if (!g) return; // если очистили, оставим список как есть
+  // Col-picker dropdown (custom, без Bootstrap)
+  const regColBtn  = document.getElementById("regColPickerBtn");
+  const regColMenu = document.getElementById("regColPickerMenu");
+  if (regColBtn && regColMenu) {
+    regColBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      regColMenu.classList.toggle("show");
+    });
+    regColMenu.addEventListener("click", function(e) { e.stopPropagation(); });
+    document.addEventListener("click", function() { regColMenu.classList.remove("show"); });
+  }
 
-    // подгружаем классы ТОЛЬКО этой параллели
-    const res = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(g)}`);
-    const data = await res.json();
-
-    // перезаполняем селект классов
-    classSel.innerHTML = `<option value="">—</option>`;
-    data.forEach(x => {
-      const opt = document.createElement("option");
-      opt.value = x.id;
-      opt.textContent = x.name;
-      classSel.appendChild(opt);
+  // Col-picker checkboxes
+  document.querySelectorAll(".col-toggle").forEach(cb => {
+    const col   = cb.dataset.col;
+    const saved = localStorage.getItem("reg_col_" + col);
+    if (saved === "0") { cb.checked = false; toggleCol(col, false); }
+    cb.addEventListener("change", () => {
+      toggleCol(col, cb.checked);
+      localStorage.setItem("reg_col_" + col, cb.checked ? "1" : "0");
     });
   });
+
+  function toggleCol(col, visible) {
+    document.querySelectorAll("." + col).forEach(el => {
+      el.style.display = visible ? "" : "none";
+    });
+  }
 })();
 </script>
 

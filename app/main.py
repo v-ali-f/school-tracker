@@ -104,22 +104,23 @@ def _dashboard_stats():
 
 def _departments_dashboard_stats():
     current_year = AcademicYear.query.filter_by(is_current=True).first()
-    load_q = TeacherLoad.query.filter(TeacherLoad.is_archived.is_(False))
+    load_filter = [TeacherLoad.is_archived.is_(False)]
     if current_year:
-        load_q = load_q.filter(
+        load_filter.append(
             or_(
                 TeacherLoad.academic_year_id == current_year.id,
                 TeacherLoad.academic_year_id.is_(None),
             )
         )
-    loads = load_q.all()
-    departments_count = Department.query.count()
-    teacher_ids = {x.teacher_id for x in loads if x.teacher_id}
-    total_hours = sum(float(x.hours or 0) for x in loads)
+    agg = db.session.query(
+        func.count(func.distinct(TeacherLoad.teacher_id)),
+        func.coalesce(func.sum(TeacherLoad.hours), 0),
+    ).filter(*load_filter).one()
+    teachers_count, total_hours = agg
     return {
-        "departments_count": departments_count,
-        "teachers_count": len(teacher_ids),
-        "total_hours": round(total_hours, 1),
+        "departments_count": Department.query.count(),
+        "teachers_count": teachers_count or 0,
+        "total_hours": round(float(total_hours), 1),
     }
 
 
@@ -131,31 +132,67 @@ def _control_works_dashboard_stats():
         works_q = works_q.filter(ControlWork.academic_year_id == current_year.id)
         results_q = results_q.filter(ControlWorkResult.academic_year_id == current_year.id)
     works_count = works_q.count()
-    results = [float(x.percent) for x in results_q.all()]
-    avg_percent = round(sum(results) / len(results), 1) if results else None
+    agg = db.session.query(
+        func.count(ControlWorkResult.id),
+        func.avg(ControlWorkResult.percent),
+    ).filter(ControlWorkResult.percent.isnot(None))
+    if current_year:
+        agg = agg.filter(ControlWorkResult.academic_year_id == current_year.id)
+    results_count, avg_val = agg.one()
     return {
         "works_count": works_count,
-        "results_count": len(results),
-        "avg_percent": avg_percent,
+        "results_count": results_count or 0,
+        "avg_percent": round(float(avg_val), 1) if avg_val else None,
     }
 
 
 
 def _olympiad_dashboard_stats():
     current_year = AcademicYear.query.filter_by(is_current=True).first()
-    q = OlympiadResult.query.filter(OlympiadResult.is_archived.is_(False))
+    base_filter = [OlympiadResult.is_archived.is_(False)]
     if current_year:
-        q = q.filter(OlympiadResult.academic_year_id == current_year.id)
-    rows = q.all()
-    winners = sum(1 for r in rows if (r.status or '').strip().lower() in {'победитель', 'winner'})
-    priz = sum(1 for r in rows if 'приз' in (r.status or '').strip().lower())
-    by_stage = {}
-    for r in rows:
-        key = r.stage or '—'
-        by_stage[key] = by_stage.get(key, 0) + 1
+        base_filter.append(OlympiadResult.academic_year_id == current_year.id)
+
+    # Total + unique children in one query
+    agg = db.session.query(
+        func.count(OlympiadResult.id),
+        func.count(func.distinct(OlympiadResult.child_id)),
+    ).filter(*base_filter).one()
+    total, unique_children = agg
+
+    # Status counts via GROUP BY
+    status_rows = (
+        db.session.query(
+            func.lower(func.trim(func.coalesce(OlympiadResult.status, ''))),
+            func.count(OlympiadResult.id),
+        )
+        .filter(*base_filter)
+        .group_by(func.lower(func.trim(func.coalesce(OlympiadResult.status, ''))))
+        .all()
+    )
+    winners = 0
+    priz = 0
+    for status_lower, cnt in status_rows:
+        if status_lower in ('победитель', 'winner'):
+            winners += cnt
+        if status_lower and 'приз' in status_lower:
+            priz += cnt
+
+    # By stage via GROUP BY
+    stage_rows = (
+        db.session.query(
+            func.coalesce(OlympiadResult.stage, '—'),
+            func.count(OlympiadResult.id),
+        )
+        .filter(*base_filter)
+        .group_by(func.coalesce(OlympiadResult.stage, '—'))
+        .all()
+    )
+    by_stage = {stage: cnt for stage, cnt in stage_rows}
+
     return {
-        'total': len(rows),
-        'unique_children': len({r.child_id for r in rows if r.child_id}),
+        'total': total or 0,
+        'unique_children': unique_children or 0,
         'winners': winners,
         'prizers': priz,
         'by_stage': by_stage,
@@ -195,26 +232,23 @@ def _diagnostics_dashboard_stats():
     sessions_q = DiagnosticSession.query
     if current_year:
         sessions_q = sessions_q.filter(or_(DiagnosticSession.academic_year_id == current_year.id, DiagnosticSession.academic_year_id.is_(None)))
-    sessions = sessions_q.order_by(DiagnosticSession.created_at.desc()).all()
-    session_ids = [row.id for row in sessions]
-    imports_q = DiagnosticImportBatch.query
-    results_q = DiagnosticResult.query
-    if session_ids:
-        imports_q = imports_q.filter(DiagnosticImportBatch.session_id.in_(session_ids))
-        results_q = results_q.filter(DiagnosticResult.session_id.in_(session_ids))
-    else:
-        imports_q = imports_q.filter(db.text('1=0'))
-        results_q = results_q.filter(db.text('1=0'))
+    sessions_count = sessions_q.count()
+    session_ids_sq = sessions_q.with_entities(DiagnosticSession.id).subquery()
+    imports_q = DiagnosticImportBatch.query.filter(DiagnosticImportBatch.session_id.in_(db.session.query(session_ids_sq)))
+    results_q = DiagnosticResult.query.filter(DiagnosticResult.session_id.in_(db.session.query(session_ids_sq)))
     below_base = results_q.filter(func.lower(func.coalesce(DiagnosticResult.level, '')) == 'низкий').count()
     departments_ready = db.session.query(func.count(Department.id)).scalar() or 0
-    bound_result_ids = db.session.query(DiagnosticTeacherBinding.result_id)
-    if session_ids:
-        bound_result_ids = bound_result_ids.join(DiagnosticResult, DiagnosticResult.id == DiagnosticTeacherBinding.result_id).filter(DiagnosticResult.session_id.in_(session_ids))
+    bound_count = (
+        db.session.query(func.count(DiagnosticTeacherBinding.result_id))
+        .join(DiagnosticResult, DiagnosticResult.id == DiagnosticTeacherBinding.result_id)
+        .filter(DiagnosticResult.session_id.in_(db.session.query(session_ids_sq)))
+        .scalar() or 0
+    )
     return {
-        'sessions_count': len(sessions),
+        'sessions_count': sessions_count,
         'imports_count': imports_q.count(),
         'awaiting_review': imports_q.filter(DiagnosticImportBatch.status.in_(['draft', 'requires_review'])).count(),
-        'unmatched_count': max(results_q.count() - bound_result_ids.count(), 0),
+        'unmatched_count': max(results_q.count() - bound_count, 0),
         'below_base_count': below_base,
         'departments_ready': departments_ready,
     }

@@ -321,16 +321,16 @@ def _is_methodist() -> bool:
     return has_role("METHODIST") or _current_role_code() == "METHODIST"
 
 
-def _is_social_pedagog() -> bool:
-    return has_role("SOCIAL_PEDAGOG") or _current_role_code() == "SOCIAL_PEDAGOG"
-
-
 def _is_class_teacher() -> bool:
     return has_role("CLASS_TEACHER") or _current_role_code() == "CLASS_TEACHER"
 
 
 def _is_teacher() -> bool:
     return has_role("TEACHER") or _current_role_code() == "TEACHER"
+
+
+def _is_social_pedagog() -> bool:
+    return has_role("SOCIAL_PEDAGOG") or _current_role_code() == "SOCIAL_PEDAGOG"
 
 
 def _leader_department_ids() -> list[int]:
@@ -380,7 +380,7 @@ def _can_import_diagnostics() -> bool:
 
 
 def _can_edit_binding() -> bool:
-    return _is_admin() or _is_methodist() or bool(_leader_department_ids())
+    return _is_admin() or _is_methodist() or _is_social_pedagog() or bool(_leader_department_ids())
 
 
 def _ensure_can_manage():
@@ -1251,7 +1251,7 @@ def departments_summary():
 @diagnostics_bp.route("/binding", methods=["GET", "POST"])
 @login_required
 def teacher_binding():
-    if not (_can_edit_binding() or _is_admin() or _is_methodist() or _is_class_teacher() or _is_teacher() or _is_social_pedagog()):
+    if not (_can_edit_binding() or _is_admin() or _is_methodist() or _is_class_teacher() or _is_teacher()):
         abort(403)
 
     current_year = AcademicYear.query.filter_by(is_current=True).first()

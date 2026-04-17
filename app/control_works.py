@@ -8,6 +8,8 @@ from flask_login import login_required, current_user
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
+from sqlalchemy.orm import joinedload
+
 from app.core.extensions import db
 from .models import (
     ControlWork, ControlWorkTask, ControlWorkAssignment, ControlWorkResult, ControlWorkLog,
@@ -634,13 +636,25 @@ def _build_control_work_report(work, teacher_id=None):
     dictation_child_rows = []
     is_dictation = _is_dictation(work)
 
+    # Batch-load ALL results for this work at once (instead of per-assignment)
+    _all_work_results = (
+        ControlWorkResult.query
+        .filter_by(control_work_id=work.id)
+        .options(joinedload(ControlWorkResult.child))
+        .all()
+    )
+    _results_by_key = {}
+    for r in _all_work_results:
+        key = (r.assignment_id, r.school_class_id)
+        _results_by_key.setdefault(key, []).append(r)
+
     for assignment in work.assignments or []:
         if teacher_id and assignment.teacher_id != teacher_id:
             continue
         if not has_permission("control_works_edit") and teacher_id is None and assignment.teacher_id != current_user.id:
             continue
 
-        results = ControlWorkResult.query.filter_by(control_work_id=work.id, assignment_id=assignment.id, school_class_id=assignment.school_class_id).all()
+        results = _results_by_key.get((assignment.id, assignment.school_class_id), [])
         all_results.extend(results)
         class_present = [r for r in results if not getattr(r, "is_absent", False)]
         class_absent = [r for r in results if getattr(r, "is_absent", False)]
@@ -677,7 +691,7 @@ def _build_control_work_report(work, teacher_id=None):
             })
             dictation_class_rows.append(class_row.copy())
             for r in results:
-                child = getattr(r, 'child', None) or Child.query.get(r.child_id)
+                child = getattr(r, 'child', None)
                 dictation_child_rows.append({
                     "child_name": child.fio if child else f"ID {r.child_id}",
                     "class_name": assignment.school_class.name if assignment.school_class else '—',

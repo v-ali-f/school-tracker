@@ -202,9 +202,6 @@ class Child(db.Model):
 
     birth_date = db.Column(db.Date, nullable=True)
     gender = db.Column(db.String(10), nullable=True)
-    education_form = db.Column(db.String(100), nullable=True)   # Очная и т.д.
-    actual_address = db.Column(db.String(500), nullable=True)
-    temporary_address = db.Column(db.String(500), nullable=True)
     phone = db.Column(db.String(50), nullable=True)
     email = db.Column(db.String(120), nullable=True)
     education_form = db.Column(db.String(50), nullable=True)
@@ -252,16 +249,21 @@ class Child(db.Model):
         parts = [self.last_name, self.first_name, self.middle_name]
         return " ".join([p.strip() for p in parts if p and str(p).strip()])
 
+    _cached_current_year_id = None
+
     @property
     def current_enrollment(self):
         try:
-            current_year = AcademicYear.query.filter_by(is_current=True).first()
+            if Child._cached_current_year_id is None:
+                cy = AcademicYear.query.filter_by(is_current=True).first()
+                Child._cached_current_year_id = cy.id if cy else 0
+            year_id = Child._cached_current_year_id
         except Exception:
-            current_year = None
+            year_id = 0
 
-        if current_year:
+        if year_id:
             for e in (self.enrollments or []):
-                if e.ended_at is None and e.academic_year_id == current_year.id:
+                if e.ended_at is None and e.academic_year_id == year_id:
                     return e
 
         for e in (self.enrollments or []):
@@ -857,6 +859,7 @@ class Incident(db.Model):
         back_populates="incident",
         order_by="IncidentNote.created_at.asc()",
         lazy="select",
+        cascade="all, delete-orphan",
     )
 
     @property
@@ -888,7 +891,7 @@ class IncidentChild(db.Model):
     incident_id = db.Column(db.Integer, db.ForeignKey("incident.id"), nullable=False, index=True)
     child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False, index=True)
 
-    incident = db.relationship("Incident", backref="links")
+    incident = db.relationship("Incident", backref=db.backref("links", cascade="all, delete-orphan"))
     child = db.relationship("Child", backref="incident_links")
 
     __table_args__ = (
