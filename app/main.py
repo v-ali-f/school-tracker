@@ -1,6 +1,6 @@
 from datetime import date, datetime, time
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, redirect, url_for
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_
 
@@ -8,6 +8,26 @@ from app.core.extensions import db
 from .models import AcademicYear, Child, ChildEnrollment, ChildSocial, Incident, Department, TeacherLoad, ControlWork, ControlWorkResult, ChildTransferHistory, SchoolClass, User, Document, OlympiadResult, DiagnosticImportBatch, DiagnosticResult, DiagnosticSession, DiagnosticTeacherBinding
 
 main_bp = Blueprint("main", __name__)
+
+
+# Legacy-алиасы: битые закладки пользователей ведут сюда 404-ом.
+# Перенаправляем на канонические адреса без сломанного UX.
+@main_bp.route("/users")
+@login_required
+def legacy_users_redirect():
+    return redirect(url_for("users.users_list"))
+
+
+@main_bp.route("/analytics/dashboard")
+@login_required
+def legacy_analytics_dashboard_redirect():
+    return redirect(url_for("children.incidents_dashboard_legacy"))
+
+
+@main_bp.route("/settings/organization")
+@login_required
+def legacy_settings_organization_redirect():
+    return redirect(url_for("main.dashboard"))
 
 
 def _dashboard_stats():
@@ -35,28 +55,29 @@ def _dashboard_stats():
     if not current_year:
         return stats
 
-    active_child_ids_q = (
+    active_child_ids_base = (
         db.session.query(ChildEnrollment.child_id)
         .filter(
             ChildEnrollment.academic_year_id == current_year.id,
             ChildEnrollment.ended_at.is_(None),
         )
         .distinct()
-        .subquery()
     )
+    active_child_ids_subq = active_child_ids_base.subquery()
+    active_child_ids_scalar = active_child_ids_base.scalar_subquery()
 
-    stats["contingent"] = db.session.query(func.count()).select_from(active_child_ids_q).scalar() or 0
+    stats["contingent"] = db.session.query(func.count()).select_from(active_child_ids_subq).scalar() or 0
 
     stats["ovz"] = (
         db.session.query(func.count(Child.id))
-        .filter(Child.id.in_(active_child_ids_q), Child.is_ovz.is_(True))
+        .filter(Child.id.in_(active_child_ids_scalar), Child.is_ovz.is_(True))
         .scalar()
         or 0
     )
 
     stats["low"] = (
         db.session.query(func.count(Child.id))
-        .filter(Child.id.in_(active_child_ids_q), Child.is_low.is_(True))
+        .filter(Child.id.in_(active_child_ids_scalar), Child.is_low.is_(True))
         .scalar()
         or 0
     )
@@ -65,7 +86,7 @@ def _dashboard_stats():
         db.session.query(func.count(Child.id))
         .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
         .filter(
-            Child.id.in_(active_child_ids_q),
+            Child.id.in_(active_child_ids_scalar),
             db.or_(Child.is_vshu.is_(True), ChildSocial.vshu_since.isnot(None)),
             db.or_(ChildSocial.vshu_removed_at.is_(None), Child.is_vshu.is_(True)),
         )
@@ -77,7 +98,7 @@ def _dashboard_stats():
     stats["kdn"] = (
         db.session.query(func.count(Child.id))
         .join(ChildSocial, ChildSocial.child_id == Child.id)
-        .filter(Child.id.in_(active_child_ids_q), ChildSocial.kdn_since.isnot(None))
+        .filter(Child.id.in_(active_child_ids_scalar), ChildSocial.kdn_since.isnot(None))
         .distinct()
         .scalar()
         or 0

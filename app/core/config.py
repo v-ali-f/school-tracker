@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -18,6 +19,7 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     # SESSION_COOKIE_SECURE = True  # включить после перехода на HTTPS
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
 
 
 class DevelopmentConfig(Config):

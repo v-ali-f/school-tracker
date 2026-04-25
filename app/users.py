@@ -1,13 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import current_user
-from sqlalchemy import or_
+from sqlalchemy import or_, func, desc
 from sqlalchemy.exc import IntegrityError
 from openpyxl import load_workbook, Workbook
 
-from .models import User
+from .models import User, PageVisit
 from app.models_legacy import Role, UserRole
 from app.core.extensions import db
 from .roles import require_roles
@@ -277,6 +277,184 @@ def users_list():
     unmatched_count = ServiceImportUnmatchedStaff.query.filter_by(status="NEW").count()
     duplicate_groups = potential_duplicate_groups()
     return render_template("users_list.html", users=users, status=status, q=q, recent_imports=recent_imports, role_labels=ROLE_LABELS, unmatched_count=unmatched_count, duplicate_groups_count=len(duplicate_groups))
+
+
+@users_bp.route("/admin/users/activity")
+@require_roles("ADMIN")
+def users_activity():
+    bucket = (request.args.get("bucket") or "all").lower()
+    sort = (request.args.get("sort") or "seen_asc").lower()
+
+    query = User.query.filter(~User.employment_status.in_(["DISMISSED", "ARCHIVED"]))
+    users = query.all()
+
+    now = datetime.utcnow()
+
+    def compute_bucket(u):
+        seen = u.last_seen_at or u.last_login_at
+        if seen is None:
+            return "never"
+        days = (now - seen).days
+        if days <= 7:
+            return "active"
+        if days <= 30:
+            return "sleepy"
+        return "lost"
+
+    rows = []
+    for u in users:
+        seen = u.last_seen_at or u.last_login_at
+        days_ago = (now - seen).days if seen else None
+        rows.append({
+            "user": u,
+            "last_login_at": u.last_login_at,
+            "last_seen_at": u.last_seen_at,
+            "effective_seen_at": seen,
+            "days_ago": days_ago,
+            "active_days_count": u.active_days_count or 0,
+            "bucket": compute_bucket(u),
+        })
+
+    totals = {
+        "total": len(rows),
+        "never": sum(1 for r in rows if r["bucket"] == "never"),
+        "active": sum(1 for r in rows if r["bucket"] == "active"),
+        "sleepy": sum(1 for r in rows if r["bucket"] == "sleepy"),
+        "lost": sum(1 for r in rows if r["bucket"] == "lost"),
+    }
+
+    if bucket in {"never", "active", "sleepy", "lost"}:
+        rows = [r for r in rows if r["bucket"] == bucket]
+
+    if sort == "seen_desc":
+        rows.sort(key=lambda r: (r["effective_seen_at"] is None, r["effective_seen_at"] or datetime.min), reverse=True)
+    elif sort == "days_desc":
+        rows.sort(key=lambda r: r["active_days_count"], reverse=True)
+    elif sort == "days_asc":
+        rows.sort(key=lambda r: r["active_days_count"])
+    elif sort == "fio":
+        rows.sort(key=lambda r: ((r["user"].last_name or "").lower(), (r["user"].first_name or "").lower()))
+    else:
+        rows.sort(key=lambda r: (r["effective_seen_at"] is not None, r["effective_seen_at"] or datetime.max))
+
+    return render_template(
+        "users_activity.html",
+        rows=rows,
+        totals=totals,
+        bucket=bucket,
+        sort=sort,
+        role_labels=ROLE_LABELS,
+        now=now,
+    )
+
+
+@users_bp.route("/admin/users/paths")
+@require_roles("ADMIN")
+def users_paths():
+    period = (request.args.get("period") or "7d").lower()
+    selected_user_id = request.args.get("user_id", type=int)
+
+    now = datetime.utcnow()
+    if period == "today":
+        since = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "30d":
+        since = now - timedelta(days=30)
+    elif period == "all":
+        since = None
+    else:
+        period = "7d"
+        since = now - timedelta(days=7)
+
+    base = db.session.query(PageVisit)
+    if since is not None:
+        base = base.filter(PageVisit.ts >= since)
+
+    total_visits = base.with_entities(func.count(PageVisit.id)).scalar() or 0
+    unique_users_count = base.with_entities(
+        func.count(func.distinct(PageVisit.user_id))
+    ).scalar() or 0
+
+    top_pages_q = (
+        base.with_entities(PageVisit.endpoint, func.count(PageVisit.id).label("c"))
+        .group_by(PageVisit.endpoint)
+        .order_by(desc("c"))
+        .limit(20)
+    )
+    top_pages = [(ep, c) for ep, c in top_pages_q.all()]
+
+    transitions_q = (
+        base.with_entities(
+            PageVisit.referrer_endpoint,
+            PageVisit.endpoint,
+            func.count(PageVisit.id).label("c"),
+        )
+        .filter(PageVisit.referrer_endpoint.isnot(None))
+        .filter(PageVisit.referrer_endpoint != PageVisit.endpoint)
+        .group_by(PageVisit.referrer_endpoint, PageVisit.endpoint)
+        .order_by(desc("c"))
+        .limit(30)
+    )
+    top_transitions = [(a, b, c) for a, b, c in transitions_q.all()]
+
+    active_user_ids_q = (
+        base.with_entities(PageVisit.user_id, func.count(PageVisit.id).label("c"))
+        .group_by(PageVisit.user_id)
+        .order_by(desc("c"))
+        .limit(50)
+    )
+    active_pairs = active_user_ids_q.all()
+    active_user_ids = [uid for uid, _ in active_pairs]
+    visits_by_user = {uid: c for uid, c in active_pairs}
+
+    user_options = []
+    if active_user_ids:
+        users_for_picker = (
+            User.query.filter(User.id.in_(active_user_ids)).all()
+        )
+        users_for_picker.sort(
+            key=lambda u: visits_by_user.get(u.id, 0),
+            reverse=True,
+        )
+        user_options = [
+            {
+                "id": u.id,
+                "fio": u.fio or u.username,
+                "username": u.username,
+                "role": ROLE_LABELS.get(u.role, u.role),
+                "visits": visits_by_user.get(u.id, 0),
+            }
+            for u in users_for_picker
+        ]
+
+    timeline = []
+    selected_user = None
+    if selected_user_id:
+        selected_user = User.query.get(selected_user_id)
+        if selected_user:
+            tl_q = (
+                db.session.query(PageVisit)
+                .filter(PageVisit.user_id == selected_user_id)
+            )
+            if since is not None:
+                tl_q = tl_q.filter(PageVisit.ts >= since)
+            timeline = (
+                tl_q.order_by(PageVisit.ts.desc()).limit(150).all()
+            )
+
+    return render_template(
+        "users_paths.html",
+        period=period,
+        total_visits=total_visits,
+        unique_users_count=unique_users_count,
+        top_pages=top_pages,
+        top_transitions=top_transitions,
+        user_options=user_options,
+        timeline=timeline,
+        selected_user=selected_user,
+        selected_user_id=selected_user_id,
+        role_labels=ROLE_LABELS,
+        now=now,
+    )
 
 
 @users_bp.route("/admin/users/new", methods=["GET", "POST"])

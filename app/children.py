@@ -76,6 +76,7 @@ from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
 from app.core.extensions import db
+from app.core.cache import view_response_cache, make_key
 from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
 from .models import (
     AcademicYear,
@@ -98,6 +99,7 @@ from .models import (
     Incident,
     IncidentChild,
     IncidentNote,
+    IncidentNoteAttachment,
     ControlWorkResult,
     OlympiadResult,
     Task,
@@ -551,11 +553,10 @@ def home():
 @login_required
 def list_children():
     query, year = _children_base_query_for_current_year()
-    limit_to_own = should_limit_children_to_own_class()
-    filters = _registry_filter_state(year, allow_only_own_class=limit_to_own)
+    # /children: поиск без ограничения классом (даже для CLASS_TEACHER и TEACHER).
+    # Открытие карточки по-прежнему ограничено can_view_child_basic(child).
+    filters = _registry_filter_state(year, allow_only_own_class=False)
 
-    if limit_to_own:
-        query = query.filter(SchoolClass.teacher_user_id == current_user.id)
     if filters["selected_grade"] is not None:
         query = query.filter(SchoolClass.grade == filters["selected_grade"])
     if filters["selected_class_id"]:
@@ -581,9 +582,20 @@ def list_children():
         offset = (pagination.page - 1) * pagination.per_page_num
         children_page = query.offset(offset).limit(pagination.per_page_num).all()
 
+    can_add_incident = has_permission("incident_add")
+    rows = [
+        {
+            "child": ch,
+            "can_view_card": can_view_child_basic(ch),
+            "can_add_incident": can_add_incident,
+        }
+        for ch in children_page
+    ]
+
     return render_template(
         "children_list.html",
         children=children_page,
+        rows=rows,
         pagination=pagination,
         q=filters["q_text"],
         selected_grade=filters["selected_grade"],
@@ -593,18 +605,79 @@ def list_children():
     )
 
 
+_LATIN_TO_CYRILLIC_LOOKALIKES = str.maketrans(
+    "ABCEHIKMNOPSTUXY",
+    "АВСЕНИКМНОРСТУХУ",
+)
+
+
+def _normalize_class_name(s: str) -> str:
+    """Нормализация названия класса для поиска: upper + убираем пробелы/дефисы +
+    меняем латинские буквы на визуально похожие кириллические.
+    Примеры: '6-АС' / '6 ас' / '6as' → 'АС' c префиксом '6' → '6АС'."""
+    if not s:
+        return ""
+    s = s.upper().strip()
+    for ch in (" ", "-", "_", "/", "\\", "."):
+        s = s.replace(ch, "")
+    return s.translate(_LATIN_TO_CYRILLIC_LOOKALIKES)
+
+
 @children_bp.route("/children/search-ajax")
 @login_required
 def search_children_ajax():
-    """AJAX-поиск учеников для главной страницы. Возвращает JSON."""
+    """AJAX-поиск учеников + классов для главной страницы. Возвращает JSON.
+
+    Если строка запроса соответствует названию класса (с нормализацией —
+    пробелы/дефисы/латиница ↔ кириллица), первым элементом идёт ссылка
+    на страницу класса.
+    """
     q = request.args.get("q", "").strip()
     if len(q) < 2:
         return jsonify([])
     if not has_permission("children_registry_view"):
         return jsonify([])
-    query, year = _children_base_query_for_current_year()
-    if should_limit_children_to_own_class():
-        query = query.filter(SchoolClass.teacher_user_id == current_user.id)
+
+    results: list[dict] = []
+
+    # 1. Попытка найти класс по нормализованному названию (текущий учебный год)
+    year = _get_current_year()
+    if year:
+        norm_q = _normalize_class_name(q)
+        if norm_q:
+            class_candidates = (
+                SchoolClass.query
+                .filter(SchoolClass.academic_year_id == year.id)
+                .all()
+            )
+            limit_to_own = should_limit_children_to_own_class()
+            for sc in class_candidates:
+                if _normalize_class_name(sc.name) == norm_q:
+                    if limit_to_own and sc.teacher_user_id != current_user.id:
+                        continue
+                    results.append({
+                        "type": "class",
+                        "id": sc.id,
+                        "name": f"Класс {sc.name}",
+                        "class": "Открыть страницу класса",
+                        "url": url_for("children.class_detail", class_id=sc.id),
+                    })
+                    if has_permission("social_passport_registry_view"):
+                        results.append({
+                            "type": "class_social",
+                            "id": sc.id,
+                            "name": f"Соц. паспорт · {sc.name}",
+                            "class": "Открыть соц. паспорт класса",
+                            "url": url_for("children.social_passport_registry", class_id=sc.id),
+                        })
+                    break
+
+    # 2. Поиск учеников по ФИО / названию класса.
+    # Любая роль с правом создавать/смотреть инциденты находит любого ученика.
+    # Доступ к карточке ограничивается отдельно, через can_view_child_basic
+    # (класс.рук видит карточку только своих — для чужих в результатах будет
+    # только кнопка «+ инцидент»).
+    query, _ = _children_base_query_for_current_year()
     like = f"%{q}%"
     query = query.filter(db.or_(
         Child.last_name.ilike(like),
@@ -613,14 +686,20 @@ def search_children_ajax():
         SchoolClass.name.ilike(like),
     ))
     children = query.order_by(Child.last_name.asc(), Child.first_name.asc()).limit(12).all()
-    results = []
+    can_add_incident = has_permission("incident_add")
     for child in children:
-        results.append({
+        can_view = can_view_child_basic(child)
+        item = {
+            "type": "child",
             "id": child.id,
             "name": f"{child.last_name} {child.first_name} {child.middle_name or ''}".strip(),
             "class": child.current_class_name or "—",
-            "url": url_for("children.child_card", child_id=child.id),
-        })
+            "url": url_for("children.child_card", child_id=child.id) if can_view else None,
+            "can_view_card": can_view,
+            "can_add_incident": can_add_incident,
+            "incident_url": url_for("children.incident_new", student_id=child.id) if can_add_incident else None,
+        }
+        results.append(item)
     return jsonify(results)
 
 
@@ -1407,7 +1486,7 @@ def add_child_comment(child_id: int):
 def delete_child_comment(comment_id: int):
     c = ChildComment.query.get_or_404(comment_id)
 
-    if not (current_user.role == "ADMIN" or c.author_id == current_user.id):
+    if not (is_admin(current_user) or c.author_id == current_user.id):
         abort(403)
 
     child_id = c.child_id
@@ -1635,74 +1714,146 @@ def contingent():
         "conditional_total": 0,
     }
 
-    # --- Батч-загрузка: все дети + social за один запрос ---
+    # --- Батч-подсчёт через SQL GROUP BY вместо загрузки всех Child (perf s51) ---
     from collections import defaultdict
-    from sqlalchemy.orm import joinedload as _joinedload
 
     class_ids = [c.id for c in classes]
-    children_by_class = defaultdict(list)
+    boys_by_class = {}
+    girls_by_class = {}
+    ovz_by_class = {}
+    vshu_by_class = {}
+    kdn_by_class = {}
+    edu_form_totals = {}
+    transfer_by_class = defaultdict(dict)
+
     if year_id and class_ids:
-        enrollment_map = dict(
-            db.session.query(ChildEnrollment.child_id, ChildEnrollment.school_class_id)
+        enrollment_base = (
+            db.session.query(
+                ChildEnrollment.school_class_id, db.func.count(ChildEnrollment.id)
+            )
+            .join(Child, Child.id == ChildEnrollment.child_id)
             .filter(
                 ChildEnrollment.academic_year_id == year_id,
                 ChildEnrollment.ended_at.is_(None),
-                ChildEnrollment.school_class_id.in_(class_ids)
+                ChildEnrollment.school_class_id.in_(class_ids),
             )
+            .group_by(ChildEnrollment.school_class_id)
+        )
+
+        boys_by_class = dict(
+            enrollment_base.filter(db.func.upper(Child.gender) == "М").all()
+        )
+        girls_by_class = dict(
+            enrollment_base.filter(db.func.upper(Child.gender) == "Ж").all()
+        )
+        ovz_by_class = dict(
+            enrollment_base.filter(Child.is_ovz.is_(True)).all()
+        )
+
+        # ВШУ: Child.is_vshu OR (social.vshu_since IS NOT NULL AND social.vshu_removed_at IS NULL)
+        vshu_by_class = dict(
+            db.session.query(
+                ChildEnrollment.school_class_id, db.func.count(db.distinct(ChildEnrollment.id))
+            )
+            .join(Child, Child.id == ChildEnrollment.child_id)
+            .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
+            .filter(
+                ChildEnrollment.academic_year_id == year_id,
+                ChildEnrollment.ended_at.is_(None),
+                ChildEnrollment.school_class_id.in_(class_ids),
+                db.or_(
+                    Child.is_vshu.is_(True),
+                    db.and_(
+                        ChildSocial.vshu_since.isnot(None),
+                        ChildSocial.vshu_removed_at.is_(None),
+                    ),
+                ),
+            )
+            .group_by(ChildEnrollment.school_class_id)
             .all()
         )
-        if enrollment_map:
-            all_children = (
-                Child.query
-                .filter(Child.id.in_(list(enrollment_map.keys())))
-                .options(_joinedload(Child.social))
-                .all()
-            )
-            for ch in all_children:
-                cid = enrollment_map.get(ch.id)
-                if cid:
-                    children_by_class[cid].append(ch)
 
-            # Батч трансфер по классам
-            transfer_by_class = defaultdict(dict)
-            for class_id, t_type, cnt in (
-                db.session.query(
-                    ChildEnrollment.school_class_id,
-                    ChildTransferHistory.transfer_type,
-                    db.func.count(ChildTransferHistory.id)
-                )
-                .join(ChildTransferHistory, ChildTransferHistory.child_id == ChildEnrollment.child_id)
-                .filter(
-                    ChildEnrollment.academic_year_id == year_id,
-                    ChildEnrollment.ended_at.is_(None),
-                    ChildEnrollment.school_class_id.in_(class_ids),
-                    ChildTransferHistory.from_academic_year_id == year_id,
-                )
-                .group_by(ChildEnrollment.school_class_id, ChildTransferHistory.transfer_type)
-                .all()
-            ):
-                transfer_by_class[class_id][t_type] = int(cnt or 0)
-        else:
-            transfer_by_class = defaultdict(dict)
-    else:
-        transfer_by_class = defaultdict(dict)
+        # КДН: social.kdn_since IS NOT NULL
+        kdn_by_class = dict(
+            db.session.query(
+                ChildEnrollment.school_class_id, db.func.count(db.distinct(ChildEnrollment.id))
+            )
+            .join(Child, Child.id == ChildEnrollment.child_id)
+            .join(ChildSocial, ChildSocial.child_id == Child.id)
+            .filter(
+                ChildEnrollment.academic_year_id == year_id,
+                ChildEnrollment.ended_at.is_(None),
+                ChildEnrollment.school_class_id.in_(class_ids),
+                ChildSocial.kdn_since.isnot(None),
+            )
+            .group_by(ChildEnrollment.school_class_id)
+            .all()
+        )
+
+        # education_form по школе (агрегат, по всем классам сразу)
+        for form_raw, cnt in (
+            db.session.query(Child.education_form, db.func.count(ChildEnrollment.id))
+            .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+            .filter(
+                ChildEnrollment.academic_year_id == year_id,
+                ChildEnrollment.ended_at.is_(None),
+                ChildEnrollment.school_class_id.in_(class_ids),
+            )
+            .group_by(Child.education_form)
+            .all()
+        ):
+            form_name = (form_raw or "Не указана").strip() or "Не указана"
+            edu_form_totals[form_name] = edu_form_totals.get(form_name, 0) + int(cnt or 0)
+
+        # Трансферы по классам (как было)
+        for class_id, t_type, cnt in (
+            db.session.query(
+                ChildEnrollment.school_class_id,
+                ChildTransferHistory.transfer_type,
+                db.func.count(ChildTransferHistory.id),
+            )
+            .join(ChildTransferHistory, ChildTransferHistory.child_id == ChildEnrollment.child_id)
+            .filter(
+                ChildEnrollment.academic_year_id == year_id,
+                ChildEnrollment.ended_at.is_(None),
+                ChildEnrollment.school_class_id.in_(class_ids),
+                ChildTransferHistory.from_academic_year_id == year_id,
+            )
+            .group_by(ChildEnrollment.school_class_id, ChildTransferHistory.transfer_type)
+            .all()
+        ):
+            transfer_by_class[class_id][t_type] = int(cnt or 0)
+
+    # ── ШСК-членство по классам (batch, один проход по sportmos-индексу) ──
+    sc_by_class: dict[int, int] = {}
+    if year_id and class_ids:
+        from app.sport_club import count_in_club_for_children as _sc_count
+        children_by_class: dict[int, list] = defaultdict(list)
+        for ch, cls_id in (
+            db.session.query(Child, ChildEnrollment.school_class_id)
+            .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+            .filter(
+                ChildEnrollment.academic_year_id == year_id,
+                ChildEnrollment.ended_at.is_(None),
+                ChildEnrollment.school_class_id.in_(class_ids),
+            )
+            .all()
+        ):
+            children_by_class[cls_id].append(ch)
+        for cls_id, kids in children_by_class.items():
+            sc_by_class[cls_id] = _sc_count(kids)
 
     rows = []
 
     for c in classes:
         total = int(class_counts.get(c.id, 0))
 
-        children_in_class = children_by_class.get(c.id, [])
-
-        boys_count = sum(1 for ch in children_in_class if (ch.gender or "").upper() == "М")
-        girls_count = sum(1 for ch in children_in_class if (ch.gender or "").upper() == "Ж")
-
-        ovz_count = sum(1 for ch in children_in_class if ch.is_ovz)
-        vshu_count = sum(1 for ch in children_in_class if ch.is_vshu or (ch.social and ch.social.vshu_since and not ch.social.vshu_removed_at))
-        kdn_count = sum(
-            1 for ch in children_in_class
-            if ch.social and ch.social.kdn_since
-        )
+        boys_count = int(boys_by_class.get(c.id, 0))
+        girls_count = int(girls_by_class.get(c.id, 0))
+        ovz_count = int(ovz_by_class.get(c.id, 0))
+        vshu_count = int(vshu_by_class.get(c.id, 0))
+        kdn_count = int(kdn_by_class.get(c.id, 0))
+        sc_count = int(sc_by_class.get(c.id, 0))
 
         free = int((c.max_students or 0) - total)
 
@@ -1722,6 +1873,7 @@ def contingent():
             "girls": girls_count,
             "teacher_fio": teacher_fio,
             "teacher_phone": teacher_phone,
+            "sc_in_club": sc_count,
             "pending_transfer": pending_transfer,
             "promoted": class_transfer_types.get("PROMOTED", 0),
             "conditional": class_transfer_types.get("CONDITIONAL", 0),
@@ -1741,10 +1893,6 @@ def contingent():
         totals["transferred_out"] += transferred_total
         totals["repeat_total"] += class_transfer_types.get("REPEAT", 0)
         totals["conditional_total"] += class_transfer_types.get("CONDITIONAL", 0)
-
-        for ch in children_in_class:
-            form_name = (ch.education_form or "Не указана").strip()
-            totals["education_forms"][form_name] = totals["education_forms"].get(form_name, 0) + 1
 
         building = buildings_map.get(c.building_id)
         bname = building.name if building else "Без здания"
@@ -1776,6 +1924,8 @@ def contingent():
             elif 10 <= grade <= 11:
                 totals["grades_10_11"] += total
                 totals["classes_10_11"] += 1
+
+    totals["education_forms"] = edu_form_totals
 
     return render_template(
         "contingent.html",
@@ -2016,6 +2166,8 @@ def update_class(class_id: int):
     _sync_class_teacher_role(c.teacher_user_id)
 
     db.session.commit()
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
     flash("Сохранено", "success")
     return redirect(url_for("children.classes_registry"))
 
@@ -2029,9 +2181,37 @@ def classes_registry():
         return redirect(url_for("children.contingent"))
 
     all_years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
+    q_text = (request.args.get("q") or "").strip()
+
+    # Response-кеш для /classes (~4.6 МБ HTML, ~650 мс рендера из-за inline-форм редактирования).
+    # Все ADMIN видят одинаковое (данных привязанных к user_id нет), поэтому общий ключ.
+    cache_key = make_key("classes_registry", year.id, q_text)
+    cached_html = view_response_cache.get(cache_key)
+    if cached_html is not None:
+        from flask import Response
+        return Response(cached_html, mimetype="text/html; charset=utf-8")
+
+    raw_query = SchoolClass.query.filter(SchoolClass.academic_year_id == year.id)
+
+    if q_text:
+        like = f"%{q_text.lower()}%"
+        # match по имени класса ИЛИ по ФИО классрука
+        teacher_match = db.session.query(User.id).filter(
+            db.or_(
+                db.func.lower(User.last_name).like(like),
+                db.func.lower(User.first_name).like(like),
+                db.func.lower(User.middle_name).like(like),
+            )
+        )
+        raw_query = raw_query.filter(
+            db.or_(
+                db.func.lower(SchoolClass.name).like(like),
+                SchoolClass.teacher_user_id.in_(teacher_match),
+            )
+        )
+
     raw_classes = (
-        SchoolClass.query
-        .filter(SchoolClass.academic_year_id == year.id)
+        raw_query
         .order_by(
             SchoolClass.grade.asc().nullslast(),
             SchoolClass.letter.asc().nullslast(),
@@ -2077,6 +2257,25 @@ def classes_registry():
         ).group_by(Task.class_id).all():
             task_overdue_map[class_id] = cnt
 
+    # ── ШСК-членство по классам (batch, один проход по sportmos-индексу) ──
+    sc_in_club_by_class: dict[int, int] = {}
+    if class_ids:
+        from app.sport_club import count_in_club_for_children as _sc_count
+        from collections import defaultdict as _dd
+        children_by_class: dict[int, list] = _dd(list)
+        for ch, cls_id in (
+            db.session.query(Child, ChildEnrollment.school_class_id)
+            .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+            .filter(
+                ChildEnrollment.school_class_id.in_(class_ids),
+                ChildEnrollment.ended_at.is_(None),
+            )
+            .all()
+        ):
+            children_by_class[cls_id].append(ch)
+        for cls_id, kids in children_by_class.items():
+            sc_in_club_by_class[cls_id] = _sc_count(kids)
+
     classes = []
     for c in raw_classes:
         teacher = teachers_map.get(c.teacher_user_id)
@@ -2087,16 +2286,59 @@ def classes_registry():
             c, teacher_fio, teacher_phone, active_count,
             task_total_map.get(c.id, 0),
             task_overdue_map.get(c.id, 0),
+            int(sc_in_club_by_class.get(c.id, 0)),
         ))
 
-    return render_template(
+    html = render_template(
         "classes_list.html",
         classes=classes,
         teachers=teachers,
         buildings=buildings,
         year=year,
         all_years=all_years,
+        q=q_text,
+        is_admin=is_admin(current_user),
     )
+    view_response_cache.set(cache_key, html, timeout=60)
+    return html
+
+
+@children_bp.route("/classes/<int:class_id>")
+@login_required
+def class_detail(class_id):
+    """Страница класса: список учеников + блок Кубка (для ADMIN)."""
+    if not has_permission("children_registry_view"):
+        abort(403)
+
+    sc = SchoolClass.query.get_or_404(class_id)
+
+    if should_limit_children_to_own_class():
+        if sc.teacher_user_id != current_user.id:
+            abort(403)
+
+    enrollments = (
+        ChildEnrollment.query
+        .options(joinedload(ChildEnrollment.child))
+        .filter(
+            ChildEnrollment.school_class_id == class_id,
+            ChildEnrollment.ended_at.is_(None),
+        )
+        .all()
+    )
+    students = sorted(
+        [e.child for e in enrollments if e.child],
+        key=lambda c: ((c.last_name or "").lower(), (c.first_name or "").lower()),
+    )
+
+    teacher = User.query.get(sc.teacher_user_id) if sc.teacher_user_id else None
+
+    return render_template(
+        "class_detail.html",
+        school_class=sc,
+        students=students,
+        teacher=teacher,
+    )
+
 
 @children_bp.route("/classes/new", methods=["POST"])
 @require_roles("ADMIN")
@@ -2134,6 +2376,8 @@ def classes_new():
     _sync_class_teacher_role(teacher_user_id)
 
     db.session.commit()
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
     flash("Класс добавлен", "success")
     return redirect(url_for("children.classes_registry", academic_year_id=year.id))
 
@@ -2405,6 +2649,10 @@ def registry_enrolled():
         ChildEnrollment.query
         .join(Child, ChildEnrollment.child_id == Child.id)
         .join(SchoolClass, ChildEnrollment.school_class_id == SchoolClass.id)
+        .options(
+            contains_eager(ChildEnrollment.child),
+            contains_eager(ChildEnrollment.school_class),
+        )
         .filter(
             ChildEnrollment.academic_year_id == year.id,
             ChildEnrollment.ended_at.is_(None),
@@ -2617,6 +2865,7 @@ def incident_new():
         occurred_time = f"{occurred_hour}:{occurred_minute}"
         category = (request.form.get("category") or "").strip()
         description = (request.form.get("description") or "").strip() or None
+        initial_work = (request.form.get("initial_work") or "").strip() or None
 
         raw_ids = request.form.getlist("child_ids")
         child_ids = []
@@ -2663,13 +2912,54 @@ def incident_new():
             if ch:
                 db.session.add(IncidentChild(incident_id=inc.id, child_id=ch.id))
 
+        # Проделанная автором работа на момент подачи — опциональный первый
+        # пункт журнала работы. Идёт в IncidentNote с префиксом [Сделано автором].
+        if initial_work:
+            from app.models_legacy import IncidentNote
+            db.session.add(IncidentNote(
+                incident_id=inc.id,
+                author_id=getattr(current_user, "id", None),
+                text=f"[Сделано автором] {initial_work}",
+            ))
+
         db.session.commit()
         flash("Инцидент сохранён", "success")
         return redirect(url_for("children.incidents_my"))
 
+    preselected_student = None
+    student_id = request.args.get("student_id", type=int)
+    if student_id:
+        try:
+            ch = Child.query.get(student_id)
+        except Exception:
+            ch = None
+        if ch:
+            year = _get_current_year()
+            en = None
+            if year:
+                en = (
+                    ChildEnrollment.query
+                    .filter(ChildEnrollment.child_id == ch.id)
+                    .filter(ChildEnrollment.academic_year_id == year.id)
+                    .filter(ChildEnrollment.status == "ACTIVE")
+                    .order_by(ChildEnrollment.id.desc())
+                    .first()
+                )
+            sc = None
+            if en and en.school_class_id:
+                sc = SchoolClass.query.get(en.school_class_id)
+            preselected_student = {
+                "child_id": ch.id,
+                "fio": f"{ch.last_name or ''} {ch.first_name or ''} {ch.middle_name or ''}".strip(),
+                "grade": sc.grade if sc else None,
+                "class_id": sc.id if sc else None,
+                "class_name": sc.name if sc else None,
+            }
+
     return render_template(
         "incident_new.html",
-        categories=INCIDENT_CATEGORIES
+        categories=INCIDENT_CATEGORIES,
+        preselected_student=preselected_student,
     )
 
 
@@ -2762,13 +3052,312 @@ def _get_author_label(user):
 
 
 def _can_change_status():
-    """ADMIN, METHODIST, PSYCHOLOGIST, SOCIAL_PEDAGOG могут менять статус инцидента."""
-    return (
-        has_role("ADMIN")
-        or has_role("METHODIST")
-        or has_role("PSYCHOLOGIST")
-        or has_role("SOCIAL_PEDAGOG")
+    """Управлять ходом инцидента (смена статуса, назначение исполнителя,
+    принудительное закрытие) могут: ADMIN, DEPUTY_DIRECTOR.
+    PSYCHOLOGIST/SOCIAL_PEDAGOG/METHODIST видят инциденты, но flow не управляют —
+    они исполнители и могут только писать заметки и помечать «Отработано»."""
+    return has_role("ADMIN") or has_role("DEPUTY_DIRECTOR")
+
+
+def _can_mark_resolved(inc):
+    """Пометить инцидент как «Отработан» может текущий исполнитель (assignee)
+    или управляющий (ADMIN/DEPUTY_DIRECTOR)."""
+    if _can_change_status():
+        return True
+    uid = getattr(current_user, "id", None)
+    return bool(uid) and inc.assignee_id == uid
+
+
+# =========================================================
+# IncidentNote attachments (файлы к комментариям инцидента)
+# =========================================================
+INC_NOTE_ATT_ALLOWED = {
+    'pdf', 'doc', 'docx', 'xls', 'xlsx',
+    'jpg', 'jpeg', 'png', 'gif', 'webp',
+    'zip', 'txt',
+    'mp4', 'mov', 'webm',
+}
+INC_NOTE_ATT_MAX_SIZE = 100 * 1024 * 1024  # 100 МБ — потолок (видео)
+INC_NOTE_ATT_MAX_SIZE_NONVIDEO = 30 * 1024 * 1024  # документы/картинки 30 МБ
+INC_NOTE_VIDEO_EXT = {'mp4', 'mov', 'webm'}
+INC_NOTE_ATT_MAX_FILES = 10
+
+
+def _inc_note_upload_root():
+    from flask import current_app as _ca
+    from pathlib import Path as _Path
+    root = _ca.config.get("UPLOAD_FOLDER") or os.path.abspath(os.path.join("data", "uploads"))
+    path = os.path.join(root, "incident_notes")
+    os.makedirs(path, exist_ok=True)
+    return root, path
+
+
+def _inc_note_abs_path(stored_rel_path):
+    if not stored_rel_path:
+        return ""
+    if os.path.isabs(stored_rel_path):
+        return stored_rel_path
+    from flask import current_app as _ca
+    return os.path.join(_ca.config.get("UPLOAD_FOLDER") or os.path.abspath(os.path.join("data", "uploads")), stored_rel_path)
+
+
+def _save_incident_note_attachments(note, files):
+    """Сохраняет загруженные файлы в каталог uploads/incident_notes/<note_id>/
+    и пишет строки в incident_note_attachment. Возвращает список сохранённых."""
+    from pathlib import Path as _Path
+    from werkzeug.utils import secure_filename as _sfn
+    import uuid as _uuid
+
+    files = [f for f in (files or []) if f and getattr(f, "filename", "")]
+    if not files:
+        return []
+    if len(files) > INC_NOTE_ATT_MAX_FILES:
+        raise ValueError(f"К одному комментарию можно прикрепить не более {INC_NOTE_ATT_MAX_FILES} файлов.")
+
+    upload_root, _ = _inc_note_upload_root()
+    note_dir = os.path.join(upload_root, "incident_notes", str(note.id))
+    os.makedirs(note_dir, exist_ok=True)
+
+    saved = []
+    for storage in files:
+        original_name = (storage.filename or "").strip()
+        safe_name = _sfn(original_name) or "file"
+        ext = (_Path(safe_name).suffix or "").lower().lstrip(".")
+        if ext not in INC_NOTE_ATT_ALLOWED:
+            raise ValueError(f"Формат файла не поддерживается: {original_name}")
+
+        storage.stream.seek(0, os.SEEK_END)
+        size = storage.stream.tell()
+        storage.stream.seek(0)
+        max_size = INC_NOTE_ATT_MAX_SIZE if ext in INC_NOTE_VIDEO_EXT else INC_NOTE_ATT_MAX_SIZE_NONVIDEO
+        if size > max_size:
+            limit_mb = max_size // (1024 * 1024)
+            raise ValueError(f"Файл {original_name} превышает ограничение {limit_mb} МБ.")
+
+        stored_filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}.{ext}" if ext else f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}"
+        abs_path = os.path.join(note_dir, stored_filename)
+        storage.save(abs_path)
+        rel_path = os.path.relpath(abs_path, upload_root).replace("\\", "/")
+
+        row = IncidentNoteAttachment(
+            note_id=note.id,
+            filename=original_name,
+            stored_filename=stored_filename,
+            file_path=rel_path,
+            content_type=(storage.mimetype or None),
+            file_size=size,
+            uploaded_by_user_id=getattr(current_user, "id", None),
+        )
+        db.session.add(row)
+        saved.append(row)
+    return saved
+
+
+def _inc_note_att_to_dict(att):
+    ext = (att.filename or "").rsplit(".", 1)[-1].lower() if "." in (att.filename or "") else ""
+    kind = "video" if ext in INC_NOTE_VIDEO_EXT else ("image" if ext in {"jpg","jpeg","png","gif","webp"} else "file")
+    return {
+        "id": att.id,
+        "filename": att.filename,
+        "size": att.file_size or 0,
+        "kind": kind,
+        "content_type": att.content_type or "",
+        "url": url_for("children.incident_note_attachment_download", attachment_id=att.id),
+    }
+
+
+@children_bp.route("/incidents/note-attachments/<int:attachment_id>/download")
+@login_required
+def incident_note_attachment_download(attachment_id):
+    att = IncidentNoteAttachment.query.get_or_404(attachment_id)
+    note = att.note
+    if not note:
+        abort(404)
+    inc = note.incident
+    if not inc or not _can_view_incident(inc):
+        abort(403)
+    abs_path = _inc_note_abs_path(att.file_path)
+    if not abs_path or not os.path.exists(abs_path):
+        abort(404)
+    mime = att.content_type or mimetypes.guess_type(att.filename)[0] or "application/octet-stream"
+    # Для видео/картинок — inline, для остального — attachment.
+    ext = (att.filename or "").rsplit(".", 1)[-1].lower() if "." in (att.filename or "") else ""
+    inline = ext in INC_NOTE_VIDEO_EXT or ext in {"jpg","jpeg","png","gif","webp"} or ext == "pdf"
+    return send_file(
+        abs_path,
+        mimetype=mime,
+        as_attachment=(not inline),
+        download_name=att.filename,
     )
+
+
+@children_bp.route("/incidents/note-attachments/<int:attachment_id>/delete", methods=["POST"])
+@login_required
+def incident_note_attachment_delete(attachment_id):
+    att = IncidentNoteAttachment.query.get_or_404(attachment_id)
+    note = att.note
+    if not note:
+        abort(404)
+    inc = note.incident
+    if not inc:
+        abort(404)
+    # Удалить может: автор комментария или управляющий (ADMIN/DEPUTY).
+    uid = getattr(current_user, "id", None)
+    if not (_can_change_status() or (uid and note.author_id == uid)):
+        return jsonify({"error": "forbidden"}), 403
+
+    abs_path = _inc_note_abs_path(att.file_path)
+    try:
+        if abs_path and os.path.exists(abs_path):
+            os.remove(abs_path)
+    except Exception:
+        pass
+    db.session.delete(att)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# Классификация типов уведомлений для гибких режимов подписки
+# (см. User.notify_incident_mode и /profile/notifications).
+#   open    — инцидент появился у пользователя (вам назначили / автору: назначен исполнитель)
+#   status  — смена статуса (не финальная)
+#   close   — финальное закрытие (resolved / closed)
+#   note    — заметки и ответы в журнале инцидента
+# Тип incident_status_change раскрывается в status или close по new_status,
+# поэтому он не указан в таблице явно.
+_NOTIFY_EVENT_CLASS = {
+    "incident_assigned": "open",
+    "incident_author_update": "open",
+    "incident_resolved": "close",
+    "incident_note": "note",
+    "incident_note_reply": "note",
+}
+_NOTIFY_CLOSING_STATUSES = {"resolved", "closed"}
+_NOTIFY_MODE_ALLOWED = {
+    "all": {"open", "status", "close", "note"},
+    "status": {"status", "close"},
+    "open_close": {"open", "close"},
+    "close_only": {"close"},
+}
+
+
+def _notify_user(user_id, incident_id, notification_type, title, message, new_status=None):
+    """Создать запись уведомления (для колокольчика в шапке). Безопасно:
+    если user_id пустой — ничего не делает.
+    Фильтрует по User.notify_incident_mode: all / status / open_close / close_only.
+    new_status передаётся для incident_status_change — если статус закрывающий
+    (resolved/closed), событие считается «закрытием»."""
+    if not user_id:
+        return
+    from app.models_legacy import IncidentNotification, User as _UserModel
+    try:
+        u = _UserModel.query.get(user_id)
+    except Exception:
+        u = None
+    mode = (getattr(u, "notify_incident_mode", None) or "all").strip() or "all"
+    if mode != "all":
+        if notification_type == "incident_status_change":
+            ev = "close" if (new_status in _NOTIFY_CLOSING_STATUSES) else "status"
+        else:
+            ev = _NOTIFY_EVENT_CLASS.get(notification_type)
+        allowed = _NOTIFY_MODE_ALLOWED.get(mode, _NOTIFY_MODE_ALLOWED["all"])
+        if ev is None or ev not in allowed:
+            return
+    db.session.add(IncidentNotification(
+        incident_id=incident_id,
+        user_id=user_id,
+        notification_type=notification_type,
+        title=title[:255],
+        message=message,
+    ))
+
+
+def _log_status_change(inc, old_status, new_status, comment=None):
+    from app.models_legacy import IncidentStatusHistory
+    if old_status == new_status:
+        return
+    db.session.add(IncidentStatusHistory(
+        incident_id=inc.id,
+        from_status=old_status,
+        to_status=new_status,
+        changed_by_id=getattr(current_user, "id", None),
+        comment=comment,
+    ))
+
+
+def _log_assignment_change(inc, old_assignee_id, new_assignee_id, note=None):
+    """Закрыть текущую запись и открыть новую при смене assignee."""
+    from app.models_legacy import IncidentAssignment
+    if old_assignee_id == new_assignee_id:
+        return
+    now = datetime.utcnow()
+    current = (
+        IncidentAssignment.query
+        .filter_by(incident_id=inc.id, ended_at=None)
+        .order_by(IncidentAssignment.assigned_at.desc())
+        .first()
+    )
+    if current:
+        current.ended_at = now
+    db.session.add(IncidentAssignment(
+        incident_id=inc.id,
+        from_user_id=old_assignee_id,
+        to_user_id=new_assignee_id,
+        assigned_by_id=getattr(current_user, "id", None),
+        note=note,
+        assigned_at=now,
+    ))
+
+
+def _auto_create_task_for_incident(inc, assignee_user):
+    """Автосоздание задачи для исполнителя инцидента.
+    Создаётся только для PSYCHOLOGIST/SOCIAL_PEDAGOG/METHODIST.
+    Если задача на этот инцидент уже существует и не закрыта — меняем responsible.
+    Если закрыта — создаём новую."""
+    if not assignee_user:
+        return None
+    role = getattr(assignee_user, "role", None) or ""
+    role_codes = set()
+    try:
+        role_codes = {r.code for r in (assignee_user.roles or [])}
+    except Exception:
+        pass
+    eligible = {"PSYCHOLOGIST", "SOCIAL_PEDAGOG", "METHODIST"}
+    if role not in eligible and not (role_codes & eligible):
+        return None
+
+    from app.models.tasks import Task
+    from app.models_legacy import AcademicYear
+    existing = (
+        Task.query
+        .filter(Task.incident_id == inc.id)
+        .filter(Task.status.notin_([Task.STATUS_CLOSED, Task.STATUS_CANCELLED, Task.STATUS_DONE]))
+        .order_by(Task.id.desc())
+        .first()
+    )
+    if existing:
+        if existing.responsible_user_id != assignee_user.id:
+            existing.responsible_user_id = assignee_user.id
+        return existing
+
+    year = AcademicYear.query.filter_by(is_current=True).first()
+    title = f"[Инцидент #{inc.id}] {inc.category or 'Инцидент'}"
+    description = (inc.description or "").strip()
+    if description:
+        description = f"Инцидент от {inc.occurred_at.strftime('%d.%m.%Y %H:%M') if inc.occurred_at else '—'}\nКатегория: {inc.category}\n\n{description}"
+    task = Task(
+        title=title[:255],
+        description=description or None,
+        priority="обычный",
+        status=Task.STATUS_NEW,
+        creator_user_id=getattr(current_user, "id", None) or assignee_user.id,
+        responsible_user_id=assignee_user.id,
+        incident_id=inc.id,
+        academic_year_id=year.id if year else None,
+        deadline_at=datetime.utcnow() + timedelta(days=3),
+    )
+    db.session.add(task)
+    return task
 
 
 def _build_incident_rows(incidents, include_author=False):
@@ -2780,16 +3369,25 @@ def _build_incident_rows(incidents, include_author=False):
     links = (
         db.session.query(IncidentChild, Child)
         .join(Child, Child.id == IncidentChild.child_id)
+        .options(
+            joinedload(Child.enrollments)
+                .joinedload(ChildEnrollment.school_class)
+                .joinedload(SchoolClass.building),
+        )
         .filter(IncidentChild.incident_id.in_(inc_ids))
         .all()
     )
     # group by incident_id
     kids_map = {}
     for lk, ch in links:
+        cur_cls = ch.current_class
+        bld = cur_cls.building if cur_cls else None
         kids_map.setdefault(lk.incident_id, []).append({
             "id": ch.id,
             "fio": ch.fio,
             "class": ch.current_class_name or "—",
+            "class_id": cur_cls.id if cur_cls else None,
+            "building": (bld.short_name or bld.name) if bld else None,
         })
     rows = []
     for inc in incidents:
@@ -2800,20 +3398,57 @@ def _build_incident_rows(incidents, include_author=False):
     return rows
 
 
-def _can_manage_incident(incident):
+def _can_view_incident(incident):
+    """Открыть карточку инцидента (GET).
+    Разрешено: управляющим (ADMIN/DEPUTY_DIRECTOR), аналитическим ролям
+    (METHODIST/PSYCHOLOGIST/SOCIAL_PEDAGOG — у них уже есть реестр/дашборд),
+    автору инцидента и назначенному исполнителю."""
     if _can_change_status():
         return True
-    return bool(getattr(current_user, "id", None)) and incident.author_id == current_user.id and has_permission("incident_add")
+    uid = getattr(current_user, "id", None)
+    if not uid:
+        return False
+    if has_role("METHODIST") or has_role("PSYCHOLOGIST") or has_role("SOCIAL_PEDAGOG"):
+        return True
+    if incident.author_id == uid:
+        return True
+    if incident.assignee_id == uid:
+        return True
+    return False
+
+
+def _can_edit_incident(incident):
+    """Редактировать поля инцидента (дата/категория/описание/участники) и удалять.
+    Разрешено: управляющим (ADMIN/DEPUTY_DIRECTOR), социальному педагогу
+    (ведёт инциденты наравне с управлением) и автору. PSYCHOLOGIST/METHODIST —
+    только смотрят."""
+    if _can_change_status():
+        return True
+    if has_role("SOCIAL_PEDAGOG"):
+        return True
+    uid = getattr(current_user, "id", None)
+    if not uid:
+        return False
+    if incident.author_id == uid and has_permission("incident_add"):
+        return True
+    return False
+
+
+# Совместимость со старым кодом (ранее единая проверка).
+def _can_manage_incident(incident):
+    return _can_view_incident(incident)
 
 
 @children_bp.route("/incidents/<int:incident_id>/edit", methods=["GET", "POST"])
 @login_required
 def incident_edit(incident_id):
     inc = Incident.query.get_or_404(incident_id)
-    if not _can_manage_incident(inc):
+    if not _can_view_incident(inc):
         abort(403)
 
     if request.method == "POST":
+        if not _can_edit_incident(inc):
+            abort(403)
         occurred_date = (request.form.get("occurred_date") or "").strip()
         occurred_hour = (request.form.get("occurred_hour") or "").strip()
         occurred_minute = (request.form.get("occurred_minute") or "").strip()
@@ -2854,13 +3489,67 @@ def incident_edit(incident_id):
         inc.category = category
         inc.description = description
 
+        old_status = inc.status or "new"
+        old_assignee_id = inc.assignee_id
+
         new_status = (request.form.get("status") or "").strip()
-        if new_status in ("new", "in_progress", "closed") and _can_change_status():
+        if new_status in Incident.STATUS_LABELS and _can_change_status():
             inc.status = new_status
 
         if _can_change_status():
             assignee_id = request.form.get("assignee_id", type=int)
-            inc.assignee_id = assignee_id or None
+            new_assignee_id = assignee_id or None
+            assignment_note = (request.form.get("assignment_note") or "").strip() or None
+            if new_assignee_id != old_assignee_id:
+                inc.assignee_id = new_assignee_id
+                _log_assignment_change(inc, old_assignee_id, new_assignee_id, note=assignment_note)
+                if assignment_note and new_assignee_id:
+                    from app.models_legacy import IncidentNote
+                    db.session.add(IncidentNote(
+                        incident_id=inc.id,
+                        author_id=getattr(current_user, "id", None),
+                        text=f"[Назначение] {assignment_note}",
+                    ))
+                # Автопереход new → assigned при назначении исполнителя
+                if new_assignee_id and (inc.status or "new") == "new":
+                    inc.status = "assigned"
+                # Если assignee убрали — возврат в new
+                if not new_assignee_id and inc.status == "assigned":
+                    inc.status = "new"
+                # Автосоздание задачи для исполнителя (PSY/SOC/METH)
+                if new_assignee_id:
+                    from app.models_legacy import User as _User
+                    assignee_user = _User.query.get(new_assignee_id)
+                    _auto_create_task_for_incident(inc, assignee_user)
+                    preview = assignment_note if assignment_note else (inc.description or "")
+                    _notify_user(
+                        new_assignee_id, inc.id, "incident_assigned",
+                        f"Вам назначен инцидент #{inc.id}",
+                        f"{inc.category}: {preview[:120]}",
+                    )
+                    if inc.author_id and inc.author_id != new_assignee_id:
+                        _notify_user(
+                            inc.author_id, inc.id, "incident_author_update",
+                            f"По вашему инциденту #{inc.id} назначен исполнитель",
+                            f"{inc.category}",
+                        )
+
+        if inc.status != old_status:
+            _log_status_change(inc, old_status, inc.status)
+            if inc.author_id and inc.author_id != getattr(current_user, "id", None):
+                _notify_user(
+                    inc.author_id, inc.id, "incident_status_change",
+                    f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(inc.status, inc.status)}",
+                    f"{inc.category}",
+                    new_status=inc.status,
+                )
+            if inc.assignee_id and inc.assignee_id != getattr(current_user, "id", None):
+                _notify_user(
+                    inc.assignee_id, inc.id, "incident_status_change",
+                    f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(inc.status, inc.status)}",
+                    f"{inc.category}",
+                    new_status=inc.status,
+                )
 
         IncidentChild.query.filter_by(incident_id=inc.id).delete()
         for cid in child_ids:
@@ -2899,14 +3588,51 @@ def incident_edit(incident_id):
             _User.query
             .join(_UserRole, _UserRole.user_id == _User.id)
             .join(_Role, _Role.id == _UserRole.role_id)
-            .filter(_Role.code.in_(["ADMIN", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "METHODIST"]))
+            .filter(_Role.code.in_([
+                "ADMIN", "DEPUTY_DIRECTOR", "PSYCHOLOGIST", "SOCIAL_PEDAGOG",
+                "METHODIST", "CLASS_TEACHER", "TEACHER",
+            ]))
+            .distinct()
             .order_by(_User.last_name, _User.first_name)
             .all()
         )
 
     is_author = inc.author_id == getattr(current_user, "id", None)
     is_assignee = inc.assignee_id == getattr(current_user, "id", None)
-    can_add_note = _can_change_status() or is_author or is_assignee
+    can_add_note = _can_change_status() or has_role("SOCIAL_PEDAGOG") or is_author or is_assignee
+    # Отвечать (reply) могут: ADMIN/DEPUTY, SOCIAL_PEDAGOG, автор инцидента.
+    # Исполнитель-assignee не в списке по договорённости с пользователем.
+    can_reply = _can_change_status() or has_role("SOCIAL_PEDAGOG") or is_author
+
+    # Группируем заметки в 2-уровневые треды: root + ответы.
+    # inc.notes отсортированы по created_at ASC (order_by в relationship).
+    note_threads = []
+    _by_id = {}
+    for _n in (inc.notes or []):
+        _by_id[_n.id] = {"note": _n, "replies": []}
+    for _n in (inc.notes or []):
+        if _n.parent_id and _n.parent_id in _by_id:
+            # Ответ на ответ — прикрепляем к корню треда, чтобы не было
+            # глубокой вложенности.
+            _root_id = _n.parent_id
+            while _by_id[_root_id]["note"].parent_id and _by_id[_root_id]["note"].parent_id in _by_id:
+                _root_id = _by_id[_root_id]["note"].parent_id
+            _by_id[_root_id]["replies"].append(_by_id[_n.id])
+        else:
+            note_threads.append(_by_id[_n.id])
+
+    # Связанные задачи (автосозданные через _auto_create_task_for_incident + ручные)
+    related_tasks = []
+    try:
+        from app.models import Task as _Task
+        related_tasks = (
+            _Task.query
+            .filter(_Task.incident_id == inc.id)
+            .order_by(_Task.created_at.desc().nullslast(), _Task.id.desc())
+            .all()
+        )
+    except Exception:
+        related_tasks = []
 
     return render_template(
         "incident_edit.html",
@@ -2914,9 +3640,13 @@ def incident_edit(incident_id):
         categories=INCIDENT_CATEGORIES,
         selected_blocks=selected_blocks,
         can_change_status=_can_change_status(),
+        can_edit_incident=_can_edit_incident(inc),
         assignees=assignees,
         notes=inc.notes,
+        note_threads=note_threads,
         can_add_note=can_add_note,
+        can_reply=can_reply,
+        related_tasks=related_tasks,
     )
 
 
@@ -2924,7 +3654,7 @@ def incident_edit(incident_id):
 @login_required
 def incident_delete(incident_id):
     inc = Incident.query.get_or_404(incident_id)
-    if not _can_manage_incident(inc):
+    if not _can_edit_incident(inc):
         abort(403)
 
     child_id = None
@@ -2952,31 +3682,277 @@ def incident_set_status(incident_id):
         return jsonify({"error": "forbidden"}), 403
     inc = Incident.query.get_or_404(incident_id)
     new_status = (request.form.get("status") or "").strip()
-    if new_status not in ("new", "in_progress", "closed"):
+    if new_status not in Incident.STATUS_LABELS:
         return jsonify({"error": "invalid"}), 400
-    inc.status = new_status
+    old_status = inc.status or "new"
+    if old_status != new_status:
+        inc.status = new_status
+        _log_status_change(inc, old_status, new_status)
+        if inc.author_id and inc.author_id != getattr(current_user, "id", None):
+            _notify_user(
+                inc.author_id, inc.id, "incident_status_change",
+                f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(new_status, new_status)}",
+                f"{inc.category}",
+                new_status=new_status,
+            )
+        if inc.assignee_id and inc.assignee_id != getattr(current_user, "id", None):
+            _notify_user(
+                inc.assignee_id, inc.id, "incident_status_change",
+                f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(new_status, new_status)}",
+                f"{inc.category}",
+                new_status=new_status,
+            )
     db.session.commit()
     return jsonify({"ok": True, "status": inc.status, "label": inc.status_label})
+
+
+@children_bp.route("/incidents/<int:incident_id>/set-assignee", methods=["POST"])
+@login_required
+def incident_set_assignee(incident_id):
+    """Назначить исполнителя прямо из реестра / /incidents/my, без захода в карточку.
+    Повторяет логику формы incident_edit: автопереход статусов и автосоздание Task.
+    Принимает опциональное поле `note` — пояснение для исполнителя; сохраняется
+    в IncidentAssignment.note, попадает в журнал работы (IncidentNote) и
+    добавляется в preview уведомления."""
+    if not _can_change_status():
+        return jsonify({"error": "forbidden"}), 403
+    inc = Incident.query.get_or_404(incident_id)
+
+    raw = (request.form.get("assignee_id") or "").strip()
+    new_assignee_id = int(raw) if raw.isdigit() else None
+    old_assignee_id = inc.assignee_id
+    note_text = (request.form.get("note") or "").strip() or None
+
+    if new_assignee_id == old_assignee_id:
+        return jsonify({"ok": True, "status": inc.status, "assignee_id": inc.assignee_id, "assignee_label": _assignee_short_label(inc)})
+
+    inc.assignee_id = new_assignee_id
+    _log_assignment_change(inc, old_assignee_id, new_assignee_id, note=note_text)
+
+    # Пояснение от управляющего — в журнал инцидента, чтобы было видно на странице.
+    if note_text and new_assignee_id:
+        from app.models_legacy import IncidentNote
+        db.session.add(IncidentNote(
+            incident_id=inc.id,
+            author_id=getattr(current_user, "id", None),
+            text=f"[Назначение] {note_text}",
+        ))
+
+    old_status = inc.status or "new"
+    if new_assignee_id and old_status == "new":
+        inc.status = "assigned"
+    if not new_assignee_id and inc.status == "assigned":
+        inc.status = "new"
+    if inc.status != old_status:
+        _log_status_change(inc, old_status, inc.status)
+
+    assignee_user = None
+    if new_assignee_id:
+        from app.models_legacy import User as _User
+        assignee_user = _User.query.get(new_assignee_id)
+        _auto_create_task_for_incident(inc, assignee_user)
+        # В уведомление исполнителю — категория + либо пояснение от управляющего,
+        # либо описание инцидента (как раньше).
+        preview = note_text if note_text else (inc.description or "")
+        _notify_user(
+            new_assignee_id, inc.id, "incident_assigned",
+            f"Вам назначен инцидент #{inc.id}",
+            f"{inc.category}: {preview[:120]}",
+        )
+        if inc.author_id and inc.author_id != new_assignee_id:
+            _notify_user(
+                inc.author_id, inc.id, "incident_author_update",
+                f"По вашему инциденту #{inc.id} назначен исполнитель",
+                f"{inc.category}",
+            )
+
+    db.session.commit()
+    return jsonify({
+        "ok": True,
+        "status": inc.status,
+        "assignee_id": inc.assignee_id,
+        "assignee_label": _assignee_short_label(inc),
+    })
+
+
+def _assignee_short_label(inc):
+    u = inc.assignee
+    if not u:
+        return None
+    last = getattr(u, "last_name", None) or ""
+    first = getattr(u, "first_name", None) or ""
+    if last and first:
+        return f"{last} {first[:1]}."
+    return last or first or (getattr(u, "username", "") or "—")
+
+
+@children_bp.route("/incidents/<int:incident_id>/mark-resolved", methods=["POST"])
+@login_required
+def incident_mark_resolved(incident_id):
+    """Исполнитель помечает инцидент как «Отработан» — финальное закрытие
+    по-прежнему за управляющим.
+    Требует непустой comment. Файлы (files[]) опциональны — сохраняются как
+    вложения к той же заметке через тот же пайп, что у add_note."""
+    inc = Incident.query.get_or_404(incident_id)
+    if not _can_mark_resolved(inc):
+        return jsonify({"error": "forbidden"}), 403
+    if inc.status in ("resolved", "closed"):
+        return jsonify({"ok": True, "status": inc.status, "label": inc.status_label})
+    comment = (request.form.get("comment") or "").strip()
+    if not comment:
+        return jsonify({"error": "comment_required"}), 400
+
+    old_status = inc.status or "new"
+    inc.status = "resolved"
+    _log_status_change(inc, old_status, "resolved", comment=comment)
+
+    # Заметку с префиксом [Отработано] создаём всегда — чтобы описание работы
+    # было видно на странице инцидента и в журнале.
+    from app.models_legacy import IncidentNote
+    note = IncidentNote(
+        incident_id=inc.id,
+        author_id=getattr(current_user, "id", None),
+        text=f"[Отработано] {comment}",
+    )
+    db.session.add(note)
+    db.session.flush()  # нужен note.id для путей вложений
+
+    # Опциональные вложения (как в add_note)
+    files = request.files.getlist("files[]") or request.files.getlist("files")
+    saved_attachments = []
+    if files and any(f and getattr(f, "filename", "") for f in files):
+        try:
+            saved_attachments = _save_incident_note_attachments(note, files)
+        except ValueError as _ve:
+            db.session.rollback()
+            return jsonify({"error": str(_ve)}), 400
+        except Exception:
+            db.session.rollback()
+            return jsonify({"error": "upload_failed"}), 500
+
+    # уведомления управляющим и автору
+    if inc.author_id and inc.author_id != getattr(current_user, "id", None):
+        _notify_user(
+            inc.author_id, inc.id, "incident_resolved",
+            f"Инцидент #{inc.id} отработан",
+            f"{inc.category}: {comment[:120]}",
+        )
+    # уведомления всем ADMIN и DEPUTY_DIRECTOR
+    try:
+        from app.models_legacy import User as _User, UserRole as _UserRole, Role as _Role
+        managers = (
+            _User.query
+            .join(_UserRole, _UserRole.user_id == _User.id)
+            .join(_Role, _Role.id == _UserRole.role_id)
+            .filter(_Role.code.in_(["ADMIN", "DEPUTY_DIRECTOR"]))
+            .all()
+        )
+        me_id = getattr(current_user, "id", None)
+        for mgr in managers:
+            if mgr.id == me_id:
+                continue
+            _notify_user(
+                mgr.id, inc.id, "incident_resolved",
+                f"Исполнитель отметил инцидент #{inc.id} как «Отработан»",
+                f"{inc.category}: {comment[:120]}",
+            )
+    except Exception:
+        pass
+
+    db.session.commit()
+    return jsonify({
+        "ok": True,
+        "status": inc.status,
+        "label": inc.status_label,
+        "attachments": len(saved_attachments),
+    })
 
 
 @children_bp.route("/incidents/<int:incident_id>/add-note", methods=["POST"])
 @login_required
 def incident_add_note(incident_id):
     inc = Incident.query.get_or_404(incident_id)
-    # Добавлять заметки может автор, исполнитель или тот, у кого право менять статус
+    # Писать заметки могут: ADMIN/DEPUTY, SOCIAL_PEDAGOG, автор инцидента, исполнитель.
+    # Для ответа (reply) круг тот же — соответствует договорённости.
     is_author = inc.author_id == getattr(current_user, "id", None)
     is_assignee = inc.assignee_id == getattr(current_user, "id", None)
-    if not (_can_change_status() or is_author or is_assignee):
+    if not (_can_change_status() or has_role("SOCIAL_PEDAGOG") or is_author or is_assignee):
         return jsonify({"error": "forbidden"}), 403
     text = (request.form.get("text") or "").strip()
-    if not text:
+    incoming_files = request.files.getlist("files[]") or request.files.getlist("files")
+    has_files = any(f and getattr(f, "filename", "") for f in incoming_files)
+    if not text and not has_files:
         return jsonify({"error": "empty"}), 400
+    if not text and has_files:
+        text = "(вложение)"
+
+    parent_id = request.form.get("parent_id", type=int)
+    parent = None
+    if parent_id:
+        parent = IncidentNote.query.get(parent_id)
+        # parent должен принадлежать тому же инциденту — иначе игнорируем
+        if not parent or parent.incident_id != inc.id:
+            parent = None
+            parent_id = None
+
     note = IncidentNote(
         incident_id=inc.id,
         author_id=current_user.id,
         text=text,
+        parent_id=(parent.id if parent else None),
     )
     db.session.add(note)
+    db.session.flush()  # получить note.id для пути вложений
+
+    # Сохранение вложений (multipart/form-data, поле files[])
+    saved_attachments = []
+    try:
+        files = request.files.getlist("files[]") or request.files.getlist("files")
+        if files:
+            saved_attachments = _save_incident_note_attachments(note, files)
+    except ValueError as _ve:
+        db.session.rollback()
+        return jsonify({"error": str(_ve)}), 400
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "upload_failed"}), 500
+
+    me_id = getattr(current_user, "id", None)
+    preview = text[:120]
+
+    if parent:
+        # Целевое уведомление автору исходного комментария: «вам ответили»
+        if parent.author_id and parent.author_id != me_id:
+            _notify_user(
+                parent.author_id, inc.id, "incident_note_reply",
+                f"Вам ответили в инциденте #{inc.id}",
+                preview,
+            )
+        # Плюс — общее уведомление участникам цепочки (автор/исполнитель),
+        # кроме того, кому только что отправили целевое.
+        targets = set()
+        if inc.author_id and inc.author_id not in (me_id, parent.author_id):
+            targets.add(inc.author_id)
+        if inc.assignee_id and inc.assignee_id not in (me_id, parent.author_id):
+            targets.add(inc.assignee_id)
+        for tgt in targets:
+            _notify_user(
+                tgt, inc.id, "incident_note",
+                f"Новая заметка в инциденте #{inc.id}",
+                preview,
+            )
+    else:
+        targets = set()
+        if inc.author_id and inc.author_id != me_id:
+            targets.add(inc.author_id)
+        if inc.assignee_id and inc.assignee_id != me_id:
+            targets.add(inc.assignee_id)
+        for tgt in targets:
+            _notify_user(
+                tgt, inc.id, "incident_note",
+                f"Новая заметка в инциденте #{inc.id}",
+                preview,
+            )
     db.session.commit()
     author = note.author
     author_name = " ".join(p for p in [author.last_name or "", author.first_name or ""] if p)
@@ -2986,7 +3962,100 @@ def incident_add_note(incident_id):
         "text": note.text,
         "author": author_name or author.username,
         "created_at": note.created_at.strftime("%d.%m.%Y %H:%M"),
+        "parent_id": note.parent_id,
+        "attachments": [_inc_note_att_to_dict(a) for a in saved_attachments],
     })
+
+
+@children_bp.route("/incidents/notifications/read/<int:notif_id>", methods=["POST"])
+@login_required
+def incident_notification_read(notif_id):
+    from app.models_legacy import IncidentNotification
+    n = IncidentNotification.query.get_or_404(notif_id)
+    if n.user_id != current_user.id:
+        return jsonify({"error": "forbidden"}), 403
+    if not n.is_read:
+        n.is_read = True
+        n.read_at = datetime.utcnow()
+        db.session.commit()
+    incident_id = n.incident_id
+    next_url = request.form.get("next") or url_for("children.incident_edit", incident_id=incident_id)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "incident_id": incident_id})
+    return redirect(next_url)
+
+
+@children_bp.route("/incidents/notifications/mark-all-read", methods=["POST"])
+@login_required
+def incident_notifications_mark_all():
+    from app.models_legacy import IncidentNotification
+    now = datetime.utcnow()
+    (
+        IncidentNotification.query
+        .filter_by(user_id=current_user.id, is_read=False)
+        .update({"is_read": True, "read_at": now})
+    )
+    db.session.commit()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True})
+    return redirect(request.referrer or url_for("children.incidents_my"))
+
+
+@children_bp.route("/incidents/<int:incident_id>/timeline")
+@login_required
+def incident_timeline(incident_id):
+    """Объединённый таймлайн: заметки + смены статуса + смены исполнителя."""
+    from app.models_legacy import IncidentNote, IncidentStatusHistory, IncidentAssignment
+    inc = Incident.query.get_or_404(incident_id)
+    # Права на просмотр таймлайна: автор, исполнитель или тот, кто видит реестр
+    uid = getattr(current_user, "id", None)
+    if not (
+        _can_change_status()
+        or inc.author_id == uid
+        or inc.assignee_id == uid
+        or has_permission("incident_registry_view")
+    ):
+        abort(403)
+
+    events = []
+    events.append({
+        "kind": "created",
+        "ts": inc.created_at or inc.occurred_at,
+        "actor": inc.author,
+        "text": f"Инцидент создан: {inc.category}",
+    })
+    for note in (inc.notes or []):
+        events.append({
+            "kind": "note",
+            "ts": note.created_at,
+            "actor": note.author,
+            "text": note.text,
+        })
+    for s in (inc.status_history or []):
+        from_lbl = Incident.STATUS_LABELS.get(s.from_status, s.from_status or "—")
+        to_lbl = Incident.STATUS_LABELS.get(s.to_status, s.to_status)
+        events.append({
+            "kind": "status",
+            "ts": s.changed_at,
+            "actor": s.changed_by,
+            "text": f"Статус: {from_lbl} → {to_lbl}" + (f". {s.comment}" if s.comment else ""),
+        })
+    for a in (inc.assignments or []):
+        from_name = (a.from_user.fio if a.from_user else "—")
+        to_name = (a.to_user.fio if a.to_user else "—")
+        events.append({
+            "kind": "assignment",
+            "ts": a.assigned_at,
+            "actor": a.assigned_by,
+            "text": f"Ведение: {from_name} → {to_name}" + (f". {a.note}" if a.note else ""),
+        })
+    events.sort(key=lambda e: e["ts"] or datetime.utcnow())
+
+    return render_template(
+        "incident_timeline.html",
+        incident=inc,
+        events=events,
+    )
 
 
 @children_bp.route("/incidents/registry")
@@ -3005,12 +4074,16 @@ def incidents_registry():
         db.session.query(Incident)
         .join(IncidentChild, IncidentChild.incident_id == Incident.id)
         .join(Child, Child.id == IncidentChild.child_id)
+        .options(
+            joinedload(Incident.author),
+            joinedload(Incident.assignee),
+        )
     )
 
     if category:
         iq = iq.filter(Incident.category == category)
 
-    if status_filter in ("new", "in_progress", "closed"):
+    if status_filter in Incident.STATUS_LABELS:
         iq = iq.filter(Incident.status == status_filter)
 
     if q_text:
@@ -3060,6 +4133,7 @@ def incidents_registry():
         categories=INCIDENT_CATEGORIES,
         classes=classes,
         can_change_status=_can_change_status(),
+        is_admin=is_admin(current_user),
         export_url=url_for("children.incidents_registry_export", grade=grade, class_id=class_id, category=category, q=q_text)
     )
 
@@ -3142,30 +4216,233 @@ def incidents_registry_export():
 @children_bp.route("/incidents/my")
 @login_required
 def incidents_my():
-    my_incidents = (
-        db.session.query(Incident)
-        .filter(Incident.author_id == current_user.id)
-        .order_by(Incident.occurred_at.desc(), Incident.id.desc())
-        .all()
-    )
+    """
+    Страница «Инциденты / Мои заявки». Два режима:
+      • admin-view (ADMIN/DEPUTY_DIRECTOR): 3 вкладки по всем инцидентам
+        — Входящие (new), В работе (assigned+in_progress), Завершённые (resolved+closed).
+        На каждой вкладке — фильтры: категория, класс, поиск и сортировка.
+      • user-view: «Мои заявки» — только инциденты, где текущий пользователь автор,
+        с подгруженной последней заметкой исполнителя.
+    """
+    uid = current_user.id
+    is_admin_view = _can_change_status()
+    # Социальный педагог получает admin-view, но ограниченный его назначениями
+    # и без picker-а исполнителя / смены статуса. Флаг отличает его от ADMIN/DEPUTY
+    # там, где это важно (фильтр по assignee, tab-labels, доступ к колонке Кубок).
+    is_social_view = (not is_admin_view) and has_role("SOCIAL_PEDAGOG")
 
-    assigned_incidents = []
-    if _can_change_status():
-        assigned_incidents = (
+    # Общие параметры фильтрации (действуют на всех вкладках админ-вида)
+    default_tab = "incoming" if (is_admin_view or is_social_view) else "mine"
+    active_tab = (request.args.get("tab") or default_tab).strip()
+    f_category = (request.args.get("category") or "").strip()
+    f_class_id = request.args.get("class_id", type=int)
+    f_q = (request.args.get("q") or "").strip()
+    f_sort = (request.args.get("sort") or "date_desc").strip()
+
+    year = _get_current_year()
+
+    # ── Вариант для обычного пользователя ──
+    # Две вкладки: «Мои заявки» (где я автор) + «Назначены мне» (где я исполнитель).
+    # SOCIAL_PEDAGOG не попадает сюда — он использует admin-view, но с фильтром по assignee.
+    if not is_admin_view and not is_social_view:
+        user_tab = active_tab if active_tab in ("mine", "assigned") else "mine"
+
+        authored = (
             db.session.query(Incident)
-            .filter(
-                Incident.assignee_id == current_user.id,
-                Incident.author_id != current_user.id,
-            )
+            .filter(Incident.author_id == uid)
             .order_by(Incident.occurred_at.desc(), Incident.id.desc())
             .all()
         )
+        assigned = (
+            db.session.query(Incident)
+            .filter(Incident.assignee_id == uid)
+            .order_by(Incident.occurred_at.desc(), Incident.id.desc())
+            .all()
+        )
+        authored_rows = _build_incident_rows(authored, include_author=True)
+        assigned_rows = _build_incident_rows(assigned, include_author=True)
+
+        from app.models_legacy import IncidentNote
+        for r in authored_rows:
+            r["last_note"] = (
+                IncidentNote.query
+                .filter_by(incident_id=r["inc"].id)
+                .order_by(IncidentNote.created_at.desc())
+                .first()
+            )
+
+        user_counters = {
+            "mine":     len(authored_rows),
+            "assigned": len(assigned_rows),
+        }
+
+        return render_template(
+            "incidents_my.html",
+            is_admin_view=False,
+            user_tab=user_tab,
+            user_counters=user_counters,
+            authored_rows=authored_rows,
+            assigned_rows=assigned_rows,
+            status_labels=Incident.STATUS_LABELS,
+            current_user_id=uid,
+        )
+
+    # ── Вариант для ADMIN / DEPUTY_DIRECTOR и SOCIAL_PEDAGOG ──
+    # ADMIN/DEPUTY: 3 вкладки по всем инцидентам.
+    # SOCIAL_PEDAGOG: те же 3 вкладки (все инциденты по школе, read-only — без picker/смены статуса),
+    # плюс 4-я вкладка «Назначенные мне» (только мои) — там разрешены edit/delete и «Я отработал».
+    STATUS_BUCKETS = {
+        "incoming":  ["new"],
+        "in_work":   ["assigned", "in_progress"],
+        "completed": ["resolved", "closed"],
+    }
+
+    # Для social-view добавляем виртуальный bucket mine_all — все статусы кроме closed,
+    # отфильтрованные по assignee_id=uid.
+    if active_tab == "mine" and is_social_view:
+        iq = db.session.query(Incident).filter(
+            Incident.assignee_id == uid,
+            Incident.status != "closed",
+        )
+        statuses = None  # не используется ниже
+    else:
+        statuses = STATUS_BUCKETS.get(active_tab, STATUS_BUCKETS["incoming"])
+        iq = db.session.query(Incident).filter(Incident.status.in_(statuses))
+
+    if f_category:
+        iq = iq.filter(Incident.category == f_category)
+
+    if f_q:
+        ql = f_q.lower()
+        iq = (
+            iq.join(IncidentChild, IncidentChild.incident_id == Incident.id, isouter=True)
+              .join(Child, Child.id == IncidentChild.child_id, isouter=True)
+              .filter(
+                  func.lower(func.coalesce(Child.last_name, "")).like(f"%{ql}%") |
+                  func.lower(func.coalesce(Child.first_name, "")).like(f"%{ql}%") |
+                  func.lower(func.coalesce(Child.middle_name, "")).like(f"%{ql}%") |
+                  func.lower(func.coalesce(Incident.description, "")).like(f"%{ql}%")
+              )
+              .distinct()
+        )
+
+    if f_class_id and year:
+        iq = (
+            iq.join(IncidentChild, IncidentChild.incident_id == Incident.id, isouter=True)
+              .join(ChildEnrollment, ChildEnrollment.child_id == IncidentChild.child_id, isouter=True)
+              .filter(
+                  ChildEnrollment.academic_year_id == year.id,
+                  ChildEnrollment.ended_at.is_(None),
+                  ChildEnrollment.school_class_id == f_class_id,
+              )
+              .distinct()
+        )
+
+    # Сортировка
+    if f_sort == "date_asc":
+        iq = iq.order_by(Incident.occurred_at.asc().nullslast(), Incident.id.asc())
+    elif f_sort == "category":
+        iq = iq.order_by(Incident.category.asc().nullslast(), Incident.occurred_at.desc())
+    elif f_sort == "status":
+        iq = iq.order_by(Incident.status.asc(), Incident.occurred_at.desc())
+    else:
+        iq = iq.order_by(Incident.occurred_at.desc().nullslast(), Incident.id.desc())
+
+    incidents = iq.limit(500).all()
+    rows = _build_incident_rows(incidents, include_author=True)
+
+    # Счётчики по вкладкам. Для social-view: 3 общие вкладки показывают кол-во по школе,
+    # 4-я «Назначенные мне» — только мои активные.
+    def _count(status_list):
+        return db.session.query(Incident).filter(Incident.status.in_(status_list)).count()
+    counters = {
+        "incoming":  _count(STATUS_BUCKETS["incoming"]),
+        "in_work":   _count(STATUS_BUCKETS["in_work"]),
+        "completed": _count(STATUS_BUCKETS["completed"]),
+    }
+    if is_social_view:
+        counters["mine"] = (
+            db.session.query(Incident)
+            .filter(Incident.assignee_id == uid, Incident.status != "closed")
+            .count()
+        )
+
+    # Список классов для фильтра
+    classes = []
+    if year:
+        classes = (
+            SchoolClass.query
+            .filter(SchoolClass.academic_year_id == year.id)
+            .order_by(
+                SchoolClass.grade.asc().nullslast(),
+                SchoolClass.letter.asc().nullslast(),
+                SchoolClass.name.asc(),
+            )
+            .all()
+        )
+
+    # Список исполнителей для picker-а в строке таблицы.
+    # Двойная схема ролей: user.role (старая) ИЛИ user_role→role (новая).
+    # На локали user_role часто пустая — полагаемся на user.role. На проде
+    # наоборот — основная — user_role. Ищем по обеим сразу через OR.
+    from app.models_legacy import User as _User, UserRole as _UserRole, Role as _Role
+    _ROLE_CODES = [
+        "ADMIN", "DEPUTY_DIRECTOR", "PSYCHOLOGIST", "SOCIAL_PEDAGOG",
+        "METHODIST", "CLASS_TEACHER", "TEACHER",
+    ]
+    _users_via_ur = (
+        db.session.query(_User.id)
+        .join(_UserRole, _UserRole.user_id == _User.id)
+        .join(_Role, _Role.id == _UserRole.role_id)
+        .filter(_Role.code.in_(_ROLE_CODES))
+    )
+    assignees = (
+        _User.query
+        .filter(
+            _User.role.in_(_ROLE_CODES) | _User.id.in_(_users_via_ur)
+        )
+        .order_by(_User.last_name.asc().nullslast(), _User.first_name.asc().nullslast())
+        .all()
+    )
+
+    # Лейблы вкладок
+    tab_labels = {
+        "incoming":  "Входящие",
+        "in_work":   "В работе",
+        "completed": "Завершённые",
+    }
+    if is_social_view:
+        tab_labels["mine"] = "Назначенные мне"
+
+    # Для social-view: edit/delete в строках доступны только на «Назначенные мне».
+    # На общих 3 вкладках соц.педагог в режиме read-only (как просил пользователь —
+    # видит очередь по школе по аналогии с дашбордом).
+    if is_social_view:
+        can_edit_rows = (active_tab == "mine")
+    else:
+        can_edit_rows = True
 
     return render_template(
         "incidents_my.html",
-        rows=_build_incident_rows(my_incidents),
-        assigned_rows=_build_incident_rows(assigned_incidents),
-        can_change_status=_can_change_status(),
+        is_admin_view=True,
+        is_social_view=is_social_view,
+        rows=rows,
+        counters=counters,
+        active_tab=active_tab,
+        tab_labels=tab_labels,
+        f_category=f_category,
+        f_class_id=f_class_id,
+        f_q=f_q,
+        f_sort=f_sort,
+        categories=INCIDENT_CATEGORIES,
+        classes=classes,
+        assignees=assignees,
+        can_change_status=(not is_social_view),
+        can_edit_rows=can_edit_rows,
+        status_labels=Incident.STATUS_LABELS,
+        current_user_id=uid,
+        is_admin=is_admin(current_user),
+        view_mode=(request.args.get("view") or "table").strip(),
     )
 
 
@@ -3253,12 +4530,18 @@ def incidents_dashboard_legacy():
     top_classes = []
     if year_id:
         tc = (
-            db.session.query(SchoolClass.name, func.count(func.distinct(Incident.id)), SchoolClass.id)
+            db.session.query(
+                SchoolClass.name,
+                func.count(func.distinct(Incident.id)),
+                SchoolClass.id,
+                Building.name,
+            )
             .select_from(Incident)
             .join(IncidentChild, IncidentChild.incident_id == Incident.id)
             .join(Child, Child.id == IncidentChild.child_id)
             .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
             .join(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
+            .outerjoin(Building, Building.id == SchoolClass.building_id)
             .filter(
                 Incident.occurred_at >= d30,
                 ChildEnrollment.academic_year_id == year_id,
@@ -3274,7 +4557,7 @@ def incidents_dashboard_legacy():
             tc = tc.filter(SchoolClass.grade == grade)
 
         top_classes = (
-            tc.group_by(SchoolClass.name, SchoolClass.id)
+            tc.group_by(SchoolClass.name, SchoolClass.id, Building.name)
             .order_by(func.count(func.distinct(Incident.id)).desc())
             .limit(10)
             .all()
@@ -3335,7 +4618,7 @@ def incidents_dashboard_legacy():
         max_daily = max(max_daily, cnt)
 
     max_category = max([cnt for _, cnt in top_categories], default=0)
-    max_class = max([cnt for _, cnt, _c in top_classes], default=0)
+    max_class = max([cnt for _, cnt, _c, _b in top_classes], default=0)
     max_building = max([cnt for _, cnt in top_buildings], default=0)
 
     _ua_q = (
@@ -3390,9 +4673,16 @@ def incidents_dashboard_legacy():
     _sb_map = {s: c for s, c in _sb_q}
     status_breakdown = {
         "new": _sb_map.get("new", 0),
+        "assigned": _sb_map.get("assigned", 0),
         "in_progress": _sb_map.get("in_progress", 0),
+        "resolved": _sb_map.get("resolved", 0),
         "closed": _sb_map.get("closed", 0),
     }
+    open_count = (
+        status_breakdown["new"]
+        + status_breakdown["assigned"]
+        + status_breakdown["in_progress"]
+    )
 
     recent = base.order_by(Incident.occurred_at.desc(), Incident.id.desc()).limit(20).all()
     rows = _build_incident_rows(recent, include_author=True)
@@ -3431,7 +4721,9 @@ def incidents_dashboard_legacy():
         user_activity=user_activity,
         max_user_activity=max_user_activity,
         status_breakdown=status_breakdown,
+        open_count=open_count,
         can_change_status=_can_change_status(),
+        can_edit_any=(_can_change_status() or has_role("SOCIAL_PEDAGOG")),
         status_filter=status_filter,
     )
 
@@ -3512,6 +4804,26 @@ def social_passport_registry():
     class_id = parse_int(request.args.get("class_id"))
     q_text = (request.args.get("q") or "").strip()
 
+    # Response-кеш для тяжёлого реестра (~8 МБ HTML, ~1.3 с рендера).
+    # Ключ: роли пользователя (для CLASS_TEACHER — плюс user_id, т.к. он видит только свои классы)
+    #       + фильтры + year_id. TTL 60 с.
+    is_class_teacher_user = has_role("CLASS_TEACHER")
+    is_admin_user = has_role("ADMIN")
+    is_methodist_user = has_role("METHODIST")
+    is_social_pedagog_user = has_role("SOCIAL_PEDAGOG")
+    scope_own_classes = (
+        is_class_teacher_user and not (is_admin_user or is_methodist_user or is_social_pedagog_user)
+    )
+    role_bucket = "own" if scope_own_classes else "all"
+    cache_owner = current_user.id if scope_own_classes else 0
+    cache_key = make_key(
+        "social_passport_registry", role_bucket, cache_owner, year.id, grade, class_id, q_text
+    )
+    cached_html = view_response_cache.get(cache_key)
+    if cached_html is not None:
+        from flask import Response
+        return Response(cached_html, mimetype="text/html; charset=utf-8")
+
     q = (
         Child.query
         .outerjoin(
@@ -3529,12 +4841,7 @@ def social_passport_registry():
         .add_columns(SchoolClass.name.label("_cls_name"))
     )
 
-    is_admin_user = has_role("ADMIN")
-    is_methodist_user = has_role("METHODIST")
-    is_class_teacher_user = has_role("CLASS_TEACHER")
-    is_social_pedagog_user = has_role("SOCIAL_PEDAGOG")
-
-    if is_class_teacher_user and not (is_admin_user or is_methodist_user or is_social_pedagog_user):
+    if scope_own_classes:
         q = q.filter(SchoolClass.teacher_user_id == current_user.id)
 
     if grade is not None:
@@ -3550,7 +4857,7 @@ def social_passport_registry():
         ))
 
     classes_query = SchoolClass.query.filter_by(academic_year_id=year.id)
-    if is_class_teacher_user and not (is_admin_user or is_methodist_user or is_social_pedagog_user):
+    if scope_own_classes:
         classes_query = classes_query.filter(SchoolClass.teacher_user_id == current_user.id)
     if grade is not None:
         classes_query = classes_query.filter(SchoolClass.grade == grade)
@@ -3566,7 +4873,9 @@ def social_passport_registry():
         ch._cls_name = row[1] or ""
         children.append(ch)
 
-    return render_template(
+    selected_class = next((c for c in classes if c.id == class_id), None) if class_id else None
+
+    html = render_template(
         "social_passport_registry.html",
         children=children,
         year=year,
@@ -3574,11 +4883,14 @@ def social_passport_registry():
         grades=grades,
         selected_grade=grade,
         selected_class_id=class_id,
+        selected_class=selected_class,
         q_text=q_text,
         is_admin=is_admin_user,
         is_methodist=is_methodist_user,
         is_class_teacher=is_class_teacher_user,
     )
+    view_response_cache.set(cache_key, html, timeout=60)
+    return html
 
 
 @children_bp.route("/comments/registry")
@@ -4201,6 +5513,8 @@ def classes_copy_from_year():
         db.session.add(clone)
         created += 1
     db.session.commit()
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
     flash(f"Скопировано классов: {created}", "success")
     return redirect(url_for("children.classes_registry", academic_year_id=target_year.id))
 
@@ -4232,6 +5546,8 @@ def classes_delete(class_id: int):
     _sync_class_teacher_role(teacher_user_id)
 
     db.session.commit()
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
     flash("Класс удалён", "success")
     return redirect(url_for("children.classes_registry"))
 
@@ -4350,7 +5666,9 @@ def roles_admin():
         non_ct = [c for c in selected_role_codes if c != "CLASS_TEACHER"]
         if non_ct:
             user.role = min(non_ct, key=lambda c: _ROLE_PRIORITY.index(c) if c in _ROLE_PRIORITY else 99)
-        elif not selected_role_codes:
+        elif "CLASS_TEACHER" in selected_role_codes:
+            user.role = "CLASS_TEACHER"
+        else:
             user.role = "VIEWER"
 
         db.session.commit()

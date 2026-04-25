@@ -35,6 +35,7 @@ class Task(db.Model):
     class_id = db.Column(db.Integer, db.ForeignKey('school_class.id'), nullable=True, index=True)
     academic_year_id = db.Column(db.Integer, db.ForeignKey('academic_year.id'), nullable=True, index=True)
     parent_task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True, index=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey('incident.id'), nullable=True, index=True)
 
     deadline_at = db.Column(db.DateTime, nullable=True, index=True)
     completed_at = db.Column(db.DateTime, nullable=True)

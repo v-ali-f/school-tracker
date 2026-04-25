@@ -44,6 +44,8 @@
           <div class="knowledge-icon flex-shrink-0">
             {% if article.kind == "file" %}
               <i class="bi bi-file-earmark-pdf text-danger fs-3"></i>
+            {% elif article.kind == "link" and article.link and article.link.startswith('/static/guides/') %}
+              <i class="bi bi-book text-primary fs-3"></i>
             {% elif article.kind == "link" %}
               <i class="bi bi-link-45deg text-info fs-3"></i>
             {% else %}
@@ -60,6 +62,8 @@
             <div class="mt-2">
               {% if article.kind == "file" %}
                 <span class="badge bg-danger-subtle text-danger">PDF / файл</span>
+              {% elif article.kind == "link" and article.link and article.link.startswith('/static/guides/') %}
+                <span class="badge bg-primary-subtle text-primary">Инструкция</span>
               {% elif article.kind == "link" %}
                 <span class="badge bg-info-subtle text-info">Ссылка</span>
               {% else %}

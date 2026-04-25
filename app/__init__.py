@@ -47,9 +47,13 @@ def create_app():
         from app.role_access_admin import role_access_admin_bp
         from app.models.role_access import DashboardBlockCatalog
         from app.core.profiler import init_profiler
+        from app.core.activity import init_user_activity
+        from app.core.page_visit import init_page_visit_logger
         db.create_all()
         ensure_runtime_schema()
         init_profiler(app, db.engine)
+        init_user_activity(app)
+        init_page_visit_logger(app)
         app.register_blueprint(role_access_admin_bp)
         try:
             ensure_single_active_organization_settings()
@@ -80,10 +84,22 @@ def create_app():
 
         kpp_user = User.query.filter_by(username="KPP").first()
         if not kpp_user:
+            import secrets as _secrets
+            kpp_password = os.getenv("KPP_INITIAL_PASSWORD") or _secrets.token_urlsafe(12)
             kpp_user = User(username="KPP", role="KPP", last_name="КПП", first_name="Пост")
-            kpp_user.set_password("123")
+            kpp_user.set_password(kpp_password)
             db.session.add(kpp_user)
             db.session.commit()
+            app.logger.warning(
+                "KPP user created. Initial password: %s (store in .env as KPP_INITIAL_PASSWORD to suppress this log)",
+                kpp_password,
+            )
+
+    try:
+        from app.scheduler import init_scheduler
+        init_scheduler(app)
+    except Exception as exc:  # noqa: BLE001
+        app.logger.warning("Scheduler init failed: %s", exc)
 
     @app.errorhandler(404)
     def page_not_found(e):

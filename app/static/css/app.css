@@ -2592,21 +2592,88 @@ body {
 @media (max-width: 991.98px) {
   .app-navbar .navbar-collapse {
     padding-top: .75rem;
+    margin: .5rem -12px 0;
+    border-top: 1px solid #e7edf5;
   }
   .app-navbar .app-navbar-actions {
     flex-direction: column;
     align-items: stretch !important;
+    gap: .5rem !important;
+    padding: .75rem 12px 1rem !important;
   }
   .app-navbar .app-navbar-actions .btn-app-nav,
   .app-navbar .app-navbar-actions .btn-app-exit {
     text-align: left;
+    justify-content: flex-start;
+    padding: .6rem .85rem;
+    border-radius: 10px;
+    border: 1px solid #e7edf5 !important;
+    background: #fff;
+    font-size: .95rem;
   }
+  .app-navbar .app-navbar-actions .btn-app-exit {
+    background: #fff5f5;
+    border-color: #fecaca !important;
+    color: #b91c1c;
+  }
+  .app-navbar .app-navbar-actions .btn-app-exit::after {
+    content: "Выйти";
+    margin-left: .5rem;
+  }
+  .app-navbar .app-navbar-sep { display: none !important; }
   .app-navbar .app-user-block {
     align-items: flex-start;
+    padding: .6rem .85rem;
+    border: 1px solid #e7edf5;
+    border-radius: 10px;
+    background: #f8fafc;
+    order: 10;
+  }
+  .app-navbar .app-user-name { font-size: .95rem; }
+  .app-navbar .app-user-role { font-size: .78rem; }
+  .app-navbar #navSearchWrap {
+    width: 100%;
   }
   .app-navbar #navSearch {
     width: 100% !important;
+    padding: .55rem .85rem;
+    font-size: .95rem !important;
+    border-radius: 10px;
   }
+  .app-navbar #navSearchDropdown {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .app-navbar .app-bell-btn {
+    width: 100%;
+    text-align: left;
+    padding: .6rem .85rem !important;
+    border-radius: 10px;
+    border: 1px solid #e7edf5;
+    background: #fff;
+  }
+  .app-navbar .app-bell-btn.dropdown-toggle-no-arrow::after {
+    content: "Уведомления" !important;
+    display: inline !important;
+    margin-left: .6rem;
+    font-size: .95rem;
+    color: var(--v109-text, #24324a);
+    font-weight: 500;
+    border: 0 !important;
+  }
+  .app-navbar .app-bell-btn .badge {
+    left: 1.7rem !important;
+    top: .55rem !important;
+    transform: none !important;
+  }
+}
+
+/* Узкие устройства — ужимаем брэнд, чтобы не обрезался */
+@media (max-width: 575.98px) {
+  .app-navbar .brand-title .main { font-size: 1.05rem; line-height: 1.15; }
+  .app-navbar .brand-title .sub { font-size: .72rem; }
+  .app-navbar .navbar-logo { width: 32px; height: 32px; }
+  .app-navbar .navbar-brand { padding: .25rem 0; }
 }
 
 /* Блок пользователя: ФИО + роль двумя строками */
@@ -3651,3 +3718,21 @@ a.dash-stat-item:hover {
     flex: 1 1 calc(50% - 6px);
   }
 }
+
+/* ===== Incident 5-status palette (added in multi-status refactor) ===== */
+/* Badge + pill shared colors */
+.status-badge.s-assigned         { background: #fef3c7; color: #92400e; }
+.status-badge.s-assigned::before { background: #f59e0b; }
+.status-badge.s-resolved         { background: #f3e8ff; color: #6b21a8; }
+.status-badge.s-resolved::before { background: #a855f7; }
+
+.status-pill.s-assigned         { background: #fef3c7; color: #92400e; }
+.status-pill.s-assigned::before { background: #f59e0b; }
+.status-pill.s-resolved         { background: #f3e8ff; color: #6b21a8; }
+.status-pill.s-resolved::before { background: #a855f7; }
+
+.sp-dot.d-assigned { background: #f59e0b; }
+.sp-dot.d-resolved { background: #a855f7; }
+
+.sp-pill.s-assigned { background: #fef3c7; color: #92400e; }
+.sp-pill.s-resolved { background: #f3e8ff; color: #6b21a8; }

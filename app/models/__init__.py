@@ -30,4 +30,8 @@ from .tasks import *
 
 from .school_plan import *
 
-from app.models_legacy import KnowledgeArticle, IncidentNote
+from .kubok import *
+
+from .page_visit import *
+
+from app.models_legacy import KnowledgeArticle, IncidentNote, IncidentNoteAttachment

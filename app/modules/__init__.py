@@ -24,6 +24,7 @@ from .iom import iom_bp
 from .tasks import tasks_bp
 from .school_plan import school_plan_bp
 from app.knowledge import knowledge_bp
+from app.datalens import datalens_bp
 
 BLUEPRINTS = [
     main_bp,
@@ -52,6 +53,7 @@ BLUEPRINTS = [
     tasks_bp,
     school_plan_bp,
     knowledge_bp,
+    datalens_bp,
 ]
 
 

@@ -1,6 +1,34 @@
 {% extends "layout.html" %}
 {% block content %}
 
+<style>
+  .sp-view-btn { padding:.3rem .75rem; border-radius:8px; border:1px solid #dee2e6; background:#fff; cursor:pointer; font-size:.85rem; color:#495057; }
+  .sp-view-btn.active { background:#ff7043; color:#fff; border-color:#ff7043; }
+
+  .sp-card-list { display:flex; flex-direction:column; gap:.75rem; padding:1rem; }
+  .sp-card { border:1px solid #e9ecef; border-radius:12px; padding:.9rem 1rem; background:#fff; }
+  .sp-card:hover { background:#fafbfc; }
+  .sp-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem; flex-wrap:wrap; margin-bottom:.4rem; }
+  .sp-card-name { font-weight:600; font-size:.95rem; }
+  .sp-card-class { font-size:.8rem; color:#6c757d; }
+  .sp-card-section { margin-top:.45rem; padding-top:.45rem; border-top:1px dashed #e9ecef; font-size:.85rem; }
+  .sp-card-section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#adb5bd; margin-bottom:.2rem; font-weight:600; }
+  .sp-card-row { display:flex; gap:.35rem; flex-wrap:wrap; margin:.15rem 0; }
+  .sp-card-row .label { color:#6c757d; min-width:6rem; }
+  .sp-card-row .val { color:#212529; }
+  .sp-tag { display:inline-block; padding:.15rem .5rem; border-radius:999px; background:#fff1e6; color:#c25b00; font-size:.75rem; margin:.1rem .2rem .1rem 0; }
+  .sp-tags { margin-top:.3rem; }
+
+  /* На мобильных по умолчанию — карточный вид, таблицу скрываем (только в auto-режиме) */
+  @media (max-width: 767.98px) {
+    #spViewTable.auto { display:none; }
+  }
+  /* На десктопе по умолчанию — таблица, карточки скрыты (только в auto-режиме) */
+  @media (min-width: 768px) {
+    #spViewCards.auto { display:none; }
+  }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
     <h3 class="mb-0">Социальный паспорт</h3>
@@ -49,7 +77,15 @@
 </div>
 
 <div class="card">
-  <div class="table-responsive">
+  <div class="card-body pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <h5 class="mb-0">Реестр</h5>
+    <div class="d-flex gap-1">
+      <button class="sp-view-btn" id="spBtnTable" title="Таблица"><i class="bi bi-table"></i></button>
+      <button class="sp-view-btn" id="spBtnCards" title="Карточки"><i class="bi bi-card-list"></i></button>
+      <span class="text-muted small ms-2">{{ children|length }}</span>
+    </div>
+  </div>
+  <div id="spViewTable" class="table-responsive auto">
     <table class="table table-striped table-sm align-middle mb-0">
       <thead>
         <tr>
@@ -100,5 +136,88 @@
       </tbody>
     </table>
   </div>
+
+  <div id="spViewCards" class="sp-card-list auto">
+    {% for ch in children %}
+      {% set s = ch.social %}
+      <div class="sp-card">
+        <div class="sp-card-head">
+          <div>
+            <div class="sp-card-name"><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></div>
+            <div class="sp-card-class">{{ ch._cls_name or "—" }}</div>
+          </div>
+          <div class="sp-tags">
+            {% if s %}
+              {% if s.has_large_family %}<span class="sp-tag">Многодетная</span>{% endif %}
+              {% if s.has_low_income_family %}<span class="sp-tag">Малообеспеченная</span>{% endif %}
+              {% if s.has_guardianship %}<span class="sp-tag">Опека</span>{% endif %}
+              {% if s.has_orphan_status %}<span class="sp-tag">Сирота</span>{% endif %}
+              {% if s.has_disability_parents %}<span class="sp-tag">Род. с инв.</span>{% endif %}
+              {% if s.is_socially_dangerous %}<span class="sp-tag">СОП</span>{% endif %}
+              {% if s.is_hard_life %}<span class="sp-tag">ТЖС</span>{% endif %}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sp-card-section">
+          <div class="sp-card-section-title">Родители</div>
+          <div class="sp-card-row"><span class="label">Мама:</span><span class="val">{{ ch.mother_fio or "—" }}{% if ch.mother_phone %}, {{ ch.mother_phone }}{% endif %}</span></div>
+          <div class="sp-card-row"><span class="label">Папа:</span><span class="val">{{ ch.father_fio or "—" }}{% if ch.father_phone %}, {{ ch.father_phone }}{% endif %}</span></div>
+        </div>
+
+        <div class="sp-card-section">
+          <div class="sp-card-section-title">Адрес и семья</div>
+          <div class="sp-card-row"><span class="label">Адрес:</span><span class="val">{{ ch.reg_address or "—" }}</span></div>
+          <div class="sp-card-row"><span class="label">Состав:</span><span class="val">{{ (s.family_status if s else None) or "—" }}</span></div>
+        </div>
+
+        {% if s and s.notes %}
+          <div class="sp-card-section">
+            <div class="sp-card-section-title">Примечание</div>
+            <div class="sp-card-row"><span class="val">{{ s.notes }}</span></div>
+          </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="text-muted text-center py-4">Нет данных</div>
+    {% endfor %}
+  </div>
 </div>
+
+<script>
+(function(){
+  const btnTable = document.getElementById("spBtnTable");
+  const btnCards = document.getElementById("spBtnCards");
+  const viewTable = document.getElementById("spViewTable");
+  const viewCards = document.getElementById("spViewCards");
+  if (!btnTable || !btnCards) return;
+
+  function setView(v) {
+    viewTable.classList.remove("auto");
+    viewCards.classList.remove("auto");
+    if (v === "cards") {
+      viewTable.style.display = "none";
+      viewCards.style.display = "block";
+      btnCards.classList.add("active"); btnTable.classList.remove("active");
+    } else {
+      viewTable.style.display = "block";
+      viewCards.style.display = "none";
+      btnTable.classList.add("active"); btnCards.classList.remove("active");
+    }
+    localStorage.setItem("sp_view", v);
+  }
+  btnTable.addEventListener("click", () => setView("table"));
+  btnCards.addEventListener("click", () => setView("cards"));
+
+  const saved = localStorage.getItem("sp_view");
+  if (saved === "cards") setView("cards");
+  else if (saved === "table") setView("table");
+  else {
+    /* auto-режим через CSS: подсветим кнопку по текущему viewport */
+    const isMobile = window.matchMedia("(max-width: 767.98px)").matches;
+    if (isMobile) btnCards.classList.add("active");
+    else btnTable.classList.add("active");
+  }
+})();
+</script>
 {% endblock %}

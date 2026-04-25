@@ -607,10 +607,44 @@ def _get_notification_recipients(task, notification_type, extra_user_ids=None):
     return User.query.filter(User.id.in_(list(user_ids))).all()
 
 
+_TASK_NOTIFY_EVENT_CLASS = {
+    'new_task': 'open',
+    'auto_created': 'open',
+    'status_changed': 'status',
+    'sent_to_review': 'status',
+    'returned_for_rework': 'status',
+    'deadline_changed': 'status',
+    'overdue': 'status',
+    'closed': 'close',
+    'attachment_added': 'note',
+    'comment_added': 'note',
+    'task_updated': 'note',
+}
+_TASK_NOTIFY_MODE_ALLOWED = {
+    'all': {'open', 'status', 'close', 'note'},
+    'status': {'status', 'close'},
+    'open_close': {'open', 'close'},
+    'close_only': {'close'},
+}
+
+
+def _task_mode_allows(user, notification_type):
+    mode = (getattr(user, 'notify_task_mode', None) or 'all').strip() or 'all'
+    if mode == 'all':
+        return True
+    ev = _TASK_NOTIFY_EVENT_CLASS.get(notification_type)
+    if ev is None:
+        return True
+    allowed = _TASK_NOTIFY_MODE_ALLOWED.get(mode, _TASK_NOTIFY_MODE_ALLOWED['all'])
+    return ev in allowed
+
+
 def _deliver_notifications(task, notification_type, title, message, extra_user_ids=None):
     is_important = is_important_notification(notification_type)
     recipients = _get_notification_recipients(task, notification_type, extra_user_ids=extra_user_ids)
     for user in recipients:
+        if not _task_mode_allows(user, notification_type):
+            continue
         if _user_notifications_enabled(user, is_important=is_important):
             db.session.add(TaskNotification(
                 task_id=task.id,
@@ -1275,7 +1309,18 @@ def task_card(task_id):
         abort(403)
     comments = TaskComment.query.filter_by(task_id=task.id).order_by(TaskComment.created_at.desc()).all()
     history_entries = TaskHistory.query.filter_by(task_id=task.id).order_by(TaskHistory.created_at.desc()).all()
-    return render_template('tasks/card.html', task=task, comments=comments, history_entries=history_entries, status_choices=Task.STATUS_CHOICES, can_edit=_can_edit_task(task), can_delete_task=_can_delete_task(task), counts=_task_counts(), attachment_groups=_attachment_groups(task), format_file_size=_format_file_size, can_delete_attachment=_can_delete_attachment)
+
+    # Связанный инцидент (если задача создана из инцидента)
+    linked_incident = None
+    try:
+        linked_incident_id = getattr(task, 'incident_id', None)
+        if linked_incident_id:
+            from app.models_legacy import Incident as _Incident
+            linked_incident = _Incident.query.get(linked_incident_id)
+    except Exception:
+        linked_incident = None
+
+    return render_template('tasks/card.html', task=task, comments=comments, history_entries=history_entries, status_choices=Task.STATUS_CHOICES, can_edit=_can_edit_task(task), can_delete_task=_can_delete_task(task), counts=_task_counts(), attachment_groups=_attachment_groups(task), format_file_size=_format_file_size, can_delete_attachment=_can_delete_attachment, linked_incident=linked_incident)
 
 
 @tasks_bp.route('/<int:task_id>/edit', methods=['GET', 'POST'])
@@ -1341,6 +1386,8 @@ def edit_task(task_id):
                                        title='Редактирование задачи',
                                        task=task,
                                        parent_task=task.parent_task,
+                                       template_defaults={},
+                                       selected_template=None,
                                        grades=grades,
                                        classes=classes,
                                        children=children,
@@ -1363,6 +1410,8 @@ def edit_task(task_id):
                            title='Редактирование задачи',
                            task=task,
                            parent_task=task.parent_task,
+                           template_defaults={},
+                           selected_template=None,
                            grades=grades,
                            classes=classes,
                            children=children,
@@ -1400,6 +1449,26 @@ def change_status(task_id):
         _add_history(task, 'Задача возвращена на доработку', event_type='returned_for_rework')
     elif status in {Task.STATUS_DONE, Task.STATUS_CLOSED}:
         _add_history(task, 'Задача закрыта', event_type='closed')
+
+    # Task → Incident sync: при закрытии задачи, созданной из инцидента,
+    # автоматически переводим инцидент в "resolved" (если он ещё не закрыт).
+    if status in {Task.STATUS_DONE, Task.STATUS_CLOSED} and getattr(task, 'incident_id', None):
+        try:
+            from app.models_legacy import Incident, IncidentStatusHistory
+            inc = Incident.query.get(task.incident_id)
+            if inc and inc.status not in ('resolved', 'closed'):
+                prev_status = inc.status
+                inc.status = 'resolved'
+                db.session.add(IncidentStatusHistory(
+                    incident_id=inc.id,
+                    from_status=prev_status,
+                    to_status='resolved',
+                    changed_by_id=getattr(current_user, 'id', None),
+                    comment=f'Автоматически: закрыта связанная задача #{task.id}',
+                ))
+        except Exception:
+            pass
+
     notification_type = 'status_changed'
     notification_title = 'Изменение статуса задачи'
     notification_message = f'По задаче «{task.title}» установлен статус «{status}».'

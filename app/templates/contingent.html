@@ -1,6 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
 
+<style>
+  @media (max-width: 767.98px) {
+    .contingent-summary-table th,
+    .contingent-totals-table th,
+    .contingent-classes-table th { width: auto !important; min-width: 0 !important; }
+  }
+</style>
+
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
     <h4 class="mb-0">Сводный контингент</h4>
@@ -177,7 +185,7 @@
     <h5 class="mb-3">Свод по параллелям</h5>
 
     <div class="table-responsive">
-      <table class="table table-sm table-striped mb-0 align-middle">
+      <table class="table table-sm table-striped mb-0 align-middle contingent-summary-table">
         <thead>
           <tr>
             <th style="width:120px;">Параллель</th>
@@ -238,7 +246,7 @@
     </div>
 
     <div class="table-responsive mt-3">
-      <table class="table table-sm table-striped mb-0 align-middle">
+      <table class="table table-sm table-striped mb-0 align-middle contingent-totals-table">
         <thead>
           <tr>
             <th>Здание</th>
@@ -265,7 +273,8 @@
 
 <div class="card">
   <div class="table-responsive">
-    <table class="table table-striped mb-0 align-middle">
+    <table class="table table-striped mb-0 align-middle contingent-classes-table">
+      {% set _colspan = 11 if is_admin else 10 %}
       <thead>
         <tr>
           <th style="min-width:90px;">Класс</th>
@@ -277,6 +286,8 @@
           <th style="width:120px;">Девочки</th>
           <th style="width:140px;">Свободно</th>
           <th style="width:120px;">Макс.</th>
+          <th style="width:150px;" title="Сколько учеников класса состоят в школьном спортивном клубе">ШСК</th>
+          {% if is_admin %}<th style="min-width:180px;">Кубок школы</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -284,25 +295,25 @@
 
           {% if loop.first and r.class.grade in [1, 2, 3, 4] %}
             <tr class="table-dark">
-              <td colspan="9"><b>Начальная школа (1–4)</b></td>
+              <td colspan="{{ _colspan }}"><b>Начальная школа (1–4)</b></td>
             </tr>
           {% endif %}
 
           {% if loop.index > 1 and rows[loop.index0 - 1].class.grade in [1, 2, 3, 4] and r.class.grade in [5, 6, 7, 8, 9] %}
             <tr class="table-dark">
-              <td colspan="9"><b>Основная школа (5–9)</b></td>
+              <td colspan="{{ _colspan }}"><b>Основная школа (5–9)</b></td>
             </tr>
           {% endif %}
 
           {% if loop.index > 1 and rows[loop.index0 - 1].class.grade in [5, 6, 7, 8, 9] and r.class.grade in [10, 11] %}
             <tr class="table-dark">
-              <td colspan="9"><b>Старшая школа (10–11)</b></td>
+              <td colspan="{{ _colspan }}"><b>Старшая школа (10–11)</b></td>
             </tr>
           {% endif %}
 
           <tr>
             <td class="fw-bold">
-              <a href="{{ url_for('children.list_children', cls=r.class.name) }}" class="text-decoration-none">
+              <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="text-decoration-none">
                 {{ r.class.name }}
               </a>
             </td>
@@ -346,12 +357,42 @@
             </td>
 
             <td class="text-muted">{{ r.class.max_students }}</td>
+
+            <td>
+              {% if r.total %}
+                {% if r.sc_in_club %}
+                  <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+                        title="{{ r.sc_in_club }} из {{ r.total }} учеников класса состоят в ШСК">
+                    <i class="bi bi-dribbble"></i> {{ r.sc_in_club }} из {{ r.total }}
+                  </span>
+                {% else %}
+                  <span class="text-muted small">0 из {{ r.total }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+
+            {% if is_admin %}
+              {% set _kr = kubok_rating(r.class.name) %}
+              <td>
+                {% if _kr %}
+                  <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}"
+                     class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none">
+                    <i class="bi bi-trophy-fill"></i>
+                    {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}
+                  </a>
+                {% else %}
+                  <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+            {% endif %}
           </tr>
         {% endfor %}
 
         {% if rows|length == 0 %}
           <tr>
-            <td colspan="9" class="text-muted">Нет классов по выбранным фильтрам</td>
+            <td colspan="{{ _colspan }}" class="text-muted">Нет классов по выбранным фильтрам</td>
           </tr>
         {% endif %}
       </tbody>

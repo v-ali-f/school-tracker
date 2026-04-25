@@ -1,8 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
+<style>
+  .users-actions-col { width: 280px; }
+  @media (max-width: 767.98px) {
+    .users-actions-col { width: auto; }
+  }
+</style>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0">Реестр пользователей</h4>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-primary btn-sm" href="/admin/users/new">Добавить пользователя</a>
     <a class="btn btn-outline-primary btn-sm" href="/admin/users/import">Импорт Excel</a>
     <a class="btn btn-outline-secondary btn-sm" href="/admin/users/import-template">Шаблон Excel</a>
@@ -21,7 +27,7 @@
 <div class="card mb-4">
   <div class="table-responsive">
     <table class="table table-striped mb-0 align-middle">
-      <thead><tr><th>ФИО</th><th>Телефон</th><th>Логин</th><th>Роль</th><th>Статус</th><th style="width:280px;"></th></tr></thead>
+      <thead><tr><th>ФИО</th><th>Телефон</th><th>Логин</th><th>Роль</th><th>Статус</th><th class="users-actions-col"></th></tr></thead>
       <tbody>
         {% for u in users %}
         <tr>

@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .paths-tab { display: inline-block; padding: 6px 14px; border: 1px solid var(--bs-border-color); border-bottom: none; border-radius: 6px 6px 0 0; background: #fff; color: inherit; text-decoration: none; margin-right: 4px; font-size: .9rem; }
+  .paths-tab.active { background: #f8f9fa; border-color: #212529; font-weight: 600; }
+  .paths-tabs-wrap { border-bottom: 1px solid #212529; margin-bottom: 16px; padding-bottom: 0; }
+  .paths-period { display: inline-block; padding: 4px 10px; border: 1px solid var(--bs-border-color); border-radius: 4px; text-decoration: none; color: inherit; font-size: .85rem; margin-right: 4px; background: #fff; }
+  .paths-period.active { background: #212529; color: #fff; border-color: #212529; }
+  .paths-card { background: #fff; border: 1px solid var(--bs-border-color); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .paths-card h6 { margin-bottom: 10px; font-weight: 600; }
+  .paths-table { width: 100%; font-size: .88rem; }
+  .paths-table td, .paths-table th { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; }
+  .paths-table th { font-weight: 500; color: #6c757d; text-align: left; font-size: .8rem; }
+  .paths-table td.num { text-align: right; font-variant-numeric: tabular-nums; color: #495057; }
+  .paths-table .ep { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; color: #212529; }
+  .paths-bar { display: inline-block; height: 6px; background: #495057; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+  .paths-summary { display: flex; gap: 24px; margin-bottom: 16px; }
+  .paths-summary .item { padding: 6px 12px; border-left: 3px solid #495057; }
+  .paths-summary .v { font-size: 1.4rem; font-weight: 600; }
+  .paths-summary .l { font-size: .8rem; color: #6c757d; }
+  .timeline-item { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f5f5f5; font-size: .85rem; }
+  .timeline-item .t { color: #6c757d; font-variant-numeric: tabular-nums; min-width: 110px; }
+  .timeline-item .ep { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .timeline-item .meth { display: inline-block; padding: 1px 5px; background: #f0f0f0; border-radius: 3px; font-size: .72rem; margin-right: 6px; color: #495057; }
+  .arrow { color: #adb5bd; margin: 0 6px; }
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0">Активность пользователей</h4>
+    <div class="small text-muted">Кто как ходит по системе. Журнал переходов работает с момента включения.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}">К реестру пользователей</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/">На главную</a>
+  </div>
+</div>
+
+<div class="paths-tabs-wrap">
+  <a class="paths-tab" href="{{ url_for('users.users_activity') }}">Заходы и активность</a>
+  <a class="paths-tab active" href="{{ url_for('users.users_paths') }}">Маршруты и переходы</a>
+</div>
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <span class="small text-muted me-2">Период:</span>
+  {% set qs = ('&user_id=' ~ selected_user_id) if selected_user_id else '' %}
+  <a class="paths-period {% if period=='today' %}active{% endif %}" href="?period=today{{ qs }}">Сегодня</a>
+  <a class="paths-period {% if period=='7d' %}active{% endif %}" href="?period=7d{{ qs }}">7 дней</a>
+  <a class="paths-period {% if period=='30d' %}active{% endif %}" href="?period=30d{{ qs }}">30 дней</a>
+  <a class="paths-period {% if period=='all' %}active{% endif %}" href="?period=all{{ qs }}">Всё время</a>
+</div>
+
+<div class="paths-summary">
+  <div class="item"><div class="v">{{ total_visits }}</div><div class="l">просмотров страниц</div></div>
+  <div class="item"><div class="v">{{ unique_users_count }}</div><div class="l">уникальных пользователей</div></div>
+  <div class="item"><div class="v">{{ user_options|length }}</div><div class="l">в топ-50 по активности</div></div>
+</div>
+
+{% if total_visits == 0 %}
+  <div class="alert alert-secondary">
+    За выбранный период нет данных. Журнал начал писаться при первом заходе после включения трекинга. Выберите «Всё время» или подождите, пока пользователи поработают.
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="paths-card">
+      <h6>Топ-20 страниц</h6>
+      {% if top_pages %}
+        {% set max_count = top_pages[0][1] %}
+        <table class="paths-table">
+          <thead><tr><th>Эндпоинт</th><th class="num" style="width:90px">заходов</th></tr></thead>
+          <tbody>
+          {% for ep, c in top_pages %}
+            <tr>
+              <td class="ep">{{ ep }}</td>
+              <td class="num">
+                <span class="paths-bar" style="width: {{ (100 * c / max_count)|round(0, 'floor')|int }}px"></span>
+                {{ c }}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="text-muted small">Пусто</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="paths-card">
+      <h6>Топ-30 переходов</h6>
+      {% if top_transitions %}
+        <table class="paths-table">
+          <thead><tr><th>Откуда</th><th>Куда</th><th class="num" style="width:60px">раз</th></tr></thead>
+          <tbody>
+          {% for a, b, c in top_transitions %}
+            <tr>
+              <td class="ep">{{ a }}</td>
+              <td class="ep">{{ b }}</td>
+              <td class="num">{{ c }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="text-muted small">Пусто (нет переходов с referrer'ом)</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="paths-card">
+  <h6>Лента конкретного пользователя</h6>
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <input type="hidden" name="period" value="{{ period }}">
+    <div class="col-auto">
+      <label class="form-label small text-muted mb-1">Кто (топ-50 по активности за период)</label>
+      <select name="user_id" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:380px">
+        <option value="">— выберите пользователя —</option>
+        {% for u in user_options %}
+          <option value="{{ u.id }}" {% if u.id == selected_user_id %}selected{% endif %}>
+            {{ u.fio }} — {{ u.role }} ({{ u.visits }} стр.)
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if selected_user_id %}
+      <div class="col-auto">
+        <a class="btn btn-outline-secondary btn-sm" href="?period={{ period }}">Сбросить</a>
+      </div>
+    {% endif %}
+  </form>
+
+  {% if selected_user %}
+    <div class="small text-muted mb-2">
+      <strong>{{ selected_user.fio or selected_user.username }}</strong>
+      ({{ role_labels.get(selected_user.role, selected_user.role) }}) —
+      {{ timeline|length }} последних переходов
+    </div>
+    {% if timeline %}
+      <div style="max-height: 600px; overflow-y: auto;">
+        {% for v in timeline %}
+          <div class="timeline-item">
+            <div class="t">{{ v.ts.strftime('%d.%m %H:%M:%S') }}</div>
+            <div>
+              <span class="meth">{{ v.method }}</span>
+              {% if v.referrer_endpoint and v.referrer_endpoint != v.endpoint %}
+                <span class="ep text-muted">{{ v.referrer_endpoint }}</span><span class="arrow">→</span>
+              {% endif %}
+              <span class="ep">{{ v.endpoint }}</span>
+              {% if v.status_code != 200 %}
+                <span class="text-muted small">[{{ v.status_code }}]</span>
+              {% endif %}
+              <div class="small text-muted" style="word-break: break-all">{{ v.path }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-muted small">Нет записей за выбранный период.</div>
+    {% endif %}
+  {% else %}
+    <div class="text-muted small">Выберите пользователя в селекторе выше, чтобы увидеть его маршрут.</div>
+  {% endif %}
+</div>
+
+<div class="small text-muted mt-3">
+  Эндпоинт — внутреннее имя страницы во Flask (например <span class="ep">children.incidents_dashboard_legacy</span>).
+  Статика, AJAX-поиск, /api/ — пропускаются как шум. HEAD/OPTIONS не пишутся.
+</div>
+{% endblock %}

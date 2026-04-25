@@ -10,6 +10,7 @@ from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
+from app.core.cache import view_response_cache, make_key
 from app.core.extensions import db
 from .models import (
     AcademicYear,
@@ -217,6 +218,29 @@ def registry():
         if not department_id and len(allowed_dep_ids) == 1:
             department_id = allowed_dep_ids[0]
 
+    # Response-кеш для /olympiads/ — типовой запрос admin/METHODIST 980 мс из-за
+    # joinedload по 500 OlympiadResult и шаблона с inline-формами teacher-picker.
+    # Кеш разделён по роли (teacher_scoped vs общий) и по department_ids.
+    is_teacher_scoped = current_user.role in {TEACHER, CLASS_TEACHER}
+    cache_role_key = f"u{current_user.id}" if is_teacher_scoped else "_"
+    cache_dep_key = ",".join(map(str, sorted(allowed_dep_ids))) if allowed_dep_ids is not None else "*"
+    cache_key = make_key(
+        "olympiads_registry",
+        cache_role_key,
+        cache_dep_key,
+        academic_year_id or 0,
+        stage,
+        subject_id or 0,
+        teacher_id or 0,
+        department_id or 0,
+        status,
+        child_q,
+    )
+    cached_html = view_response_cache.get(cache_key)
+    if cached_html is not None:
+        from flask import Response
+        return Response(cached_html, mimetype="text/html; charset=utf-8")
+
     rows_q = OlympiadResult.query.options(
         joinedload(OlympiadResult.child),
         joinedload(OlympiadResult.teacher),
@@ -261,7 +285,7 @@ def registry():
         if cache_key not in _teacher_cache:
             _teacher_cache[cache_key] = _teacher_options_for_result(row)
         teacher_options_by_result[row.id] = _teacher_cache[cache_key]
-    return render_template(
+    html = render_template(
         "olympiad_registry.html",
         rows=rows,
         teacher_options_by_result=teacher_options_by_result,
@@ -278,6 +302,8 @@ def registry():
         status=status,
         child_q=child_q,
     )
+    view_response_cache.set(cache_key, html, timeout=120)
+    return html
 
 
 @olympiads_bp.route("/<int:result_id>/assign-teacher", methods=["POST"])
@@ -722,11 +748,27 @@ def analytics():
     teacher_id = request.args.get("teacher_id", type=int)
     department_id = request.args.get("department_id", type=int)
 
+    # Response-кеш для /olympiads/analytics — 1.7 с из-за 6 агрегаций в all_analytics.
+    # Ключ по фильтрам + department_ids роли (для teacher-view разные данные).
+    allowed_dep_ids = _department_ids_for_user()
+    cache_dep_key = ",".join(map(str, sorted(allowed_dep_ids))) if allowed_dep_ids is not None else "*"
+    cache_key = make_key(
+        "olympiads_analytics",
+        cache_dep_key,
+        academic_year_id or 0,
+        teacher_id or 0,
+        department_id or 0,
+    )
+    cached_html = view_response_cache.get(cache_key)
+    if cached_html is not None:
+        from flask import Response
+        return Response(cached_html, mimetype="text/html; charset=utf-8")
+
     summary, by_teacher, by_department, by_subject, by_class, comparison = all_analytics(
         academic_year_id, teacher_id, department_id
     )
 
-    return render_template(
+    html = render_template(
         "olympiad_analytics.html",
         stats=summary or {},
         summary=summary or {},
@@ -745,6 +787,8 @@ def analytics():
         teacher_id=teacher_id,
         department_id=department_id,
     )
+    view_response_cache.set(cache_key, html, timeout=120)
+    return html
 
 
 @olympiads_bp.route("/settings", methods=["GET", "POST"])

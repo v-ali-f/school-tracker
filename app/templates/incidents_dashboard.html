@@ -3,7 +3,12 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item active">Дашборд инцидентов</li>
+    {% if class_id or grade or category or status_filter %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_dashboard') }}">Дашборд инцидентов</a></li>
+      <li class="breadcrumb-item active">Фильтр</li>
+    {% else %}
+      <li class="breadcrumb-item active">Дашборд инцидентов</li>
+    {% endif %}
   </ol>
 </nav>
 {% endblock %}
@@ -265,7 +270,9 @@
         <select class="form-select" name="status">
           <option value="">— все —</option>
           <option value="new" {% if status_filter == 'new' %}selected{% endif %}>Новый</option>
+          <option value="assigned" {% if status_filter == 'assigned' %}selected{% endif %}>Назначен</option>
           <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>В работе</option>
+          <option value="resolved" {% if status_filter == 'resolved' %}selected{% endif %}>Отработан</option>
           <option value="closed" {% if status_filter == 'closed' %}selected{% endif %}>Закрыт</option>
         </select>
       </div>
@@ -282,8 +289,9 @@
 <!-- ── Stats-strip ── -->
 <div class="stats-strip mb-4">
   <div class="stats-strip-item">
-    <div class="stats-strip-label">Всего по фильтрам</div>
-    <div class="stats-strip-value">{{ total_all }}</div>
+    <div class="stats-strip-label">Открытые сейчас</div>
+    <div class="stats-strip-value" id="statOpenCount">{{ open_count }}</div>
+    <div class="text-muted" style="font-size:.72rem;margin-top:.1rem;">Новые · назначенные · в работе</div>
   </div>
   <div class="stats-strip-item">
     <div class="stats-strip-label">За 7 дней</div>
@@ -376,14 +384,45 @@
     <div class="card incident-panel h-100">
       <div class="card-body">
         <h5 class="mb-3">По классам</h5>
-        {% for name, cnt, c_id in top_classes %}
+        {% for name, cnt, c_id, bld in top_classes %}
+          {% if loop.index0 < 5 %}
           <div class="rank-row">
-            <div class="rank-meta"><span><a href="{{ url_for('children.incidents_dashboard', class_id=c_id) }}">{{ name }}</a></span><strong>{{ cnt }}</strong></div>
+            <div class="rank-meta">
+              <span>
+                <a href="{{ url_for('children.incidents_dashboard', class_id=c_id) }}">{{ name }}</a>
+                {% if bld %}<span class="text-muted small ms-1">· {{ bld }}</span>{% endif %}
+              </span>
+              <strong>{{ cnt }}</strong>
+            </div>
             <div class="progress rank-progress">
               <div class="progress-bar bg-primary" role="progressbar" style="width: {{ 0 if max_class == 0 else ((cnt / max_class) * 100)|round(0, 'ceil') }}%"></div>
             </div>
           </div>
+          {% endif %}
         {% endfor %}
+        {% if top_classes|length > 5 %}
+        <div id="classesMore" style="display:none;">
+          {% for name, cnt, c_id, bld in top_classes %}
+            {% if loop.index0 >= 5 %}
+            <div class="rank-row">
+              <div class="rank-meta">
+                <span>
+                  <a href="{{ url_for('children.incidents_dashboard', class_id=c_id) }}">{{ name }}</a>
+                  {% if bld %}<span class="text-muted small ms-1">· {{ bld }}</span>{% endif %}
+                </span>
+                <strong>{{ cnt }}</strong>
+              </div>
+              <div class="progress rank-progress">
+                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ 0 if max_class == 0 else ((cnt / max_class) * 100)|round(0, 'ceil') }}%"></div>
+              </div>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <button class="btn btn-sm btn-link text-muted p-0 mt-2" id="classesMoreBtn" onclick="toggleClasses({{ top_classes|length - 5 }})">
+          <i class="bi bi-chevron-down" id="classesMoreIcon"></i> Показать ещё {{ top_classes|length - 5 }}
+        </button>
+        {% endif %}
         {% if top_classes|length == 0 %}
         <div class="text-center py-4 text-muted">
           <i class="bi bi-people" style="font-size:1.8rem;opacity:.2;"></i>
@@ -403,44 +442,54 @@
         <h5 class="mb-1">По статусу</h5>
         <div class="text-muted small mb-3">Распределение инцидентов по текущему статусу</div>
         {% set sb_total = status_breakdown.new + status_breakdown.in_progress + status_breakdown.closed %}
-        {% if sb_total > 0 %}
-          {% set pct_new  = ((status_breakdown.new / sb_total) * 100)|round(1) %}
-          {% set pct_work = ((status_breakdown.in_progress / sb_total) * 100)|round(1) %}
-          {% set pct_done = ((status_breakdown.closed / sb_total) * 100)|round(1) %}
-          <div class="mb-3" style="height:22px;border-radius:999px;overflow:hidden;display:flex;">
-            {% if pct_new > 0 %}<div style="width:{{ pct_new }}%;background:#4272d4;" title="Новые: {{ status_breakdown.new }}"></div>{% endif %}
-            {% if pct_work > 0 %}<div style="width:{{ pct_work }}%;background:#f59e0b;" title="В работе: {{ status_breakdown.in_progress }}"></div>{% endif %}
-            {% if pct_done > 0 %}<div style="width:{{ pct_done }}%;background:#22c55e;" title="Закрыты: {{ status_breakdown.closed }}"></div>{% endif %}
+        <div id="statusBreakdownBlock" data-has-data="{{ '1' if sb_total > 0 else '0' }}">
+          <div id="statusBreakdownContent" {% if sb_total == 0 %}style="display:none;"{% endif %}>
+            {% set pct_new  = 0 if sb_total == 0 else ((status_breakdown.new / sb_total) * 100)|round(1) %}
+            {% set pct_work = 0 if sb_total == 0 else ((status_breakdown.in_progress / sb_total) * 100)|round(1) %}
+            {% set pct_done = 0 if sb_total == 0 else ((status_breakdown.closed / sb_total) * 100)|round(1) %}
+            <div class="mb-3" id="statusBar" style="height:22px;border-radius:999px;overflow:hidden;display:flex;">
+              <div data-sb-seg="new" data-sb-title="Новые" style="width:{{ pct_new }}%;background:#4272d4;{% if pct_new == 0 %}display:none;{% endif %}" title="Новые: {{ status_breakdown.new }}"></div>
+              <div data-sb-seg="in_progress" data-sb-title="В работе" style="width:{{ pct_work }}%;background:#f59e0b;{% if pct_work == 0 %}display:none;{% endif %}" title="В работе: {{ status_breakdown.in_progress }}"></div>
+              <div data-sb-seg="closed" data-sb-title="Закрыты" style="width:{{ pct_done }}%;background:#22c55e;{% if pct_done == 0 %}display:none;{% endif %}" title="Закрыты: {{ status_breakdown.closed }}"></div>
+            </div>
+            <div class="status-donut-wrap mb-3">
+              <div class="status-donut-item">
+                <div class="status-dot" style="background:#4272d4;"></div>
+                <div>
+                  <div class="fw-bold" style="font-size:1.3rem;line-height:1;" data-sb-count="new">{{ status_breakdown.new }}</div>
+                  <div class="text-muted" style="font-size:.8rem;">Новые (<span data-sb-pct="new">{{ pct_new }}</span>%)</div>
+                </div>
+              </div>
+              <div class="status-donut-item">
+                <div class="status-dot" style="background:#f59e0b;"></div>
+                <div>
+                  <div class="fw-bold" style="font-size:1.3rem;line-height:1;" data-sb-count="in_progress">{{ status_breakdown.in_progress }}</div>
+                  <div class="text-muted" style="font-size:.8rem;">В работе (<span data-sb-pct="in_progress">{{ pct_work }}</span>%)</div>
+                </div>
+              </div>
+              <div class="status-donut-item">
+                <div class="status-dot" style="background:#22c55e;"></div>
+                <div>
+                  <div class="fw-bold" style="font-size:1.3rem;line-height:1;" data-sb-count="closed">{{ status_breakdown.closed }}</div>
+                  <div class="text-muted" style="font-size:.8rem;">Закрыты (<span data-sb-pct="closed">{{ pct_done }}</span>%)</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="status-donut-wrap mb-3">
-            <div class="status-donut-item">
-              <div class="status-dot" style="background:#4272d4;"></div>
-              <div>
-                <div class="fw-bold" style="font-size:1.3rem;line-height:1;">{{ status_breakdown.new }}</div>
-                <div class="text-muted" style="font-size:.8rem;">Новые ({{ pct_new }}%)</div>
-              </div>
-            </div>
-            <div class="status-donut-item">
-              <div class="status-dot" style="background:#f59e0b;"></div>
-              <div>
-                <div class="fw-bold" style="font-size:1.3rem;line-height:1;">{{ status_breakdown.in_progress }}</div>
-                <div class="text-muted" style="font-size:.8rem;">В работе ({{ pct_work }}%)</div>
-              </div>
-            </div>
-            <div class="status-donut-item">
-              <div class="status-dot" style="background:#22c55e;"></div>
-              <div>
-                <div class="fw-bold" style="font-size:1.3rem;line-height:1;">{{ status_breakdown.closed }}</div>
-                <div class="text-muted" style="font-size:.8rem;">Закрыты ({{ pct_done }}%)</div>
-              </div>
-            </div>
-          </div>
-        {% else %}
-          <div class="text-center py-4 text-muted">
+          <div id="statusBreakdownEmpty" class="text-center py-4 text-muted" {% if sb_total > 0 %}style="display:none;"{% endif %}>
             <i class="bi bi-pie-chart" style="font-size:1.8rem;opacity:.2;"></i>
             <div class="small mt-2">Нет инцидентов</div>
           </div>
-        {% endif %}
+        </div>
+        <script>
+          window.__statusCounts = {
+            new: {{ status_breakdown.new|default(0) }},
+            assigned: {{ status_breakdown.assigned|default(0) }},
+            in_progress: {{ status_breakdown.in_progress|default(0) }},
+            resolved: {{ status_breakdown.resolved|default(0) }},
+            closed: {{ status_breakdown.closed|default(0) }},
+          };
+        </script>
       </div>
     </div>
   </div>
@@ -506,6 +555,8 @@
             <label><input type="checkbox" class="col-toggle" data-col="col-dt" checked> Дата</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-cat" checked> Категория</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-children" checked> Дети</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-building" checked> Здание</label>
+            {% if is_admin %}<label><input type="checkbox" class="col-toggle" data-col="col-kubok" checked> Кубок</label>{% endif %}
             <label><input type="checkbox" class="col-toggle" data-col="col-desc" checked> Описание</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-author" checked> Автор</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-status" checked> Статус</label>
@@ -529,6 +580,8 @@
           <th class="col-dt" style="width:180px;">Дата/время</th>
           <th class="col-cat" style="width:220px;">Категория</th>
           <th class="col-children">Дети</th>
+          <th class="col-building" style="width:140px;">Здание</th>
+          {% if is_admin %}<th class="col-kubok" style="min-width:150px;">Кубок</th>{% endif %}
           <th class="col-desc">Описание</th>
           <th class="col-author" style="width:200px;">Автор</th>
           <th class="col-status" style="width:130px;">Статус</th>
@@ -545,10 +598,48 @@
               {% for ch in r.children %}
                 <div>
                   <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
-                  <span class="text-muted">— {{ ch.class }}</span>
+                  {% if ch.class_id %}
+                    <span class="text-muted">— <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="text-decoration-none">{{ ch.class }}</a></span>
+                  {% else %}
+                    <span class="text-muted">— {{ ch.class }}</span>
+                  {% endif %}
                 </div>
               {% endfor %}
             </td>
+            <td class="col-building text-muted small">
+              {% set bns = namespace(seen=[]) %}
+              {% for ch in r.children %}
+                {% if ch.building and ch.building not in bns.seen %}
+                  {% set _ = bns.seen.append(ch.building) %}
+                  <div>{{ ch.building }}</div>
+                {% endif %}
+              {% endfor %}
+              {% if not bns.seen %}—{% endif %}
+            </td>
+            {% if is_admin %}
+              <td class="col-kubok">
+                {% set kns = namespace(seen=[]) %}
+                {% for ch in r.children %}
+                  {% if ch.class_id and ch.class_id not in kns.seen %}
+                    {% set _ = kns.seen.append(ch.class_id) %}
+                    {% set _kr = kubok_rating(ch.class) %}
+                    <div class="mb-1">
+                      {% if _kr %}
+                        <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
+                           class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
+                           style="font-size:.72rem;"
+                           title="Кубок школы класса {{ ch.class }}">
+                          <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
+                        </a>
+                      {% else %}
+                        <span class="text-muted small">{{ ch.class }}: —</span>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+                {% if not kns.seen %}<span class="text-muted small">—</span>{% endif %}
+              </td>
+            {% endif %}
             <td class="text-muted col-desc">
               {% if r.inc.description and r.inc.description|length > 60 %}
                 <span class="desc-short">{{ r.inc.description[:60] }}…
@@ -572,16 +663,18 @@
             <td class="text-muted small col-author">{{ r.author_label }}</td>
             <td class="col-status">
               {% set inc_status = r.inc.status or "new" %}
-              {% set _lbl = {'new':'Новый','in_progress':'В работе','closed':'Закрыт'} %}
+              {% set _lbl = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
               {% if can_change_status %}
                 <div class="status-picker" data-incident-id="{{ r.inc.id }}">
                   <button type="button" class="status-pill s-{{ inc_status }}"><span class="sp-label">{{ _lbl[inc_status] }}</span></button>
                   <div class="status-picker-menu">
                     <div class="sp-group">To-do</div>
                     <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
+                    <div class="sp-opt" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
                     <div class="sp-sep"></div>
                     <div class="sp-group">In progress</div>
                     <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
+                    <div class="sp-opt" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
                     <div class="sp-sep"></div>
                     <div class="sp-group">Complete</div>
                     <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
@@ -600,7 +693,7 @@
               {% endif %}
             </td>
             <td class="col-actions">
-            {% if can_change_status or r.inc.author_id == current_user.id %}
+            {% if can_change_status or can_edit_any or r.inc.author_id == current_user.id %}
               <div class="d-flex gap-1">
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
                 <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');">
@@ -616,7 +709,7 @@
         {% endfor %}
         {% if rows|length == 0 %}
           <tr>
-            <td colspan="8" class="text-center py-5 text-muted">
+            <td colspan="{{ 10 if is_admin else 9 }}" class="text-center py-5 text-muted">
               <i class="bi bi-inbox" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>
               Инцидентов пока нет. Хорошее начало дня.
             </td>
@@ -657,9 +750,29 @@
           <span class="col-assignee">{% if r.inc.assignee %}{% set a = r.inc.assignee %}<span class="inc-list-meta">&#128100; {{ (a.last_name or "") }} {{ (a.first_name or "")[:1] }}{% if a.first_name %}.{% endif %}</span>{% endif %}</span>
         </div>
         <div class="inc-list-row col-children">
+          {% set klns = namespace(seen=[]) %}
           {% for ch in r.children %}
             <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="inc-list-meta fw-semibold">{{ ch.fio }}</a>
-            <span class="inc-list-meta text-muted">{{ ch.class }}</span>
+            {% if ch.class_id %}
+              <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="inc-list-meta text-muted text-decoration-none">{{ ch.class }}</a>
+            {% else %}
+              <span class="inc-list-meta text-muted">{{ ch.class }}</span>
+            {% endif %}
+            {% if ch.building %}
+              <span class="inc-list-meta text-muted col-building">· {{ ch.building }}</span>
+            {% endif %}
+            {% if is_admin and ch.class_id and ch.class_id not in klns.seen %}
+              {% set _ = klns.seen.append(ch.class_id) %}
+              {% set _kr = kubok_rating(ch.class) %}
+              {% if _kr %}
+                <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
+                   class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
+                   style="font-size:.7rem;"
+                   title="Кубок школы — {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}">
+                  <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
+                </a>
+              {% endif %}
+            {% endif %}
           {% endfor %}
         </div>
         {% if r.inc.description %}
@@ -668,12 +781,14 @@
         <div class="inc-list-row mt-1">
           <span class="inc-list-meta col-author">{{ r.author_label }}</span>
           <span class="col-actions d-inline-flex gap-1 align-items-center">
-            {% if can_change_status or r.inc.author_id == current_user.id %}
+            {% if can_change_status or can_edit_any or r.inc.author_id == current_user.id %}
               <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
               <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
                 <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
               </form>
+            {% else %}
+              <span class="text-muted">—</span>
             {% endif %}
           </span>
         </div>
@@ -712,7 +827,7 @@
   }
 
   // Status picker
-  const SP_LABELS = {new:'Новый', in_progress:'В работе', closed:'Закрыт'};
+  const SP_LABELS = {new:'Новый', assigned:'Назначен', in_progress:'В работе', resolved:'Отработан', closed:'Закрыт'};
   document.querySelectorAll('.status-picker .status-pill').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -721,11 +836,60 @@
       menu.classList.toggle('open');
     });
   });
+
+  function renderStatusStats() {
+    const c = window.__statusCounts || {};
+    const total = (c.new || 0) + (c.in_progress || 0) + (c.closed || 0);
+    const pct = v => total > 0 ? (v / total * 100) : 0;
+    const fmt = v => (Math.round(v * 10) / 10).toFixed(1);
+
+    const block = document.getElementById('statusBreakdownBlock');
+    const content = document.getElementById('statusBreakdownContent');
+    const empty = document.getElementById('statusBreakdownEmpty');
+    if (block) {
+      if (total > 0) {
+        if (content) content.style.display = '';
+        if (empty) empty.style.display = 'none';
+      } else {
+        if (content) content.style.display = 'none';
+        if (empty) empty.style.display = '';
+      }
+    }
+
+    const bar = document.getElementById('statusBar');
+    if (bar) {
+      bar.querySelectorAll('[data-sb-seg]').forEach(el => {
+        const key = el.dataset.sbSeg;
+        const v = c[key] || 0;
+        const p = pct(v);
+        el.style.width = p + '%';
+        el.style.display = p > 0 ? '' : 'none';
+        el.title = (el.dataset.sbTitle || key) + ': ' + v;
+      });
+    }
+    document.querySelectorAll('[data-sb-count]').forEach(el => {
+      el.textContent = c[el.dataset.sbCount] || 0;
+    });
+    document.querySelectorAll('[data-sb-pct]').forEach(el => {
+      el.textContent = fmt(pct(c[el.dataset.sbPct] || 0));
+    });
+
+    const openEl = document.getElementById('statOpenCount');
+    if (openEl) openEl.textContent = (c.new || 0) + (c.assigned || 0) + (c.in_progress || 0);
+  }
+
   document.querySelectorAll('.sp-opt').forEach(opt => {
     opt.addEventListener('click', async function() {
       const picker = this.closest('.status-picker');
       const id = picker.dataset.incidentId;
       const newStatus = this.dataset.value;
+      const pillEl = picker.querySelector('.status-pill');
+      let oldStatus = 'new';
+      if (pillEl) {
+        for (const c of pillEl.classList) {
+          if (c.startsWith('s-')) { oldStatus = c.slice(2); break; }
+        }
+      }
       picker.querySelector('.status-picker-menu').classList.remove('open');
       const fd = new FormData(); fd.append('status', newStatus);
       try {
@@ -738,6 +902,15 @@
             pill.className = 'status-pill s-' + s;
             pill.querySelector('.sp-label').textContent = SP_LABELS[s] || s;
           });
+          if (window.__statusCounts && oldStatus !== s) {
+            if (window.__statusCounts[oldStatus] !== undefined) {
+              window.__statusCounts[oldStatus] = Math.max(0, window.__statusCounts[oldStatus] - 1);
+            }
+            if (window.__statusCounts[s] !== undefined) {
+              window.__statusCounts[s] += 1;
+            }
+            renderStatusStats();
+          }
         } else { alert('Ошибка: ' + (data.error || 'неизвестная')); }
       } catch(e) { alert('Сетевая ошибка при смене статуса'); }
     });
@@ -802,6 +975,18 @@ function toggleActivity(extraCount) {
   const more = document.getElementById("activityMore");
   const btn  = document.getElementById("activityMoreBtn");
   const icon = document.getElementById("activityMoreIcon");
+  const expanded = more.style.display !== "none";
+  more.style.display = expanded ? "none" : "";
+  icon.className = expanded ? "bi bi-chevron-down" : "bi bi-chevron-up";
+  btn.childNodes[btn.childNodes.length - 1].textContent = expanded
+    ? " Показать ещё " + extraCount
+    : " Свернуть";
+}
+
+function toggleClasses(extraCount) {
+  const more = document.getElementById("classesMore");
+  const btn  = document.getElementById("classesMoreBtn");
+  const icon = document.getElementById("classesMoreIcon");
   const expanded = more.style.display !== "none";
   more.style.display = expanded ? "none" : "";
   icon.className = expanded ? "bi bi-chevron-down" : "bi bi-chevron-up";

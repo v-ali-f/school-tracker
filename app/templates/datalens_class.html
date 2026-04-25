@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-3">
+  <div>
+    <h4 class="mb-1">
+      <i class="bi bi-trophy-fill text-warning"></i>
+      Кубок школы · класс {{ school_class.name }}
+    </h4>
+    <div class="text-muted small">
+      Место, баллы и все активности класса. Источник данных — Google Sheets, кеш обновляется раз в сутки.
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if full_dashboard_url %}
+      <a href="{{ full_dashboard_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm" title="Открыть полный дашборд Кубка в DataLens">
+        Полный дашборд в DataLens <i class="bi bi-box-arrow-up-right"></i>
+      </a>
+    {% endif %}
+    <a href="{{ url_for('children.classes_registry') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> К классам
+    </a>
+  </div>
+</div>
+
+{% if rating %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card kubok-stat-card text-center p-4">
+        <div class="text-muted small">Место в школе</div>
+        <div class="kubok-stat-value">{{ rating.place }}</div>
+        <div class="text-muted small">из {{ rating.total_classes }} классов</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card kubok-stat-card text-center p-4">
+        <div class="text-muted small">Сумма баллов</div>
+        <div class="kubok-stat-value">{{ '{:g}'.format(rating.total_points) }}</div>
+        <div class="text-muted small">баллов за год</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card kubok-stat-card text-center p-4">
+        <div class="text-muted small">Типов активностей</div>
+        <div class="kubok-stat-value">{{ rating.activities|length }}</div>
+        <div class="text-muted small">с баллами</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">Все активности класса — за что получили баллы</span>
+      <span class="text-muted small">сумма по убыванию</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="width:60px">#</th>
+            <th>Активность</th>
+            <th class="text-end" style="width:140px">Баллы</th>
+            <th class="text-end" style="width:140px">Доля</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in rating.activities %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td>{{ a.name }}</td>
+              <td class="text-end fw-semibold">{{ '{:g}'.format(a.points) }}</td>
+              <td class="text-end text-muted">
+                {% if rating.total_points %}
+                  {{ '%.1f' % (a.points / rating.total_points * 100) }}%
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="text-muted">У класса пока нет активностей с баллами.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if rating.activities %}
+          <tfoot>
+            <tr class="table-light">
+              <td></td>
+              <td class="fw-semibold">Итого</td>
+              <td class="text-end fw-bold">{{ '{:g}'.format(rating.total_points) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="text-muted small mt-3">
+    {% if rating.updated_at %}
+      Обновлено: {{ rating.updated_at.strftime('%d.%m.%Y %H:%M') }}.
+    {% endif %}
+    Всего классов в кеше: {{ cache_status.classes }}.
+    Если цифры отстают — запусти
+    <code>flask --app run refresh-kubok</code> локально (или подожди, пока обновится автоматически).
+  </div>
+{% else %}
+  <div class="alert alert-warning">
+    <h6 class="alert-heading">Класс <b>{{ school_class.name }}</b> не найден в Кубке</h6>
+    <p class="mb-2 small">
+      В локальном кеше рейтинга нет данных для этого класса. Возможные причины:
+    </p>
+    <ul class="small mb-0">
+      <li>Кеш ещё ни разу не обновлялся — запусти <code>flask --app run refresh-kubok</code></li>
+      <li>В Google Sheets «Кубок 25-26» у этого класса нет событий в журнале рейтинга</li>
+      <li>Имя класса в локальной БД отличается от Sheets (проверь точное написание)</li>
+    </ul>
+  </div>
+{% endif %}
+
+<style>
+  .kubok-stat-card { border: 1px solid #f1d78a; background: linear-gradient(135deg, #fffdf5 0%, #fff 70%); }
+  .kubok-stat-value { font-size: 2.2rem; font-weight: 700; color: #6b4a00; line-height: 1.2; }
+</style>
+{% endblock %}

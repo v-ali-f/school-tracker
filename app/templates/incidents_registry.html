@@ -3,7 +3,13 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item active">Реестр инцидентов</li>
+    <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_dashboard') }}">Дашборд инцидентов</a></li>
+    {% if class_id or grade or category or status_filter or q %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_registry') }}">Реестр инцидентов</a></li>
+      <li class="breadcrumb-item active">Фильтр</li>
+    {% else %}
+      <li class="breadcrumb-item active">Реестр инцидентов</li>
+    {% endif %}
   </ol>
 </nav>
 {% endblock %}
@@ -156,7 +162,9 @@
         <select class="form-select" name="status">
           <option value="">— все —</option>
           <option value="new"         {% if status_filter == 'new' %}selected{% endif %}>Новый</option>
+          <option value="assigned"    {% if status_filter == 'assigned' %}selected{% endif %}>Назначен</option>
           <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>В работе</option>
+          <option value="resolved"    {% if status_filter == 'resolved' %}selected{% endif %}>Отработан</option>
           <option value="closed"      {% if status_filter == 'closed' %}selected{% endif %}>Закрыт</option>
         </select>
       </div>
@@ -190,6 +198,8 @@
             <label><input type="checkbox" class="col-toggle" data-col="col-dt"       checked> Дата</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-cat"      checked> Категория</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-children" checked> Дети</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-building" checked> Здание</label>
+            {% if is_admin %}<label><input type="checkbox" class="col-toggle" data-col="col-kubok" checked> Кубок</label>{% endif %}
             <label><input type="checkbox" class="col-toggle" data-col="col-desc"     checked> Описание</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-status"   checked> Статус</label>
             <label><input type="checkbox" class="col-toggle" data-col="col-assignee" checked> Исполнитель</label>
@@ -214,6 +224,8 @@
           <th class="col-dt" style="width:160px;">Дата/время</th>
           <th class="col-cat" style="width:200px;">Категория</th>
           <th class="col-children">Дети</th>
+          <th class="col-building" style="width:140px;">Здание</th>
+          {% if is_admin %}<th class="col-kubok" style="min-width:150px;">Кубок</th>{% endif %}
           <th class="col-desc">Описание</th>
           <th class="col-status" style="width:130px;">Статус</th>
           <th class="col-assignee" style="width:160px;">Исполнитель</th>
@@ -231,10 +243,48 @@
               {% for ch in r.children %}
                 <div>
                   <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
-                  <span class="text-muted">— {{ ch.class }}</span>
+                  {% if ch.class_id %}
+                    <span class="text-muted">— <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="text-decoration-none">{{ ch.class }}</a></span>
+                  {% else %}
+                    <span class="text-muted">— {{ ch.class }}</span>
+                  {% endif %}
                 </div>
               {% endfor %}
             </td>
+            <td class="col-building text-muted small">
+              {% set bns = namespace(seen=[]) %}
+              {% for ch in r.children %}
+                {% if ch.building and ch.building not in bns.seen %}
+                  {% set _ = bns.seen.append(ch.building) %}
+                  <div>{{ ch.building }}</div>
+                {% endif %}
+              {% endfor %}
+              {% if not bns.seen %}—{% endif %}
+            </td>
+            {% if is_admin %}
+              <td class="col-kubok">
+                {% set kns = namespace(seen=[]) %}
+                {% for ch in r.children %}
+                  {% if ch.class_id and ch.class_id not in kns.seen %}
+                    {% set _ = kns.seen.append(ch.class_id) %}
+                    {% set _kr = kubok_rating(ch.class) %}
+                    <div class="mb-1">
+                      {% if _kr %}
+                        <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
+                           class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
+                           style="font-size:.72rem;"
+                           title="Кубок школы класса {{ ch.class }}">
+                          <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
+                        </a>
+                      {% else %}
+                        <span class="text-muted small">{{ ch.class }}: —</span>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+                {% if not kns.seen %}<span class="text-muted small">—</span>{% endif %}
+              </td>
+            {% endif %}
             <td class="text-muted col-desc">
               {% if r.inc.description and r.inc.description|length > 60 %}
                 <span class="desc-short">{{ r.inc.description[:60] }}…
@@ -249,16 +299,18 @@
             </td>
             <td class="col-status">
               {% set s = r.inc.status or 'new' %}
-              {% set _lbl = {'new':'Новый','in_progress':'В работе','closed':'Закрыт'} %}
+              {% set _lbl = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
               {% if can_change_status %}
                 <div class="status-picker" data-incident-id="{{ r.inc.id }}">
                   <button type="button" class="status-pill s-{{ s }}"><span class="sp-label">{{ _lbl[s] }}</span></button>
                   <div class="status-picker-menu">
                     <div class="sp-group">To-do</div>
                     <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
+                    <div class="sp-opt" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
                     <div class="sp-sep"></div>
                     <div class="sp-group">In progress</div>
                     <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
+                    <div class="sp-opt" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
                     <div class="sp-sep"></div>
                     <div class="sp-group">Complete</div>
                     <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
@@ -278,20 +330,21 @@
               {% if can_change_status or r.inc.author_id == current_user.id %}
                 <div class="d-flex gap-1">
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}" title="История"><i class="bi bi-clock-history"></i></a>
                   <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');">
                     <input type="hidden" name="next" value="{{ request.full_path }}">
                     <button class="btn btn-sm btn-outline-secondary" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
                   </form>
                 </div>
               {% else %}
-                <span class="text-muted">—</span>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}" title="История"><i class="bi bi-clock-history"></i></a>
               {% endif %}
             </td>
           </tr>
         {% endfor %}
         {% if rows|length == 0 %}
           <tr>
-            <td colspan="9" class="text-center py-5 text-muted">
+            <td colspan="{{ 11 if is_admin else 10 }}" class="text-center py-5 text-muted">
               <i class="bi bi-search" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>
               {% if q or grade or class_id or category or status_filter %}
                 По вашему запросу инцидентов не найдено. Попробуйте изменить фильтры.
@@ -309,7 +362,7 @@
   <div id="viewList" class="inc-list" style="display:none;">
     {% for r in rows %}
       {% set s = r.inc.status or 'new' %}
-      {% set _lbl = {'new':'Новый','in_progress':'В работе','closed':'Закрыт'} %}
+      {% set _lbl = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
       <div class="inc-list-item">
         <div class="inc-list-row">
           <span class="inc-list-date col-dt"><i class="bi bi-calendar3"></i> {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</span>
@@ -321,9 +374,11 @@
                 <div class="status-picker-menu">
                   <div class="sp-group">To-do</div>
                   <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
+                  <div class="sp-opt" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
                   <div class="sp-sep"></div>
                   <div class="sp-group">In progress</div>
                   <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
+                  <div class="sp-opt" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
                   <div class="sp-sep"></div>
                   <div class="sp-group">Complete</div>
                   <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
@@ -336,9 +391,29 @@
           <span class="col-assignee">{% if r.inc.assignee %}{% set a = r.inc.assignee %}<span class="inc-list-meta">&#128100; {{ (a.last_name or "") }} {{ (a.first_name or "")[:1] }}{% if a.first_name %}.{% endif %}</span>{% endif %}</span>
         </div>
         <div class="inc-list-row col-children">
+          {% set klns = namespace(seen=[]) %}
           {% for ch in r.children %}
             <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="inc-list-meta fw-semibold">{{ ch.fio }}</a>
-            <span class="inc-list-meta text-muted">{{ ch.class }}</span>
+            {% if ch.class_id %}
+              <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="inc-list-meta text-muted text-decoration-none">{{ ch.class }}</a>
+            {% else %}
+              <span class="inc-list-meta text-muted">{{ ch.class }}</span>
+            {% endif %}
+            {% if ch.building %}
+              <span class="inc-list-meta text-muted col-building">· {{ ch.building }}</span>
+            {% endif %}
+            {% if is_admin and ch.class_id and ch.class_id not in klns.seen %}
+              {% set _ = klns.seen.append(ch.class_id) %}
+              {% set _kr = kubok_rating(ch.class) %}
+              {% if _kr %}
+                <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
+                   class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
+                   style="font-size:.7rem;"
+                   title="Кубок школы — {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}">
+                  <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
+                </a>
+              {% endif %}
+            {% endif %}
           {% endfor %}
         </div>
         {% if r.inc.description %}
@@ -369,7 +444,7 @@
 <script>
 (function(){
   // Status picker
-  const SP_LABELS = {new:'Новый', in_progress:'В работе', closed:'Закрыт'};
+  const SP_LABELS = {new:'Новый', assigned:'Назначен', in_progress:'В работе', resolved:'Отработан', closed:'Закрыт'};
   document.querySelectorAll('.status-picker .status-pill').forEach(btn => {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
