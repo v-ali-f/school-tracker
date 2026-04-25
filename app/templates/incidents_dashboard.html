@@ -134,8 +134,12 @@
   }
   .status-badge.s-new         { background: #fff3e0; color: #92400e; }
   .status-badge.s-new::before { background: #f59e0b; }
+  .status-badge.s-assigned         { background: #fef3c7; color: #92400e; }
+  .status-badge.s-assigned::before { background: #f59e0b; }
   .status-badge.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
   .status-badge.s-in_progress::before { background: #3b82f6; }
+  .status-badge.s-resolved         { background: #f3e8ff; color: #6b21a8; }
+  .status-badge.s-resolved::before { background: #a855f7; }
   .status-badge.s-closed         { background: #f0fdf4; color: #15803d; }
   .status-badge.s-closed::before { background: #22c55e; }
   /* ── status picker (Notion-style) ── */
@@ -152,8 +156,12 @@
   }
   .status-pill.s-new         { background: #fff3e0; color: #92400e; }
   .status-pill.s-new::before { background: #f59e0b; }
+  .status-pill.s-assigned         { background: #fef3c7; color: #92400e; }
+  .status-pill.s-assigned::before { background: #f59e0b; }
   .status-pill.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
   .status-pill.s-in_progress::before { background: #3b82f6; }
+  .status-pill.s-resolved         { background: #f3e8ff; color: #6b21a8; }
+  .status-pill.s-resolved::before { background: #a855f7; }
   .status-pill.s-closed         { background: #f0fdf4; color: #15803d; }
   .status-pill.s-closed::before { background: #22c55e; }
   .status-picker-menu {
@@ -176,7 +184,9 @@
   .sp-opt:hover { background: #f8f9fa; }
   .sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .sp-dot.d-new         { background: #f59e0b; }
+  .sp-dot.d-assigned    { background: #f59e0b; }
   .sp-dot.d-in_progress { background: #3b82f6; }
+  .sp-dot.d-resolved    { background: #a855f7; }
   .sp-dot.d-closed      { background: #22c55e; }
   .sp-pill {
     display: inline-flex; align-items: center; gap: .3rem;
@@ -184,7 +194,9 @@
     font-size: .8rem; font-weight: 500;
   }
   .sp-pill.s-new         { background: #fff3e0; color: #92400e; }
+  .sp-pill.s-assigned    { background: #fef3c7; color: #92400e; }
   .sp-pill.s-in_progress { background: #eff6ff; color: #1d4ed8; }
+  .sp-pill.s-resolved    { background: #f3e8ff; color: #6b21a8; }
   .sp-pill.s-closed      { background: #f0fdf4; color: #15803d; }
   .status-donut-wrap { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
   .status-donut-item { display: flex; align-items: center; gap: .5rem; }

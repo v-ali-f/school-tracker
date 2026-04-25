@@ -3663,6 +3663,12 @@ def incident_delete(incident_id):
         child_id = first_link.child_id
 
     IncidentChild.query.filter_by(incident_id=inc.id).delete()
+
+    from app.models_legacy import IncidentNotification
+    from app.models.tasks import Task
+    IncidentNotification.query.filter_by(incident_id=inc.id).delete()
+    Task.query.filter_by(incident_id=inc.id).update({"incident_id": None})
+
     db.session.delete(inc)
     db.session.commit()
     flash("Инцидент удалён", "success")
