@@ -86,32 +86,134 @@
           <label class="form-label">Статус</label>
           <select class="form-select" name="status" style="max-width:200px;">
             <option value="new" {% if (incident.status or 'new') == 'new' %}selected{% endif %}>Новый</option>
+            <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Назначен</option>
             <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>В работе</option>
+            <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Отработан</option>
             <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Закрыт</option>
           </select>
         </div>
         <div class="col-auto">
           <label class="form-label">Исполнитель</label>
-          <select class="form-select" name="assignee_id" style="max-width:280px;">
-            <option value="">— не назначен —</option>
-            {% for u in assignees %}
-            <option value="{{ u.id }}" {% if incident.assignee_id == u.id %}selected{% endif %}>
-              {{ u.last_name }} {{ u.first_name }}{% if u.middle_name %} {{ u.middle_name }}{% endif %}
-            </option>
-            {% endfor %}
-          </select>
+          <div class="inc-assignee-combo" id="assigneeCombo" style="position:relative;width:320px;max-width:100%;">
+            <input type="hidden" name="assignee_id" id="assigneeIdField" value="{{ incident.assignee_id or '' }}">
+            <input type="text" class="form-control" id="assigneeSearchInput"
+                   autocomplete="off"
+                   placeholder="— не назначен —"
+                   value="{% if incident.assignee %}{{ incident.assignee.last_name or '' }} {{ incident.assignee.first_name or '' }}{% if incident.assignee.middle_name %} {{ incident.assignee.middle_name }}{% endif %}{% endif %}">
+            <button type="button" class="btn-close" id="assigneeClearBtn"
+                    aria-label="Сбросить"
+                    style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);font-size:.7rem;{% if not incident.assignee_id %}display:none;{% endif %}"></button>
+            <div class="inc-assignee-list" id="assigneeList"
+                 style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);
+                        background:#fff;border:1px solid #e9ecef;border-radius:8px;
+                        box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;
+                        z-index:1050;padding:.25rem;">
+              <div class="inc-assignee-opt" data-id="" data-label="" data-search=""
+                   style="padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.88rem;color:#6c757d;">
+                — не назначен —
+              </div>
+              {% for u in assignees %}
+                {% set _label = (u.last_name or '') ~ ' ' ~ (u.first_name or '') ~ ((' ' ~ u.middle_name) if u.middle_name else '') %}
+                <div class="inc-assignee-opt"
+                     data-id="{{ u.id }}"
+                     data-label="{{ _label|trim }}"
+                     data-search="{{ _label|trim|lower }}"
+                     style="padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.88rem;">
+                  {{ _label|trim }}
+                </div>
+              {% endfor %}
+              <div class="inc-assignee-empty text-muted small px-2 py-2" style="display:none;">Никто не найден</div>
+            </div>
+          </div>
+          <div class="form-text text-muted">Начните вводить ФИО — список отфильтруется. При назначении статус станет «Назначен», создастся задача.</div>
+        </div>
+        <div class="col-12" id="assignmentNoteWrap" style="{% if not incident.assignee_id %}display:none;{% endif %}">
+          <label class="form-label small text-muted mb-1" for="assignmentNoteField">
+            Пояснение исполнителю <span class="text-muted">(необязательно)</span>
+          </label>
+          <textarea class="form-control" id="assignmentNoteField" name="assignment_note" rows="2"
+                    placeholder="Например: разберитесь с родителями обоих учеников и дайте короткий отчёт…"></textarea>
+          <div class="form-text text-muted">Появится в журнале инцидента и в уведомлении исполнителю. Сохраняется только при смене исполнителя.</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="row g-3 mt-1">
+        <div class="col-auto">
+          <div class="form-label small text-muted">Статус</div>
+          <span class="inc-badge-{{ incident.status or 'new' }}" style="display:inline-block;padding:4px 10px;border-radius:6px;background:#f8f9fa;font-weight:600;">
+            {% set lbl_map = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
+            {{ lbl_map.get(incident.status or 'new', incident.status) }}
+          </span>
+        </div>
+        <div class="col-auto">
+          <div class="form-label small text-muted">Исполнитель</div>
+          <div>
+            {% if incident.assignee %}{{ incident.assignee.fio }}
+            {% else %}<em class="text-muted">не назначен</em>{% endif %}
+          </div>
         </div>
       </div>
       {% endif %}
 
+      {# Кнопка «Отработано» для исполнителя #}
+      {% if current_user.is_authenticated and incident.assignee_id == current_user.id and incident.status not in ('resolved', 'closed') %}
+      <div class="mt-3">
+        <button type="button" class="btn btn-outline-success" id="markResolvedBtn"
+                data-bs-toggle="modal" data-bs-target="#markResolvedModal">
+          <i class="bi bi-check2-circle me-1"></i>Я отработал инцидент
+        </button>
+        <div class="form-text text-muted">Управляющий (директор/зам/админ) закроет инцидент после проверки.</div>
+      </div>
+      {% endif %}
+
+      <div class="mt-3">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incident_timeline', incident_id=incident.id) }}">
+          <i class="bi bi-clock-history me-1"></i>Полная история
+        </a>
+      </div>
+
+      {% if can_edit_incident %}
       <div class="d-flex gap-2 mt-3">
         <button class="btn btn-primary">Сохранить изменения</button>
         <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_my') }}">Отмена</a>
       </div>
+      {% else %}
+      <div class="alert alert-info mt-3 py-2 mb-0 small">
+        <i class="bi bi-info-circle me-1"></i>
+        Просмотр карточки. Изменять поля может автор инцидента или управляющий.
+        {% if can_add_note %}Вы можете оставить заметку в журнале работы ниже.{% endif %}
+      </div>
+      {% endif %}
 
     </form>
   </div>
 </div>
+
+{# ---- Связанные задачи ---- #}
+{% if related_tasks %}
+<div class="card mt-4">
+  <div class="card-body">
+    <h5 class="mb-1">Связанные задачи <span class="badge bg-secondary">{{ related_tasks|length }}</span></h5>
+    <div class="text-muted small mb-3">Поручения, созданные по этому инциденту исполнителям.</div>
+    <div class="vstack gap-2">
+      {% for t in related_tasks %}
+      <a class="d-flex justify-content-between align-items-center text-decoration-none p-2"
+         style="border:1px solid #e9ecef; border-radius:10px; color:inherit;"
+         href="{{ url_for('tasks.task_card', task_id=t.id) }}">
+        <div class="flex-grow-1">
+          <div class="fw-semibold small">№{{ t.id }} · {{ t.title }}</div>
+          <div class="small text-muted">
+            {% if t.responsible %}Исполнитель: {{ t.responsible.fio or t.responsible.username }}{% else %}Без исполнителя{% endif %}
+            {% if t.deadline_at %} · срок {{ t.deadline_at.strftime('%d.%m.%Y') }}{% endif %}
+          </div>
+        </div>
+        <span class="badge text-bg-secondary">{{ t.status }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {# ---- Журнал работы с инцидентом ---- #}
 <div class="card mt-4">
@@ -120,20 +222,92 @@
     <div class="text-muted small mb-3">Заметки о ходе урегулирования инцидента — видны всем причастным сотрудникам</div>
 
     <div id="notesList">
-      {% if notes %}
-        {% for n in notes %}
-        <div class="d-flex gap-2 mb-3" id="note-{{ n.id }}">
-          <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.85rem;">
-            {{ (n.author.last_name or n.author.username or "?")[:1] }}
-          </div>
-          <div class="flex-grow-1">
-            <div class="d-flex align-items-baseline gap-2 mb-1">
-              <span class="fw-semibold" style="font-size:.9rem;">
-                {{ (n.author.last_name or "") }} {{ (n.author.first_name or "")[:1] }}{% if n.author.first_name %}.{% endif %}
-              </span>
-              <span class="text-muted" style="font-size:.8rem;">{{ n.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+      {% if note_threads %}
+        {% for th in note_threads %}
+        {% set n = th.note %}
+        <div class="note-thread mb-3" data-thread-root="{{ n.id }}">
+          <div class="d-flex gap-2" id="note-{{ n.id }}" data-note-id="{{ n.id }}" data-note-author="{{ (n.author.last_name or '') }} {{ (n.author.first_name or '')[:1] }}{% if n.author.first_name %}.{% endif %}">
+            <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.85rem;">
+              {{ (n.author.last_name or n.author.username or "?")[:1] }}
             </div>
-            <div style="background:#f8f9fa;border-radius:8px;padding:.5rem .75rem;white-space:pre-wrap;font-size:.9rem;">{{ n.text }}</div>
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-baseline gap-2 mb-1">
+                <span class="fw-semibold" style="font-size:.9rem;">
+                  {{ (n.author.last_name or "") }} {{ (n.author.first_name or "")[:1] }}{% if n.author.first_name %}.{% endif %}
+                </span>
+                <span class="text-muted" style="font-size:.8rem;">{{ n.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+                {% if can_reply %}
+                <button type="button" class="btn btn-sm btn-link p-0 ms-auto reply-btn" data-note-id="{{ n.id }}" style="font-size:.8rem;"><i class="bi bi-reply"></i> Ответить</button>
+                {% endif %}
+              </div>
+              <div style="background:#f8f9fa;border-radius:8px;padding:.5rem .75rem;white-space:pre-wrap;font-size:.9rem;">{{ n.text }}</div>
+              {% if n.attachments %}
+              <div class="note-attachments mt-2 d-flex flex-wrap gap-2" data-att-for="{{ n.id }}">
+                {% for a in n.attachments %}
+                  {% set _ext = (a.filename or '').rsplit('.',1)[-1]|lower if '.' in (a.filename or '') else '' %}
+                  {% if _ext in ['jpg','jpeg','png','gif','webp'] %}
+                    <a href="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}" target="_blank" class="att-thumb" title="{{ a.filename }}">
+                      <img src="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}" alt="{{ a.filename }}">
+                    </a>
+                  {% elif _ext in ['mp4','mov','webm'] %}
+                    <video class="att-video" controls preload="metadata" title="{{ a.filename }}">
+                      <source src="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}">
+                    </video>
+                  {% else %}
+                    <a href="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}" class="att-file" target="_blank" title="{{ a.filename }}">
+                      <i class="bi bi-paperclip"></i>
+                      <span class="att-name">{{ a.filename }}</span>
+                      <span class="att-size text-muted">{{ ((a.file_size or 0) / 1024)|round(0, 'floor')|int }} КБ</span>
+                    </a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="note-replies ms-5 mt-2" data-replies-for="{{ n.id }}">
+            {% for rep in th.replies %}
+            {% set r = rep.note %}
+            <div class="d-flex gap-2 mt-2 reply-item" id="note-{{ r.id }}" data-note-id="{{ r.id }}" data-note-author="{{ (r.author.last_name or '') }} {{ (r.author.first_name or '')[:1] }}{% if r.author.first_name %}.{% endif %}">
+              <div class="flex-shrink-0" style="width:28px;height:28px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.75rem;">
+                {{ (r.author.last_name or r.author.username or "?")[:1] }}
+              </div>
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-baseline gap-2 mb-1">
+                  <span class="fw-semibold" style="font-size:.85rem;">
+                    {{ (r.author.last_name or "") }} {{ (r.author.first_name or "")[:1] }}{% if r.author.first_name %}.{% endif %}
+                  </span>
+                  <span class="text-muted" style="font-size:.75rem;">{{ r.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+                  {% if can_reply %}
+                  <button type="button" class="btn btn-sm btn-link p-0 ms-auto reply-btn" data-note-id="{{ n.id }}" style="font-size:.75rem;"><i class="bi bi-reply"></i> Ответить</button>
+                  {% endif %}
+                </div>
+                <div style="background:#eef2ff;border-left:3px solid #6366f1;border-radius:8px;padding:.4rem .7rem;white-space:pre-wrap;font-size:.88rem;">{{ r.text }}</div>
+                {% if r.attachments %}
+                <div class="note-attachments mt-2 d-flex flex-wrap gap-2" data-att-for="{{ r.id }}">
+                  {% for a in r.attachments %}
+                    {% set _ext = (a.filename or '').rsplit('.',1)[-1]|lower if '.' in (a.filename or '') else '' %}
+                    {% if _ext in ['jpg','jpeg','png','gif','webp'] %}
+                      <a href="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}" target="_blank" class="att-thumb" title="{{ a.filename }}">
+                        <img src="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}" alt="{{ a.filename }}">
+                      </a>
+                    {% elif _ext in ['mp4','mov','webm'] %}
+                      <video class="att-video" controls preload="metadata" title="{{ a.filename }}">
+                        <source src="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}">
+                      </video>
+                    {% else %}
+                      <a href="{{ url_for('children.incident_note_attachment_download', attachment_id=a.id) }}" class="att-file" target="_blank" title="{{ a.filename }}">
+                        <i class="bi bi-paperclip"></i>
+                        <span class="att-name">{{ a.filename }}</span>
+                        <span class="att-size text-muted">{{ ((a.file_size or 0) / 1024)|round(0, 'floor')|int }} КБ</span>
+                      </a>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
           </div>
         </div>
         {% endfor %}
@@ -143,52 +317,358 @@
     </div>
 
     {% if can_add_note %}
-    <div class="mt-3 d-flex gap-2 align-items-start" id="addNoteForm">
+    <div id="replyBanner" class="alert alert-info py-2 px-3 mb-2" style="display:none;">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-reply"></i>
+        <span>Ответ: <strong id="replyTargetName">—</strong></span>
+        <button type="button" class="btn-close ms-auto" id="replyCancel" aria-label="Отменить"></button>
+      </div>
+    </div>
+    <div class="mt-3" id="addNoteForm">
       <textarea id="noteText" class="form-control" rows="2" placeholder="Напишите заметку о ходе работы…" style="resize:vertical;"></textarea>
-      <button class="btn btn-primary btn-sm" id="addNoteBtn" style="white-space:nowrap;">Добавить</button>
+      <div class="d-flex align-items-center justify-content-between gap-2 mt-2 flex-wrap">
+        <div class="d-flex align-items-center gap-2 flex-grow-1">
+          <label class="btn btn-sm btn-outline-secondary mb-0" for="noteFiles" title="Прикрепить файлы">
+            <i class="bi bi-paperclip"></i> Прикрепить
+          </label>
+          <input type="file" id="noteFiles" multiple style="display:none;"
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip,.txt,.mp4,.mov,.webm">
+          <span class="text-muted small" id="noteFilesList"></span>
+        </div>
+        <button class="btn btn-primary btn-sm" id="addNoteBtn" style="white-space:nowrap;">Добавить</button>
+      </div>
+      <div class="text-muted small mt-1">До 10 файлов на комментарий. Документы/изображения — 30 МБ, видео — 100 МБ. Форматы: pdf/doc/xls/txt/jpg/png/gif/webp/zip/mp4/mov/webm.</div>
     </div>
     <div id="noteError" class="text-danger small mt-1" style="display:none;"></div>
     {% endif %}
   </div>
 </div>
 
+<style>
+  .inc-assignee-opt:hover { background:#f8f9fa; }
+  .inc-assignee-opt.hidden { display:none; }
+  .inc-assignee-opt.selected { background:#eef2ff; color:#3730a3; font-weight:500; }
+  #assigneeSearchInput { padding-right: 2rem; }
+
+  /* ── Вложения в комментариях ── */
+  .note-attachments .att-thumb {
+    display:inline-block; width:84px; height:84px; overflow:hidden;
+    border:1px solid #e9ecef; border-radius:8px; background:#f8f9fa;
+  }
+  .note-attachments .att-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .note-attachments .att-video {
+    max-width:280px; max-height:180px; border:1px solid #e9ecef; border-radius:8px; background:#000;
+  }
+  .note-attachments .att-file {
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.3rem .55rem; border:1px solid #e9ecef; border-radius:8px;
+    background:#f8f9fa; color:#212529; text-decoration:none; font-size:.82rem;
+  }
+  .note-attachments .att-file:hover { background:#eef2ff; border-color:#c7d2fe; color:#3730a3; }
+  .note-attachments .att-file .att-name { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .note-attachments .att-file .att-size { font-size:.72rem; }
+  #noteFilesList { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
+
 <script>
 const ADD_NOTE_URL = "{{ url_for('children.incident_add_note', incident_id=incident.id) }}";
+const MARK_RESOLVED_URL = "{{ url_for('children.incident_mark_resolved', incident_id=incident.id) }}";
+
+(function initAssigneeCombo(){
+  const combo = document.getElementById('assigneeCombo');
+  if (!combo) return;
+  const input = document.getElementById('assigneeSearchInput');
+  const hidden = document.getElementById('assigneeIdField');
+  const list = document.getElementById('assigneeList');
+  const clearBtn = document.getElementById('assigneeClearBtn');
+  const emptyEl = list.querySelector('.inc-assignee-empty');
+  const opts = Array.from(list.querySelectorAll('.inc-assignee-opt'));
+  let initialLabel = input.value;
+
+  function highlightSelected(){
+    const sel = hidden.value || '';
+    opts.forEach(o => o.classList.toggle('selected', (o.dataset.id || '') === sel));
+  }
+
+  function openList(){
+    list.style.display = 'block';
+    applyFilter(input.value);
+  }
+  function closeList(){ list.style.display = 'none'; }
+
+  function applyFilter(q){
+    const query = (q || '').trim().toLowerCase();
+    let visible = 0;
+    opts.forEach(o => {
+      if (!o.dataset.id) {
+        o.classList.remove('hidden');
+        visible++;
+        return;
+      }
+      const match = query === '' || (o.dataset.search || '').includes(query);
+      o.classList.toggle('hidden', !match);
+      if (match) visible++;
+    });
+    if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
+  }
+
+  function selectOption(opt){
+    const id = opt.dataset.id || '';
+    const label = opt.dataset.label || '';
+    hidden.value = id;
+    input.value = label;
+    initialLabel = label;
+    clearBtn.style.display = id ? '' : 'none';
+    highlightSelected();
+    closeList();
+  }
+
+  input.addEventListener('focus', openList);
+  input.addEventListener('click', openList);
+  input.addEventListener('input', function(){
+    applyFilter(input.value);
+    if (list.style.display === 'none') openList();
+    if ((input.value || '').trim() === '' && hidden.value) {
+      hidden.value = '';
+      clearBtn.style.display = 'none';
+      highlightSelected();
+    }
+  });
+  input.addEventListener('blur', function(){
+    setTimeout(function(){
+      if (!combo.contains(document.activeElement)) {
+        if (hidden.value) input.value = initialLabel;
+        else input.value = '';
+        closeList();
+      }
+    }, 150);
+  });
+
+  opts.forEach(opt => {
+    opt.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    opt.addEventListener('click', function(){ selectOption(opt); input.blur(); });
+  });
+
+  clearBtn.addEventListener('click', function(){
+    hidden.value = '';
+    input.value = '';
+    initialLabel = '';
+    clearBtn.style.display = 'none';
+    highlightSelected();
+    input.focus();
+  });
+
+  document.addEventListener('click', function(e){
+    if (!combo.contains(e.target)) {
+      if (hidden.value) input.value = initialLabel;
+      else input.value = '';
+      closeList();
+    }
+  });
+
+  highlightSelected();
+
+  // Показывать поле «Пояснение исполнителю» только когда выбран assignee.
+  const noteWrap = document.getElementById('assignmentNoteWrap');
+  function syncNoteWrap(){
+    if (!noteWrap) return;
+    noteWrap.style.display = hidden.value ? '' : 'none';
+  }
+  hidden.addEventListener('change', syncNoteWrap);
+  // hidden.value меняется программно — навесим MutationObserver через свой тригер:
+  const origSelect = selectOption;
+  window.addEventListener('click', syncNoteWrap);
+  clearBtn.addEventListener('click', syncNoteWrap);
+  opts.forEach(function(opt){ opt.addEventListener('click', function(){ setTimeout(syncNoteWrap, 0); }); });
+  syncNoteWrap();
+})();
+
+// ── Модалка «Я отработал инцидент» ──
+(function(){
+  if (!document.getElementById("markResolvedBtn")) return;
+  var form     = document.getElementById("markResolvedForm");
+  var ta       = document.getElementById("markResolvedComment");
+  var files    = document.getElementById("markResolvedFiles");
+  var filesLbl = document.getElementById("markResolvedFilesList");
+  var errBox   = document.getElementById("markResolvedError");
+  var submit   = document.getElementById("markResolvedSubmit");
+  if (!form || !submit) return;
+
+  files.addEventListener("change", function(){
+    if (!files.files || !files.files.length) { filesLbl.textContent = ""; return; }
+    var names = [];
+    for (var i=0; i<files.files.length; i++) names.push(files.files[i].name);
+    filesLbl.textContent = names.join(", ");
+  });
+
+  submit.addEventListener("click", function(){
+    errBox.style.display = "none"; errBox.textContent = "";
+    var comment = (ta.value || "").trim();
+    if (!comment) {
+      errBox.textContent = "Опишите, что было сделано — это обязательно.";
+      errBox.style.display = "";
+      ta.focus();
+      return;
+    }
+    var fd = new FormData();
+    fd.append("comment", comment);
+    if (files.files) {
+      for (var i=0; i<files.files.length; i++) fd.append("files[]", files.files[i]);
+    }
+    submit.disabled = true; submit.textContent = "Сохраняю…";
+    fetch(MARK_RESOLVED_URL, {method:"POST", body:fd})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+      .then(function(res){
+        if (res.ok && res.data.ok) { location.reload(); return; }
+        var code = (res.data && res.data.error) || "неизвестно";
+        var msg  = code === "comment_required" ? "Опишите, что было сделано." : "Ошибка: " + code;
+        errBox.textContent = msg; errBox.style.display = "";
+        submit.disabled = false; submit.textContent = "Подтвердить";
+      })
+      .catch(function(){
+        errBox.textContent = "Сетевая ошибка."; errBox.style.display = "";
+        submit.disabled = false; submit.textContent = "Подтвердить";
+      });
+  });
+})();
 const CURRENT_USER_INITIAL = "{{ (current_user.last_name or current_user.username or '?')[:1] }}";
 const CURRENT_USER_NAME = "{{ (current_user.last_name or '') }} {{ (current_user.first_name or '')[:1] }}{% if current_user.first_name %}.{% endif %}";
 
 (function(){
   const btn = document.getElementById("addNoteBtn");
   if (!btn) return;
+
+  // Текущий выбранный parent (если пользователь нажал «Ответить»)
+  let replyToId = null;
+  const banner = document.getElementById("replyBanner");
+  const banTargetName = document.getElementById("replyTargetName");
+  const banCancel = document.getElementById("replyCancel");
+  const ta = document.getElementById("noteText");
+
+  function setReplyTarget(noteId, authorName){
+    replyToId = noteId || null;
+    if (replyToId) {
+      if (banner) banner.style.display = "";
+      if (banTargetName) banTargetName.textContent = authorName || "—";
+      if (ta) { ta.placeholder = "Ответ на комментарий…"; ta.focus(); }
+    } else {
+      if (banner) banner.style.display = "none";
+      if (ta) ta.placeholder = "Напишите заметку о ходе работы…";
+    }
+  }
+  function clearReply(){ setReplyTarget(null, null); }
+  if (banCancel) banCancel.addEventListener("click", clearReply);
+
+  // Делегированный клик по любой .reply-btn (в т.ч. внутри .reply-item)
+  document.getElementById("notesList").addEventListener("click", function(e){
+    const rb = e.target.closest(".reply-btn");
+    if (!rb) return;
+    e.preventDefault();
+    const nid = parseInt(rb.dataset.noteId, 10);
+    // Автор берётся из data-note-author у того комментария, на который нажали «Ответить».
+    // Но поскольку reply-btn внутри reply-item тоже ссылается на parent root (data-note-id=root),
+    // вытаскиваем имя именно из того узла, где нажали, а parent_id — из data-note-id кнопки.
+    const container = rb.closest("[data-note-id]");
+    const authorName = container ? (container.dataset.noteAuthor || "") : "";
+    setReplyTarget(nid, authorName);
+  });
+
+  // Вложения
+  const filesInput = document.getElementById("noteFiles");
+  const filesLabel = document.getElementById("noteFilesList");
+  function renderFilesPreview(){
+    if (!filesInput || !filesLabel) return;
+    const names = Array.from(filesInput.files || []).map(f => f.name);
+    filesLabel.textContent = names.length ? `${names.length} файл(ов): ${names.join(", ")}` : "";
+  }
+  if (filesInput) filesInput.addEventListener("change", renderFilesPreview);
+
+  function escAttr(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+  function kbStr(size){ return Math.max(0, Math.round((size||0)/1024)) + " КБ"; }
+  function attBlockHtml(atts){
+    if (!atts || !atts.length) return "";
+    const imgExt = new Set(["jpg","jpeg","png","gif","webp"]);
+    const vidExt = new Set(["mp4","mov","webm"]);
+    const items = atts.map(a => {
+      const ext = ((a.filename||"").split(".").pop()||"").toLowerCase();
+      if (imgExt.has(ext)) {
+        return `<a href="${a.url}" target="_blank" class="att-thumb" title="${escAttr(a.filename)}"><img src="${a.url}" alt="${escAttr(a.filename)}"></a>`;
+      }
+      if (vidExt.has(ext)) {
+        return `<video class="att-video" controls preload="metadata" title="${escAttr(a.filename)}"><source src="${a.url}"></video>`;
+      }
+      return `<a href="${a.url}" target="_blank" class="att-file" title="${escAttr(a.filename)}"><i class="bi bi-paperclip"></i><span class="att-name">${escAttr(a.filename)}</span><span class="att-size text-muted">${kbStr(a.size)}</span></a>`;
+    }).join("");
+    return `<div class="note-attachments mt-2 d-flex flex-wrap gap-2">${items}</div>`;
+  }
+
   btn.addEventListener("click", async function() {
-    const ta = document.getElementById("noteText");
     const errEl = document.getElementById("noteError");
     const text = ta.value.trim();
-    if (!text) { errEl.textContent = "Введите текст заметки."; errEl.style.display = ""; return; }
+    const fileCount = filesInput ? (filesInput.files||[]).length : 0;
+    if (!text && fileCount === 0) { errEl.textContent = "Введите текст или прикрепите файл."; errEl.style.display = ""; return; }
     errEl.style.display = "none";
     btn.disabled = true; btn.textContent = "…";
-    const fd = new FormData(); fd.append("text", text);
+    const fd = new FormData();
+    fd.append("text", text || " ");  // backend требует непустой текст; для чисто файлового коммента ставим пробел
+    if (replyToId) fd.append("parent_id", String(replyToId));
+    if (filesInput && filesInput.files) {
+      for (const f of filesInput.files) fd.append("files[]", f);
+    }
     try {
       const res = await fetch(ADD_NOTE_URL, {method:"POST", body:fd});
       const data = await res.json();
       if (data.ok) {
         ta.value = "";
+        if (filesInput) filesInput.value = "";
+        if (filesLabel) filesLabel.textContent = "";
         const noMsg = document.getElementById("noNotesMsg");
         if (noMsg) noMsg.remove();
         const list = document.getElementById("notesList");
-        const div = document.createElement("div");
-        div.className = "d-flex gap-2 mb-3";
-        div.id = "note-" + data.id;
-        div.innerHTML = `
-          <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.85rem;">${CURRENT_USER_INITIAL}</div>
-          <div class="flex-grow-1">
-            <div class="d-flex align-items-baseline gap-2 mb-1">
-              <span class="fw-semibold" style="font-size:.9rem;">${data.author}</span>
-              <span class="text-muted" style="font-size:.8rem;">${data.created_at}</span>
+        if (data.parent_id) {
+          // Найти тред для parent_id и добавить ответ внутрь .note-replies
+          const replies = list.querySelector('.note-replies[data-replies-for="' + data.parent_id + '"]');
+          if (replies) {
+            const div = document.createElement("div");
+            div.className = "d-flex gap-2 mt-2 reply-item";
+            div.id = "note-" + data.id;
+            div.dataset.noteId = data.id;
+            div.dataset.noteAuthor = data.author;
+            div.innerHTML = `
+              <div class="flex-shrink-0" style="width:28px;height:28px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.75rem;">${CURRENT_USER_INITIAL}</div>
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-baseline gap-2 mb-1">
+                  <span class="fw-semibold" style="font-size:.85rem;">${data.author}</span>
+                  <span class="text-muted" style="font-size:.75rem;">${data.created_at}</span>
+                  <button type="button" class="btn btn-sm btn-link p-0 ms-auto reply-btn" data-note-id="${data.parent_id}" style="font-size:.75rem;"><i class="bi bi-reply"></i> Ответить</button>
+                </div>
+                <div style="background:#eef2ff;border-left:3px solid #6366f1;border-radius:8px;padding:.4rem .7rem;white-space:pre-wrap;font-size:.88rem;">${data.text.replace(/</g,"&lt;")}</div>
+                ${attBlockHtml(data.attachments)}
+              </div>`;
+            replies.appendChild(div);
+          }
+        } else {
+          // Новый корневой тред
+          const wrap = document.createElement("div");
+          wrap.className = "note-thread mb-3";
+          wrap.dataset.threadRoot = data.id;
+          wrap.innerHTML = `
+            <div class="d-flex gap-2" id="note-${data.id}" data-note-id="${data.id}" data-note-author="${data.author}">
+              <div class="flex-shrink-0" style="width:36px;height:36px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6c757d;font-size:.85rem;">${CURRENT_USER_INITIAL}</div>
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-baseline gap-2 mb-1">
+                  <span class="fw-semibold" style="font-size:.9rem;">${data.author}</span>
+                  <span class="text-muted" style="font-size:.8rem;">${data.created_at}</span>
+                  <button type="button" class="btn btn-sm btn-link p-0 ms-auto reply-btn" data-note-id="${data.id}" style="font-size:.8rem;"><i class="bi bi-reply"></i> Ответить</button>
+                </div>
+                <div style="background:#f8f9fa;border-radius:8px;padding:.5rem .75rem;white-space:pre-wrap;font-size:.9rem;">${data.text.replace(/</g,"&lt;")}</div>
+                ${attBlockHtml(data.attachments)}
+              </div>
             </div>
-            <div style="background:#f8f9fa;border-radius:8px;padding:.5rem .75rem;white-space:pre-wrap;font-size:.9rem;">${data.text.replace(/</g,"&lt;")}</div>
-          </div>`;
-        list.appendChild(div);
+            <div class="note-replies ms-5 mt-2" data-replies-for="${data.id}"></div>`;
+          list.appendChild(wrap);
+        }
+        clearReply();
       } else {
         errEl.textContent = "Ошибка: " + (data.error || "неизвестно");
         errEl.style.display = "";
@@ -351,5 +831,45 @@ document.getElementById("incidentForm").addEventListener("submit", (e) => {
   }
 });
 </script>
+
+{# ── Модалка «Я отработал инцидент» ── #}
+{% if current_user.is_authenticated and incident.assignee_id == current_user.id and incident.status not in ('resolved', 'closed') %}
+<div class="modal fade" id="markResolvedModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-check2-circle me-1 text-success"></i>Отметить инцидент как отработанный</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <form id="markResolvedForm" onsubmit="return false;">
+          <div class="mb-3">
+            <label for="markResolvedComment" class="form-label">
+              Опишите, что было сделано <span class="text-danger">*</span>
+            </label>
+            <textarea id="markResolvedComment" class="form-control" rows="5" required
+                      placeholder="Например: поговорил с родителями, выданы рекомендации, принято решение…"></textarea>
+            <div class="form-text">Поле обязательно. Текст попадёт в журнал работы и придёт автору/управляющим в уведомление.</div>
+          </div>
+          <div class="mb-2">
+            <label for="markResolvedFiles" class="btn btn-sm btn-outline-secondary mb-0">
+              <i class="bi bi-paperclip"></i> Прикрепить файлы (необязательно)
+            </label>
+            <input type="file" id="markResolvedFiles" multiple style="display:none;"
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip,.txt,.mp4,.mov,.webm">
+            <span class="text-muted small ms-2" id="markResolvedFilesList"></span>
+            <div class="form-text">До 10 файлов. Документы/изображения — 30 МБ, видео — 100 МБ.</div>
+          </div>
+          <div class="alert alert-danger py-2 small mb-0" id="markResolvedError" style="display:none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-success" id="markResolvedSubmit">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}

@@ -53,7 +53,7 @@ PERMISSIONS = {
     },
 
     "incident_registry_view": {
-        ADMIN, SOCIAL_PEDAGOG, PSYCHOLOGIST
+        ADMIN, SOCIAL_PEDAGOG
     },
 
     "incident_dashboard_view": {
@@ -198,7 +198,7 @@ PERMISSIONS = {
     },
 
     "olympiad_department_summary_view": {
-        ADMIN, METHODIST, TEACHER, CLASS_TEACHER, SOCIAL_PEDAGOG
+        ADMIN, METHODIST, TEACHER, CLASS_TEACHER
     },
 }
 

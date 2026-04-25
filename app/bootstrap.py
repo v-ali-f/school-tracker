@@ -1,3 +1,4 @@
+import logging
 import os
 from sqlalchemy import inspect, text
 from sqlalchemy.schema import CreateColumn
@@ -5,12 +6,15 @@ from openpyxl import load_workbook
 
 from app.core.extensions import db
 
+logger = logging.getLogger(__name__)
+
 
 def ensure_runtime_schema():
     inspector = inspect(db.engine)
     try:
         cols = {c["name"] for c in inspector.get_columns("child")}
     except Exception:
+        logger.exception("bootstrap: failed to inspect columns of 'child'")
         cols = set()
 
     needed = {
@@ -28,6 +32,7 @@ def ensure_runtime_schema():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+                logger.exception("bootstrap: ALTER failed for child.%s (%s)", name, sql)
 
     for table_name, additions in {
         "control_work": {
@@ -144,11 +149,17 @@ def ensure_runtime_schema():
             "employment_status": 'ALTER TABLE "user" ADD COLUMN employment_status VARCHAR(30) DEFAULT \'ACTIVE\'',
             "dismissal_date": 'ALTER TABLE "user" ADD COLUMN dismissal_date DATE',
             "archived_at": 'ALTER TABLE "user" ADD COLUMN archived_at TIMESTAMP',
+            "last_login_at": 'ALTER TABLE "user" ADD COLUMN last_login_at TIMESTAMP',
+            "last_seen_at": 'ALTER TABLE "user" ADD COLUMN last_seen_at TIMESTAMP',
+            "active_days_count": 'ALTER TABLE "user" ADD COLUMN active_days_count INTEGER NOT NULL DEFAULT 0',
+            "notify_incident_mode": 'ALTER TABLE "user" ADD COLUMN notify_incident_mode VARCHAR(20) NOT NULL DEFAULT \'all\'',
+            "notify_task_mode": 'ALTER TABLE "user" ADD COLUMN notify_task_mode VARCHAR(20) NOT NULL DEFAULT \'all\'',
         },
     }.items():
         try:
             existing = {c["name"] for c in inspector.get_columns(table_name)}
         except Exception:
+            logger.exception("bootstrap: failed to inspect columns of %s", table_name)
             existing = set()
 
         for name, sql in additions.items():
@@ -158,6 +169,7 @@ def ensure_runtime_schema():
                     db.session.commit()
                 except Exception:
                     db.session.rollback()
+                    logger.exception("bootstrap: ALTER failed for %s.%s (%s)", table_name, name, sql)
 
     inspector = inspect(db.engine)
 
@@ -167,6 +179,7 @@ def ensure_runtime_schema():
     try:
         unique_constraints = {c.get("name") for c in inspector.get_unique_constraints("olympiad_subject_mapping")}
     except Exception:
+        logger.exception("bootstrap: failed to inspect unique_constraints of olympiad_subject_mapping")
         unique_constraints = set()
     if "olympiad_subject_mapping_olympiad_subject_name_key" in unique_constraints:
         try:
@@ -176,6 +189,7 @@ def ensure_runtime_schema():
             db.session.commit()
         except Exception:
             db.session.rollback()
+            logger.exception("bootstrap: DROP CONSTRAINT failed for olympiad_subject_mapping")
 
     # Recreate regular indexes if needed after dropping the legacy unique constraint.
     for sql in [
@@ -189,11 +203,13 @@ def ensure_runtime_schema():
             db.session.commit()
         except Exception:
             db.session.rollback()
+            logger.exception("bootstrap: CREATE INDEX failed (%s)", sql)
 
     for table in db.metadata.sorted_tables:
         try:
             existing_cols = {c["name"] for c in inspector.get_columns(table.name)}
         except Exception:
+            logger.exception("bootstrap: failed to inspect columns of %s (metadata sweep)", table.name)
             continue
 
         for column in table.columns:
@@ -206,12 +222,14 @@ def ensure_runtime_schema():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+                logger.exception("bootstrap: metadata-sweep ADD COLUMN failed for %s.%s", table.name, column.name)
 
 
 def seed_olympiad_subject_mappings(app):
     try:
         from app.models import DepartmentSubject, OlympiadSubjectMapping, Subject
     except Exception:
+        logger.exception("bootstrap: failed to import olympiad-mapping models for seeding")
         return 0
 
     with app.app_context():
@@ -219,6 +237,7 @@ def seed_olympiad_subject_mappings(app):
             if OlympiadSubjectMapping.query.count() > 0:
                 return 0
         except Exception:
+            logger.exception("bootstrap: failed to read OlympiadSubjectMapping count")
             return 0
 
         candidate_paths = [
@@ -236,6 +255,7 @@ def seed_olympiad_subject_mappings(app):
             wb = load_workbook(seed_path, data_only=True)
             ws = wb[wb.sheetnames[0]]
         except Exception:
+            logger.exception("bootstrap: failed to read seed file %s", seed_path)
             return 0
 
         def norm(v):

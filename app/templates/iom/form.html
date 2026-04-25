@@ -221,7 +221,7 @@
   const childSelect = document.getElementById('child_id');
   const educationDisplay = document.getElementById('education_level_display');
   const aopSelect = document.getElementById('aop_variant');
-  const choicesByLevel = {{ aop_variant_choices_json|safe }};
+  const choicesByLevel = {{ aop_variant_choices_json|tojson }};
 
   function rebuildAopOptions(levelCode, currentText) {
     if (!aopSelect) return;

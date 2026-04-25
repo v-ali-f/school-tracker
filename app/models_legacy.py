@@ -73,6 +73,17 @@ class User(db.Model, UserMixin):
     employment_status = db.Column(db.String(30), nullable=False, default="ACTIVE")
     dismissal_date = db.Column(db.Date, nullable=True)
     archived_at = db.Column(db.DateTime, nullable=True)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    last_seen_at = db.Column(db.DateTime, nullable=True)
+    active_days_count = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    # Режим уведомлений по инцидентам: all / status / open_close / close_only
+    notify_incident_mode = db.Column(
+        db.String(20), nullable=False, default="all", server_default="all"
+    )
+    # Режим уведомлений по задачам: all / status / open_close / close_only
+    notify_task_mode = db.Column(
+        db.String(20), nullable=False, default="all", server_default="all"
+    )
 
     roles = db.relationship(
         "Role",
@@ -772,10 +783,10 @@ class ChildEvent(db.Model):
 
     event_type = db.Column(db.String(30), nullable=False, default="PROMOTION")
 
-    from_class = db.Column(db.String(20), nullable=True)
-    to_class = db.Column(db.String(20), nullable=True)
+    from_class = db.Column(db.String(200), nullable=True)
+    to_class = db.Column(db.String(200), nullable=True)
 
-    promotion_kind = db.Column(db.String(20), nullable=False, default="NORMAL")
+    promotion_kind = db.Column(db.String(30), nullable=False, default="NORMAL")
     reason = db.Column(db.String(500), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -831,14 +842,20 @@ class Incident(db.Model):
     __tablename__ = "incident"
 
     STATUS_NEW = "new"
+    STATUS_ASSIGNED = "assigned"
     STATUS_IN_PROGRESS = "in_progress"
+    STATUS_RESOLVED = "resolved"
     STATUS_CLOSED = "closed"
 
     STATUS_LABELS = {
         "new": "Новый",
+        "assigned": "Назначен",
         "in_progress": "В работе",
+        "resolved": "Отработан",
         "closed": "Закрыт",
     }
+
+    STATUS_ORDER = ["new", "assigned", "in_progress", "resolved", "closed"]
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -878,9 +895,39 @@ class IncidentNote(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey("incident_note.id"), nullable=True, index=True)
 
     incident = db.relationship("Incident", back_populates="notes")
     author = db.relationship("User", foreign_keys=[author_id])
+    parent = db.relationship(
+        "IncidentNote", remote_side=[id], backref=db.backref("replies", lazy="select")
+    )
+    attachments = db.relationship(
+        "IncidentNoteAttachment",
+        back_populates="note",
+        cascade="all, delete-orphan",
+        order_by="IncidentNoteAttachment.id.asc()",
+    )
+
+
+class IncidentNoteAttachment(db.Model):
+    """Файлы, прикреплённые к комментарию инцидента. Хранение физическое —
+    в каталоге uploads/incident_notes/<note_id>/. file_path — относительный
+    путь от UPLOAD_FOLDER."""
+    __tablename__ = "incident_note_attachment"
+
+    id = db.Column(db.Integer, primary_key=True)
+    note_id = db.Column(db.Integer, db.ForeignKey("incident_note.id"), nullable=False, index=True)
+    filename = db.Column(db.String(512), nullable=False)
+    stored_filename = db.Column(db.String(512), nullable=False)
+    file_path = db.Column(db.String(1024), nullable=False)
+    content_type = db.Column(db.String(255), nullable=True)
+    file_size = db.Column(db.BigInteger, nullable=True)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    note = db.relationship("IncidentNote", back_populates="attachments")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
 class IncidentChild(db.Model):
@@ -900,6 +947,74 @@ class IncidentChild(db.Model):
 
     def __repr__(self):
         return f"<IncidentChild incident={self.incident_id} child={self.child_id}>"
+
+
+class IncidentAssignment(db.Model):
+    """История передач ведения инцидента (кто, кому, когда, зачем)."""
+    __tablename__ = "incident_assignment"
+
+    id = db.Column(db.Integer, primary_key=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incident.id"), nullable=False, index=True)
+    from_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    to_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    assigned_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    note = db.Column(db.Text, nullable=True)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    ended_at = db.Column(db.DateTime, nullable=True)
+
+    incident = db.relationship(
+        "Incident",
+        backref=db.backref(
+            "assignments",
+            order_by="IncidentAssignment.assigned_at.asc()",
+            cascade="all, delete-orphan",
+        ),
+    )
+    from_user = db.relationship("User", foreign_keys=[from_user_id])
+    to_user = db.relationship("User", foreign_keys=[to_user_id])
+    assigned_by = db.relationship("User", foreign_keys=[assigned_by_id])
+
+
+class IncidentStatusHistory(db.Model):
+    """История смены статусов инцидента — для таймлайна."""
+    __tablename__ = "incident_status_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incident.id"), nullable=False, index=True)
+    from_status = db.Column(db.String(20), nullable=True)
+    to_status = db.Column(db.String(20), nullable=False)
+    changed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    comment = db.Column(db.Text, nullable=True)
+
+    incident = db.relationship(
+        "Incident",
+        backref=db.backref(
+            "status_history",
+            order_by="IncidentStatusHistory.changed_at.asc()",
+            cascade="all, delete-orphan",
+        ),
+    )
+    changed_by = db.relationship("User", foreign_keys=[changed_by_id])
+
+
+class IncidentNotification(db.Model):
+    """Уведомления пользователям по инцидентам — для колокольчика в шапке."""
+    __tablename__ = "incident_notification"
+
+    id = db.Column(db.Integer, primary_key=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incident.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    notification_type = db.Column(db.String(50), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    incident = db.relationship("Incident", foreign_keys=[incident_id])
+    user = db.relationship("User", foreign_keys=[user_id])
+
 
 # =========================
 # CONTROL WORKS

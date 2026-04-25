@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Инциденты</a></li>
+    <li class="breadcrumb-item active">История инцидента #{{ incident.id }}</li>
+  </ol>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">Инцидент #{{ incident.id }} — {{ incident.category }}</h4>
+    <div class="text-muted small">
+      {{ incident.occurred_at.strftime("%d.%m.%Y %H:%M") if incident.occurred_at else "" }}
+      · Автор: {{ incident.author.fio if incident.author else "—" }}
+      · Исполнитель: {% if incident.assignee %}{{ incident.assignee.fio }}{% else %}<em>не назначен</em>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{{ url_for('children.incident_edit', incident_id=incident.id) }}">Открыть карточку</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_my') }}">Назад</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if incident.description %}
+    <div class="mb-3 p-3" style="background:#f8f9fa;border-radius:8px;">
+      <div class="small fw-semibold text-muted mb-1">Описание</div>
+      <div style="white-space:pre-wrap;">{{ incident.description }}</div>
+    </div>
+    {% endif %}
+
+    <h6 class="mb-3">История</h6>
+
+    <div class="timeline">
+      {% for ev in events %}
+      <div class="timeline-item timeline-{{ ev.kind }}">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="d-flex justify-content-between align-items-baseline">
+            <strong class="small">
+              {% if ev.kind == 'created' %}📝 Создан
+              {% elif ev.kind == 'note' %}💬 Заметка
+              {% elif ev.kind == 'status' %}🔄 Статус
+              {% elif ev.kind == 'assignment' %}👤 Назначение
+              {% endif %}
+            </strong>
+            <span class="text-muted small">{{ ev.ts.strftime("%d.%m.%Y %H:%M") if ev.ts else "" }}</span>
+          </div>
+          <div class="small text-muted">
+            {% if ev.actor %}{{ ev.actor.fio }}{% endif %}
+          </div>
+          <div class="mt-1" style="white-space:pre-wrap;">{{ ev.text }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+.timeline { position: relative; padding-left: 24px; }
+.timeline::before {
+  content: ""; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #dee2e6;
+}
+.timeline-item { position: relative; padding: 6px 0 16px 12px; }
+.timeline-dot {
+  position: absolute; left: -21px; top: 8px; width: 14px; height: 14px;
+  border-radius: 50%; background: #adb5bd; border: 2px solid #fff;
+}
+.timeline-created   .timeline-dot { background: #6c757d; }
+.timeline-note      .timeline-dot { background: #0d6efd; }
+.timeline-status    .timeline-dot { background: #ffc107; }
+.timeline-assignment .timeline-dot { background: #6f42c1; }
+.timeline-content {
+  background: #f8f9fa; border-radius: 8px; padding: 8px 12px;
+}
+</style>
+
+{% endblock %}

@@ -6,6 +6,11 @@ Flask-WTF
 python-dotenv
 openpyxl
 python-docx
+psycopg2-binary
 reportlab
 weasyprint
 pdfplumber
+PyJWT
+cryptography
+APScheduler
+pytz

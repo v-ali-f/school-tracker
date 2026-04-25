@@ -8,6 +8,11 @@
 </nav>
 {% endblock %}
 {% block content %}
+<style>
+  @media (max-width: 767.98px) {
+    .children-list-table th { width: auto !important; }
+  }
+</style>
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h4 class="mb-0">Дети</h4>
   <div class="d-flex gap-2 flex-wrap justify-content-end">
@@ -37,6 +42,6 @@
   </div>
 </form>
 
-<div class="card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle"><thead><tr><th class="table-number-col">№</th><th style="width: 110px;">Класс</th><th>ФИО</th><th style="width: 100px;">Пол</th><th style="width: 140px;">Дата рождения</th><th style="width: 170px;">Форма обучения</th><th style="width: 120px;"></th></tr></thead><tbody>{% for ch in children %}<tr><td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td><td>{{ ch.current_class_name or "—" }}</td><td>{{ (ch.last_name or "") ~ " " ~ (ch.first_name or "") ~ " " ~ (ch.middle_name or "") }}</td><td>{{ ch.gender or "—" }}</td><td>{% if ch.birth_date %}{{ ch.birth_date.strftime("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}</td><td>{{ ch.education_form or "—" }}</td><td class="text-end">{% if can("child_card_view_basic") %}<a class="btn btn-sm btn-outline-primary" href="/children/{{ ch.id }}">Открыть</a>{% endif %}</td></tr>{% endfor %}{% if children|length == 0 %}<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-person-x" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>{% if q or selected_grade or selected_class_id %}По вашему запросу учеников не найдено. Попробуйте изменить фильтры.{% else %}Список учеников пуст. Используйте импорт для загрузки данных.{% endif %}</td></tr>{% endif %}</tbody></table></div></div>
+<div class="card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle children-list-table"><thead><tr><th class="table-number-col">№</th><th style="width: 110px;">Класс</th><th>ФИО</th><th style="width: 100px;">Пол</th><th style="width: 140px;">Дата рождения</th><th style="width: 170px;">Форма обучения</th><th style="width: 180px;"></th></tr></thead><tbody>{% for row in rows %}{% set ch = row.child %}<tr><td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td><td>{{ ch.current_class_name or "—" }}</td><td>{{ (ch.last_name or "") ~ " " ~ (ch.first_name or "") ~ " " ~ (ch.middle_name or "") }}</td><td>{{ ch.gender or "—" }}</td><td>{% if ch.birth_date %}{{ ch.birth_date.strftime("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}</td><td>{{ ch.education_form or "—" }}</td><td class="text-end"><div class="d-flex gap-1 justify-content-end flex-wrap">{% if row.can_add_incident %}<a class="btn btn-sm btn-outline-warning" href="{{ url_for('children.incident_new', student_id=ch.id) }}" title="Создать инцидент на этого ученика"><i class="bi bi-plus-lg"></i> инцидент</a>{% endif %}{% if row.can_view_card %}<a class="btn btn-sm btn-outline-primary" href="/children/{{ ch.id }}">Открыть</a>{% endif %}</div></td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-person-x" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>{% if q or selected_grade or selected_class_id %}По вашему запросу учеников не найдено. Попробуйте изменить фильтры.{% else %}Список учеников пуст. Используйте импорт для загрузки данных.{% endif %}</td></tr>{% endif %}</tbody></table></div></div>
 {% include "components/pagination.html" %}
 {% endblock %}

@@ -77,10 +77,10 @@
             <thead>
               <tr>
                 <th>Документ</th>
-                <th style="width:110px;">Тип</th>
-                <th style="width:130px;">Дата</th>
-                <th style="width:180px;">Загружен</th>
-                <th class="text-end" style="width:260px;">Действия</th>
+                <th class="col-doc-type">Тип</th>
+                <th class="col-doc-date">Дата</th>
+                <th class="col-doc-upload">Загружен</th>
+                <th class="text-end col-doc-actions">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -202,7 +202,7 @@
   {% endif %}
 </div>
 
-
+{# ===== ФИЛЬТР УЧЕБНОГО ГОДА (наверху — влияет на документы/историю/результаты ниже) ===== #}
 <div class="card mb-3"><div class="card-body py-3">
   <form method="get" class="row g-2 align-items-end">
     <div class="col-md-4">
@@ -212,10 +212,234 @@
       </select>
     </div>
     <div class="col-md-8">
-      <div class="small text-muted">Документы, история и результаты ниже показываются с учетом выбранного учебного года. Документы без года также остаются видны.</div>
+      <div class="small text-muted">Документы, история и результаты ниже показываются с учётом выбранного учебного года. Документы без года также остаются видны. Кубок школы и Школьный спортклуб показываются накопительно.</div>
     </div>
   </form>
 </div></div>
+
+{# ===== КУБОК ШКОЛЫ (только для ADMIN) ===== #}
+{% if is_admin and child.current_class_name %}
+  {% set _rating = kubok_rating(child.current_class_name) %}
+  {% if _rating %}
+    {% set _max = (_rating.activities|map(attribute='points')|max) if _rating.activities else 0 %}
+    <div class="card mb-3 collapsible-card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+           role="button"
+           data-bs-toggle="collapse"
+           data-bs-target="#kubokBody"
+           aria-expanded="false"
+           aria-controls="kubokBody"
+           style="cursor: pointer;">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <b><i class="bi bi-trophy"></i> Кубок школы</b>
+          <span class="text-muted small">класс {{ _rating.class_name }}</span>
+          <span class="badge text-bg-light border text-dark" title="Место в общем рейтинге школы">
+            Место: {{ _rating.place }} из {{ _rating.total_classes }}
+          </span>
+          <span class="badge text-bg-light border text-dark" title="Сумма баллов за год">
+            {{ '{:g}'.format(_rating.total_points) }} баллов
+          </span>
+        </div>
+        <i class="bi bi-chevron-down text-muted toggle-chevron"></i>
+      </div>
+      <div class="collapse" id="kubokBody">
+        <div class="card-body">
+          <div class="row g-4 align-items-start">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <div class="text-muted small">Место в школе</div>
+                <div class="fw-bold" style="font-size:2.2rem; line-height:1.1;">
+                  {{ _rating.place }}
+                  <span class="text-muted fw-normal" style="font-size:.95rem;">из {{ _rating.total_classes }}</span>
+                </div>
+                <div class="mt-2 d-flex flex-wrap gap-2">
+                  {% if _rating.place_in_parallel and _rating.total_in_parallel and _rating.grade %}
+                    <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+                          title="Место среди {{ _rating.grade }}-х классов">
+                      <i class="bi bi-stack"></i>
+                      Место в параллели {{ _rating.grade }}-х: {{ _rating.place_in_parallel }} из {{ _rating.total_in_parallel }}
+                    </span>
+                  {% endif %}
+                  {% if _rating.place_in_building and _rating.total_in_building and _rating.building_name %}
+                    <span class="badge rounded-pill text-bg-info-subtle text-info-emphasis border border-info-subtle"
+                          title="Место среди классов здания «{{ _rating.building_name }}»">
+                      <i class="bi bi-building"></i>
+                      Место в корпусе {{ _rating.building_name }}: {{ _rating.place_in_building }} из {{ _rating.total_in_building }}
+                    </span>
+                  {% endif %}
+                </div>
+              </div>
+              <div>
+                <div class="text-muted small">Сумма баллов</div>
+                <div class="fw-bold" style="font-size:2.2rem; line-height:1.1;">{{ '{:g}'.format(_rating.total_points) }}</div>
+              </div>
+              <div class="small text-muted mt-3">Активностей: {{ _rating.activities|length if _rating.activities else 0 }}</div>
+            </div>
+            <div class="col-md-8">
+              {% if _rating.activities %}
+                <div class="small text-muted mb-2">Баллы по активностям</div>
+                <div class="kubok-chart">
+                  {% for a in _rating.activities %}
+                    {% set _pct = ((a.points / _max) * 100)|round(1) if _max else 0 %}
+                    <div class="d-flex align-items-center gap-2 mb-1" title="{{ a.name }}: {{ '{:g}'.format(a.points) }} баллов">
+                      <div class="small text-truncate" style="flex:0 0 35%;">{{ a.name }}</div>
+                      <div class="flex-grow-1 kubok-bar-track">
+                        <div class="kubok-bar-fill" style="width: {{ _pct }}%;"></div>
+                      </div>
+                      <div class="small fw-semibold text-end" style="flex:0 0 44px;">{{ '{:g}'.format(a.points) }}</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="text-muted small">Данных по активностям нет.</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="small text-muted mt-3">
+            <a href="{{ url_for('children.class_detail', class_id=child.current_class.id) if child.current_class else '#' }}"
+               class="text-decoration-none">
+              <i class="bi bi-arrow-right-short"></i>
+              Страница класса
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>
+      .kubok-bar-track { height: 10px; background: #f1f3f5; border-radius: 999px; overflow: hidden; }
+      .kubok-bar-fill { height: 100%; background: linear-gradient(90deg, #f0b429 0%, #f59e0b 100%); border-radius: 999px; transition: width .4s ease; }
+    </style>
+  {% endif %}
+{% endif %}
+
+{# ===== ШКОЛЬНЫЙ СПОРТКЛУБ (виден всем — публичные данные) ===== #}
+{% set _sc = sport_club_info(child) %}
+{% if not (_sc and _sc.in_club) %}
+<div class="card mb-3">
+  <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-dribbble text-muted"></i>
+      <b>ШСК · Школьный спортивный клуб</b>
+      <span class="badge rounded-pill text-bg-light border text-muted">не состоит</span>
+    </div>
+    <span class="text-muted small">
+      <i class="bi bi-info-circle"></i>
+      По данным
+      <a href="https://schoolsportmos.ru/" target="_blank" rel="noopener" class="text-muted">schoolsportmos.ru</a>
+      ученик не числится ни в одной команде школьного спортклуба.
+    </span>
+  </div>
+</div>
+{% endif %}
+{% if _sc and _sc.in_club %}
+<div class="card mb-3 collapsible-card">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+       role="button"
+       data-bs-toggle="collapse"
+       data-bs-target="#sportClubBody"
+       aria-expanded="false"
+       aria-controls="sportClubBody"
+       style="cursor: pointer;">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <b><i class="bi bi-dribbble"></i> ШСК · Школьный спортивный клуб</b>
+      <span class="text-muted small">
+        Состоит в {{ _sc.teams|length }}
+          {% if _sc.teams|length == 1 %}команде{% elif _sc.teams|length in [2,3,4] %}командах{% else %}командах{% endif %}
+        {% if _sc.events %}
+          · участвовал в {{ _sc.events|length }}
+          {% if _sc.events|length == 1 %}мероприятии{% elif _sc.events|length in [2,3,4] %}мероприятиях{% else %}мероприятиях{% endif %}
+        {% endif %}
+      </span>
+    </div>
+    <i class="bi bi-chevron-down text-muted toggle-chevron"></i>
+  </div>
+  <div class="collapse" id="sportClubBody">
+    <div class="card-body">
+      {# Плашка «Виды спорта» убрана: sport_type команды в schoolsportmos.ru
+         часто не совпадает с фактическим мероприятием (напр. команда с типом
+         «Шашки» принимала участие в танцевальном фестивале). Вид спорта
+         теперь показываем только рядом с каждой командой ниже. #}
+      <div class="text-muted small mb-3">
+        <i class="bi bi-info-circle"></i>
+        Данные о командах и мероприятиях — из
+        <a href="https://schoolsportmos.ru/" target="_blank" rel="noopener">schoolsportmos.ru</a>.
+        Вид спорта указан по каждой команде отдельно.
+      </div>
+      <div class="row g-3">
+        <div class="col-md-5">
+          <div class="text-muted small text-uppercase mb-2" style="letter-spacing:.04em;">
+            Команды
+            <span class="text-muted text-lowercase">(свежие сверху)</span>
+          </div>
+          <ul class="list-unstyled mb-0">
+            {% for t in _sc.teams %}
+              <li class="d-flex align-items-start gap-2 mb-2">
+                <i class="bi bi-people-fill text-warning mt-1"></i>
+                <div>
+                  <div class="{% if t.archive %}text-muted{% else %}fw-semibold{% endif %}">
+                    {{ t.team_title or '—' }}
+                    {% if t.archive %}<span class="badge text-bg-light border text-dark ms-1">архив</span>{% endif %}
+                  </div>
+                  <div class="small text-muted">
+                    {% if t.sport_label %}{{ t.sport_label }}{% endif %}
+                    {% if t.joined_at %} · в составе с {{ t.joined_at[:10] }}{% endif %}
+                  </div>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-7">
+          <div class="text-muted small text-uppercase mb-2" style="letter-spacing:.04em;">
+            Участие в мероприятиях
+            <span class="text-muted text-lowercase">(свежие сверху)</span>
+          </div>
+          {% if _sc.events %}
+            <ul class="list-unstyled mb-0">
+              {% for e in _sc.events %}
+                <li class="mb-2 ps-2 border-start border-2 border-warning-subtle">
+                  <div class="fw-semibold small">{{ e.event_title }}</div>
+                  <div class="small text-muted">
+                    {% if e.stage_title %}{{ e.stage_title }}{% endif %}
+                    {% if e.team_title %} · команда «{{ e.team_title }}»{% endif %}
+                  </div>
+                  <div class="small">
+                    {% if e.final_place and e.final_place > 0 %}
+                      <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                        Место: {{ e.final_place }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted">Результат пока не внесён</span>
+                    {% endif %}
+                    {% if e.status_label %}
+                      <span class="text-muted ms-1">· {{ e.status_label }}</span>
+                    {% endif %}
+                    {% if e.created_at %}
+                      <span class="text-muted ms-1">· заявка от {{ e.created_at[:10] }}</span>
+                    {% endif %}
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted small">Заявок школы с участием команды ученика пока нет.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="small text-muted mt-3">
+        <i class="bi bi-info-circle"></i>
+        Источник: выгрузка из <a href="https://admin.schoolsportmos.ru/" target="_blank" rel="noopener">schoolsportmos.ru</a> от 23.04.2026.
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# Единый стиль для сворачиваемых карточек (Кубок, Спортклуб, Олимпиады, Контрольные) #}
+<style>
+  .collapsible-card .card-header[aria-expanded="true"] .toggle-chevron { transform: rotate(180deg); }
+  .collapsible-card .card-header .toggle-chevron { transition: transform .2s ease; }
+</style>
 
 
 <div class="card mb-3">
@@ -696,6 +920,7 @@
   </div>
 </div>
 {% endif %}
+
 {# ===== СОПРОВОЖДЕНИЕ И ДОКУМЕНТЫ ===== #}
 <form id="flags-form" method="post" action="/children/{{ child.id }}/flags" class="mb-3">
   <input type="hidden" name="is_ovz" value="{{ 1 if child.is_ovz else 0 }}">
@@ -1068,6 +1293,16 @@
 <style>
   .doc-table tbody tr[hidden] { display:none !important; }
   .doc-table .badge { font-weight: 500; }
+  .doc-table th.col-doc-type { width: 110px; }
+  .doc-table th.col-doc-date { width: 130px; }
+  .doc-table th.col-doc-upload { width: 180px; }
+  .doc-table th.col-doc-actions { width: 260px; }
+  @media (max-width: 767.98px) {
+    .doc-table th.col-doc-type,
+    .doc-table th.col-doc-date,
+    .doc-table th.col-doc-upload,
+    .doc-table th.col-doc-actions { width: auto; }
+  }
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {

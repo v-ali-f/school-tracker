@@ -110,6 +110,17 @@ def register_cli(app):
             db.session.rollback()
             raise click.ClickException(f"create-admin failed: {exc}")
 
+    @app.cli.command("refresh-kubok")
+    @with_appcontext
+    def refresh_kubok_command():
+        """Скачать Google Sheets Кубка школы и пересобрать локальный кеш."""
+        from app.kubok import refresh_cache
+        try:
+            count, when = refresh_cache()
+            click.echo(f"Kubok cache refreshed: {count} classes at {when.isoformat()}")
+        except Exception as exc:
+            raise click.ClickException(f"refresh-kubok failed: {exc}")
+
     @app.cli.command("apply-performance-indexes")
     @with_appcontext
     def apply_performance_indexes_command():

@@ -3,205 +3,1032 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item active">Мои заявки</li>
+    <li class="breadcrumb-item active">{% if is_admin_view %}Инциденты{% else %}Мои заявки{% endif %}</li>
   </ol>
 </nav>
 {% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <div>
-    <h3 class="mb-0">Инциденты</h3>
-  </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-primary" href="{{ url_for('children.incident_new') }}">+ Новый инцидент</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
-  </div>
-</div>
-
-{% if assigned_rows %}
-<ul class="nav nav-tabs mb-3" id="incidentTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="my-tab" data-bs-toggle="tab" data-bs-target="#my-pane" type="button" role="tab">
-      Мои заявки
-      {% if rows %}<span class="badge bg-secondary ms-1">{{ rows|length }}</span>{% endif %}
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned-pane" type="button" role="tab">
-      Назначены мне
-      <span class="badge bg-primary ms-1">{{ assigned_rows|length }}</span>
-    </button>
-  </li>
-</ul>
-{% endif %}
-
-<div class="tab-content" id="incidentTabContent">
-
-{# ---- вкладка МОИ ---- #}
-<div class="tab-pane fade show active" id="my-pane" role="tabpanel">
-  <div class="card">
-    <div class="table-responsive">
-      <table class="table table-striped mb-0 align-middle">
-        <thead>
-          <tr>
-            <th class="table-number-col">№</th>
-            <th style="width:150px;">Дата/время</th>
-            <th style="width:200px;">Категория</th>
-            <th>Дети</th>
-            <th>Описание</th>
-            <th style="width:120px;">Статус</th>
-            <th style="width:150px;">Действия</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in rows %}
-            <tr>
-              <td class="text-muted">{{ loop.index }}</td>
-              <td class="text-muted">
-                {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
-              </td>
-              <td>{{ r.inc.category }}</td>
-              <td>
-                {% for ch in r.children %}
-                  <div>
-                    {% if can("child_card_view_basic") %}
-                    <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
-                    {% else %}
-                    {{ ch.fio }}
-                    {% endif %}
-                    <span class="text-muted">— {{ ch.class }}</span>
-                  </div>
-                {% endfor %}
-              </td>
-              <td class="text-muted">{{ r.inc.description or "—" }}</td>
-              <td>
-                {% set s = r.inc.status or 'new' %}
-                {% if can_change_status %}
-                <select class="inc-status-select status-{{ s }}" data-incident-id="{{ r.inc.id }}" title="Сменить статус">
-                  <option value="new" {% if s == 'new' %}selected{% endif %}>Новый</option>
-                  <option value="in_progress" {% if s == 'in_progress' %}selected{% endif %}>В работе</option>
-                  <option value="closed" {% if s == 'closed' %}selected{% endif %}>Закрыт</option>
-                </select>
-                {% else %}
-                  {% if s == 'new' %}<span class="badge bg-warning text-dark">Новый</span>
-                  {% elif s == 'in_progress' %}<span class="badge bg-primary">В работе</span>
-                  {% else %}<span class="badge bg-success">Закрыт</span>{% endif %}
-                {% endif %}
-              </td>
-              <td>
-                <div class="d-flex gap-2 flex-wrap">
-                  <a class="btn btn-sm btn-outline-primary"
-                     href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}">Изменить</a>
-                  <form method="post"
-                        action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}"
-                        onsubmit="return confirm('Удалить инцидент?');">
-                    <input type="hidden" name="next" value="{{ request.full_path }}">
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Удалить</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          {% endfor %}
-          {% if rows|length == 0 %}
-            <tr><td colspan="7" class="text-center text-muted py-4">Вы ещё не подавали инцидентов</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-{# ---- вкладка НАЗНАЧЕНЫ МНЕ ---- #}
-{% if assigned_rows %}
-<div class="tab-pane fade" id="assigned-pane" role="tabpanel">
-  <div class="card">
-    <div class="table-responsive">
-      <table class="table table-striped mb-0 align-middle">
-        <thead>
-          <tr>
-            <th class="table-number-col">№</th>
-            <th style="width:150px;">Дата/время</th>
-            <th style="width:200px;">Категория</th>
-            <th>Дети</th>
-            <th>Описание</th>
-            <th style="width:120px;">Статус</th>
-            <th style="width:100px;">Действия</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in assigned_rows %}
-            <tr>
-              <td class="text-muted">{{ loop.index }}</td>
-              <td class="text-muted">
-                {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
-              </td>
-              <td>{{ r.inc.category }}</td>
-              <td>
-                {% for ch in r.children %}
-                  <div>
-                    {% if can("child_card_view_basic") %}
-                    <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
-                    {% else %}{{ ch.fio }}{% endif %}
-                    <span class="text-muted">— {{ ch.class }}</span>
-                  </div>
-                {% endfor %}
-              </td>
-              <td class="text-muted">{{ r.inc.description or "—" }}</td>
-              <td>
-                {% set s = r.inc.status or 'new' %}
-                <select class="inc-status-select status-{{ s }}" data-incident-id="{{ r.inc.id }}" title="Сменить статус">
-                  <option value="new" {% if s == 'new' %}selected{% endif %}>Новый</option>
-                  <option value="in_progress" {% if s == 'in_progress' %}selected{% endif %}>В работе</option>
-                  <option value="closed" {% if s == 'closed' %}selected{% endif %}>Закрыт</option>
-                </select>
-              </td>
-              <td>
-                <a class="btn btn-sm btn-outline-primary"
-                   href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}">Изменить</a>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-</div>{# /tab-content #}
-
 <style>
-.inc-status-select {
-  appearance: none; -webkit-appearance: none;
-  border: 1.5px solid; border-radius: 6px;
-  padding: 2px 10px; font-size: .8rem; font-weight: 600;
-  cursor: pointer;
-}
-.inc-status-select.status-new        { color: #856404; background: #fff8e1; border-color: #ffc107; }
-.inc-status-select.status-in_progress{ color: #0a58ca; background: #e7f0ff; border-color: #0d6efd; }
-.inc-status-select.status-closed     { color: #146c43; background: #e9f5ee; border-color: #198754; }
-.inc-status-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(13,110,253,.25); }
+  .inc-hero { background:#fff; border:1px solid #e9ecef; border-radius:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }
+  .inc-panel { border:0; border-radius:16px; box-shadow:0 10px 24px rgba(0,0,0,.06); }
+  .inc-chip { display:inline-block; padding:.22rem .55rem; border-radius:999px; background:#fff1e6; color:#c25b00; font-size:.82rem; font-weight:600; }
+
+  /* ── Статус (Notion-style) ── */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .2rem .65rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 500; white-space: nowrap;
+  }
+  .status-badge::before {
+    content: ''; display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-badge.s-new         { background:#fff3e0; color:#92400e; }
+  .status-badge.s-new::before { background:#f59e0b; }
+  .status-badge.s-assigned         { background:#fef3c7; color:#92400e; }
+  .status-badge.s-assigned::before { background:#f59e0b; }
+  .status-badge.s-in_progress         { background:#eff6ff; color:#1d4ed8; }
+  .status-badge.s-in_progress::before { background:#3b82f6; }
+  .status-badge.s-resolved         { background:#f3e8ff; color:#6b21a8; }
+  .status-badge.s-resolved::before { background:#a855f7; }
+  .status-badge.s-closed         { background:#f0fdf4; color:#15803d; }
+  .status-badge.s-closed::before { background:#22c55e; }
+
+  /* ── Picker-пилюля ── */
+  .status-picker { position: relative; display: inline-block; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .22rem .65rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 500; white-space: nowrap;
+    border: none; cursor: pointer; line-height: 1.4;
+  }
+  .status-pill::before {
+    content: ''; display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-pill.s-new         { background:#fff3e0; color:#92400e; }
+  .status-pill.s-new::before { background:#f59e0b; }
+  .status-pill.s-assigned         { background:#fef3c7; color:#92400e; }
+  .status-pill.s-assigned::before { background:#f59e0b; }
+  .status-pill.s-in_progress         { background:#eff6ff; color:#1d4ed8; }
+  .status-pill.s-in_progress::before { background:#3b82f6; }
+  .status-pill.s-resolved         { background:#f3e8ff; color:#6b21a8; }
+  .status-pill.s-resolved::before { background:#a855f7; }
+  .status-pill.s-closed         { background:#f0fdf4; color:#15803d; }
+  .status-pill.s-closed::before { background:#22c55e; }
+  .status-picker-menu {
+    display: none; position: absolute; left: 0; top: calc(100% + 4px);
+    background: #fff; border: 1px solid #e9ecef; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.13); padding: .4rem;
+    min-width: 180px; z-index: 1050;
+  }
+  .status-picker-menu.open { display: block; }
+  .sp-opt {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .35rem .5rem; border-radius: 6px; cursor: pointer; font-size: .83rem;
+  }
+  .sp-opt:hover { background: #f8f9fa; }
+  .sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sp-dot.d-new         { background:#f59e0b; }
+  .sp-dot.d-assigned    { background:#f59e0b; }
+  .sp-dot.d-in_progress { background:#3b82f6; }
+  .sp-dot.d-resolved    { background:#a855f7; }
+  .sp-dot.d-closed      { background:#22c55e; }
+
+  /* ── Вкладки ── */
+  .inc-tabs { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .inc-tab {
+    display:inline-flex; align-items:center; gap:.4rem;
+    padding:.45rem .9rem; border-radius:999px;
+    border:1px solid #e9ecef; background:#fff; color:#495057;
+    font-size:.88rem; font-weight:500; text-decoration:none;
+    transition: all .15s;
+  }
+  .inc-tab:hover { background:#f8f9fa; color:#212529; }
+  .inc-tab.active {
+    background:#283149; border-color:#283149; color:#fff;
+  }
+  .inc-tab .badge { font-size:.7rem; font-weight:600; }
+  .inc-tab.active .badge { background:#fff; color:#283149; }
+
+  /* ── Picker исполнителя ── */
+  .assignee-picker { position: relative; display: inline-block; }
+  .assignee-btn {
+    border:1px dashed #cbd5e1; background:#fff; color:#64748b;
+    font-size:.82rem; padding:.2rem .55rem; border-radius:8px; white-space:nowrap;
+  }
+  .assignee-btn:hover { background:#f8fafc; border-color:#94a3b8; color:#1f2937; }
+  .assignee-btn.has-assignee { border-style:solid; border-color:#c7d2fe; background:#eef2ff; color:#3730a3; }
+  .assignee-menu {
+    display:none; position:absolute; left:0; top:calc(100% + 4px); z-index:1060;
+    width:260px; max-width:80vw; background:#fff;
+    border:1px solid #e9ecef; border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.13); padding:.4rem;
+  }
+  .assignee-menu.open { display:block; }
+  .assignee-search-wrap { padding:.2rem .3rem .4rem; border-bottom:1px solid #f1f3f5; margin-bottom:.3rem; }
+  .assignee-search {
+    width:100%; padding:.25rem .5rem; border:1px solid #e9ecef; border-radius:6px;
+    font-size:.82rem; outline:none;
+  }
+  .assignee-search:focus { border-color:#3b82f6; }
+  .assignee-list { max-height:240px; overflow-y:auto; }
+  .assignee-opt {
+    padding:.35rem .5rem; border-radius:6px; cursor:pointer;
+    font-size:.82rem; color:#212529;
+  }
+  .assignee-opt:hover { background:#f8f9fa; }
+  .assignee-opt.hidden { display:none; }
+
+  /* ── Live-spinner в поле поиска ── */
+  .inc-live-spinner {
+    position:absolute; right:.6rem; top:50%; width:12px; height:12px;
+    border:2px solid #cbd5e1; border-top-color:#3b82f6; border-radius:50%;
+    transform:translateY(-50%); animation:spin .7s linear infinite;
+    display:none;
+  }
+  .inc-live-spinner.on { display:inline-block; }
+  @keyframes spin { to { transform:translateY(-50%) rotate(360deg); } }
+
+  .incident-table { background:#fff; }
+  .incident-table thead th {
+    white-space:nowrap; background:#fafbfc; color:#6c757d;
+    font-size:.78rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+    border-bottom:1px solid #e9ecef;
+  }
+  .incident-table tbody tr { background:#fff; border-bottom:1px solid #f1f3f5; }
+  .incident-table tbody tr:hover { background:#fafbfc; }
+  .incident-table tbody tr:last-child { border-bottom:0; }
+  .desc-cell { max-width: 340px; }
+  .author-user-card { padding:.9rem 1rem; border:1px solid #e9ecef; border-radius:12px; background:#fff; margin-bottom:.6rem; }
+  .author-user-card:hover { background:#fafbfc; }
+
+  /* ── view-switcher / col-picker / truncate / list view (из incidents_registry) ── */
+  .view-btn { padding:.3rem .75rem; border-radius:8px; border:1px solid #dee2e6; background:#fff; cursor:pointer; font-size:.85rem; color:#495057; }
+  .view-btn.active { background:#283149; color:#fff; border-color:#283149; }
+  .col-picker-dropdown { min-width:220px; padding:.5rem .75rem; font-size:.85rem; }
+  .col-picker-dropdown label { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; cursor:pointer; }
+  .desc-toggle { background:none; border:none; color:#6c757d; cursor:pointer; padding:0 .15rem; font-size:.85rem; vertical-align:middle; }
+  .desc-toggle:hover { color:#ff7043; }
+  .inc-list { display:flex; flex-direction:column; gap:.5rem; padding:1rem; }
+  .inc-list-item { display:flex; flex-direction:column; gap:.2rem; padding:.75rem 1rem; border:1px solid #e9ecef; border-radius:10px; background:#fff; }
+  .inc-list-item:hover { background:#fafbfc; }
+  .inc-list-row { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .inc-list-date { font-size:.82rem; color:#6c757d; white-space:nowrap; }
+  .inc-list-desc { font-size:.88rem; color:#495057; }
+  .inc-list-meta { font-size:.78rem; color:#6c757d; }
+
+  /* Мобильная адаптация фикс-ширин incident-table */
+  @media (max-width: 767.98px) {
+    .incident-table th[class^="col-"],
+    .incident-table th[class*=" col-"] { width: auto !important; }
+  }
 </style>
+
+{# ═════════════════ HERO ═════════════════ #}
+<div class="inc-hero p-4 mb-3">
+  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+    <div>
+      <div class="inc-chip mb-2">
+        {% if is_admin_view %}{% if is_social_view %}Работа с инцидентами{% else %}Инциденты · управление{% endif %}{% else %}Мои заявки{% endif %}
+      </div>
+      <h2 class="mb-0">
+        {% if is_admin_view %}Инциденты{% else %}Мои инциденты{% endif %}
+      </h2>
+      <div class="text-muted small mt-1">
+        {% if is_social_view %}
+          Все события по школе: входящие, в работе, завершённые, плюс вкладка назначенных мне.
+        {% elif is_admin_view %}
+          Все события по школе: входящие, в работе и завершённые.
+        {% else %}
+          История поданных заявок со статусами и ответами исполнителей.
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-primary" href="{{ url_for('children.incident_new') }}">+ Новый инцидент</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+    </div>
+  </div>
+</div>
+
+{% macro status_badge(s) -%}
+  {% set lbl = status_labels.get(s, s) %}
+  <span class="status-badge s-{{ s }}">{{ lbl }}</span>
+{%- endmacro %}
+
+{% macro status_picker(inc) %}
+  {% if can_change_status %}
+    <div class="status-picker">
+      <button type="button" class="status-pill s-{{ inc.status or 'new' }}"
+              data-incident-id="{{ inc.id }}">
+        {{ status_labels.get(inc.status or 'new') }}
+        <i class="bi bi-chevron-down small"></i>
+      </button>
+      <div class="status-picker-menu">
+        {% for code, label in status_labels.items() %}
+          <div class="sp-opt" data-status="{{ code }}" data-incident-id="{{ inc.id }}">
+            <span class="sp-dot d-{{ code }}"></span>
+            <span>{{ label }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    {{ status_badge(inc.status or 'new') }}
+  {% endif %}
+{% endmacro %}
+
+
+{% if not is_admin_view %}
+{# ═════════════════ USER VIEW: 2 вкладки ═════════════════ #}
+{% set user_tabs = [
+  ('mine',     'Мои заявки',    user_counters.mine),
+  ('assigned', 'Назначены мне', user_counters.assigned),
+] %}
+
+<div class="inc-tabs">
+  {% for code, label, cnt in user_tabs %}
+  <a class="inc-tab {% if user_tab == code %}active{% endif %}"
+     href="{{ url_for('children.incidents_my', tab=code) }}">
+    <span>{{ label }}</span>
+    <span class="badge bg-light text-dark">{{ cnt }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% macro user_incident_card(r, show_author=False) %}
+<div class="author-user-card">
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+    <div class="flex-grow-1">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-semibold">#{{ r.inc.id }}</span>
+        <span class="text-muted">·</span>
+        <span>{{ r.inc.category }}</span>
+        {{ status_badge(r.inc.status or 'new') }}
+        <span class="text-muted small ms-auto">
+          {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
+        </span>
+      </div>
+      <div class="small mt-1">
+        {% for ch in r.children %}
+          {% if can("child_card_view_basic") %}
+            <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
+          {% else %}{{ ch.fio }}{% endif %}
+          <span class="text-muted">— {{ ch.class }}{% if ch.building %} · {{ ch.building }}{% endif %}</span>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </div>
+      {% if r.inc.description %}
+      <div class="small text-muted mt-2">{{ r.inc.description }}</div>
+      {% endif %}
+      <div class="small mt-2 d-flex gap-3 flex-wrap">
+        {% if show_author %}
+        <span><span class="text-muted">Автор:</span> {{ r.author_label or "—" }}</span>
+        {% else %}
+        <span><span class="text-muted">Исполнитель:</span>
+          {% if r.inc.assignee %}{{ r.inc.assignee.fio }}{% else %}<em class="text-muted">не назначен</em>{% endif %}
+        </span>
+        {% endif %}
+      </div>
+      {% if r.last_note %}
+      <div class="mt-2 p-2" style="background:#f8f9fa;border-radius:8px;">
+        <div class="small fw-semibold">
+          Последняя заметка · {{ r.last_note.author.fio if r.last_note.author else "—" }}
+          <span class="text-muted fw-normal">{{ r.last_note.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+        </div>
+        <div class="small" style="white-space:pre-wrap;">{{ r.last_note.text }}</div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="d-flex flex-column gap-1">
+      <a class="btn btn-sm btn-outline-primary"
+         href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}">История хода</a>
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}">Открыть</a>
+      {% if show_author and current_user_id == r.inc.assignee_id and (r.inc.status or 'new') not in ('resolved','closed') %}
+      <button class="btn btn-sm btn-outline-success user-mark-resolved" data-incident-id="{{ r.inc.id }}">Я отработал</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+<div class="card inc-panel">
+  <div class="card-body">
+    {% if user_tab == 'assigned' %}
+      {% if assigned_rows %}
+        {% for r in assigned_rows %}{{ user_incident_card(r, show_author=True) }}{% endfor %}
+      {% else %}
+      <div class="text-muted text-center py-4">
+        На вас инцидентов не назначено. Если директор или заместитель передаст вам инцидент —
+        он появится в этой вкладке, и одновременно придёт уведомление в колокольчик.
+      </div>
+      {% endif %}
+    {% else %}
+      {% if authored_rows %}
+        {% for r in authored_rows %}{{ user_incident_card(r, show_author=False) }}{% endfor %}
+      {% else %}
+      <div class="text-muted text-center py-4">
+        Вы ещё не подавали инцидентов.
+        <a href="{{ url_for('children.incident_new') }}">Создать первый →</a>
+      </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+{# ═════════════════ ADMIN VIEW: 3 вкладки по статусам (+ 4-я для SOCIAL_PEDAGOG) ═════════════════ #}
+{% set tabs = [
+  ('incoming',  tab_labels.incoming,  counters.incoming),
+  ('in_work',   tab_labels.in_work,   counters.in_work),
+  ('completed', tab_labels.completed, counters.completed),
+] %}
+{% if is_social_view %}
+  {% set tabs = tabs + [('mine', tab_labels.mine, counters.mine)] %}
+{% endif %}
+
+{% macro tab_url(tab_code) -%}
+  {{ url_for('children.incidents_my',
+     tab=tab_code,
+     view=view_mode if view_mode != 'table' else None,
+     category=f_category or None,
+     class_id=f_class_id or None,
+     q=f_q or None,
+     sort=f_sort if f_sort != 'date_desc' else None) }}
+{%- endmacro %}
+
+<div class="inc-tabs">
+  {% for code, label, cnt in tabs %}
+  <a class="inc-tab {% if active_tab == code %}active{% endif %}" href="{{ tab_url(code) }}">
+    <span>{{ label }}</span>
+    <span class="badge bg-light text-dark">{{ cnt }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{# ── Фильтр-панель (живой поиск/фильтры, submit на input/change) ── #}
+<div class="card inc-panel mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end" id="incFiltersForm">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <input type="hidden" name="view" value="{{ view_mode }}">
+      <div class="col-12 col-md-3">
+        <label class="form-label small">Поиск</label>
+        <div class="position-relative">
+          <input type="text" class="form-control form-control-sm inc-live-input"
+                 name="q" value="{{ f_q }}" placeholder="ФИО ученика или текст описания" autocomplete="off">
+          <span class="inc-live-spinner" id="incLiveSpinner" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small">Категория</label>
+        <select class="form-select form-select-sm inc-live-select" name="category">
+          <option value="">— все —</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if f_category == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small">Класс</label>
+        <select class="form-select form-select-sm inc-live-select" name="class_id">
+          <option value="">— все —</option>
+          {% for c in classes %}
+            <option value="{{ c.id }}" {% if f_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small">Сортировка</label>
+        <select class="form-select form-select-sm inc-live-select" name="sort">
+          <option value="date_desc" {% if f_sort == 'date_desc' %}selected{% endif %}>Сначала новые</option>
+          <option value="date_asc"  {% if f_sort == 'date_asc'  %}selected{% endif %}>Сначала старые</option>
+          <option value="category"  {% if f_sort == 'category'  %}selected{% endif %}>По категории</option>
+          <option value="status"    {% if f_sort == 'status'    %}selected{% endif %}>По статусу</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('children.incidents_my', tab=active_tab) }}">Сброс</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Табличная панель с col-picker и view-switcher ── #}
+<div class="card inc-panel">
+  <div class="card-body pb-2">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h5 class="mb-0">Инциденты</h5>
+      <div class="d-flex align-items-center gap-2">
+        {# Col-picker #}
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="myColPickerBtn" title="Настроить колонки">
+            <i class="bi bi-layout-three-columns"></i> Колонки
+          </button>
+          <div class="dropdown-menu col-picker-dropdown" id="myColPickerMenu">
+            <label><input type="checkbox" class="col-toggle" data-col="col-num"      checked> №</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-dt"       checked> Дата</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-cat"      checked> Категория</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-children" checked> Дети</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-building" checked> Здание</label>
+            {% if is_admin %}<label><input type="checkbox" class="col-toggle" data-col="col-kubok" checked> Кубок</label>{% endif %}
+            <label><input type="checkbox" class="col-toggle" data-col="col-desc"     checked> Описание</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-author"   checked> Автор</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-assignee" checked> Исполнитель</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-status"   checked> Статус</label>
+            <label><input type="checkbox" class="col-toggle" data-col="col-actions"  checked> Действия</label>
+          </div>
+        </div>
+        {# View switcher (через ?view=) #}
+        {% set _q = request.args.to_dict() %}
+        {% set _qt = _q.copy() %}{% set _ = _qt.update({'view':'table'}) %}
+        {% set _ql = _q.copy() %}{% set _ = _ql.update({'view':'list'}) %}
+        <a class="view-btn {% if view_mode != 'list' %}active{% endif %}" href="{{ url_for('children.incidents_my', **_qt) }}" id="myBtnTable" title="Таблица"><i class="bi bi-table"></i></a>
+        <a class="view-btn {% if view_mode == 'list'  %}active{% endif %}" href="{{ url_for('children.incidents_my', **_ql) }}" id="myBtnList"  title="Список"><i class="bi bi-list-ul"></i></a>
+        <span class="text-muted small">{{ rows|length }} записей</span>
+      </div>
+    </div>
+  </div>
+
+  {% if view_mode != 'list' %}
+  {# ── TABLE VIEW ── #}
+  <div id="myViewTable" class="table-responsive">
+    <table class="table mb-0 align-middle incident-table">
+      <thead>
+        <tr>
+          <th class="col-num table-number-col">№</th>
+          <th class="col-dt" style="width:140px;">Дата</th>
+          <th class="col-cat" style="width:170px;">Категория</th>
+          <th class="col-children">Дети</th>
+          <th class="col-building" style="width:140px;">Здание</th>
+          {% if is_admin %}<th class="col-kubok" style="min-width:150px;">Кубок</th>{% endif %}
+          <th class="col-desc">Описание</th>
+          <th class="col-author" style="width:160px;">Автор</th>
+          <th class="col-assignee" style="width:150px;">Исполнитель</th>
+          <th class="col-status" style="width:140px;">Статус</th>
+          <th class="col-actions" style="width:170px;">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="text-muted col-num">{{ loop.index }}</td>
+          <td class="text-muted small col-dt">
+            {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
+          </td>
+          <td class="col-cat">{{ r.inc.category or "—" }}</td>
+          <td class="small col-children">
+            {% for ch in r.children %}
+              <div>
+                {% if can("child_card_view_basic") %}
+                <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
+                {% else %}{{ ch.fio }}{% endif %}
+                {% if ch.class_id %}
+                  <span class="text-muted">— <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="text-decoration-none">{{ ch.class }}</a></span>
+                {% else %}
+                  <span class="text-muted">— {{ ch.class }}</span>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </td>
+          <td class="col-building text-muted small">
+            {% set bns = namespace(seen=[]) %}
+            {% for ch in r.children %}
+              {% if ch.building and ch.building not in bns.seen %}
+                {% set _ = bns.seen.append(ch.building) %}
+                <div>{{ ch.building }}</div>
+              {% endif %}
+            {% endfor %}
+            {% if not bns.seen %}—{% endif %}
+          </td>
+          {% if is_admin %}
+            <td class="col-kubok">
+              {% set kns = namespace(seen=[]) %}
+              {% for ch in r.children %}
+                {% if ch.class_id and ch.class_id not in kns.seen %}
+                  {% set _ = kns.seen.append(ch.class_id) %}
+                  {% set _kr = kubok_rating(ch.class) %}
+                  <div class="mb-1">
+                    {% if _kr %}
+                      <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
+                         class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
+                         style="font-size:.72rem;"
+                         title="Кубок школы класса {{ ch.class }}">
+                        <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
+                      </a>
+                    {% else %}
+                      <span class="text-muted small">{{ ch.class }}: —</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              {% if not kns.seen %}<span class="text-muted small">—</span>{% endif %}
+            </td>
+          {% endif %}
+          <td class="desc-cell text-muted small col-desc">
+            {% if r.inc.description and r.inc.description|length > 70 %}
+              <span class="desc-short">{{ r.inc.description[:70] }}…
+                <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.nextElementSibling.style.display='inline';" title="Развернуть">▸</button>
+              </span>
+              <span class="desc-full" style="display:none;">{{ r.inc.description }}
+                <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.previousElementSibling.style.display='inline';" title="Свернуть">▾</button>
+              </span>
+            {% else %}
+              {{ r.inc.description or "—" }}
+            {% endif %}
+          </td>
+          <td class="small text-muted col-author">{{ r.author_label or "—" }}</td>
+          <td class="small col-assignee">
+            {% if can_change_status %}
+              <div class="assignee-picker" data-incident-id="{{ r.inc.id }}">
+                <button type="button" class="btn btn-sm assignee-btn {% if r.inc.assignee %}has-assignee{% endif %}">
+                  {% if r.inc.assignee %}
+                    {{ r.inc.assignee.last_name }} {{ (r.inc.assignee.first_name or '')[:1] }}.
+                  {% else %}
+                    <i class="bi bi-person-plus"></i> Назначить
+                  {% endif %}
+                </button>
+                <div class="assignee-menu">
+                  <div class="assignee-search-wrap">
+                    <input type="text" class="assignee-search" placeholder="Поиск…" autocomplete="off">
+                  </div>
+                  <div class="assignee-list">
+                    <div class="assignee-opt" data-aid="">— не назначен —</div>
+                    {% for u in assignees %}
+                    <div class="assignee-opt" data-aid="{{ u.id }}"
+                         data-search="{{ (u.last_name or '')|lower }} {{ (u.first_name or '')|lower }} {{ (u.username or '')|lower }}">
+                      {{ u.last_name }} {{ u.first_name }}{% if u.middle_name %} {{ u.middle_name[:1] }}.{% endif %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            {% else %}
+              {% if r.inc.assignee %}
+                {{ r.inc.assignee.last_name }} {{ (r.inc.assignee.first_name or '')[:1] }}.
+              {% else %}<em class="text-muted">—</em>{% endif %}
+            {% endif %}
+          </td>
+          <td class="col-status">{{ status_picker(r.inc) }}</td>
+          <td class="col-actions">
+            <div class="d-inline-flex gap-1 align-items-center flex-nowrap">
+              <a class="btn btn-sm btn-outline-secondary py-0 px-2"
+                 href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}"
+                 title="Открыть и редактировать"><i class="bi bi-pencil"></i></a>
+              <a class="btn btn-sm btn-outline-secondary py-0 px-2"
+                 href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}"
+                 title="История хода"><i class="bi bi-clock-history"></i></a>
+              {% if can_edit_rows %}
+              <form method="post"
+                    action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}"
+                    onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+              </form>
+              {% endif %}
+              {% if is_social_view and r.inc.assignee_id == current_user_id and (r.inc.status or 'new') not in ('resolved','closed') %}
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2 user-mark-resolved"
+                      data-incident-id="{{ r.inc.id }}" title="Я отработал"><i class="bi bi-check2"></i></button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if rows|length == 0 %}
+          <tr><td colspan="{% if is_admin %}10{% else %}9{% endif %}" class="text-center text-muted py-4">Ничего не найдено по выбранным фильтрам.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  {# ── LIST VIEW ── #}
+  <div id="myViewList" class="inc-list">
+    {% for r in rows %}
+      {% set s = r.inc.status or 'new' %}
+      <div class="inc-list-item">
+        <div class="inc-list-row">
+          <span class="inc-list-date col-dt"><i class="bi bi-calendar3"></i> {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</span>
+          <span class="text-dark small fw-semibold col-cat">{{ r.inc.category or "—" }}</span>
+          <span class="col-status">{{ status_picker(r.inc) }}</span>
+          <span class="col-assignee">
+            {% if r.inc.assignee %}
+              <span class="inc-list-meta">&#128100; {{ r.inc.assignee.last_name }} {{ (r.inc.assignee.first_name or '')[:1] }}.</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="inc-list-row col-children">
+          {% set klns = namespace(seen=[]) %}
+          {% for ch in r.children %}
+            {% if can("child_card_view_basic") %}
+              <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="inc-list-meta fw-semibold">{{ ch.fio }}</a>
+            {% else %}
+              <span class="inc-list-meta fw-semibold">{{ ch.fio }}</span>
+            {% endif %}
+            {% if ch.class_id %}
+              <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="inc-list-meta text-muted text-decoration-none">{{ ch.class }}</a>
+            {% else %}
+              <span class="inc-list-meta text-muted">{{ ch.class }}</span>
+            {% endif %}
+            {% if ch.building %}
+              <span class="inc-list-meta text-muted col-building">· {{ ch.building }}</span>
+            {% endif %}
+            {% if is_admin and ch.class_id and ch.class_id not in klns.seen %}
+              {% set _ = klns.seen.append(ch.class_id) %}
+              {% set _kr = kubok_rating(ch.class) %}
+              {% if _kr %}
+                <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
+                   class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none col-kubok"
+                   style="font-size:.7rem;"
+                   title="Кубок школы — {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}">
+                  <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
+                </a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% if r.inc.description %}
+          <div class="inc-list-desc col-desc">{{ r.inc.description }}</div>
+        {% endif %}
+        <div class="inc-list-row mt-1">
+          <span class="inc-list-meta col-author">{{ r.author_label or "—" }}</span>
+          <span class="col-actions d-inline-flex gap-1 align-items-center flex-nowrap">
+            <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Открыть"><i class="bi bi-pencil"></i></a>
+            <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}" title="История"><i class="bi bi-clock-history"></i></a>
+            {% if can_edit_rows %}
+            <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
+              <input type="hidden" name="next" value="{{ request.full_path }}">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+            </form>
+            {% endif %}
+            {% if is_social_view and r.inc.assignee_id == current_user_id and (r.inc.status or 'new') not in ('resolved','closed') %}
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 user-mark-resolved" data-incident-id="{{ r.inc.id }}" title="Я отработал"><i class="bi bi-check2"></i></button>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+    {% else %}
+      <div class="text-center py-4 text-muted">Ничего не найдено по выбранным фильтрам.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <script>
 (function(){
-  document.querySelectorAll('.inc-status-select').forEach(function(sel) {
-    sel.addEventListener('change', function() {
-      var id = this.dataset.incidentId;
-      var status = this.value;
-      var fd = new FormData(); fd.append('status', status);
-      fetch('/children/incidents/' + id + '/set-status', {method:'POST', body:fd})
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-          if (data.ok) {
-            sel.className = 'inc-status-select status-' + data.status;
-          } else {
-            alert('Ошибка: ' + (data.error || 'неизвестно'));
-          }
-        }).catch(function(){ alert('Ошибка сети'); });
+  // Picker для статусов (dropdown, отправка POST /incidents/<id>/set-status)
+  document.querySelectorAll('.status-picker').forEach(function(pk){
+    var btn = pk.querySelector('.status-pill');
+    var menu = pk.querySelector('.status-picker-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ if (m !== menu) m.classList.remove('open'); });
+      menu.classList.toggle('open');
+    });
+    menu.querySelectorAll('.sp-opt').forEach(function(opt){
+      opt.addEventListener('click', function(){
+        var id = opt.dataset.incidentId;
+        var status = opt.dataset.status;
+        var fd = new FormData(); fd.append('status', status);
+        fetch('/incidents/' + id + '/set-status', {method:'POST', body:fd})
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data.ok) {
+              btn.className = 'status-pill s-' + data.status;
+              var newLbl = menu.querySelector('.sp-opt[data-status="' + data.status + '"] span:last-child');
+              if (newLbl) {
+                btn.innerHTML = newLbl.textContent + ' <i class="bi bi-chevron-down small"></i>';
+              }
+            } else {
+              alert('Ошибка: ' + (data.error || 'неизвестно'));
+            }
+            menu.classList.remove('open');
+          }).catch(function(){ alert('Ошибка сети'); });
+      });
     });
   });
+  document.addEventListener('click', function(){
+    document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ m.classList.remove('open'); });
+    document.querySelectorAll('.assignee-menu.open').forEach(function(m){ m.classList.remove('open'); });
+  });
+
+  // ── Живой поиск / авто-фильтры ──
+  var form = document.getElementById('incFiltersForm');
+  if (form) {
+    var spinner = document.getElementById('incLiveSpinner');
+    var debounce;
+    function submitForm() { if (spinner) spinner.classList.add('on'); form.submit(); }
+    form.querySelectorAll('.inc-live-input').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        clearTimeout(debounce);
+        debounce = setTimeout(submitForm, 400);
+      });
+    });
+    form.querySelectorAll('.inc-live-select').forEach(function(sel){
+      sel.addEventListener('change', submitForm);
+    });
+  }
+
+  // ── Кнопка «Я отработал» → модалка с обязательным комментарием и вложениями ──
+  // Делегированные обработчики через document — не зависит от порядка инициализации
+  // и от того, что DOM picker'ов могут быть пере-рендерены.
+  // Ждём DOMContentLoaded, потому что модалка #myMarkResolvedModal объявлена ниже
+  // в этом же шаблоне и на момент выполнения этого inline-скрипта может ещё не быть в DOM.
+  document.addEventListener('DOMContentLoaded', function(){
+  (function(){
+    var modal = document.getElementById('myMarkResolvedModal');
+    if (!modal) return;
+
+    function getBsModal(){ return bootstrap.Modal.getOrCreateInstance(modal); }
+    function $(id){ return document.getElementById(id); }
+
+    document.addEventListener('click', function(e){
+      var btn = e.target.closest && e.target.closest('.user-mark-resolved');
+      if (!btn) return;
+      e.preventDefault();
+      $('myMarkResolvedIncId').value = btn.dataset.incidentId || '';
+      $('myMarkResolvedComment').value = '';
+      $('myMarkResolvedFiles').value = '';
+      $('myMarkResolvedFilesList').textContent = '';
+      var err = $('myMarkResolvedError');
+      err.style.display = 'none'; err.textContent = '';
+      var sub = $('myMarkResolvedSubmit');
+      sub.disabled = false; sub.textContent = 'Подтвердить';
+      getBsModal().show();
+    });
+
+    // Список имён файлов в модалке
+    document.addEventListener('change', function(e){
+      if (e.target && e.target.id === 'myMarkResolvedFiles') {
+        var files = e.target.files;
+        var lbl = $('myMarkResolvedFilesList');
+        if (!files || !files.length) { lbl.textContent = ''; return; }
+        var names = []; for (var i=0; i<files.length; i++) names.push(files[i].name);
+        lbl.textContent = names.join(', ');
+      }
+    });
+
+    // Submit по клику на кнопку «Подтвердить»
+    document.addEventListener('click', function(e){
+      if (!(e.target && e.target.id === 'myMarkResolvedSubmit')) return;
+      var submit = e.target;
+      var err = $('myMarkResolvedError');
+      err.style.display = 'none'; err.textContent = '';
+      var id = $('myMarkResolvedIncId').value;
+      var ta = $('myMarkResolvedComment');
+      var files = $('myMarkResolvedFiles');
+      var comment = (ta.value || '').trim();
+      if (!id) return;
+      if (!comment) {
+        err.textContent = 'Опишите, что было сделано — это обязательно.';
+        err.style.display = ''; ta.focus(); return;
+      }
+      var fd = new FormData();
+      fd.append('comment', comment);
+      if (files.files) { for (var i=0; i<files.files.length; i++) fd.append('files[]', files.files[i]); }
+      submit.disabled = true; submit.textContent = 'Сохраняю…';
+      fetch('/incidents/' + id + '/mark-resolved', {method:'POST', body:fd})
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+        .then(function(res){
+          if (res.ok && res.data.ok) { location.reload(); return; }
+          var code = (res.data && res.data.error) || 'неизвестно';
+          var msg  = code === 'comment_required' ? 'Опишите, что было сделано.' : 'Ошибка: ' + code;
+          err.textContent = msg; err.style.display = '';
+          submit.disabled = false; submit.textContent = 'Подтвердить';
+        })
+        .catch(function(){
+          err.textContent = 'Сетевая ошибка.'; err.style.display = '';
+          submit.disabled = false; submit.textContent = 'Подтвердить';
+        });
+    });
+  })();
+  });  // DOMContentLoaded (mark-resolved modal init)
+
+  // ── Col-picker (admin-view). View-switcher теперь = ссылки с ?view=  ──
+  (function(){
+    var colBtn  = document.getElementById('myColPickerBtn');
+    var colMenu = document.getElementById('myColPickerMenu');
+    if (colBtn && colMenu) {
+      colBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        colMenu.classList.toggle('show');
+      });
+      colMenu.addEventListener('click', function(e){ e.stopPropagation(); });
+      document.addEventListener('click', function(){ colMenu.classList.remove('show'); });
+    }
+
+    function toggleCol(col, visible){
+      document.querySelectorAll('.' + col).forEach(function(el){
+        el.style.display = visible ? '' : 'none';
+      });
+    }
+    document.querySelectorAll('.col-toggle').forEach(function(cb){
+      var col = cb.dataset.col;
+      var saved = localStorage.getItem('my_col_' + col);
+      if (saved === '0') { cb.checked = false; toggleCol(col, false); }
+      cb.addEventListener('change', function(){
+        toggleCol(col, cb.checked);
+        localStorage.setItem('my_col_' + col, cb.checked ? '1' : '0');
+      });
+    });
+  })();
+
 })();
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+(function(){
+    var modalEl = document.getElementById('setAssigneeModal');
+    if (!modalEl) return;
+    function $(id){ return document.getElementById(id); }
+    function getBsModal(){ return bootstrap.Modal.getOrCreateInstance(modalEl); }
+
+    // state
+    var pending = { pk:null, btn:null, menu:null, aid:'', incId:'' };
+
+    // Открытие меню пикера
+    document.addEventListener('click', function(e){
+      var trigger = e.target.closest && e.target.closest('.assignee-btn');
+      if (!trigger) return;
+      e.stopPropagation();
+      var pk = trigger.closest('.assignee-picker');
+      if (!pk) return;
+      var menu = pk.querySelector('.assignee-menu');
+      if (!menu) return;
+      document.querySelectorAll('.assignee-menu.open').forEach(function(m){ if (m !== menu) m.classList.remove('open'); });
+      document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ m.classList.remove('open'); });
+      menu.classList.toggle('open');
+      var search = pk.querySelector('.assignee-search');
+      if (menu.classList.contains('open') && search) {
+        search.value = '';
+        pk.querySelectorAll('.assignee-opt').forEach(function(o){ o.classList.remove('hidden'); });
+        setTimeout(function(){ search.focus(); }, 0);
+      }
+    });
+
+    // Фильтр-поиск
+    document.addEventListener('input', function(e){
+      if (!(e.target && e.target.classList && e.target.classList.contains('assignee-search'))) return;
+      var pk = e.target.closest('.assignee-picker');
+      if (!pk) return;
+      var q = (e.target.value || '').trim().toLowerCase();
+      pk.querySelectorAll('.assignee-opt').forEach(function(o){
+        if (!o.dataset.search && o.dataset.aid === '') { o.classList.remove('hidden'); return; }
+        var txt = o.dataset.search || (o.textContent || '').toLowerCase();
+        o.classList.toggle('hidden', q && txt.indexOf(q) === -1);
+      });
+    });
+
+    // Выбор опции
+    document.addEventListener('click', function(e){
+      var opt = e.target.closest && e.target.closest('.assignee-opt');
+      if (!opt) return;
+      var pk = opt.closest('.assignee-picker');
+      if (!pk) return;
+      var btn = pk.querySelector('.assignee-btn');
+      var menu = pk.querySelector('.assignee-menu');
+      var id  = pk.dataset.incidentId;
+      var aid = opt.dataset.aid || '';
+
+      if (!aid) {
+        // Снятие назначения — без модалки.
+        var fd0 = new FormData(); fd0.append('assignee_id', '');
+        fetch('/incidents/' + id + '/set-assignee', {method:'POST', body:fd0})
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (!data.ok) { alert('Ошибка: ' + (data.error || 'неизвестно')); return; }
+            if (btn) { btn.classList.remove('has-assignee'); btn.innerHTML = '<i class="bi bi-person-plus"></i> Назначить'; }
+            if (menu) menu.classList.remove('open');
+          })
+          .catch(function(){ alert('Ошибка сети'); });
+        return;
+      }
+
+      // Сохраним pending и откроем модалку
+      pending.pk = pk; pending.btn = btn; pending.menu = menu;
+      pending.aid = aid; pending.incId = id;
+      var subtitle = $('setAssigneeSubtitle');
+      if (subtitle) {
+        var lbl = (opt.dataset.label || opt.textContent || '').trim();
+        subtitle.textContent = lbl ? ('Исполнитель: ' + lbl) : '';
+      }
+      var ta = $('setAssigneeNote'); if (ta) ta.value = '';
+      var err = $('setAssigneeError'); if (err) { err.style.display = 'none'; err.textContent = ''; }
+      var sub = $('setAssigneeSubmit'); if (sub) sub.disabled = false;
+      var skip = $('setAssigneeSkip'); if (skip) skip.disabled = false;
+      if (menu) menu.classList.remove('open');
+      getBsModal().show();
+    });
+
+    // Отправка назначения
+    function sendAssignment(includeNote){
+      var err = $('setAssigneeError'); if (err) { err.style.display = 'none'; err.textContent = ''; }
+      var ta  = $('setAssigneeNote');
+      var sub = $('setAssigneeSubmit');
+      var skip = $('setAssigneeSkip');
+      if (sub) sub.disabled = true;
+      if (skip) skip.disabled = true;
+      var fd = new FormData();
+      fd.append('assignee_id', pending.aid || '');
+      if (includeNote && ta) {
+        var note = (ta.value || '').trim();
+        if (note) fd.append('note', note);
+      }
+      fetch('/incidents/' + pending.incId + '/set-assignee', {method:'POST', body:fd})
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+        .then(function(res){
+          if (sub) sub.disabled = false; if (skip) skip.disabled = false;
+          if (!res.ok || !res.data.ok) {
+            if (err) { err.textContent = 'Ошибка: ' + ((res.data && res.data.error) || 'неизвестно'); err.style.display = ''; }
+            return;
+          }
+          // Обновить кнопку и статус
+          if (pending.btn) {
+            if (res.data.assignee_label) {
+              pending.btn.classList.add('has-assignee');
+              pending.btn.textContent = res.data.assignee_label;
+            } else {
+              pending.btn.classList.remove('has-assignee');
+              pending.btn.innerHTML = '<i class="bi bi-person-plus"></i> Назначить';
+            }
+          }
+          if (pending.pk) {
+            var row = pending.pk.closest('tr');
+            if (row && res.data.status) {
+              var statusPill = row.querySelector('.status-picker .status-pill');
+              if (statusPill) {
+                statusPill.className = 'status-pill s-' + res.data.status;
+                var lbl2 = row.querySelector('.status-picker-menu .sp-opt[data-status="' + res.data.status + '"] span:last-child');
+                if (lbl2) statusPill.innerHTML = lbl2.textContent + ' <i class="bi bi-chevron-down small"></i>';
+              }
+            }
+          }
+          if (pending.menu) pending.menu.classList.remove('open');
+          getBsModal().hide();
+        })
+        .catch(function(){
+          if (sub) sub.disabled = false; if (skip) skip.disabled = false;
+          if (err) { err.textContent = 'Сетевая ошибка.'; err.style.display = ''; }
+        });
+    }
+
+    document.addEventListener('click', function(e){
+      if (e.target && e.target.id === 'setAssigneeSubmit') sendAssignment(true);
+      if (e.target && e.target.id === 'setAssigneeSkip')   sendAssignment(false);
+    });
+})();
+});
+</script>
+
+{# ── Модалка «Я отработал инцидент» (общая для всех видов: user-card/table/list) ── #}
+<div class="modal fade" id="myMarkResolvedModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-check2-circle me-1 text-success"></i>Отметить инцидент как отработанный</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="myMarkResolvedIncId" value="">
+        <div class="mb-3">
+          <label for="myMarkResolvedComment" class="form-label">
+            Опишите, что было сделано <span class="text-danger">*</span>
+          </label>
+          <textarea id="myMarkResolvedComment" class="form-control" rows="5" required
+                    placeholder="Например: поговорил с родителями, выданы рекомендации, принято решение…"></textarea>
+          <div class="form-text">Поле обязательно. Текст попадёт в журнал работы и в уведомление автору/управляющим.</div>
+        </div>
+        <div class="mb-2">
+          <label for="myMarkResolvedFiles" class="btn btn-sm btn-outline-secondary mb-0">
+            <i class="bi bi-paperclip"></i> Прикрепить файлы (необязательно)
+          </label>
+          <input type="file" id="myMarkResolvedFiles" multiple style="display:none;"
+                 accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip,.txt,.mp4,.mov,.webm">
+          <span class="text-muted small ms-2" id="myMarkResolvedFilesList"></span>
+          <div class="form-text">До 10 файлов. Документы/изображения — 30 МБ, видео — 100 МБ.</div>
+        </div>
+        <div class="alert alert-danger py-2 small mb-0" id="myMarkResolvedError" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-success" id="myMarkResolvedSubmit">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Модалка «Назначить исполнителя» — пояснение необязательное ── #}
+<div class="modal fade" id="setAssigneeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i>Назначить исполнителя</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="setAssigneeSubtitle"></div>
+        <div class="mb-3">
+          <label for="setAssigneeNote" class="form-label">
+            Пояснение <span class="text-muted small">(необязательно)</span>
+          </label>
+          <textarea id="setAssigneeNote" class="form-control" rows="3"
+                    placeholder="Например: разберитесь, пожалуйста, с родителями обоих учеников и дайте короткий отчёт…"></textarea>
+          <div class="form-text">Если заполните — пояснение появится в журнале инцидента и в уведомлении исполнителю.</div>
+        </div>
+        <div class="alert alert-danger py-2 small mb-0" id="setAssigneeError" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="setAssigneeSkip">Без пояснения</button>
+        <button type="button" class="btn btn-primary" id="setAssigneeSubmit">Назначить с пояснением</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

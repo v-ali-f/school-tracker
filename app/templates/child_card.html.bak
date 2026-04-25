@@ -1,0 +1,320 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="row g-3">
+
+  <!-- ЛЕВАЯ ЧАСТЬ: карточка (текст + блоки) -->
+  <div class="col-lg-8">
+
+    <div class="mb-3">
+      <h3 class="mb-1">Личная карточка обучающегося</h3>
+      <div class="fs-4">{{ child.fio }}</div>
+      <div class="text-muted">Класс: {{ child.class_name or "—" }}</div>
+    </div>
+
+    {# ======== ФОРМА КАТЕГОРИЙ (ОДНА) ======== #}
+    <form method="post" action="/children/{{ child.id }}/flags" class="mb-4">
+
+      <!-- ====== ОВЗ ====== -->
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <b>Ребёнок ОВЗ</b>
+
+          <div class="form-check form-switch m-0">
+            {# важно: hidden + checkbox value=1 #}
+            <input type="hidden" name="is_ovz" value="0">
+            <input class="form-check-input" type="checkbox" name="is_ovz" id="is_ovz" value="1"
+                   onchange="toggleOVZ()"
+                   {% if child.is_ovz %}checked{% endif %}>
+            <label class="form-check-label" for="is_ovz">включить</label>
+          </div>
+        </div>
+
+        <div class="card-body">
+
+          <div id="ovz-fields" style="display:none">
+            <div class="row g-2">
+
+              <div class="col-md-4">
+                <label class="form-label">Уровень</label>
+                <select class="form-select" name="ovz_level">
+                  <option value="">— выбрать —</option>
+                  {% for code, label in ovz_levels %}
+                    <option value="{{ code }}" {% if child.ovz_level == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Нозология</label>
+                <select class="form-select" name="ovz_nosology">
+                  <option value="">— выбрать —</option>
+                  {% for code, label in ovz_nozologies %}
+                    <option value="{{ code }}" {% if child.ovz_nosology == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Вариант АООП</label>
+                <select class="form-select" name="ovz_variant">
+                  <option value="">— выбрать —</option>
+                  {% if ovz_allowed and ovz_allowed|length > 0 %}
+                    {% for v in ovz_allowed %}
+                      <option value="{{ v }}" {% if child.ovz_variant == v %}selected{% endif %}>Вариант {{ v }}</option>
+                    {% endfor %}
+                  {% else %}
+                    <option value="">(сначала выберите уровень и нозологию)</option>
+                  {% endif %}
+                </select>
+              </div>
+
+              <div class="col-12 mt-2">
+                <div class="form-check form-switch m-0">
+                  <input type="hidden" name="is_disabled" value="0">
+                  <input class="form-check-input" type="checkbox" name="is_disabled" id="is_disabled" value="1"
+                         {% if child.is_disabled %}checked{% endif %}>
+                  <label class="form-check-label" for="is_disabled">ребёнок-инвалид</label>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {% if child.is_ovz %}
+            <hr>
+            <div class="text-muted mb-2"><b>Документы ОВЗ</b></div>
+
+            <form method="post" action="/children/{{ child.id }}/documents/upload"
+                  enctype="multipart/form-data" class="row g-2 mb-2">
+              <input type="hidden" name="doc_type" value="OVZ">
+              <div class="col-md-8"><input class="form-control" type="file" name="file" required></div>
+              <div class="col-md-4"><button class="btn btn-primary w-100">Загрузить</button></div>
+            </form>
+
+            {% if documents_ovz %}
+              <ul class="mb-0">
+                {% for doc in documents_ovz %}
+                  <li><a href="/documents/{{ doc.id }}/download">{{ doc.original_name or doc.filename }}</a></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-muted">Документов нет</div>
+            {% endif %}
+          {% else %}
+            <div class="text-muted">Включите ОВЗ, чтобы появились поля и документы.</div>
+          {% endif %}
+
+        </div>
+      </div>
+
+      <!-- ====== ВШУ ====== -->
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <b>Ребёнок ВШУ (внутришкольный учёт)</b>
+          <div class="form-check form-switch m-0">
+            <input type="hidden" name="is_vshu" value="0">
+            <input class="form-check-input" type="checkbox" name="is_vshu" id="is_vshu" value="1"
+                   {% if child.is_vshu %}checked{% endif %}>
+            <label class="form-check-label" for="is_vshu">включить</label>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if child.is_vshu %}
+            <div class="text-muted mb-2"><b>Документы ВШУ</b></div>
+            <form method="post" action="/children/{{ child.id }}/documents/upload"
+                  enctype="multipart/form-data" class="row g-2 mb-2">
+              <input type="hidden" name="doc_type" value="VSHU">
+              <div class="col-md-8"><input class="form-control" type="file" name="file" required></div>
+              <div class="col-md-4"><button class="btn btn-primary w-100">Загрузить</button></div>
+            </form>
+
+            {% if documents_vshu %}
+              <ul class="mb-0">
+                {% for doc in documents_vshu %}
+                  <li><a href="/documents/{{ doc.id }}/download">{{ doc.original_name or doc.filename }}</a></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-muted">Документов нет</div>
+            {% endif %}
+          {% else %}
+            <div class="text-muted">Включите ВШУ, чтобы появились документы.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ====== Низкие результаты ====== -->
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <b>Низкие образовательные результаты</b>
+          <div class="form-check form-switch m-0">
+            <input type="hidden" name="is_low" value="0">
+            <input class="form-check-input" type="checkbox" name="is_low" id="is_low" value="1"
+                   {% if child.is_low %}checked{% endif %}>
+            <label class="form-check-label" for="is_low">включить</label>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if child.is_low %}
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Предметы риска АЗ (через запятую)</label>
+                <input class="form-control" name="low_subjects" value="{{ child.low_subjects or '' }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Комментарий</label>
+                <input class="form-control" name="low_notes" value="{{ child.low_notes or '' }}">
+              </div>
+            </div>
+
+            <div class="text-muted mb-2"><b>Документы (низкие результаты)</b></div>
+            <form method="post" action="/children/{{ child.id }}/documents/upload"
+                  enctype="multipart/form-data" class="row g-2 mb-2">
+              <input type="hidden" name="doc_type" value="LOW">
+              <div class="col-md-8"><input class="form-control" type="file" name="file" required></div>
+              <div class="col-md-4"><button class="btn btn-primary w-100">Загрузить</button></div>
+            </form>
+
+            {% if documents_low %}
+              <ul class="mb-0">
+                {% for doc in documents_low %}
+                  <li><a href="/documents/{{ doc.id }}/download">{{ doc.original_name or doc.filename }}</a></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-muted">Документов нет</div>
+            {% endif %}
+          {% else %}
+            <div class="text-muted">Включите блок, чтобы появились поля и документы.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ====== АЗ ====== -->
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <b>Академическая задолженность (АЗ)</b>
+          <div class="form-check form-switch m-0">
+            <input type="hidden" name="is_az" value="0">
+            <input class="form-check-input" type="checkbox" name="is_az" id="is_az" value="1"
+                   {% if child.is_az %}checked{% endif %}>
+            <label class="form-check-label" for="is_az">включить</label>
+          </div>
+        </div>
+
+        <div class="card-body">
+          {% if child.is_az %}
+
+            <form method="post" action="/children/{{ child.id }}/debt/new" class="row g-2 mb-3">
+              <div class="col-md-5">
+                <label class="form-label">Предмет</label>
+                <select class="form-select" name="subject_id" required>
+                  {% for s in subjects %}
+                    <option value="{{ s.id }}">{{ s.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Срок ликвидации</label>
+                <input class="form-control" type="date" name="due_date">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Статус</label>
+                <select class="form-select" name="status">
+                  <option value="OPEN">OPEN</option>
+                  <option value="CLOSED">CLOSED</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <button class="btn btn-danger">Добавить АЗ</button>
+              </div>
+            </form>
+
+            {% if debts %}
+              <div class="table-responsive mb-3">
+                <table class="table table-sm table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Предмет</th>
+                      <th>Срок</th>
+                      <th>Статус</th>
+                      <th>Дата</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for d in debts %}
+                    <tr>
+                      <td>{{ d.subject.name if d.subject else "" }}</td>
+                      <td>{{ d.due_date or "" }}</td>
+                      <td>{{ d.status or "" }}</td>
+                      <td>{{ d.created_at.date() if d.created_at else "" }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="text-muted mb-3">Задолженностей пока нет</div>
+            {% endif %}
+
+            <div class="text-muted mb-2"><b>Документы АЗ</b></div>
+            <form method="post" action="/children/{{ child.id }}/documents/upload"
+                  enctype="multipart/form-data" class="row g-2 mb-2">
+              <input type="hidden" name="doc_type" value="AZ">
+              <div class="col-md-8"><input class="form-control" type="file" name="file" required></div>
+              <div class="col-md-4"><button class="btn btn-danger w-100">Загрузить</button></div>
+            </form>
+
+            {% if documents_az %}
+              <ul class="mb-0">
+                {% for doc in documents_az %}
+                  <li><a href="/documents/{{ doc.id }}/download">{{ doc.original_name or doc.filename }}</a></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-muted">Документов нет</div>
+            {% endif %}
+
+          {% else %}
+            <div class="text-muted">Включите блок, чтобы появились добавление АЗ и документы.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <button class="btn btn-success">Сохранить категории</button>
+    </form>
+
+  </div>
+
+  <!-- ПРАВАЯ ПАНЕЛЬ ДЕЙСТВИЙ -->
+  <div class="col-lg-4">
+    <div class="card position-sticky" style="top: 16px;">
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a class="btn btn-outline-secondary" href="/children">Назад</a>
+
+          {% if current_user.role == "ADMIN" %}
+          <form method="post" action="/children/{{ child.id }}/delete"
+                onsubmit="return confirm('Удалить ребёнка?');">
+            <button class="btn btn-outline-danger w-100">Удалить</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggleOVZ() {
+  const cb = document.getElementById("is_ovz");
+  const fields = document.getElementById("ovz-fields");
+  if (!cb || !fields) return;
+  fields.style.display = cb.checked ? "" : "none";
+}
+document.addEventListener("DOMContentLoaded", toggleOVZ);
+</script>
+
+{% endblock %}

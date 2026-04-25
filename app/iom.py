@@ -2080,7 +2080,8 @@ def _form_context(card, is_new=False):
         "education_level_labels": EDUCATION_LEVEL_LABELS,
         "status_choices": IOM_STATUS_CHOICES,
         "aop_variant_choices": AOP_VARIANT_CHOICES,
-        "aop_variant_choices_json": json.dumps(AOP_VARIANT_CHOICES, ensure_ascii=False),
+        # Передаём объект как есть — шаблон применяет |tojson для безопасной сериализации.
+        "aop_variant_choices_json": AOP_VARIANT_CHOICES,
         "child_form_data": child_form_data,
         "readiness": readiness,
     }

@@ -1,33 +1,29 @@
+# База данных
+*.db
+*.db-journal
+instance/
+
+# Загрузки пользователей
+uploads/
+
 # Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-.venv/
-venv/
-env/
+*.pyd
+.Python
 
-# База данных
-instance/
-*.db
-*.sqlite3
-
-# Переменные окружения
+# Окружение
 .env
-.env.*
+*.env
 
-# Загруженные файлы
-uploads/
+# IDE
+.vscode/
+.idea/
 
 # Логи
 *.log
 
 # macOS
-.DS_Store
 __MACOSX/
-
-# Windows
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
+.DS_Store

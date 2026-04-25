@@ -18,6 +18,35 @@ def register_context_processors(app, has_permission, build_menu_flags):
         return dict(endpoint_exists=endpoint_exists)
 
     @app.context_processor
+    def inject_datalens():
+        try:
+            from app.datalens import dashboard_full_url
+            from app.kubok import get_rating
+            return dict(
+                kubok_rating=get_rating,
+                datalens_dashboard_url=dashboard_full_url(),
+            )
+        except Exception:
+            return dict(
+                kubok_rating=lambda _name=None: None,
+                datalens_dashboard_url="",
+            )
+
+    @app.context_processor
+    def inject_sport_club():
+        try:
+            from app.sport_club import get_info_for_child, is_in_club
+            return dict(
+                sport_club_info=get_info_for_child,
+                sport_club_in_club=is_in_club,
+            )
+        except Exception:
+            return dict(
+                sport_club_info=lambda _child=None: None,
+                sport_club_in_club=lambda _child=None: False,
+            )
+
+    @app.context_processor
     def inject_organization_settings():
         settings = get_active_organization_settings()
         default_system_name = "Система сопровождения обучающихся"
@@ -45,15 +74,36 @@ def register_context_processors(app, has_permission, build_menu_flags):
 
     @app.context_processor
     def inject_task_notifications():
+        empty = dict(
+            task_unread_notifications=0,
+            task_latest_notifications=[],
+            incident_unread_notifications=0,
+            incident_latest_notifications=[],
+            bell_unread_total=0,
+        )
         if not getattr(current_user, 'is_authenticated', False):
-            return dict(task_unread_notifications=0, task_latest_notifications=[])
+            return empty
+        task_unread, task_latest = 0, []
+        inc_unread, inc_latest = 0, []
         try:
             from app.models import TaskNotification
-            unread = TaskNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
-            latest = TaskNotification.query.filter_by(user_id=current_user.id).order_by(TaskNotification.created_at.desc()).limit(10).all()
-            return dict(task_unread_notifications=unread, task_latest_notifications=latest)
+            task_unread = TaskNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
+            task_latest = TaskNotification.query.filter_by(user_id=current_user.id).order_by(TaskNotification.created_at.desc()).limit(10).all()
         except Exception:
-            return dict(task_unread_notifications=0, task_latest_notifications=[])
+            pass
+        try:
+            from app.models_legacy import IncidentNotification
+            inc_unread = IncidentNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
+            inc_latest = IncidentNotification.query.filter_by(user_id=current_user.id).order_by(IncidentNotification.created_at.desc()).limit(10).all()
+        except Exception:
+            pass
+        return dict(
+            task_unread_notifications=task_unread,
+            task_latest_notifications=task_latest,
+            incident_unread_notifications=inc_unread,
+            incident_latest_notifications=inc_latest,
+            bell_unread_total=task_unread + inc_unread,
+        )
 
     @app.context_processor
     def inject_auto_breadcrumbs():
@@ -82,6 +132,7 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'children.parents_import':     [HOME, ('Список учеников', 'children.list_children'), ('Импорт родителей', None)],
             # Классы и контингент
             'children.classes_registry':   [HOME, ('Классы', None)],
+            'children.class_detail':       [HOME, ('Классы', 'children.classes_registry'), ('Класс', None)],
             'children.list_contingent':    [HOME, ('Контингент', None)],
             'children.movements_registry': [HOME, ('Движение контингента', None)],
             'children.comments_registry':  [HOME, ('Комментарии', None)],

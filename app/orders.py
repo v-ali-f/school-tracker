@@ -9,6 +9,8 @@ from .models import SchoolOrder, OrderResponsible, OrderResponsibleLink, User
 from .permissions import has_any_role
 
 orders_bp = Blueprint("orders", __name__)
+# Принимаем и /orders, и /orders/ (закладки пользователей ходят по обоим).
+orders_bp.url_map_strict_slashes = False
 
 SECTIONS = [
     ("study", "Учебная часть"),
@@ -70,7 +72,7 @@ def _attach_responsible_display(items):
     return items
 
 
-@orders_bp.route("/orders")
+@orders_bp.route("/orders", strict_slashes=False)
 @login_required
 def registry():
     _orders_access_required()
