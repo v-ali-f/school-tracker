@@ -3751,3 +3751,54 @@ a.dash-stat-item:hover {
 
 .sp-pill.s-assigned { background: #fef3c7; color: #92400e; }
 .sp-pill.s-resolved { background: #f3e8ff; color: #6b21a8; }
+
+/* Аккуратная подпись организации на странице входа */
+.login-subtitle {
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 400;
+    color: #8a94a6;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+}
+
+/* Чуть мягче заголовок на странице входа */
+.login-title {
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+}
+
+/* Возврат оформления названия организации как в старой версии */
+.login-title {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--brand-dark);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+
+.login-subtitle {
+    margin-top: 2px;
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #6c757d;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.brand-title .main {
+    display: block;
+    font-weight: 700;
+    color: var(--brand-dark);
+    line-height: 1.05;
+}
+
+.brand-title .sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.84rem;
+    font-weight: 400;
+    color: #6c757d !important;
+    line-height: 1.15;
+    letter-spacing: 0;
+}
