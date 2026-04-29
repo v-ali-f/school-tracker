@@ -123,35 +123,214 @@ NOTIFY_TASK_MODES = [
 ]
 
 
-@auth_bp.route("/profile/notifications", methods=["GET", "POST"])
+@auth_bp.route("/profile/settings", methods=["GET"])
 @login_required
-def profile_notifications():
-    valid_modes = {code for code, _, _ in NOTIFY_INCIDENT_MODES}
-    if request.method == "POST":
-        inc_mode = (request.form.get("incident_mode") or "").strip()
-        task_mode = (request.form.get("task_mode") or "").strip()
-        if inc_mode not in valid_modes or task_mode not in valid_modes:
-            flash("Неверный режим уведомлений", "danger")
-            return redirect(url_for("auth.profile_notifications"))
-        try:
-            current_user.notify_incident_mode = inc_mode
-            current_user.notify_task_mode = task_mode
-            db.session.commit()
-            flash("Настройки уведомлений сохранены", "success")
-        except Exception:
-            db.session.rollback()
-            current_app.logger.exception(
-                "Failed to save notify modes for %s", current_user.username
-            )
-            flash("Не удалось сохранить настройки, попробуйте ещё раз", "danger")
-        return redirect(url_for("auth.profile_notifications"))
-
+def profile_settings():
     current_inc_mode = getattr(current_user, "notify_incident_mode", None) or "all"
     current_task_mode = getattr(current_user, "notify_task_mode", None) or "all"
     return render_template(
-        "profile_notifications.html",
+        "profile_settings.html",
         incident_modes=NOTIFY_INCIDENT_MODES,
         task_modes=NOTIFY_TASK_MODES,
         current_incident_mode=current_inc_mode,
         current_task_mode=current_task_mode,
     )
+
+
+@auth_bp.route("/profile/settings/notifications", methods=["POST"])
+@login_required
+def profile_settings_notifications():
+    valid_modes = {code for code, _, _ in NOTIFY_INCIDENT_MODES}
+    inc_mode = (request.form.get("incident_mode") or "").strip()
+    task_mode = (request.form.get("task_mode") or "").strip()
+    if inc_mode not in valid_modes or task_mode not in valid_modes:
+        flash("Неверный режим уведомлений", "danger")
+        return redirect(url_for("auth.profile_settings") + "#notifications")
+    try:
+        current_user.notify_incident_mode = inc_mode
+        current_user.notify_task_mode = task_mode
+        db.session.commit()
+        flash("Настройки уведомлений сохранены", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Failed to save notify modes for %s", current_user.username
+        )
+        flash("Не удалось сохранить настройки, попробуйте ещё раз", "danger")
+    return redirect(url_for("auth.profile_settings") + "#notifications")
+
+
+@auth_bp.route("/profile/settings/password", methods=["POST"])
+@login_required
+def profile_settings_password():
+    current_pw = request.form.get("current_password") or ""
+    new_pw = request.form.get("new_password") or ""
+    confirm_pw = request.form.get("confirm_password") or ""
+
+    anchor = "#password"
+    if not current_user.check_password(current_pw):
+        flash("Текущий пароль введён неверно", "danger")
+        return redirect(url_for("auth.profile_settings") + anchor)
+    if len(new_pw) < 8:
+        flash("Новый пароль должен быть не короче 8 символов", "danger")
+        return redirect(url_for("auth.profile_settings") + anchor)
+    if new_pw != confirm_pw:
+        flash("Новый пароль и повтор не совпадают", "danger")
+        return redirect(url_for("auth.profile_settings") + anchor)
+    if new_pw == current_pw:
+        flash("Новый пароль совпадает с текущим", "danger")
+        return redirect(url_for("auth.profile_settings") + anchor)
+
+    try:
+        current_user.set_password(new_pw)
+        db.session.commit()
+        flash("Пароль обновлён", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Failed to change password for %s", current_user.username
+        )
+        flash("Не удалось сохранить пароль, попробуйте ещё раз", "danger")
+    return redirect(url_for("auth.profile_settings") + anchor)
+
+
+@auth_bp.route("/profile/notifications", methods=["GET", "POST"])
+@login_required
+def profile_notifications():
+    return redirect(url_for("auth.profile_settings") + "#notifications", code=301)
+
+
+# =====================================================================
+# Привязка MAX (бот для подачи инцидентов)
+# =====================================================================
+@auth_bp.route("/profile/max", methods=["GET"])
+@login_required
+def profile_max():
+    from app.models import MaxBinding
+    active = (
+        MaxBinding.query
+        .filter_by(user_id=current_user.id, status="done")
+        .order_by(MaxBinding.id.desc())
+        .first()
+    )
+    pending = (
+        MaxBinding.query
+        .filter_by(user_id=current_user.id, status="pending")
+        .filter(MaxBinding.expires_at > datetime.utcnow())
+        .order_by(MaxBinding.id.desc())
+        .first()
+    )
+    from datetime import timedelta as _td
+    pending_msk = (pending.expires_at + _td(hours=3)) if pending else None
+    bound_msk = (active.bound_at + _td(hours=3)) if (active and active.bound_at) else None
+    return render_template(
+        "profile_max.html",
+        active=active,
+        pending=pending,
+        pending_msk=pending_msk,
+        bound_msk=bound_msk,
+        bot_url="https://max.ru/reguestsbot",
+    )
+
+
+@auth_bp.route("/profile/max/status", methods=["GET"])
+@login_required
+def profile_max_status():
+    from flask import jsonify
+    from app.models import MaxBinding
+    active = (
+        MaxBinding.query
+        .filter_by(user_id=current_user.id, status="done")
+        .order_by(MaxBinding.id.desc())
+        .first()
+    )
+    if active:
+        return jsonify({"status": "done", "max_full_name": active.max_full_name or ""})
+    pending = (
+        MaxBinding.query
+        .filter_by(user_id=current_user.id, status="pending")
+        .filter(MaxBinding.expires_at > datetime.utcnow())
+        .order_by(MaxBinding.id.desc())
+        .first()
+    )
+    if pending:
+        return jsonify({"status": "pending"})
+    return jsonify({"status": "none"})
+
+
+@auth_bp.route("/profile/max/generate", methods=["POST"])
+@login_required
+def profile_max_generate():
+    import secrets as _secrets
+    from datetime import timedelta
+    from app.models import MaxBinding
+
+    # Старые pending этого пользователя — в expired
+    (
+        MaxBinding.query
+        .filter_by(user_id=current_user.id, status="pending")
+        .update({"status": "expired"}, synchronize_session=False)
+    )
+    # Уникальный 6-значный код среди активных pending всех пользователей
+    code = None
+    for _ in range(20):
+        c = "".join(str(_secrets.randbelow(10)) for _ in range(6))
+        exists = (
+            MaxBinding.query
+            .filter_by(code=c, status="pending")
+            .filter(MaxBinding.expires_at > datetime.utcnow())
+            .first()
+        )
+        if not exists:
+            code = c
+            break
+    if not code:
+        db.session.rollback()
+        flash("Не удалось сгенерировать код, попробуйте ещё раз", "danger")
+        return redirect(url_for("auth.profile_max"))
+
+    # TTL 15 минут — синхронизировано с ботом (BIND_TTL_MIN=15 в bot.py).
+    binding = MaxBinding(
+        user_id=current_user.id,
+        code=code,
+        status="pending",
+        created_at=datetime.utcnow(),
+        expires_at=datetime.utcnow() + timedelta(minutes=15),
+    )
+    db.session.add(binding)
+    db.session.commit()
+    return redirect(url_for("auth.profile_max"))
+
+
+@auth_bp.route("/profile/max/revoke", methods=["POST"])
+@login_required
+def profile_max_revoke():
+    from app.models import MaxBinding
+    from app.services.bot_client import get_client
+    chat_ids = list({
+        b.max_chat_id for b in (
+            MaxBinding.query
+            .filter_by(user_id=current_user.id)
+            .all()
+        )
+        if b.max_chat_id
+    })
+    (
+        MaxBinding.query
+        .filter_by(user_id=current_user.id)
+        .filter(MaxBinding.status.in_(("done", "pending")))
+        .update({"status": "revoked"}, synchronize_session=False)
+    )
+    db.session.commit()
+
+    if chat_ids:
+        client = get_client()
+        if client._enabled():  # noqa: SLF001
+            for chat_id in chat_ids:
+                try:
+                    client.revoke(chat_id=chat_id)
+                except Exception as e:
+                    current_app.logger.warning("bot revoke failed for chat_id=%s: %s", chat_id, e)
+
+    flash("Привязка отменена", "success")
+    return redirect(url_for("auth.profile_max"))

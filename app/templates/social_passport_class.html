@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+  .spc-table { font-size:.78rem; }
+  .spc-table th { vertical-align:bottom; font-size:.72rem; line-height:1.15; }
+  .spc-table th.spc-cat { writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; min-width:1.6rem; padding:.4rem .25rem; }
+  .spc-table td.spc-cat { text-align:center; }
+  .spc-table td.spc-cat-on { background:#fff1e6; color:#c25b00; font-weight:600; }
+  .spc-totals td { font-weight:600; background:#f8f9fa; }
+  .spc-meta { font-size:.85rem; color:#6c757d; }
+  @media print {
+    .no-print { display:none !important; }
+    .spc-table { font-size:.7rem; }
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2 no-print">
+  <div>
+    <h3 class="mb-1">Социальный паспорт класса</h3>
+    <div class="spc-meta">
+      {{ school_class.name }}
+      {% if school_class.building %} · {{ school_class.building.name }}{% endif %}
+       · {{ year.name }}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.social_passport_registry') }}">По ученикам</a>
+    {% if can_view_summary %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.social_passport_summary') }}">Сводная</a>
+    {% endif %}
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('children.social_passport_class_export', class_id=school_class.id) }}">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <button class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Печать</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-2">
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle spc-table mb-2">
+        <thead class="table-light">
+          <tr>
+            <th rowspan="2" style="width:2.4rem;">№</th>
+            <th rowspan="2">ФИО, телефон</th>
+            <th rowspan="2">Дата рождения</th>
+            <th rowspan="2">Адрес регистрации / фактический</th>
+            <th rowspan="2">Сведения о родителях (ФИО, телефон)</th>
+            <th colspan="{{ categories|length }}" class="text-center">Категория</th>
+          </tr>
+          <tr>
+            {% for key, label in categories %}
+              <th class="spc-cat">{{ label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            {% set ch = r.child %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td>
+                <a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a>
+                {% if ch.phone %}<div class="text-muted small">{{ ch.phone }}</div>{% endif %}
+              </td>
+              <td>{% if ch.birth_date %}{{ ch.birth_date.strftime('%d.%m.%Y') }}{% else %}—{% endif %}</td>
+              <td>
+                {% if ch.reg_address %}{{ ch.reg_address }}{% endif %}
+                {% if ch.actual_address and ch.actual_address != ch.reg_address %}
+                  <div class="text-muted small">факт.: {{ ch.actual_address }}</div>
+                {% endif %}
+                {% if not ch.reg_address and not ch.actual_address %}—{% endif %}
+              </td>
+              <td>
+                {% if ch.mother_fio %}<div>М: {{ ch.mother_fio }}{% if ch.mother_phone %}, {{ ch.mother_phone }}{% endif %}</div>{% endif %}
+                {% if ch.father_fio %}<div>О: {{ ch.father_fio }}{% if ch.father_phone %}, {{ ch.father_phone }}{% endif %}</div>{% endif %}
+                {% if not ch.mother_fio and not ch.father_fio %}—{% endif %}
+              </td>
+              {% for key, _label in categories %}
+                <td class="spc-cat {% if r.flags[key] %}spc-cat-on{% endif %}">
+                  {% if r.flags[key] %}✓{% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% else %}
+            <tr><td colspan="{{ 5 + categories|length }}" class="text-muted text-center">В классе нет учеников за выбранный учебный год</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="spc-totals">
+            <td colspan="5" class="text-end">Итого по классу: {{ totals.total }} (мальчиков: {{ totals.boys }}, девочек: {{ totals.girls }})</td>
+            {% for key, _label in categories %}
+              <td class="text-center">{{ totals[key] }}</td>
+            {% endfor %}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="mt-3 spc-meta">
+      <strong>Классный руководитель:</strong>
+      {% if teacher %}
+        {{ teacher.fio }}{% if teacher.phone %}, {{ teacher.phone }}{% elif teacher.email %}, {{ teacher.email }}{% endif %}
+      {% else %}
+        — не назначен —
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

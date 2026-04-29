@@ -3,7 +3,11 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Инциденты</a></li>
+    {% if can('incident_registry_view') %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_registry') }}">Реестр инцидентов</a></li>
+    {% else %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Мои заявки</a></li>
+    {% endif %}
     <li class="breadcrumb-item active">История инцидента #{{ incident.id }}</li>
   </ol>
 </nav>
@@ -21,7 +25,11 @@
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-primary" href="{{ url_for('children.incident_edit', incident_id=incident.id) }}">Открыть карточку</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_my') }}">Назад</a>
+    {% if can('incident_registry_view') %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_registry') }}">Назад в реестр</a>
+    {% else %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_my') }}">Назад в Мои заявки</a>
+    {% endif %}
   </div>
 </div>
 

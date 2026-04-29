@@ -34,4 +34,8 @@ from .kubok import *
 
 from .page_visit import *
 
+from .saved_view import *
+
+from .max_binding import *
+
 from app.models_legacy import KnowledgeArticle, IncidentNote, IncidentNoteAttachment

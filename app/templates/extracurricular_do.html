@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-mortarboard"></i> Дополнительное образование</h4>
+    <div class="text-muted small">{{ scope_label }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('extracurricular_hub.index') }}">← К своду</a>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('extracurricular_hub.export_xlsx', section='do', program=selected_program) }}">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <label class="form-label small text-muted mb-1">Программа (кружок) — выберите из списка или введите своё</label>
+    <div class="row g-2">
+      <div class="col-md-5">
+        <select class="form-select"
+                onchange="if(this.value){window.location.href='{{ url_for('extracurricular_hub.do') }}?program=' + encodeURIComponent(this.value)}">
+          <option value="">— выбрать из списка ({{ programs|length }}) —</option>
+          {% for p in programs %}
+            <option value="{{ p }}" {% if p == selected_program %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-7">
+        <form method="get" class="row g-2">
+          <div class="col">
+            <input class="form-control" type="text" name="program" list="program-list"
+                   value="{{ selected_program or '' }}"
+                   placeholder="Например: Хор, Шахматы, Театральная студия…">
+            <datalist id="program-list">
+              {% for p in programs %}
+                <option value="{{ p }}">
+              {% endfor %}
+            </datalist>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary">Найти</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="form-text mt-2">
+      Программы с одинаковым названием объединены по параллели.
+      {% if selected_program %}
+        · <a href="{{ url_for('extracurricular_hub.do') }}">Сбросить фильтр</a>
+      {% endif %}
+    </div>
+    {% if selected_program %}
+      <div class="mt-2 text-muted small">
+        На программу <b>«{{ selected_program }}»</b> записано <b>{{ totals.in_program }}</b> учеников
+        {% if totals.total %}· {{ '%.1f' % (totals.in_program * 100 / totals.total) }}% от всего контингента{% endif %}.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Учеников всего</div>
+        <div class="fs-3 fw-bold">{{ totals.total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 col-6">
+    <div class="card h-100 border-primary">
+      <div class="card-body">
+        <div class="text-muted small">Записаны на ДО</div>
+        <div class="fs-3 fw-bold">
+          {{ totals.in_do }}
+          {% if totals.total %}
+            <span class="text-muted small fs-6">· {{ totals.in_do * 100 // totals.total }}%</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Не записаны</div>
+        <div class="fs-3 fw-bold">{{ totals.total - totals.in_do }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="mb-3">По классам</h5>
+    <div class="table-responsive">
+      <table class="table table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="min-width:90px;">Класс</th>
+            <th style="min-width:160px;">Здание</th>
+            <th style="width:120px;">Учеников</th>
+            {% if selected_program %}
+              <th style="width:200px;">На программе</th>
+            {% else %}
+              <th style="width:160px;">Записано на ДО</th>
+            {% endif %}
+            <th style="width:120px;">Охват</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set _shown = namespace(n=0) %}
+          {% for r in rows %}
+          {% if not (selected_program and (r.in_program or 0) == 0) %}
+            {% set _shown.n = _shown.n + 1 %}
+            <tr>
+              <td class="fw-bold">
+                <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="text-decoration-none">
+                  {{ r.class.name }}
+                </a>
+              </td>
+              <td class="text-muted">{{ r.building_name }}</td>
+              <td>{{ r.total }}</td>
+              {% set _v = r.in_program if selected_program else r.in_do %}
+              <td>
+                {% if _v %}
+                  <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                    <i class="bi bi-mortarboard"></i> {{ _v }} из {{ r.total }}
+                  </span>
+                {% else %}
+                  <span class="text-muted small">0 из {{ r.total }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.total %}
+                  {{ '%.1f' % (_v * 100 / r.total) }}%
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endif %}
+          {% endfor %}
+          {% if _shown.n == 0 %}
+            <tr><td colspan="5" class="text-muted">
+              {% if selected_program %}На программу «{{ selected_program }}» никто не записан в видимых классах.{% else %}Нет данных{% endif %}
+            </td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

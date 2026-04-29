@@ -14,7 +14,12 @@
     <h4 class="mb-0">Сводный контингент</h4>
     <div class="text-muted" style="font-size:0.95em;">Статистика по классам, параллелям и зданиям</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('extracurricular_hub.index') }}">
+      <i class="bi bi-mortarboard"></i> Доп. образование
+    </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  </div>
 </div>
 
 <div class="card mb-3">
@@ -274,7 +279,7 @@
 <div class="card">
   <div class="table-responsive">
     <table class="table table-striped mb-0 align-middle contingent-classes-table">
-      {% set _colspan = 11 if is_admin else 10 %}
+      {% set _colspan = 9 %}
       <thead>
         <tr>
           <th style="min-width:90px;">Класс</th>
@@ -286,8 +291,6 @@
           <th style="width:120px;">Девочки</th>
           <th style="width:140px;">Свободно</th>
           <th style="width:120px;">Макс.</th>
-          <th style="width:150px;" title="Сколько учеников класса состоят в школьном спортивном клубе">ШСК</th>
-          {% if is_admin %}<th style="min-width:180px;">Кубок школы</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -357,36 +360,6 @@
             </td>
 
             <td class="text-muted">{{ r.class.max_students }}</td>
-
-            <td>
-              {% if r.total %}
-                {% if r.sc_in_club %}
-                  <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
-                        title="{{ r.sc_in_club }} из {{ r.total }} учеников класса состоят в ШСК">
-                    <i class="bi bi-dribbble"></i> {{ r.sc_in_club }} из {{ r.total }}
-                  </span>
-                {% else %}
-                  <span class="text-muted small">0 из {{ r.total }}</span>
-                {% endif %}
-              {% else %}
-                <span class="text-muted small">—</span>
-              {% endif %}
-            </td>
-
-            {% if is_admin %}
-              {% set _kr = kubok_rating(r.class.name) %}
-              <td>
-                {% if _kr %}
-                  <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}"
-                     class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none">
-                    <i class="bi bi-trophy-fill"></i>
-                    {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}
-                  </a>
-                {% else %}
-                  <span class="text-muted small">—</span>
-                {% endif %}
-              </td>
-            {% endif %}
           </tr>
         {% endfor %}
 

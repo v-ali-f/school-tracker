@@ -8,7 +8,8 @@ from flask_login import login_required, current_user
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import func as sa_func
 
 from app.core.extensions import db
 from .models import (
@@ -259,24 +260,33 @@ def _query_args_without_page(extra=None):
     return data
 
 
-def _build_work_registry_row(work):
+def _build_work_registry_row(work, precomputed_results=None, precomputed_total_students=None):
+    """s85: precomputed_* подаются из batch-загрузки в _build_registry_dataset.
+    Если None — fallback на одиночные запросы (для обратной совместимости).
+    """
     assignments = list(work.assignments or [])
     class_ids = [a.school_class_id for a in assignments if a.school_class_id]
     year_id = work.academic_year_id or (_current_year().id if _current_year() else None)
 
-    total_students = 0
-    if class_ids and year_id:
-        total_students = (
-            ChildEnrollment.query
-            .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.school_class_id.in_(class_ids),
-                ChildEnrollment.ended_at.is_(None),
+    if precomputed_total_students is not None:
+        total_students = precomputed_total_students
+    else:
+        total_students = 0
+        if class_ids and year_id:
+            total_students = (
+                ChildEnrollment.query
+                .filter(
+                    ChildEnrollment.academic_year_id == year_id,
+                    ChildEnrollment.school_class_id.in_(class_ids),
+                    ChildEnrollment.ended_at.is_(None),
+                )
+                .count()
             )
-            .count()
-        )
 
-    results = ControlWorkResult.query.filter_by(control_work_id=work.id).all()
+    if precomputed_results is not None:
+        results = precomputed_results
+    else:
+        results = ControlWorkResult.query.filter_by(control_work_id=work.id).all()
     processed = 0
     absent = 0
     participants = 0
@@ -402,8 +412,73 @@ def _build_registry_dataset(selected_year_id=None, selected_subject_id=None, sel
     if selected_teacher_id:
         query = query.join(ControlWorkAssignment, ControlWorkAssignment.control_work_id == ControlWork.id).filter(ControlWorkAssignment.teacher_id == selected_teacher_id)
 
+    # s85: eager-load assignments + связанные классы/учителя/авторы — снимает lazy loads в _build_work_registry_row
+    query = query.options(
+        selectinload(ControlWork.assignments).joinedload(ControlWorkAssignment.school_class),
+        selectinload(ControlWork.assignments).joinedload(ControlWorkAssignment.teacher),
+        joinedload(ControlWork.creator),
+        joinedload(ControlWork.updater),
+        joinedload(ControlWork.subject_ref),
+    )
     works = query.distinct().all()
-    rows = [_build_work_registry_row(work) for work in works]
+
+    # s85: один SELECT на все ControlWorkResult, группировка в Python — заменяет N запросов.
+    work_ids = [w.id for w in works]
+    results_by_work = defaultdict(list)
+    if work_ids:
+        for r in ControlWorkResult.query.filter(ControlWorkResult.control_work_id.in_(work_ids)).all():
+            results_by_work[r.control_work_id].append(r)
+
+    # s85: один GROUP BY на все enrollment-counts вместо N COUNT-запросов.
+    # Каждая работа имеет свой year_id и набор class_ids — собираем (year_id, class_id) пары,
+    # одним запросом считаем enrollments по всем таким парам, потом суммируем для каждой работы.
+    pair_keys = set()  # set of (year_id, class_id)
+    for w in works:
+        y = w.academic_year_id or (_current_year().id if _current_year() else None)
+        if not y:
+            continue
+        for a in (w.assignments or []):
+            if a.school_class_id:
+                pair_keys.add((y, a.school_class_id))
+    enrollment_count_by_pair = {}
+    if pair_keys:
+        years_set = {p[0] for p in pair_keys}
+        classes_set = {p[1] for p in pair_keys}
+        rows_cnt = (
+            db.session.query(
+                ChildEnrollment.academic_year_id,
+                ChildEnrollment.school_class_id,
+                sa_func.count(ChildEnrollment.id),
+            )
+            .filter(
+                ChildEnrollment.academic_year_id.in_(years_set),
+                ChildEnrollment.school_class_id.in_(classes_set),
+                ChildEnrollment.ended_at.is_(None),
+            )
+            .group_by(ChildEnrollment.academic_year_id, ChildEnrollment.school_class_id)
+            .all()
+        )
+        for yid, cid, cnt in rows_cnt:
+            enrollment_count_by_pair[(yid, cid)] = cnt
+
+    def _total_students_for(w):
+        y = w.academic_year_id or (_current_year().id if _current_year() else None)
+        if not y:
+            return 0
+        return sum(
+            enrollment_count_by_pair.get((y, a.school_class_id), 0)
+            for a in (w.assignments or [])
+            if a.school_class_id
+        )
+
+    rows = [
+        _build_work_registry_row(
+            work,
+            precomputed_results=results_by_work.get(work.id, []),
+            precomputed_total_students=_total_students_for(work),
+        )
+        for work in works
+    ]
 
     if selected_status:
         rows = [r for r in rows if r["status"] == selected_status]
@@ -1759,7 +1834,7 @@ def _control_summary_dataset(selected_year_id=None, selected_subject_id=None, se
             TeacherLoad.is_archived.is_(False),
         )).filter(TeacherLoad.department_id.in_(department_ids))
 
-    work_count = work_query.distinct().count()
+    work_count = work_query.order_by(None).distinct().count()
     rows_raw = result_query.all()
     seen_pairs = set()
     rows = []

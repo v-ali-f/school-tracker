@@ -314,19 +314,37 @@
 
 {# ===== ШКОЛЬНЫЙ СПОРТКЛУБ (виден всем — публичные данные) ===== #}
 {% set _sc = sport_club_info(child) %}
+{% set _do_pre = do_info(child) %}
+{% set _ns = namespace(has_shsk_in_do=false) %}
+{% if _do_pre %}
+  {% for p in _do_pre.programs %}
+    {% if 'шск' in (p.program or '')|lower %}{% set _ns.has_shsk_in_do = true %}{% endif %}
+  {% endfor %}
+{% endif %}
+{% set _has_shsk_in_do = _ns.has_shsk_in_do %}
 {% if not (_sc and _sc.in_club) %}
 <div class="card mb-3">
   <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
       <i class="bi bi-dribbble text-muted"></i>
       <b>ШСК · Школьный спортивный клуб</b>
-      <span class="badge rounded-pill text-bg-light border text-muted">не состоит</span>
+      {% if _has_shsk_in_do %}
+        <span class="badge rounded-pill text-bg-light border text-muted">только по заявлению</span>
+      {% else %}
+        <span class="badge rounded-pill text-bg-light border text-muted">не состоит</span>
+      {% endif %}
     </div>
     <span class="text-muted small">
       <i class="bi bi-info-circle"></i>
-      По данным
-      <a href="https://schoolsportmos.ru/" target="_blank" rel="noopener" class="text-muted">schoolsportmos.ru</a>
-      ученик не числится ни в одной команде школьного спортклуба.
+      {% if _has_shsk_in_do %}
+        По данным
+        <a href="https://schoolsportmos.ru/" target="_blank" rel="noopener" class="text-muted">schoolsportmos.ru</a>
+        ученик в команде не числится, но в реестре заявлений на доп. образование есть запись на ШСК — см. блок «Доп. образование» ниже.
+      {% else %}
+        По данным
+        <a href="https://schoolsportmos.ru/" target="_blank" rel="noopener" class="text-muted">schoolsportmos.ru</a>
+        ученик не числится ни в одной команде школьного спортклуба.
+      {% endif %}
     </span>
   </div>
 </div>
@@ -435,12 +453,120 @@
 </div>
 {% endif %}
 
+{# ===== ДОПОЛНИТЕЛЬНОЕ ОБРАЗОВАНИЕ (кружки/секции по заявлениям) ===== #}
+{% set _do = do_info(child) %}
+{% set _do_meta = do_meta() %}
+{% if not _do %}
+<div class="card mb-3">
+  <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-mortarboard text-muted"></i>
+      <b>Доп. образование</b>
+      <span class="badge rounded-pill text-bg-light border text-muted">не записан</span>
+    </div>
+    <span class="text-muted small">
+      <i class="bi bi-info-circle"></i>
+      По данным реестра заявлений на кружки за {{ _do_meta.valid_from or '—' }} — {{ _do_meta.valid_to or '—' }}
+      ученик не записан ни на одну программу.
+    </span>
+  </div>
+</div>
+{% else %}
+<div class="card mb-3 collapsible-card">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+       role="button"
+       data-bs-toggle="collapse"
+       data-bs-target="#extracurricularBody"
+       aria-expanded="false"
+       aria-controls="extracurricularBody"
+       style="cursor: pointer;">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <b><i class="bi bi-mortarboard"></i> Доп. образование</b>
+      <span class="text-muted small">
+        Записан на {{ _do.count }}
+        {% if _do.count == 1 %}программу{% elif _do.count in [2,3,4] %}программы{% else %}программ{% endif %}
+      </span>
+    </div>
+    <i class="bi bi-chevron-down text-muted toggle-chevron"></i>
+  </div>
+  <div class="collapse" id="extracurricularBody">
+    <div class="card-body">
+      <div class="text-muted small mb-3">
+        <i class="bi bi-info-circle"></i>
+        Источник: реестр заявлений на программы дополнительного образования.
+        Актуальность данных: {{ _do.valid_from or '—' }} — {{ _do.valid_to or '—' }}.
+      </div>
+      <ul class="list-unstyled mb-0">
+        {% for p in _do.programs %}
+          <li class="d-flex align-items-start gap-2 mb-2">
+            <i class="bi bi-bookmark-fill text-primary mt-1"></i>
+            <div>
+              <div class="fw-semibold">{{ p.program }}</div>
+              {% if p.group and p.group != p.program %}
+                <div class="small text-muted">Группа: {{ p.group }}</div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {# Единый стиль для сворачиваемых карточек (Кубок, Спортклуб, Олимпиады, Контрольные) #}
 <style>
   .collapsible-card .card-header[aria-expanded="true"] .toggle-chevron { transform: rotate(180deg); }
   .collapsible-card .card-header .toggle-chevron { transition: transform .2s ease; }
 </style>
 
+{# ===== ПОРУЧЕНИЯ ПО УЧЕНИКУ (видны автору / исполнителю / ADMIN / DEPUTY / METHODIST) ===== #}
+{% set _open_tasks = child_tasks | selectattr('status', 'in', ['Новая','В работе','На проверке','Возвращена на доработку','Ждет информации','На согласовании','Отложена','Просрочена']) | list %}
+{% if _open_tasks or (child_task_stats and child_task_stats.overdue) %}
+<div class="card mb-3 collapsible-card">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+       role="button"
+       data-bs-toggle="collapse"
+       data-bs-target="#childTasksBody"
+       aria-expanded="false"
+       aria-controls="childTasksBody"
+       style="cursor: pointer;">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <b><i class="bi bi-clipboard-check"></i> Поручения по ученику</b>
+      <span class="text-muted small">
+        {{ _open_tasks|length }} открытых
+        {% if child_task_stats and child_task_stats.overdue %}
+          · <span class="text-danger">{{ child_task_stats.overdue }} просрочено</span>
+        {% endif %}
+        {% if child_task_stats and child_task_stats.done %}
+          · {{ child_task_stats.done }} выполнено
+        {% endif %}
+      </span>
+    </div>
+    <i class="bi bi-chevron-down text-muted toggle-chevron"></i>
+  </div>
+  <div id="childTasksBody" class="collapse">
+    <div class="card-body pt-2">
+      <div class="vstack gap-2">
+        {% for t in _open_tasks[:10] %}
+        <a class="d-flex justify-content-between align-items-center text-decoration-none p-2"
+           style="border:1px solid #e9ecef; border-radius:10px; color:inherit;"
+           href="{{ url_for('tasks.task_card', task_id=t.id) }}">
+          <div class="flex-grow-1">
+            <div class="fw-semibold small">№{{ t.id }} · {{ t.title }}</div>
+            <div class="small text-muted">
+              {% if t.responsible %}Исполнитель: {{ t.responsible.fio or t.responsible.username }}{% else %}Без исполнителя{% endif %}
+              {% if t.deadline_at %} · срок {{ t.deadline_at.strftime('%d.%m.%Y') }}{% endif %}
+            </div>
+          </div>
+          <span class="badge {% if t.is_overdue %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ t.status }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -902,6 +1028,26 @@
                          {% if social and social.is_hard_life %}checked{% endif %}>
                   <label class="form-check-label" for="is_hard_life">Трудная жизненная ситуация</label>
                 </div>
+                <div class="col-md-3 form-check">
+                  <input class="form-check-input" type="checkbox" name="is_single_mother" id="is_single_mother" value="1"
+                         {% if social and social.is_single_mother %}checked{% endif %}>
+                  <label class="form-check-label" for="is_single_mother">Мать-одиночка</label>
+                </div>
+                <div class="col-md-3 form-check">
+                  <input class="form-check-input" type="checkbox" name="is_single_father" id="is_single_father" value="1"
+                         {% if social and social.is_single_father %}checked{% endif %}>
+                  <label class="form-check-label" for="is_single_father">Отец-одиночка</label>
+                </div>
+                <div class="col-md-3 form-check">
+                  <input class="form-check-input" type="checkbox" name="is_repeat_year" id="is_repeat_year" value="1"
+                         {% if social and social.is_repeat_year %}checked{% endif %}>
+                  <label class="form-check-label" for="is_repeat_year">Повторный курс обучения</label>
+                </div>
+                <div class="col-md-3 form-check">
+                  <input class="form-check-input" type="checkbox" name="is_svo_family" id="is_svo_family" value="1"
+                         {% if social and social.is_svo_family %}checked{% endif %}>
+                  <label class="form-check-label" for="is_svo_family">Семья участника СВО</label>
+                </div>
               </div>
             </div>
 
@@ -1103,7 +1249,7 @@
             <div class="col-md-4">
               <label class="form-label">Предмет</label>
               <select class="form-select" name="subject_id" required>
-                <option value="">— выбрать —</option>
+                <option value="">Выберите предмет</option>
                 {% for s in subjects %}
                   <option value="{{ s.id }}">{{ s.name }}</option>
                 {% endfor %}
@@ -1399,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="mb-3">
             <label class="form-label">Раздел</label>
             <select class="form-select" name="doc_type" id="doc_type" required>
-              <option value="" selected disabled>— выбрать —</option>
+              <option value="" selected disabled>Выберите раздел</option>
               <option value="OVZ">ОВЗ</option>
               <option value="MSE">МСЭ (справка)</option>
               <option value="IPRA">ИПРА</option>
@@ -1454,7 +1600,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="col-md-12">
               <label class="form-label">Класс</label>
               <select class="form-select" name="select_class_id" id="select_class_id">
-                <option value="">— выбрать —</option>
+                <option value="">Выберите класс</option>
                 {% for sc in (school_classes or []) %}
                   <option value="{{ sc.id }}">{{ sc.name }}</option>
                 {% endfor %}

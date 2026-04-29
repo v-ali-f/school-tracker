@@ -1,0 +1,210 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0">Доп. образование</h4>
+    <div class="text-muted small">{{ scope_label }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('extracurricular_hub.do') }}">
+      <i class="bi bi-mortarboard"></i> Дополнительное образование
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('extracurricular_hub.sport_club') }}">
+      <i class="bi bi-dribbble"></i> ШСК
+    </a>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('extracurricular_hub.export_xlsx', section='summary') }}">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}">На главную</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Учеников</div>
+        <div class="fs-3 fw-bold">{{ totals.total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 col-6">
+    <div class="card h-100 border-primary">
+      <div class="card-body">
+        <div class="text-muted small"><i class="bi bi-mortarboard"></i> ДО</div>
+        <div class="fs-3 fw-bold">
+          {{ totals.in_do }}
+          {% if totals.total %}
+            <span class="text-muted small fs-6">· {{ (totals.in_do * 100 // totals.total) if totals.total else 0 }}%</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 col-6">
+    <div class="card h-100 border-warning">
+      <div class="card-body">
+        <div class="text-muted small"><i class="bi bi-dribbble"></i> ШСК</div>
+        <div class="fs-3 fw-bold">
+          {{ totals.in_sport_club }}
+          {% if totals.total %}
+            <span class="text-muted small fs-6">· {{ (totals.in_sport_club * 100 // totals.total) if totals.total else 0 }}%</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if is_full_school and totals.by_grade %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">По параллелям</h5>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="width:120px;">Параллель</th>
+            <th>Классов</th>
+            <th>Учеников</th>
+            <th>ДО</th>
+            <th>ШСК</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for grade, st in totals.by_grade|dictsort %}
+            <tr>
+              <td><b>{{ grade }}</b></td>
+              <td>{{ st.classes }}</td>
+              <td>{{ st.total }}</td>
+              <td>
+                {{ st.do }}
+                {% if st.total %}<span class="text-muted small">· {{ st.do * 100 // st.total }}%</span>{% endif %}
+              </td>
+              <td>
+                {{ st.sc }}
+                {% if st.total %}<span class="text-muted small">· {{ st.sc * 100 // st.total }}%</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if is_full_school and totals.by_building %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="mb-3">По зданиям</h5>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Здание</th>
+            <th>Классов</th>
+            <th>Учеников</th>
+            <th>ДО</th>
+            <th>ШСК</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bname, st in totals.by_building|dictsort %}
+            <tr>
+              <td class="fw-semibold">{{ bname }}</td>
+              <td>{{ st.classes }}</td>
+              <td>{{ st.total }}</td>
+              <td>
+                {{ st.do }}
+                {% if st.total %}<span class="text-muted small">· {{ st.do * 100 // st.total }}%</span>{% endif %}
+              </td>
+              <td>
+                {{ st.sc }}
+                {% if st.total %}<span class="text-muted small">· {{ st.sc * 100 // st.total }}%</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="mb-3">По классам</h5>
+    <div class="table-responsive">
+      <table class="table table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="min-width:90px;">Класс</th>
+            <th style="min-width:160px;">Здание</th>
+            <th style="width:120px;">Учеников</th>
+            <th style="width:160px;">ДО</th>
+            <th style="width:160px;">ШСК</th>
+            {% if show_kubok %}<th style="min-width:180px;">Кубок школы</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td class="fw-bold">
+                <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="text-decoration-none">
+                  {{ r.class.name }}
+                </a>
+              </td>
+              <td class="text-muted">{{ r.building_name }}</td>
+              <td>{{ r.total }}</td>
+              <td>
+                {% if r.total %}
+                  {% if r.in_do %}
+                    <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                      <i class="bi bi-mortarboard"></i> {{ r.in_do }} из {{ r.total }}
+                    </span>
+                  {% else %}
+                    <span class="text-muted small">0 из {{ r.total }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.total %}
+                  {% if r.in_sport_club %}
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                      <i class="bi bi-dribbble"></i> {{ r.in_sport_club }} из {{ r.total }}
+                    </span>
+                  {% else %}
+                    <span class="text-muted small">0 из {{ r.total }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+              {% if show_kubok %}
+                <td>
+                  {% if r.kubok %}
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                      <i class="bi bi-trophy-fill"></i>
+                      {{ '{:g}'.format(r.kubok.total_points) }} баллов · #{{ r.kubok.place }} из {{ r.kubok.total_classes }}
+                    </span>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          {% if rows|length == 0 %}
+            <tr><td colspan="{{ 6 if show_kubok else 5 }}" class="text-muted">Нет данных</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

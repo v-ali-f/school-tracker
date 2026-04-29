@@ -15,7 +15,12 @@ def register_context_processors(app, has_permission, build_menu_flags):
     def inject_helpers():
         def endpoint_exists(endpoint_name: str) -> bool:
             return endpoint_name in current_app.view_functions
-        return dict(endpoint_exists=endpoint_exists)
+        try:
+            from app.children import _category_label as _cat_lbl
+            cat_label = _cat_lbl
+        except Exception:
+            cat_label = lambda v: (v or "—")
+        return dict(endpoint_exists=endpoint_exists, incident_category_label=cat_label)
 
     @app.context_processor
     def inject_datalens():
@@ -44,6 +49,22 @@ def register_context_processors(app, has_permission, build_menu_flags):
             return dict(
                 sport_club_info=lambda _child=None: None,
                 sport_club_in_club=lambda _child=None: False,
+            )
+
+    @app.context_processor
+    def inject_extracurricular():
+        try:
+            from app.extracurricular import get_info_for_child, is_in_do, get_meta
+            return dict(
+                do_info=get_info_for_child,
+                do_in_club=is_in_do,
+                do_meta=get_meta,
+            )
+        except Exception:
+            return dict(
+                do_info=lambda _child=None: None,
+                do_in_club=lambda _child=None: False,
+                do_meta=lambda: {"valid_from": "", "valid_to": ""},
             )
 
     @app.context_processor
@@ -133,6 +154,7 @@ def register_context_processors(app, has_permission, build_menu_flags):
             # Классы и контингент
             'children.classes_registry':   [HOME, ('Классы', None)],
             'children.class_detail':       [HOME, ('Классы', 'children.classes_registry'), ('Класс', None)],
+            'children.contingent':         [HOME, ('Контингент', None)],
             'children.list_contingent':    [HOME, ('Контингент', None)],
             'children.movements_registry': [HOME, ('Движение контингента', None)],
             'children.comments_registry':  [HOME, ('Комментарии', None)],
@@ -155,6 +177,27 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'tasks.templates_list':        [HOME, ('Задачи', 'tasks.my_tasks'), ('Шаблоны', None)],
             # Пользователи и роли
             'children.users_list':         [HOME, ('Пользователи', None)],
+            'users.users_list':            [HOME, ('Пользователи', None)],
+            'users.users_activity':        [HOME, ('Активность пользователей', None)],
+            'users.users_paths':           [HOME, ('Журнал переходов', None)],
+            # Профиль
+            'auth.profile_settings':              [HOME, ('Профиль', None), ('Настройки', None)],
+            'auth.profile_notifications':         [HOME, ('Профиль', None), ('Уведомления', None)],
+            'auth.profile_settings_notifications':[HOME, ('Профиль', None), ('Уведомления', None)],
+            # Хаб (темы)
+            'hub.incidents':               [HOME, ('Инциденты', None)],
+            'hub.classroom':               [HOME, ('Сопровождение учеников', None)],
+            'hub.contingent':              [HOME, ('Контингент', None)],
+            'hub.registries':              [HOME, ('Основные реестры', None)],
+            'hub.management':              [HOME, ('Управленческий контур', None)],
+            'hub.academic':                [HOME, ('Академические показатели', None)],
+            'hub.control_works':           [HOME, ('Контрольные работы', None)],
+            'hub.olympiads':               [HOME, ('Олимпиады', None)],
+            'hub.attendance':              [HOME, ('Пропуска', None)],
+            'hub.diagnostics':             [HOME, ('Диагностика МЦКО', None)],
+            'hub.departments':             [HOME, ('Кафедры', None)],
+            'hub.orders':                  [HOME, ('Реестр приказов', None)],
+            'hub.admin':                   [HOME, ('Администрирование', None)],
             'children.user_edit':          [HOME, ('Пользователи', 'children.users_list'), ('Редактировать', None)],
             'children.user_new':           [HOME, ('Пользователи', 'children.users_list'), ('Новый', None)],
             'children.roles_admin':        [HOME, ('Управление ролями', None)],

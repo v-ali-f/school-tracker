@@ -6,7 +6,6 @@ Flask-WTF
 python-dotenv
 openpyxl
 python-docx
-psycopg2-binary
 reportlab
 weasyprint
 pdfplumber
@@ -14,3 +13,5 @@ PyJWT
 cryptography
 APScheduler
 pytz
+python-magic; sys_platform != "win32"
+python-magic-bin; sys_platform == "win32"

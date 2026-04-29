@@ -40,6 +40,7 @@ ICON_MAP = {
     "Реестр зданий": ("bi-building", "accent-dark"),
     "План работы школы": ("bi-calendar-week", "accent-blue"),
     "База знаний": ("bi-book-half", "accent-blue"),
+    "Доп. образование": ("bi-mortarboard", "accent-blue"),
 }
 
 ACCENT_TO_ZONE = {
@@ -101,6 +102,7 @@ TITLE_ZONE_MAP = {
     "Реестр зданий": "slate",
     "План работы школы": "blue",
     "База знаний": "blue",
+    "Доп. образование": "blue",
 }
 
 
@@ -405,6 +407,12 @@ def _main_page_config():
                 "title": "База знаний",
                 "description": "Инструкции и материалы по работе в системе для каждой роли.",
                 "endpoint": "knowledge.knowledge_list",
+            },
+            {
+                "title": "Доп. образование",
+                "description": "Свод по ШСК, ДО и Кубку: охват, аналитика, по классам.",
+                "endpoint": "extracurricular_hub.index",
+                "roles_any": ["ADMIN", "SOCIAL_PEDAGOG", "METHODIST", "CLASS_TEACHER"],
             },
         ]),
         "admin_sections": _materialize([

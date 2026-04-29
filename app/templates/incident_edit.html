@@ -3,7 +3,11 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Мои заявки</a></li>
+    {% if can('incident_registry_view') %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_registry') }}">Реестр инцидентов</a></li>
+    {% else %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Мои заявки</a></li>
+    {% endif %}
     <li class="breadcrumb-item active">Редактировать инцидент</li>
   </ol>
 </nav>
@@ -12,8 +16,11 @@
 
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
-    <h4 class="mb-0">Изменить инцидент</h4>
-    <div class="text-muted" style="font-size:0.95em;">Можно исправить дату, время, категорию, описание и участников.</div>
+    <h4 class="mb-0">{% if can_edit_incident %}Изменить инцидент{% else %}Карточка инцидента{% endif %}</h4>
+    <div class="text-muted" style="font-size:0.95em;">
+      {% if can_edit_incident %}Можно исправить дату, время, категорию, описание и участников.
+      {% else %}Просмотр без редактирования. Можно оставить заметку в журнале работы ниже.{% endif %}
+    </div>
   </div>
   <div class="d-flex gap-2">
     {% if can("incident_registry_view") %}<a class="btn btn-outline-warning" href="{{ url_for('children.incidents_registry') }}">Реестр</a>{% endif %}
@@ -25,6 +32,7 @@
   <div class="card-body">
     <form method="post" id="incidentForm">
       <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+      <fieldset {% if not can_edit_incident %}disabled{% endif %}>
 
       <div class="row g-3">
         <div class="col-md-3">
@@ -57,7 +65,7 @@
         <div class="col-md-6">
           <label class="form-label">Категория</label>
           <select class="form-select" name="category" required>
-            <option value="">— выбрать —</option>
+            <option value="">Выберите категорию</option>
             {% for c in categories %}
               <option value="{{ c }}" {% if incident.category == c %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
@@ -76,7 +84,7 @@
 
       <div class="mt-3">
         <label class="form-label">Описание <span class="text-danger">*</span></label>
-        <textarea class="form-control" name="description" rows="4" placeholder="Кратко опишите ситуацию" required>{{ incident.description or '' }}</textarea>
+        <textarea class="form-control" name="description" rows="4" placeholder="Что произошло? Кто участвовал, где, когда (если важно)" required>{{ incident.description or '' }}</textarea>
         <div class="invalid-feedback">Заполните описание инцидента</div>
       </div>
 
@@ -92,42 +100,44 @@
             <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Закрыт</option>
           </select>
         </div>
-        <div class="col-auto">
-          <label class="form-label">Исполнитель</label>
-          <div class="inc-assignee-combo" id="assigneeCombo" style="position:relative;width:320px;max-width:100%;">
-            <input type="hidden" name="assignee_id" id="assigneeIdField" value="{{ incident.assignee_id or '' }}">
-            <input type="text" class="form-control" id="assigneeSearchInput"
-                   autocomplete="off"
-                   placeholder="— не назначен —"
-                   value="{% if incident.assignee %}{{ incident.assignee.last_name or '' }} {{ incident.assignee.first_name or '' }}{% if incident.assignee.middle_name %} {{ incident.assignee.middle_name }}{% endif %}{% endif %}">
-            <button type="button" class="btn-close" id="assigneeClearBtn"
-                    aria-label="Сбросить"
-                    style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);font-size:.7rem;{% if not incident.assignee_id %}display:none;{% endif %}"></button>
-            <div class="inc-assignee-list" id="assigneeList"
+        <div class="col-12">
+          <label class="form-label">Исполнители <span class="text-muted small">(можно выбрать нескольких)</span></label>
+          <div id="assigneePicker" style="position:relative;max-width:560px;">
+            <button type="button" id="assigneePickerToggle" class="form-select text-start"
+                    style="padding-right:2rem;cursor:pointer;background-color:#fff;">
+              <span id="assigneePickerSelected" style="display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;min-height:1.4rem;">
+                <span class="text-muted small" id="assigneePickerEmptyHint">— выбрать исполнителей —</span>
+              </span>
+            </button>
+            <div id="assigneePickerDropdown"
                  style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);
                         background:#fff;border:1px solid #e9ecef;border-radius:8px;
-                        box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;
-                        z-index:1050;padding:.25rem;">
-              <div class="inc-assignee-opt" data-id="" data-label="" data-search=""
-                   style="padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.88rem;color:#6c757d;">
-                — не назначен —
+                        box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:1050;">
+              <div style="padding:.4rem .5rem;border-bottom:1px solid #f1f3f5;">
+                <input type="text" class="form-control form-control-sm" id="assigneePickerSearch"
+                       placeholder="Поиск по ФИО…" autocomplete="off">
               </div>
-              {% for u in assignees %}
-                {% set _label = (u.last_name or '') ~ ' ' ~ (u.first_name or '') ~ ((' ' ~ u.middle_name) if u.middle_name else '') %}
-                <div class="inc-assignee-opt"
-                     data-id="{{ u.id }}"
-                     data-label="{{ _label|trim }}"
-                     data-search="{{ _label|trim|lower }}"
-                     style="padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.88rem;">
-                  {{ _label|trim }}
-                </div>
-              {% endfor %}
-              <div class="inc-assignee-empty text-muted small px-2 py-2" style="display:none;">Никто не найден</div>
+              <div id="assigneePickerList" style="max-height:260px;overflow-y:auto;padding:.25rem;">
+                {% for u in assignees %}
+                  {% set _label = (u.last_name or '') ~ ' ' ~ (u.first_name or '') ~ ((' ' ~ u.middle_name) if u.middle_name else '') %}
+                  {% set _checked = u.id in (selected_assignee_ids or []) %}
+                  <label class="assignee-row d-flex align-items-center gap-2"
+                         data-search="{{ _label|trim|lower }}"
+                         style="padding:.3rem .55rem;border-radius:6px;cursor:pointer;font-size:.88rem;margin:0;">
+                    <input type="checkbox" name="assignee_ids" value="{{ u.id }}"
+                           class="form-check-input m-0 assignee-cb"
+                           data-label="{{ _label|trim }}"
+                           {% if _checked %}checked{% endif %}>
+                    <span>{{ _label|trim }}</span>
+                  </label>
+                {% endfor %}
+                <div class="assignee-empty text-muted small px-2 py-2" style="display:none;">Никто не найден</div>
+              </div>
             </div>
           </div>
-          <div class="form-text text-muted">Начните вводить ФИО — список отфильтруется. При назначении статус станет «Назначен», создастся задача.</div>
+          <div class="form-text text-muted">Кликните, чтобы открыть список. Можно выбрать нескольких. При назначении статус станет «Назначен», для каждого нового исполнителя создастся задача.</div>
         </div>
-        <div class="col-12" id="assignmentNoteWrap" style="{% if not incident.assignee_id %}display:none;{% endif %}">
+        <div class="col-12" id="assignmentNoteWrap" style="{% if not selected_assignee_ids %}display:none;{% endif %}">
           <label class="form-label small text-muted mb-1" for="assignmentNoteField">
             Пояснение исполнителю <span class="text-muted">(необязательно)</span>
           </label>
@@ -146,17 +156,21 @@
           </span>
         </div>
         <div class="col-auto">
-          <div class="form-label small text-muted">Исполнитель</div>
+          <div class="form-label small text-muted">Исполнители</div>
           <div>
-            {% if incident.assignee %}{{ incident.assignee.fio }}
-            {% else %}<em class="text-muted">не назначен</em>{% endif %}
+            {% if incident.assignees %}
+              {{ incident.assignees | map(attribute='fio') | join(', ') }}
+            {% elif incident.assignee %}{{ incident.assignee.fio }}
+            {% else %}<em class="text-muted">не назначены</em>{% endif %}
           </div>
         </div>
       </div>
       {% endif %}
 
+      </fieldset>
+
       {# Кнопка «Отработано» для исполнителя #}
-      {% if current_user.is_authenticated and incident.assignee_id == current_user.id and incident.status not in ('resolved', 'closed') %}
+      {% if current_user.is_authenticated and current_user.id in (selected_assignee_ids or []) and incident.status not in ('resolved', 'closed') %}
       <div class="mt-3">
         <button type="button" class="btn btn-outline-success" id="markResolvedBtn"
                 data-bs-toggle="modal" data-bs-target="#markResolvedModal">
@@ -168,7 +182,7 @@
 
       <div class="mt-3">
         <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incident_timeline', incident_id=incident.id) }}">
-          <i class="bi bi-clock-history me-1"></i>Полная история
+          <i class="bi bi-clock-history me-1"></i>История изменений
         </a>
       </div>
 
@@ -189,17 +203,60 @@
   </div>
 </div>
 
-{# ---- Связанные задачи ---- #}
+{# ---- Связанные задачи (Notion-style rollup) ---- #}
 {% if related_tasks %}
+{% set _done_set = ['Выполнена','Закрыта','Отменена'] %}
+{% set _ns = namespace(done=0, overdue=0) %}
+{% for t in related_tasks %}
+  {% if t.status in _done_set %}{% set _ns.done = _ns.done + 1 %}{% endif %}
+  {% if t.status == 'Просрочена' %}{% set _ns.overdue = _ns.overdue + 1 %}{% endif %}
+{% endfor %}
+{% set _total = related_tasks|length %}
+{% set _pct = (_ns.done * 100 // _total) if _total else 0 %}
+<style>
+  .task-rollup-bar { height:6px; background:#ececec; border-radius:3px; overflow:hidden; }
+  .task-rollup-bar > i { display:block; height:100%; background:#22c55e; transition:width .3s; }
+  .task-row { display:flex; align-items:center; gap:.75rem; padding:.55rem .75rem; border:1px solid #ececec; border-radius:8px; background:#fff; text-decoration:none; color:inherit; transition:box-shadow .15s; }
+  .task-row:hover { box-shadow:0 2px 8px rgba(0,0,0,.05); color:inherit; }
+  .task-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .td-todo { background:#9ca3af; }
+  .td-progress { background:#3b82f6; }
+  .td-review { background:#a855f7; }
+  .td-done { background:#22c55e; }
+  .td-overdue { background:#ef4444; }
+  .task-pill { display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.7rem; font-weight:600; white-space:nowrap; }
+  .tp-todo { background:#f3f4f6; color:#374151; }
+  .tp-progress { background:#eff6ff; color:#1d4ed8; }
+  .tp-review { background:#faf5ff; color:#6b21a8; }
+  .tp-done { background:#f0fdf4; color:#15803d; }
+  .tp-overdue { background:#fef2f2; color:#991b1b; }
+</style>
 <div class="card mt-4">
   <div class="card-body">
-    <h5 class="mb-1">Связанные задачи <span class="badge bg-secondary">{{ related_tasks|length }}</span></h5>
-    <div class="text-muted small mb-3">Поручения, созданные по этому инциденту исполнителям.</div>
+    <div class="d-flex align-items-center gap-3 mb-2">
+      <h5 class="mb-0">Связанные задачи</h5>
+      <span class="text-muted small">{{ _ns.done }} из {{ _total }} закрыто</span>
+      {% if _ns.overdue %}
+        <span class="task-pill tp-overdue">{{ _ns.overdue }} просрочено</span>
+      {% endif %}
+    </div>
+    <div class="task-rollup-bar mb-3"><i style="width:{{ _pct }}%"></i></div>
     <div class="vstack gap-2">
       {% for t in related_tasks %}
-      <a class="d-flex justify-content-between align-items-center text-decoration-none p-2"
-         style="border:1px solid #e9ecef; border-radius:10px; color:inherit;"
-         href="{{ url_for('tasks.task_card', task_id=t.id) }}">
+        {% set _s = t.status %}
+        {% if _s == 'Выполнена' or _s == 'Закрыта' %}
+          {% set _grp = 'done' %}
+        {% elif _s == 'Просрочена' %}
+          {% set _grp = 'overdue' %}
+        {% elif _s in ['На проверке','На согласовании'] %}
+          {% set _grp = 'review' %}
+        {% elif _s in ['В работе','Ждет информации','Возвращена на доработку'] %}
+          {% set _grp = 'progress' %}
+        {% else %}
+          {% set _grp = 'todo' %}
+        {% endif %}
+      <a class="task-row" href="{{ url_for('tasks.task_card', task_id=t.id) }}">
+        <span class="task-dot td-{{ _grp }}" title="{{ _s }}"></span>
         <div class="flex-grow-1">
           <div class="fw-semibold small">№{{ t.id }} · {{ t.title }}</div>
           <div class="small text-muted">
@@ -207,7 +264,7 @@
             {% if t.deadline_at %} · срок {{ t.deadline_at.strftime('%d.%m.%Y') }}{% endif %}
           </div>
         </div>
-        <span class="badge text-bg-secondary">{{ t.status }}</span>
+        <span class="task-pill tp-{{ _grp }}">{{ _s }}</span>
       </a>
       {% endfor %}
     </div>
@@ -374,116 +431,85 @@
 const ADD_NOTE_URL = "{{ url_for('children.incident_add_note', incident_id=incident.id) }}";
 const MARK_RESOLVED_URL = "{{ url_for('children.incident_mark_resolved', incident_id=incident.id) }}";
 
-(function initAssigneeCombo(){
-  const combo = document.getElementById('assigneeCombo');
-  if (!combo) return;
-  const input = document.getElementById('assigneeSearchInput');
-  const hidden = document.getElementById('assigneeIdField');
-  const list = document.getElementById('assigneeList');
-  const clearBtn = document.getElementById('assigneeClearBtn');
-  const emptyEl = list.querySelector('.inc-assignee-empty');
-  const opts = Array.from(list.querySelectorAll('.inc-assignee-opt'));
-  let initialLabel = input.value;
+document.addEventListener('DOMContentLoaded', function(){
+  const wrap = document.getElementById('assigneePicker');
+  if (!wrap) return;
+  const toggle = document.getElementById('assigneePickerToggle');
+  const dropdown = document.getElementById('assigneePickerDropdown');
+  const search = document.getElementById('assigneePickerSearch');
+  const listEl = document.getElementById('assigneePickerList');
+  const selWrap = document.getElementById('assigneePickerSelected');
+  const emptyHint = document.getElementById('assigneePickerEmptyHint');
+  const noteWrap = document.getElementById('assignmentNoteWrap');
+  const rows = Array.from(listEl.querySelectorAll('.assignee-row'));
+  const emptyEl = listEl.querySelector('.assignee-empty');
 
-  function highlightSelected(){
-    const sel = hidden.value || '';
-    opts.forEach(o => o.classList.toggle('selected', (o.dataset.id || '') === sel));
+  function renderSelected(){
+    const checks = listEl.querySelectorAll('.assignee-cb:checked');
+    selWrap.querySelectorAll('.sel-chip').forEach(c => c.remove());
+    checks.forEach(cb => {
+      const chip = document.createElement('span');
+      chip.className = 'sel-chip badge text-bg-light border';
+      chip.style.cssText = 'font-weight:400;font-size:.78rem;padding:.2rem .45rem;display:inline-flex;align-items:center;gap:.3rem;color:#212529;';
+      chip.innerHTML = (cb.dataset.label || '') + ' <button type="button" class="btn-close" aria-label="Убрать" style="font-size:.55rem;padding:0;margin:0;"></button>';
+      chip.querySelector('button').addEventListener('click', function(e){
+        e.stopPropagation();
+        cb.checked = false;
+        renderSelected();
+      });
+      selWrap.appendChild(chip);
+    });
+    if (emptyHint) emptyHint.style.display = checks.length ? 'none' : '';
+    if (noteWrap) noteWrap.style.display = checks.length ? '' : 'none';
   }
-
-  function openList(){
-    list.style.display = 'block';
-    applyFilter(input.value);
-  }
-  function closeList(){ list.style.display = 'none'; }
 
   function applyFilter(q){
     const query = (q || '').trim().toLowerCase();
     let visible = 0;
-    opts.forEach(o => {
-      if (!o.dataset.id) {
-        o.classList.remove('hidden');
-        visible++;
-        return;
-      }
-      const match = query === '' || (o.dataset.search || '').includes(query);
-      o.classList.toggle('hidden', !match);
+    rows.forEach(r => {
+      const match = query === '' || (r.dataset.search || '').includes(query);
+      r.style.display = match ? '' : 'none';
       if (match) visible++;
     });
     if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
   }
 
-  function selectOption(opt){
-    const id = opt.dataset.id || '';
-    const label = opt.dataset.label || '';
-    hidden.value = id;
-    input.value = label;
-    initialLabel = label;
-    clearBtn.style.display = id ? '' : 'none';
-    highlightSelected();
-    closeList();
+  function openDropdown(){
+    dropdown.style.display = 'block';
+    setTimeout(function(){ search.focus(); }, 0);
+  }
+  function closeDropdown(){
+    dropdown.style.display = 'none';
+    if (search) search.value = '';
+    applyFilter('');
   }
 
-  input.addEventListener('focus', openList);
-  input.addEventListener('click', openList);
-  input.addEventListener('input', function(){
-    applyFilter(input.value);
-    if (list.style.display === 'none') openList();
-    if ((input.value || '').trim() === '' && hidden.value) {
-      hidden.value = '';
-      clearBtn.style.display = 'none';
-      highlightSelected();
-    }
-  });
-  input.addEventListener('blur', function(){
-    setTimeout(function(){
-      if (!combo.contains(document.activeElement)) {
-        if (hidden.value) input.value = initialLabel;
-        else input.value = '';
-        closeList();
-      }
-    }, 150);
+  toggle.addEventListener('click', function(e){
+    e.stopPropagation();
+    if (dropdown.style.display === 'block') closeDropdown();
+    else openDropdown();
   });
 
-  opts.forEach(opt => {
-    opt.addEventListener('mousedown', function(e){ e.preventDefault(); });
-    opt.addEventListener('click', function(){ selectOption(opt); input.blur(); });
-  });
+  search.addEventListener('input', function(){ applyFilter(search.value); });
+  search.addEventListener('click', function(e){ e.stopPropagation(); });
 
-  clearBtn.addEventListener('click', function(){
-    hidden.value = '';
-    input.value = '';
-    initialLabel = '';
-    clearBtn.style.display = 'none';
-    highlightSelected();
-    input.focus();
+  listEl.addEventListener('click', function(e){ e.stopPropagation(); });
+  listEl.addEventListener('change', function(e){
+    if (e.target && e.target.classList.contains('assignee-cb')) renderSelected();
   });
 
   document.addEventListener('click', function(e){
-    if (!combo.contains(e.target)) {
-      if (hidden.value) input.value = initialLabel;
-      else input.value = '';
-      closeList();
-    }
+    if (!wrap.contains(e.target)) closeDropdown();
   });
 
-  highlightSelected();
-
-  // Показывать поле «Пояснение исполнителю» только когда выбран assignee.
-  const noteWrap = document.getElementById('assignmentNoteWrap');
-  function syncNoteWrap(){
-    if (!noteWrap) return;
-    noteWrap.style.display = hidden.value ? '' : 'none';
-  }
-  hidden.addEventListener('change', syncNoteWrap);
-  // hidden.value меняется программно — навесим MutationObserver через свой тригер:
-  const origSelect = selectOption;
-  window.addEventListener('click', syncNoteWrap);
-  clearBtn.addEventListener('click', syncNoteWrap);
-  opts.forEach(function(opt){ opt.addEventListener('click', function(){ setTimeout(syncNoteWrap, 0); }); });
-  syncNoteWrap();
-})();
+  renderSelected();
+});
 
 // ── Модалка «Я отработал инцидент» ──
+// Модалка объявлена ниже по шаблону — на момент парсинга этого <script>
+// её ещё нет в DOM, поэтому ждём DOMContentLoaded, иначе
+// getElementById('markResolvedSubmit') вернёт null и обработчик не повесится.
+document.addEventListener('DOMContentLoaded', function(){
 (function(){
   if (!document.getElementById("markResolvedBtn")) return;
   var form     = document.getElementById("markResolvedForm");
@@ -531,6 +557,7 @@ const MARK_RESOLVED_URL = "{{ url_for('children.incident_mark_resolved', inciden
       });
   });
 })();
+});  // DOMContentLoaded (markResolved init)
 const CURRENT_USER_INITIAL = "{{ (current_user.last_name or current_user.username or '?')[:1] }}";
 const CURRENT_USER_NAME = "{{ (current_user.last_name or '') }} {{ (current_user.first_name or '')[:1] }}{% if current_user.first_name %}.{% endif %}";
 
@@ -739,7 +766,7 @@ async function loadClasses(grade, classSelect, selectedClassId) {
     const res = await fetch(`/api/classes/by-grade?grade=${encodeURIComponent(grade)}`);
     const data = await res.json();
 
-    classSelect.innerHTML = `<option value="">— выбрать —</option>`;
+    classSelect.innerHTML = `<option value="">Выберите класс</option>`;
     data.forEach(c => {
       const opt = document.createElement("option");
       opt.value = c.id;
@@ -833,9 +860,9 @@ document.getElementById("incidentForm").addEventListener("submit", (e) => {
 </script>
 
 {# ── Модалка «Я отработал инцидент» ── #}
-{% if current_user.is_authenticated and incident.assignee_id == current_user.id and incident.status not in ('resolved', 'closed') %}
+{% if current_user.is_authenticated and current_user.id in (selected_assignee_ids or []) and incident.status not in ('resolved', 'closed') %}
 <div class="modal fade" id="markResolvedModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="bi bi-check2-circle me-1 text-success"></i>Отметить инцидент как отработанный</h5>

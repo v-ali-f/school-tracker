@@ -50,7 +50,16 @@ class Task(db.Model):
     creator = db.relationship('User', foreign_keys=[creator_user_id])
     responsible = db.relationship('User', foreign_keys=[responsible_user_id])
     controller = db.relationship('User', foreign_keys=[controller_user_id])
-    child = db.relationship('Child', foreign_keys=[child_id])
+    child = db.relationship(
+        'Child',
+        foreign_keys=[child_id],
+        backref=db.backref('tasks', lazy='dynamic', order_by='Task.created_at.desc()'),
+    )
+    incident = db.relationship(
+        'Incident',
+        foreign_keys=[incident_id],
+        backref=db.backref('tasks', lazy='select', order_by='Task.created_at.desc()'),
+    )
     school_class = db.relationship('SchoolClass', foreign_keys=[class_id])
     academic_year = db.relationship('AcademicYear', foreign_keys=[academic_year_id])
     comments = db.relationship('TaskComment', backref='task', lazy=True, cascade='all, delete-orphan', order_by='TaskComment.created_at.desc()')

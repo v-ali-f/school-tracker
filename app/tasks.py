@@ -1425,7 +1425,11 @@ def edit_task(task_id):
 @tasks_bp.route('/<int:task_id>/status', methods=['POST'])
 @login_required
 def change_status(task_id):
-    task = Task.query.get_or_404(task_id)
+    # s81: with_for_update — row-lock на PG, защита от race при одновременной
+    # смене статуса (двойной клик / два устройства). На SQLite no-op.
+    task = Task.query.filter_by(id=task_id).with_for_update().first()
+    if task is None:
+        abort(404)
     if not _can_edit_task(task):
         abort(403)
     status = (request.form.get('status') or '').strip()

@@ -8,6 +8,26 @@ INCIDENT_CATEGORIES = [
     "Психологическая проблема",
     "Другое",
 ]
+
+# Легаси-коды (старые записи в БД с латинскими тех-кодами) → русские лейблы.
+INCIDENT_CATEGORY_LEGACY = {
+    "conflict": "Драка/конфликт",
+    "discipline": "Нарушение дисциплины",
+    "absence": "Пропуски/опоздания",
+    "bullying": "Буллинг",
+    "trauma": "Травма/вызов скорой",
+    "complaint": "Жалоба родителей",
+    "psych": "Психологическая проблема",
+    "property_damage": "Порча имущества",
+    "other": "Другое",
+}
+
+
+def _category_label(value):
+    """Русский лейбл для категории. Возвращает '—' для пустых, маппит легаси-коды."""
+    if not value:
+        return "Без категории"
+    return INCIDENT_CATEGORY_LEGACY.get(value, value)
 OVZ_LEVEL_LABELS = {
     "NOO": "Начальное общее образование",
     "OOO": "Основное общее образование",
@@ -50,7 +70,15 @@ AOOP_TO_OVZ = {
     "7": {"nosology": "ZPR", "label": "Задержка психического развития"},
     "8": {"nosology": "INT", "label": "Интеллектуальные нарушения"},
 }
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone as _dt_tz
+try:
+    from zoneinfo import ZoneInfo as _MSK_ZI
+    _MSK_TZ_INC = _MSK_ZI("Europe/Moscow")
+except Exception:
+    _MSK_TZ_INC = _dt_tz(timedelta(hours=3))
+
+def _now_msk_naive():
+    return datetime.now(_MSK_TZ_INC).replace(tzinfo=None)
 import os
 import shutil
 import re
@@ -68,10 +96,11 @@ from flask import (
     abort,
     jsonify,
     send_file,
+    g,
 )
 from flask_login import login_required, current_user
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload, subqueryload, contains_eager
+from sqlalchemy.orm import joinedload, subqueryload, contains_eager, selectinload
 from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
@@ -1371,6 +1400,10 @@ def update_child_social_passport(child_id: int):
 
     social.is_socially_dangerous = as_checkbox(request.form, "is_socially_dangerous")
     social.is_hard_life = as_checkbox(request.form, "is_hard_life")
+    social.is_single_mother = as_checkbox(request.form, "is_single_mother")
+    social.is_single_father = as_checkbox(request.form, "is_single_father")
+    social.is_repeat_year = as_checkbox(request.form, "is_repeat_year")
+    social.is_svo_family = as_checkbox(request.form, "is_svo_family")
 
     social.notes = (request.form.get("social_notes") or "").strip() or None
     social.updated_at = datetime.utcnow()
@@ -1826,8 +1859,10 @@ def contingent():
 
     # ── ШСК-членство по классам (batch, один проход по sportmos-индексу) ──
     sc_by_class: dict[int, int] = {}
+    do_by_class: dict[int, int] = {}
     if year_id and class_ids:
         from app.sport_club import count_in_club_for_children as _sc_count
+        from app.extracurricular import count_in_do_for_children as _do_count
         children_by_class: dict[int, list] = defaultdict(list)
         for ch, cls_id in (
             db.session.query(Child, ChildEnrollment.school_class_id)
@@ -1842,6 +1877,7 @@ def contingent():
             children_by_class[cls_id].append(ch)
         for cls_id, kids in children_by_class.items():
             sc_by_class[cls_id] = _sc_count(kids)
+            do_by_class[cls_id] = _do_count(kids)
 
     rows = []
 
@@ -1854,6 +1890,7 @@ def contingent():
         vshu_count = int(vshu_by_class.get(c.id, 0))
         kdn_count = int(kdn_by_class.get(c.id, 0))
         sc_count = int(sc_by_class.get(c.id, 0))
+        do_count = int(do_by_class.get(c.id, 0))
 
         free = int((c.max_students or 0) - total)
 
@@ -1874,6 +1911,7 @@ def contingent():
             "teacher_fio": teacher_fio,
             "teacher_phone": teacher_phone,
             "sc_in_club": sc_count,
+            "do_count": do_count,
             "pending_transfer": pending_transfer,
             "promoted": class_transfer_types.get("PROMOTED", 0),
             "conditional": class_transfer_types.get("CONDITIONAL", 0),
@@ -2259,8 +2297,10 @@ def classes_registry():
 
     # ── ШСК-членство по классам (batch, один проход по sportmos-индексу) ──
     sc_in_club_by_class: dict[int, int] = {}
+    do_in_class_by_class: dict[int, int] = {}
     if class_ids:
         from app.sport_club import count_in_club_for_children as _sc_count
+        from app.extracurricular import count_in_do_for_children as _do_count
         from collections import defaultdict as _dd
         children_by_class: dict[int, list] = _dd(list)
         for ch, cls_id in (
@@ -2275,6 +2315,7 @@ def classes_registry():
             children_by_class[cls_id].append(ch)
         for cls_id, kids in children_by_class.items():
             sc_in_club_by_class[cls_id] = _sc_count(kids)
+            do_in_class_by_class[cls_id] = _do_count(kids)
 
     classes = []
     for c in raw_classes:
@@ -2287,6 +2328,7 @@ def classes_registry():
             task_total_map.get(c.id, 0),
             task_overdue_map.get(c.id, 0),
             int(sc_in_club_by_class.get(c.id, 0)),
+            int(do_in_class_by_class.get(c.id, 0)),
         ))
 
     html = render_template(
@@ -2771,10 +2813,16 @@ def registry_expelled():
 
     events = events.order_by(ChildEvent.created_at.desc()).all()
 
+    # s85: батч-загрузка детей вместо .query.get() в цикле
+    child_ids = list({ev.child_id for ev in events if ev.child_id})
+    children_by_id = {
+        c.id: c
+        for c in Child.query.filter(Child.id.in_(child_ids)).all()
+    } if child_ids else {}
+
     rows = []
-    row_num = 1
     for ev in events:
-        ch = Child.query.get(ev.child_id)
+        ch = children_by_id.get(ev.child_id)
         if not ch:
             continue
         if not _match_fio_query(ch, filters["q_text"]):
@@ -2817,6 +2865,13 @@ def registry_expelled_export():
 
     events = events.order_by(ChildEvent.created_at.desc()).all()
 
+    # s85: батч-загрузка детей
+    child_ids = list({ev.child_id for ev in events if ev.child_id})
+    children_by_id = {
+        c.id: c
+        for c in Child.query.filter(Child.id.in_(child_ids)).all()
+    } if child_ids else {}
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Отчисленные"
@@ -2824,7 +2879,7 @@ def registry_expelled_export():
 
     row_num = 1
     for ev in events:
-        ch = Child.query.get(ev.child_id)
+        ch = children_by_id.get(ev.child_id)
         if not ch:
             continue
         if not _match_fio_query(ch, filters["q_text"]):
@@ -2874,27 +2929,76 @@ def incident_new():
                 child_ids.append(int(x))
         child_ids = list(dict.fromkeys(child_ids))
 
+        def _incident_new_error(msg):
+            flash(msg, "danger")
+            participants = []
+            try:
+                if child_ids:
+                    year = _get_current_year()
+                    by_class = {}
+                    for cid in child_ids:
+                        ch = Child.query.get(cid)
+                        if not ch:
+                            continue
+                        en = None
+                        if year:
+                            en = (
+                                ChildEnrollment.query
+                                .filter(ChildEnrollment.child_id == ch.id)
+                                .filter(ChildEnrollment.academic_year_id == year.id)
+                                .filter(ChildEnrollment.status == "ACTIVE")
+                                .order_by(ChildEnrollment.id.desc())
+                                .first()
+                            )
+                        sc = SchoolClass.query.get(en.school_class_id) if (en and en.school_class_id) else None
+                        key = sc.id if sc else 0
+                        if key not in by_class:
+                            by_class[key] = {
+                                "grade": sc.grade if sc else None,
+                                "class_id": sc.id if sc else None,
+                                "child_ids": [],
+                            }
+                        by_class[key]["child_ids"].append(ch.id)
+                    participants = [v for v in by_class.values() if v.get("class_id")]
+            except Exception:
+                participants = []
+            return render_template(
+                "incident_new.html",
+                categories=INCIDENT_CATEGORIES,
+                preselected_student=None,
+                form_data={
+                    "occurred_date": occurred_date,
+                    "occurred_hour": occurred_hour,
+                    "occurred_minute": occurred_minute,
+                    "category": category,
+                    "description": description or "",
+                    "initial_work": initial_work or "",
+                },
+                preselected_participants=participants,
+            )
+
         if not occurred_date or not occurred_time:
-            flash("Укажите дату и время", "danger")
-            return redirect(url_for("children.incident_new"))
+            return _incident_new_error("Укажите дату и время")
 
         if category not in INCIDENT_CATEGORIES:
-            flash("Выберите категорию инцидента", "danger")
-            return redirect(url_for("children.incident_new"))
+            return _incident_new_error("Выберите категорию инцидента")
 
         if not description:
-            flash("Заполните описание инцидента", "danger")
-            return redirect(url_for("children.incident_new"))
+            return _incident_new_error("Заполните описание инцидента")
 
         if not child_ids:
-            flash("Добавьте хотя бы одного ребёнка", "danger")
-            return redirect(url_for("children.incident_new"))
+            return _incident_new_error("Добавьте хотя бы одного ребёнка")
 
         try:
             occurred_at = datetime.strptime(f"{occurred_date} {occurred_time}", "%Y-%m-%d %H:%M")
         except Exception:
-            flash("Неверный формат даты/времени", "danger")
-            return redirect(url_for("children.incident_new"))
+            return _incident_new_error("Неверный формат даты/времени")
+
+        now = _now_msk_naive()
+        if occurred_at < now - timedelta(hours=48):
+            return _incident_new_error("Дата инцидента не должна быть раньше, чем за 48 часов до момента подачи заявки")
+        if occurred_at > now + timedelta(minutes=5):
+            return _incident_new_error("Дата инцидента не может быть в будущем")
 
         inc = Incident(
             occurred_at=occurred_at,
@@ -2960,6 +3064,8 @@ def incident_new():
         "incident_new.html",
         categories=INCIDENT_CATEGORIES,
         preselected_student=preselected_student,
+        form_data=None,
+        preselected_participants=None,
     )
 
 
@@ -3021,16 +3127,22 @@ _ROLE_LABELS = {
 }
 
 
-_author_label_cache = {}
-
-
 def _get_author_label(user):
-    """Return human-readable 'ФИО, должность [класс]' for incident author."""
+    """Return human-readable 'ФИО, должность [класс]' for incident author.
+
+    Кэш живёт ровно один HTTP-запрос (flask.g) — переименование/смена роли
+    видны сразу, а в пределах одного рендера реестра одного автора не считаем
+    повторно.
+    """
     if not user:
         return "—"
     uid = user.id
-    if uid in _author_label_cache:
-        return _author_label_cache[uid]
+    try:
+        cache = g._author_label_cache  # type: ignore[attr-defined]
+    except (AttributeError, RuntimeError):
+        cache = None
+    if cache is not None and uid in cache:
+        return cache[uid]
     fio = (user.fio or "").strip() or "—"
     role = getattr(user, "role", None)
     if role == "CLASS_TEACHER":
@@ -3047,25 +3159,32 @@ def _get_author_label(user):
     else:
         role_label = _ROLE_LABELS.get(role, role or "")
         label = f"{fio}, {role_label}" if role_label else fio
-    _author_label_cache[uid] = label
+    if cache is None:
+        try:
+            cache = {}
+            g._author_label_cache = cache  # type: ignore[attr-defined]
+        except RuntimeError:
+            return label
+    cache[uid] = label
     return label
 
 
 def _can_change_status():
     """Управлять ходом инцидента (смена статуса, назначение исполнителя,
-    принудительное закрытие) могут: ADMIN, DEPUTY_DIRECTOR.
-    PSYCHOLOGIST/SOCIAL_PEDAGOG/METHODIST видят инциденты, но flow не управляют —
-    они исполнители и могут только писать заметки и помечать «Отработано»."""
-    return has_role("ADMIN") or has_role("DEPUTY_DIRECTOR")
+    принудительное закрытие) могут: ADMIN, DEPUTY_DIRECTOR, SOCIAL_PEDAGOG.
+    SOCIAL_PEDAGOG получили права директорским решением (s87) — они активно
+    ведут инциденты и должны менять статусы и назначать исполнителей наравне
+    с управляющими. PSYCHOLOGIST/METHODIST остаются read-only."""
+    return has_role("ADMIN") or has_role("DEPUTY_DIRECTOR") or has_role("SOCIAL_PEDAGOG")
 
 
 def _can_mark_resolved(inc):
-    """Пометить инцидент как «Отработан» может текущий исполнитель (assignee)
+    """Пометить инцидент как «Отработан» может любой из назначенных исполнителей
     или управляющий (ADMIN/DEPUTY_DIRECTOR)."""
     if _can_change_status():
         return True
     uid = getattr(current_user, "id", None)
-    return bool(uid) and inc.assignee_id == uid
+    return _uid_is_assignee(inc, uid)
 
 
 # =========================================================
@@ -3081,6 +3200,31 @@ INC_NOTE_ATT_MAX_SIZE = 100 * 1024 * 1024  # 100 МБ — потолок (вид
 INC_NOTE_ATT_MAX_SIZE_NONVIDEO = 30 * 1024 * 1024  # документы/картинки 30 МБ
 INC_NOTE_VIDEO_EXT = {'mp4', 'mov', 'webm'}
 INC_NOTE_ATT_MAX_FILES = 10
+
+# Whitelist реальных MIME-типов для вложений из MAX-бота. Проверяется через
+# libmagic по сигнатуре файла, не по расширению/Content-Type из бота.
+_MAX_MIME_WHITELIST = {
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "application/pdf",
+    "video/mp4", "video/quicktime", "video/webm", "video/x-matroska",
+    "application/zip", "application/x-zip-compressed",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+}
+_MAX_MIME_TO_EXT = {
+    "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp",
+    "application/pdf": "pdf",
+    "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
+    "application/zip": "zip", "application/x-zip-compressed": "zip",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/plain": "txt",
+}
 
 
 def _inc_note_upload_root():
@@ -3119,38 +3263,106 @@ def _save_incident_note_attachments(note, files):
     os.makedirs(note_dir, exist_ok=True)
 
     saved = []
-    for storage in files:
-        original_name = (storage.filename or "").strip()
-        safe_name = _sfn(original_name) or "file"
-        ext = (_Path(safe_name).suffix or "").lower().lstrip(".")
-        if ext not in INC_NOTE_ATT_ALLOWED:
-            raise ValueError(f"Формат файла не поддерживается: {original_name}")
+    written_paths = []  # физические файлы, чтобы откатить при ошибке на середине
+    try:
+        for storage in files:
+            original_name = (storage.filename or "").strip()
+            safe_name = _sfn(original_name) or "file"
+            ext = (_Path(safe_name).suffix or "").lower().lstrip(".")
+            if ext not in INC_NOTE_ATT_ALLOWED:
+                raise ValueError(f"Формат файла не поддерживается: {original_name}")
 
-        storage.stream.seek(0, os.SEEK_END)
-        size = storage.stream.tell()
-        storage.stream.seek(0)
-        max_size = INC_NOTE_ATT_MAX_SIZE if ext in INC_NOTE_VIDEO_EXT else INC_NOTE_ATT_MAX_SIZE_NONVIDEO
-        if size > max_size:
-            limit_mb = max_size // (1024 * 1024)
-            raise ValueError(f"Файл {original_name} превышает ограничение {limit_mb} МБ.")
+            storage.stream.seek(0, os.SEEK_END)
+            size = storage.stream.tell()
+            storage.stream.seek(0)
+            max_size = INC_NOTE_ATT_MAX_SIZE if ext in INC_NOTE_VIDEO_EXT else INC_NOTE_ATT_MAX_SIZE_NONVIDEO
+            if size > max_size:
+                limit_mb = max_size // (1024 * 1024)
+                raise ValueError(f"Файл {original_name} превышает ограничение {limit_mb} МБ.")
 
-        stored_filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}.{ext}" if ext else f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}"
-        abs_path = os.path.join(note_dir, stored_filename)
-        storage.save(abs_path)
-        rel_path = os.path.relpath(abs_path, upload_root).replace("\\", "/")
+            stored_filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}.{ext}" if ext else f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}"
+            abs_path = os.path.join(note_dir, stored_filename)
+            storage.save(abs_path)
+            written_paths.append(abs_path)
+            rel_path = os.path.relpath(abs_path, upload_root).replace("\\", "/")
 
-        row = IncidentNoteAttachment(
-            note_id=note.id,
-            filename=original_name,
-            stored_filename=stored_filename,
-            file_path=rel_path,
-            content_type=(storage.mimetype or None),
-            file_size=size,
-            uploaded_by_user_id=getattr(current_user, "id", None),
-        )
-        db.session.add(row)
-        saved.append(row)
+            row = IncidentNoteAttachment(
+                note_id=note.id,
+                filename=original_name,
+                stored_filename=stored_filename,
+                file_path=rel_path,
+                content_type=(storage.mimetype or None),
+                file_size=size,
+                uploaded_by_user_id=getattr(current_user, "id", None),
+            )
+            db.session.add(row)
+            saved.append(row)
+    except Exception:
+        # Если что-то упало — удалить уже сохранённые физические файлы.
+        # Транзакцию БД откатывает вызывающий (см. mark_resolved/add_note).
+        for p in written_paths:
+            try: os.remove(p)
+            except OSError: pass
+        raise
     return saved
+
+
+def _save_max_attachment(note, original_name, raw_bytes, hint_mime=None):
+    """Сохраняет байты вложения из MAX-бота в incident_note_attachment.
+    Валидация типа через libmagic (whitelist `_MAX_MIME_WHITELIST`).
+    Возвращает строку IncidentNoteAttachment или None при отказе.
+    Не делает commit — вызывающий собирает в одну транзакцию.
+    """
+    from pathlib import Path as _Path
+    from werkzeug.utils import secure_filename as _sfn
+    import uuid as _uuid
+
+    if not raw_bytes:
+        return None
+
+    size = len(raw_bytes)
+    if size > INC_NOTE_ATT_MAX_SIZE:
+        raise ValueError(f"Вложение {original_name}: {size} байт превышает лимит")
+
+    detected_mime = None
+    try:
+        import magic  # python-magic (Linux: libmagic1) или python-magic-bin (Windows)
+        detected_mime = magic.from_buffer(raw_bytes[:8192], mime=True)
+    except Exception:
+        detected_mime = (hint_mime or "").split(";")[0].strip() or None
+
+    if not detected_mime or detected_mime not in _MAX_MIME_WHITELIST:
+        raise ValueError(f"Тип файла не разрешён: {detected_mime!r}")
+
+    ext = _MAX_MIME_TO_EXT.get(detected_mime, "bin")
+    if ext not in INC_NOTE_VIDEO_EXT and size > INC_NOTE_ATT_MAX_SIZE_NONVIDEO:
+        raise ValueError(f"Не-видео файл превышает лимит {INC_NOTE_ATT_MAX_SIZE_NONVIDEO // (1024*1024)} МБ")
+
+    safe_name = _sfn(original_name or "") or f"attachment.{ext}"
+    if not safe_name.lower().endswith("." + ext):
+        safe_name = f"{_Path(safe_name).stem or 'attachment'}.{ext}"
+
+    upload_root, _ = _inc_note_upload_root()
+    note_dir = os.path.join(upload_root, "incident_notes", str(note.id))
+    os.makedirs(note_dir, exist_ok=True)
+
+    stored_filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{_uuid.uuid4().hex[:12]}.{ext}"
+    abs_path = os.path.join(note_dir, stored_filename)
+    with open(abs_path, "wb") as f:
+        f.write(raw_bytes)
+    rel_path = os.path.relpath(abs_path, upload_root).replace("\\", "/")
+
+    row = IncidentNoteAttachment(
+        note_id=note.id,
+        filename=safe_name,
+        stored_filename=stored_filename,
+        file_path=rel_path,
+        content_type=detected_mime,
+        file_size=size,
+        uploaded_by_user_id=None,
+    )
+    db.session.add(row)
+    return row
 
 
 def _inc_note_att_to_dict(att):
@@ -3360,11 +3572,118 @@ def _auto_create_task_for_incident(inc, assignee_user):
     return task
 
 
+def _incident_assignee_ids(inc):
+    """Полный набор id исполнителей инцидента (включая legacy assignee_id)."""
+    ids = {a.id for a in (inc.assignees or [])}
+    if inc.assignee_id:
+        ids.add(inc.assignee_id)
+    return ids
+
+
+def _uid_is_assignee(inc, uid):
+    if not uid:
+        return False
+    return uid in _incident_assignee_ids(inc)
+
+
+def _apply_assignees_change(inc, new_ids, note_text=None):
+    """Синхронизирует список исполнителей инцидента с new_ids (set/iterable).
+    Журнал, заметка [Назначение], авто-Task для каждого добавленного PSY/SOC/METHODIST,
+    автопереход new↔assigned, уведомления всем добавленным + автору (один раз).
+
+    Уведомления НЕ отправляются исполняющему действие пользователю.
+    Возвращает (added_ids, removed_ids).
+    """
+    from app.models_legacy import IncidentAssignee, User as _User, IncidentNote
+    actor_id = getattr(current_user, "id", None)
+    new_ids = {int(x) for x in (new_ids or []) if x}
+
+    current_ids = {a.id for a in (inc.assignees or [])}
+    if not current_ids and inc.assignee_id:
+        current_ids = {inc.assignee_id}
+
+    added = new_ids - current_ids
+    removed = current_ids - new_ids
+    if not added and not removed:
+        return added, removed
+
+    if removed:
+        IncidentAssignee.query.filter(
+            IncidentAssignee.incident_id == inc.id,
+            IncidentAssignee.user_id.in_(removed),
+        ).delete(synchronize_session=False)
+    for uid in added:
+        db.session.add(IncidentAssignee(
+            incident_id=inc.id, user_id=uid, added_by_id=actor_id,
+        ))
+
+    # primary assignee_id — последнее добавление; если набор пуст — сбрасываем.
+    if new_ids:
+        if added:
+            inc.assignee_id = next(iter(added))
+        elif inc.assignee_id not in new_ids:
+            inc.assignee_id = next(iter(new_ids))
+    else:
+        inc.assignee_id = None
+
+    for uid in added:
+        _log_assignment_change(inc, None, uid, note=note_text)
+    for uid in removed:
+        _log_assignment_change(inc, uid, None, note=None)
+
+    if note_text and added:
+        db.session.add(IncidentNote(
+            incident_id=inc.id, author_id=actor_id,
+            text=f"[Назначение] {note_text}",
+        ))
+
+    old_status = inc.status or "new"
+    if new_ids and old_status == "new":
+        inc.status = "assigned"
+    elif not new_ids and inc.status == "assigned":
+        inc.status = "new"
+    if inc.status != old_status:
+        _log_status_change(inc, old_status, inc.status)
+
+    for uid in added:
+        u = _User.query.get(uid)
+        if u:
+            _auto_create_task_for_incident(inc, u)
+        if uid != actor_id:
+            preview = note_text if note_text else (inc.description or "")
+            _notify_user(
+                uid, inc.id, "incident_assigned",
+                f"Вам назначен инцидент #{inc.id}",
+                f"{inc.category}: {preview[:120]}",
+            )
+    if added and inc.author_id and inc.author_id != actor_id and inc.author_id not in added:
+        _notify_user(
+            inc.author_id, inc.id, "incident_author_update",
+            f"По вашему инциденту #{inc.id} назначен исполнитель",
+            f"{inc.category}",
+        )
+    return added, removed
+
+
+def _apply_assignee_change(inc, new_assignee_id, note_text=None):
+    """Совместимость: replace всего набора одним исполнителем (или None)."""
+    new_ids = {new_assignee_id} if new_assignee_id else set()
+    added, removed = _apply_assignees_change(inc, new_ids, note_text=note_text)
+    return bool(added or removed)
+
+
 def _build_incident_rows(incidents, include_author=False):
     """Batch-load children for a list of incidents (eliminates N+1)."""
     if not incidents:
         return []
     inc_ids = [inc.id for inc in incidents]
+    # s81: batch-load assignee/author в session cache — гасит N+1 на kanban
+    # (до 1200 запросов на 600 карточек), table/list тоже выигрывает.
+    db.session.query(Incident).options(
+        joinedload(Incident.assignee),
+        joinedload(Incident.author),
+        selectinload(Incident.assignees),
+    ).filter(Incident.id.in_(inc_ids)).all()
     # one query: all IncidentChild + Child for all incidents at once
     links = (
         db.session.query(IncidentChild, Child)
@@ -3394,8 +3713,63 @@ def _build_incident_rows(incidents, include_author=False):
         row = {"inc": inc, "children": kids_map.get(inc.id, [])}
         if include_author:
             row["author_label"] = _get_author_label(inc.author)
+        # Множественные исполнители: список ids + короткий лейбл для шаблонов.
+        row["assignee_ids"] = sorted(_incident_assignee_ids(inc))
+        row["assignees_label"] = _assignees_short_label(inc) or "—"
         rows.append(row)
     return rows
+
+
+_GROUP_BY_KEYS = ("category", "class", "building", "assignee", "status")
+
+
+def _group_incident_rows(rows, group_by, status_labels=None):
+    """Сгруппировать построенные _build_incident_rows строки по выбранному свойству.
+
+    Группировка идёт ВНУТРИ страницы (в кашне на 100 строк) — это Notion-style,
+    без cross-page rollup. Заголовки рендерятся в порядке первого появления.
+    Возвращает [{key, label, rows}].
+    """
+    if group_by not in _GROUP_BY_KEYS:
+        return None
+    groups_map = {}
+    order = []
+
+    def _push(key, label, row):
+        if key not in groups_map:
+            groups_map[key] = {"key": key, "label": label, "rows": []}
+            order.append(key)
+        groups_map[key]["rows"].append(row)
+
+    for r in rows:
+        inc = r["inc"]
+        kids = r.get("children") or []
+        if group_by == "category":
+            label = _category_label(inc.category)
+            key = label
+        elif group_by == "class":
+            first = next((k for k in kids if k.get("class")), None)
+            label = first["class"] if first else "Без класса"
+            key = str(first["class_id"]) if first and first.get("class_id") else "_none"
+        elif group_by == "building":
+            first = next((k for k in kids if k.get("building")), None)
+            label = first["building"] if first else "Без здания"
+            key = label
+        elif group_by == "assignee":
+            a = inc.assignee
+            if a:
+                label = (a.last_name or "") + " " + (a.first_name or "")
+                label = label.strip() or (a.username or f"user#{a.id}")
+                key = f"u{a.id}"
+            else:
+                label = "Без исполнителя"
+                key = "_none"
+        else:  # status
+            s = inc.status or "new"
+            label = (status_labels or {}).get(s, s)
+            key = s
+        _push(key, label, r)
+    return [groups_map[k] for k in order]
 
 
 def _can_view_incident(incident):
@@ -3412,7 +3786,7 @@ def _can_view_incident(incident):
         return True
     if incident.author_id == uid:
         return True
-    if incident.assignee_id == uid:
+    if _uid_is_assignee(incident, uid):
         return True
     return False
 
@@ -3420,8 +3794,9 @@ def _can_view_incident(incident):
 def _can_edit_incident(incident):
     """Редактировать поля инцидента (дата/категория/описание/участники) и удалять.
     Разрешено: управляющим (ADMIN/DEPUTY_DIRECTOR), социальному педагогу
-    (ведёт инциденты наравне с управлением) и автору. PSYCHOLOGIST/METHODIST —
-    только смотрят."""
+    (ведёт инциденты наравне с управлением), автору и исполнителю
+    (для автора/исполнителя нужно право incident_add — у METHODIST/TEACHER
+    оно есть только на свои)."""
     if _can_change_status():
         return True
     if has_role("SOCIAL_PEDAGOG"):
@@ -3429,7 +3804,11 @@ def _can_edit_incident(incident):
     uid = getattr(current_user, "id", None)
     if not uid:
         return False
-    if incident.author_id == uid and has_permission("incident_add"):
+    if not has_permission("incident_add"):
+        return False
+    if incident.author_id == uid:
+        return True
+    if _uid_is_assignee(incident, uid):
         return True
     return False
 
@@ -3485,6 +3864,17 @@ def incident_edit(incident_id):
             flash("Неверный формат даты/времени", "danger")
             return redirect(url_for("children.incident_edit", incident_id=inc.id))
 
+        # 48-часовое окно подачи задним числом — действует и при редактировании
+        # автором/исполнителем; ADMIN/DEPUTY имеют право поправить дату вне окна.
+        now = _now_msk_naive()
+        if not (is_admin(current_user) or has_role("DEPUTY_DIRECTOR")):
+            if occurred_at < now - timedelta(hours=48):
+                flash("Дата инцидента не должна быть раньше, чем за 48 часов до момента подачи заявки", "danger")
+                return redirect(url_for("children.incident_edit", incident_id=inc.id))
+            if occurred_at > now + timedelta(minutes=5):
+                flash("Дата инцидента не может быть в будущем", "danger")
+                return redirect(url_for("children.incident_edit", incident_id=inc.id))
+
         inc.occurred_at = occurred_at
         inc.category = category
         inc.description = description
@@ -3497,59 +3887,42 @@ def incident_edit(incident_id):
             inc.status = new_status
 
         if _can_change_status():
-            assignee_id = request.form.get("assignee_id", type=int)
-            new_assignee_id = assignee_id or None
+            raw_ids = request.form.getlist("assignee_ids")
+            new_ids = set()
+            for v in raw_ids:
+                v = (v or "").strip()
+                if v.isdigit():
+                    new_ids.add(int(v))
+            # обратная совместимость со старым полем
+            if not raw_ids:
+                _legacy = request.form.get("assignee_id", type=int)
+                if _legacy:
+                    new_ids.add(_legacy)
             assignment_note = (request.form.get("assignment_note") or "").strip() or None
-            if new_assignee_id != old_assignee_id:
-                inc.assignee_id = new_assignee_id
-                _log_assignment_change(inc, old_assignee_id, new_assignee_id, note=assignment_note)
-                if assignment_note and new_assignee_id:
-                    from app.models_legacy import IncidentNote
-                    db.session.add(IncidentNote(
-                        incident_id=inc.id,
-                        author_id=getattr(current_user, "id", None),
-                        text=f"[Назначение] {assignment_note}",
-                    ))
-                # Автопереход new → assigned при назначении исполнителя
-                if new_assignee_id and (inc.status or "new") == "new":
-                    inc.status = "assigned"
-                # Если assignee убрали — возврат в new
-                if not new_assignee_id and inc.status == "assigned":
-                    inc.status = "new"
-                # Автосоздание задачи для исполнителя (PSY/SOC/METH)
-                if new_assignee_id:
-                    from app.models_legacy import User as _User
-                    assignee_user = _User.query.get(new_assignee_id)
-                    _auto_create_task_for_incident(inc, assignee_user)
-                    preview = assignment_note if assignment_note else (inc.description or "")
-                    _notify_user(
-                        new_assignee_id, inc.id, "incident_assigned",
-                        f"Вам назначен инцидент #{inc.id}",
-                        f"{inc.category}: {preview[:120]}",
-                    )
-                    if inc.author_id and inc.author_id != new_assignee_id:
-                        _notify_user(
-                            inc.author_id, inc.id, "incident_author_update",
-                            f"По вашему инциденту #{inc.id} назначен исполнитель",
-                            f"{inc.category}",
-                        )
+            _apply_assignees_change(inc, new_ids, note_text=assignment_note)
 
         if inc.status != old_status:
             _log_status_change(inc, old_status, inc.status)
-            if inc.author_id and inc.author_id != getattr(current_user, "id", None):
+            _actor_id = getattr(current_user, "id", None)
+            _notified = set()
+            if inc.author_id and inc.author_id != _actor_id:
                 _notify_user(
                     inc.author_id, inc.id, "incident_status_change",
                     f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(inc.status, inc.status)}",
                     f"{inc.category}",
                     new_status=inc.status,
                 )
-            if inc.assignee_id and inc.assignee_id != getattr(current_user, "id", None):
+                _notified.add(inc.author_id)
+            for _aid in _incident_assignee_ids(inc):
+                if _aid in _notified or _aid == _actor_id:
+                    continue
                 _notify_user(
-                    inc.assignee_id, inc.id, "incident_status_change",
+                    _aid, inc.id, "incident_status_change",
                     f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(inc.status, inc.status)}",
                     f"{inc.category}",
                     new_status=inc.status,
                 )
+                _notified.add(_aid)
 
         IncidentChild.query.filter_by(incident_id=inc.id).delete()
         for cid in child_ids:
@@ -3560,7 +3933,8 @@ def incident_edit(incident_id):
         db.session.commit()
         flash("Инцидент обновлён", "success")
         next_url = (request.form.get("next") or "").strip()
-        if next_url.startswith("/"):
+        # s81: блокируем schema-relative //evil.com/x (open-redirect).
+        if next_url.startswith("/") and not next_url.startswith("//"):
             return redirect(next_url)
         if child_ids:
             return redirect(url_for("children.child_card", child_id=child_ids[0]))
@@ -3598,7 +3972,7 @@ def incident_edit(incident_id):
         )
 
     is_author = inc.author_id == getattr(current_user, "id", None)
-    is_assignee = inc.assignee_id == getattr(current_user, "id", None)
+    is_assignee = _uid_is_assignee(inc, getattr(current_user, "id", None))
     can_add_note = _can_change_status() or has_role("SOCIAL_PEDAGOG") or is_author or is_assignee
     # Отвечать (reply) могут: ADMIN/DEPUTY, SOCIAL_PEDAGOG, автор инцидента.
     # Исполнитель-assignee не в списке по договорённости с пользователем.
@@ -3621,19 +3995,14 @@ def incident_edit(incident_id):
         else:
             note_threads.append(_by_id[_n.id])
 
-    # Связанные задачи (автосозданные через _auto_create_task_for_incident + ручные)
-    related_tasks = []
+    # Связанные задачи (автосозданные через _auto_create_task_for_incident + ручные).
+    # backref `inc.tasks` отсортирован по created_at desc; падать на старте всё равно нельзя.
     try:
-        from app.models import Task as _Task
-        related_tasks = (
-            _Task.query
-            .filter(_Task.incident_id == inc.id)
-            .order_by(_Task.created_at.desc().nullslast(), _Task.id.desc())
-            .all()
-        )
+        related_tasks = list(inc.tasks)
     except Exception:
         related_tasks = []
 
+    selected_assignee_ids = sorted(_incident_assignee_ids(inc))
     return render_template(
         "incident_edit.html",
         incident=inc,
@@ -3642,6 +4011,7 @@ def incident_edit(incident_id):
         can_change_status=_can_change_status(),
         can_edit_incident=_can_edit_incident(inc),
         assignees=assignees,
+        selected_assignee_ids=selected_assignee_ids,
         notes=inc.notes,
         note_threads=note_threads,
         can_add_note=can_add_note,
@@ -3655,6 +4025,9 @@ def incident_edit(incident_id):
 def incident_delete(incident_id):
     inc = Incident.query.get_or_404(incident_id)
     if not _can_edit_incident(inc):
+        abort(403)
+    # METHODIST: edit-свои разрешено (s76), delete — нет.
+    if has_role("METHODIST") and not _can_change_status() and not has_role("SOCIAL_PEDAGOG"):
         abort(403)
 
     child_id = None
@@ -3674,7 +4047,7 @@ def incident_delete(incident_id):
     flash("Инцидент удалён", "success")
 
     next_url = (request.form.get("next") or request.referrer or "").strip()
-    if next_url.startswith("/") or next_url.startswith("http://") or next_url.startswith("https://"):
+    if next_url.startswith("/") and not next_url.startswith("//"):
         return redirect(next_url)
     if child_id:
         return redirect(url_for("children.child_card", child_id=child_id))
@@ -3686,28 +4059,37 @@ def incident_delete(incident_id):
 def incident_set_status(incident_id):
     if not _can_change_status():
         return jsonify({"error": "forbidden"}), 403
-    inc = Incident.query.get_or_404(incident_id)
     new_status = (request.form.get("status") or "").strip()
     if new_status not in Incident.STATUS_LABELS:
         return jsonify({"error": "invalid"}), 400
+    # Row-lock на PG (на SQLite молча no-op) — два менеджера не перезатирают друг друга.
+    inc = Incident.query.filter_by(id=incident_id).with_for_update().first()
+    if inc is None:
+        abort(404)
     old_status = inc.status or "new"
     if old_status != new_status:
         inc.status = new_status
         _log_status_change(inc, old_status, new_status)
-        if inc.author_id and inc.author_id != getattr(current_user, "id", None):
+        _actor_id = getattr(current_user, "id", None)
+        _notified = set()
+        if inc.author_id and inc.author_id != _actor_id:
             _notify_user(
                 inc.author_id, inc.id, "incident_status_change",
                 f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(new_status, new_status)}",
                 f"{inc.category}",
                 new_status=new_status,
             )
-        if inc.assignee_id and inc.assignee_id != getattr(current_user, "id", None):
+            _notified.add(inc.author_id)
+        for _aid in _incident_assignee_ids(inc):
+            if _aid in _notified or _aid == _actor_id:
+                continue
             _notify_user(
-                inc.assignee_id, inc.id, "incident_status_change",
+                _aid, inc.id, "incident_status_change",
                 f"Статус инцидента #{inc.id}: {Incident.STATUS_LABELS.get(new_status, new_status)}",
                 f"{inc.category}",
                 new_status=new_status,
             )
+            _notified.add(_aid)
     db.session.commit()
     return jsonify({"ok": True, "status": inc.status, "label": inc.status_label})
 
@@ -3722,67 +4104,36 @@ def incident_set_assignee(incident_id):
     добавляется в preview уведомления."""
     if not _can_change_status():
         return jsonify({"error": "forbidden"}), 403
-    inc = Incident.query.get_or_404(incident_id)
+    # Row-lock на PG (на SQLite no-op) — два менеджера не перезатирают друг друга.
+    inc = Incident.query.filter_by(id=incident_id).with_for_update().first()
+    if inc is None:
+        abort(404)
 
-    raw = (request.form.get("assignee_id") or "").strip()
-    new_assignee_id = int(raw) if raw.isdigit() else None
-    old_assignee_id = inc.assignee_id
+    raw_ids = request.form.getlist("assignee_ids")
+    new_ids = set()
+    for v in raw_ids:
+        v = (v or "").strip()
+        if v.isdigit():
+            new_ids.add(int(v))
+    if not raw_ids:
+        # Совместимость: одно поле assignee_id (пустое = снять).
+        legacy = (request.form.get("assignee_id") or "").strip()
+        if legacy.isdigit():
+            new_ids.add(int(legacy))
     note_text = (request.form.get("note") or "").strip() or None
 
-    if new_assignee_id == old_assignee_id:
-        return jsonify({"ok": True, "status": inc.status, "assignee_id": inc.assignee_id, "assignee_label": _assignee_short_label(inc)})
-
-    inc.assignee_id = new_assignee_id
-    _log_assignment_change(inc, old_assignee_id, new_assignee_id, note=note_text)
-
-    # Пояснение от управляющего — в журнал инцидента, чтобы было видно на странице.
-    if note_text and new_assignee_id:
-        from app.models_legacy import IncidentNote
-        db.session.add(IncidentNote(
-            incident_id=inc.id,
-            author_id=getattr(current_user, "id", None),
-            text=f"[Назначение] {note_text}",
-        ))
-
-    old_status = inc.status or "new"
-    if new_assignee_id and old_status == "new":
-        inc.status = "assigned"
-    if not new_assignee_id and inc.status == "assigned":
-        inc.status = "new"
-    if inc.status != old_status:
-        _log_status_change(inc, old_status, inc.status)
-
-    assignee_user = None
-    if new_assignee_id:
-        from app.models_legacy import User as _User
-        assignee_user = _User.query.get(new_assignee_id)
-        _auto_create_task_for_incident(inc, assignee_user)
-        # В уведомление исполнителю — категория + либо пояснение от управляющего,
-        # либо описание инцидента (как раньше).
-        preview = note_text if note_text else (inc.description or "")
-        _notify_user(
-            new_assignee_id, inc.id, "incident_assigned",
-            f"Вам назначен инцидент #{inc.id}",
-            f"{inc.category}: {preview[:120]}",
-        )
-        if inc.author_id and inc.author_id != new_assignee_id:
-            _notify_user(
-                inc.author_id, inc.id, "incident_author_update",
-                f"По вашему инциденту #{inc.id} назначен исполнитель",
-                f"{inc.category}",
-            )
-
+    added, removed = _apply_assignees_change(inc, new_ids, note_text=note_text)
     db.session.commit()
     return jsonify({
         "ok": True,
         "status": inc.status,
         "assignee_id": inc.assignee_id,
-        "assignee_label": _assignee_short_label(inc),
+        "assignee_ids": sorted(_incident_assignee_ids(inc)),
+        "assignee_label": _assignees_short_label(inc),
     })
 
 
-def _assignee_short_label(inc):
-    u = inc.assignee
+def _user_short_label(u):
     if not u:
         return None
     last = getattr(u, "last_name", None) or ""
@@ -3790,6 +4141,24 @@ def _assignee_short_label(inc):
     if last and first:
         return f"{last} {first[:1]}."
     return last or first or (getattr(u, "username", "") or "—")
+
+
+def _assignee_short_label(inc):
+    return _user_short_label(inc.assignee)
+
+
+def _assignees_short_label(inc, max_show=2):
+    """«Иванова И., Петров П.» или «Иванова И. + 2» если больше max_show."""
+    users = list(inc.assignees or [])
+    if not users and inc.assignee:
+        users = [inc.assignee]
+    if not users:
+        return None
+    labels = [_user_short_label(u) for u in users if u]
+    labels = [x for x in labels if x]
+    if len(labels) <= max_show:
+        return ", ".join(labels)
+    return f"{', '.join(labels[:max_show])} +{len(labels) - max_show}"
 
 
 @children_bp.route("/incidents/<int:incident_id>/mark-resolved", methods=["POST"])
@@ -3881,7 +4250,7 @@ def incident_add_note(incident_id):
     # Писать заметки могут: ADMIN/DEPUTY, SOCIAL_PEDAGOG, автор инцидента, исполнитель.
     # Для ответа (reply) круг тот же — соответствует договорённости.
     is_author = inc.author_id == getattr(current_user, "id", None)
-    is_assignee = inc.assignee_id == getattr(current_user, "id", None)
+    is_assignee = _uid_is_assignee(inc, getattr(current_user, "id", None))
     if not (_can_change_status() or has_role("SOCIAL_PEDAGOG") or is_author or is_assignee):
         return jsonify({"error": "forbidden"}), 403
     text = (request.form.get("text") or "").strip()
@@ -3939,8 +4308,9 @@ def incident_add_note(incident_id):
         targets = set()
         if inc.author_id and inc.author_id not in (me_id, parent.author_id):
             targets.add(inc.author_id)
-        if inc.assignee_id and inc.assignee_id not in (me_id, parent.author_id):
-            targets.add(inc.assignee_id)
+        for _aid in _incident_assignee_ids(inc):
+            if _aid not in (me_id, parent.author_id):
+                targets.add(_aid)
         for tgt in targets:
             _notify_user(
                 tgt, inc.id, "incident_note",
@@ -3951,8 +4321,9 @@ def incident_add_note(incident_id):
         targets = set()
         if inc.author_id and inc.author_id != me_id:
             targets.add(inc.author_id)
-        if inc.assignee_id and inc.assignee_id != me_id:
-            targets.add(inc.assignee_id)
+        for _aid in _incident_assignee_ids(inc):
+            if _aid != me_id:
+                targets.add(_aid)
         for tgt in targets:
             _notify_user(
                 tgt, inc.id, "incident_note",
@@ -4018,7 +4389,7 @@ def incident_timeline(incident_id):
     if not (
         _can_change_status()
         or inc.author_id == uid
-        or inc.assignee_id == uid
+        or _uid_is_assignee(inc, uid)
         or has_permission("incident_registry_view")
     ):
         abort(403)
@@ -4089,7 +4460,142 @@ def incidents_registry():
     if category:
         iq = iq.filter(Incident.category == category)
 
-    if status_filter in Incident.STATUS_LABELS:
+    if status_filter == "open":
+        iq = iq.filter(Incident.status.in_(["new", "assigned", "in_progress"]))
+    elif status_filter in Incident.STATUS_LABELS:
+        iq = iq.filter(Incident.status == status_filter)
+
+    if q_text:
+        ql = q_text.lower()
+        iq = iq.filter(
+            func.lower(func.coalesce(Child.last_name, "")).like(f"%{ql}%") |
+            func.lower(func.coalesce(Child.first_name, "")).like(f"%{ql}%") |
+            func.lower(func.coalesce(Child.middle_name, "")).like(f"%{ql}%")
+        )
+
+    if year_id and (grade or class_id):
+        iq = iq.join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+        iq = iq.filter(
+            ChildEnrollment.academic_year_id == year_id,
+            ChildEnrollment.ended_at.is_(None)
+        )
+        if class_id:
+            iq = iq.filter(ChildEnrollment.school_class_id == class_id)
+        elif grade:
+            iq = iq.join(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
+            iq = iq.filter(SchoolClass.grade == grade)
+
+    iq = iq.distinct(Incident.id) if False else iq  # joinedload не любит distinct, считаем через подзапрос ниже
+    iq = iq.order_by(Incident.occurred_at.desc(), Incident.id.desc())
+
+    # Серверная пагинация: 100 строк на страницу.
+    _PER_PAGE_REG = 100
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    total_count = iq.order_by(None).with_entities(func.count(func.distinct(Incident.id))).scalar() or 0
+    total_pages = max(1, (total_count + _PER_PAGE_REG - 1) // _PER_PAGE_REG)
+    if page > total_pages:
+        page = total_pages
+    # Подзапрос-окно: id-инциденты текущей страницы (без дублей из IncidentChild).
+    page_ids_q = (
+        iq.with_entities(Incident.id, Incident.occurred_at)
+        .group_by(Incident.id, Incident.occurred_at)
+        .order_by(Incident.occurred_at.desc(), Incident.id.desc())
+        .limit(_PER_PAGE_REG)
+        .offset((page - 1) * _PER_PAGE_REG)
+    )
+    page_ids = [row[0] for row in page_ids_q.all()]
+    if page_ids:
+        incidents = (
+            db.session.query(Incident)
+            .options(joinedload(Incident.author), joinedload(Incident.assignee))
+            .filter(Incident.id.in_(page_ids))
+            .order_by(Incident.occurred_at.desc(), Incident.id.desc())
+            .all()
+        )
+    else:
+        incidents = []
+
+    rows = _build_incident_rows(incidents, include_author=True)
+
+    f_group_by = (request.args.get("group_by") or "").strip()
+    if f_group_by not in _GROUP_BY_KEYS:
+        f_group_by = ""
+    groups = None
+    if f_group_by:
+        groups = _group_incident_rows(rows, f_group_by, Incident.STATUS_LABELS)
+
+    classes = (
+        SchoolClass.query
+        .filter(SchoolClass.academic_year_id == year.id)
+        .order_by(
+            SchoolClass.grade.asc().nullslast(),
+            SchoolClass.letter.asc().nullslast(),
+            SchoolClass.name.asc()
+        )
+        .all()
+    )
+
+    return render_template(
+        "incidents_registry.html",
+        title="Реестр инцидентов",
+        rows=rows,
+        groups=groups,
+        f_group_by=f_group_by,
+        q=q_text,
+        grade=grade,
+        class_id=class_id,
+        category=category,
+        status_filter=status_filter,
+        categories=INCIDENT_CATEGORIES,
+        classes=classes,
+        can_change_status=_can_change_status(),
+        is_admin=is_admin(current_user),
+        is_social_pedagog=has_role("SOCIAL_PEDAGOG"),
+        is_methodist=has_role("METHODIST"),
+        page=page,
+        total_pages=total_pages,
+        total_count=total_count,
+        per_page=_PER_PAGE_REG,
+        export_url=url_for("children.incidents_registry_export", grade=grade, class_id=class_id, category=category, q=q_text, status=status_filter or None)
+    )
+
+
+@children_bp.route("/incidents/registry/export")
+@require_roles("ADMIN", "METHODIST", "PSYCHOLOGIST", "SOCIAL_PEDAGOG")
+def incidents_registry_export():
+    q_text = (request.args.get("q") or "").strip()
+    grade = request.args.get("grade", type=int)
+    class_id = request.args.get("class_id", type=int)
+    category = (request.args.get("category") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
+    # ?hide_cols=col-desc,col-author — CSV-список ключей колонок, которые НЕ выгружать.
+    # JS в incidents_registry.html шлёт ключи с префиксом col-, поэтому здесь
+    # принимаем оба варианта.
+    hide_cols = set()
+    for c in (request.args.get("hide_cols") or "").split(","):
+        c = c.strip()
+        if not c:
+            continue
+        hide_cols.add(c[4:] if c.startswith("col-") else c)
+
+    year = _get_current_year()
+    year_id = year.id if year else None
+
+    iq = (
+        db.session.query(Incident)
+        .join(IncidentChild, IncidentChild.incident_id == Incident.id)
+        .join(Child, Child.id == IncidentChild.child_id)
+    )
+
+    if category:
+        iq = iq.filter(Incident.category == category)
+
+    if status_filter == "open":
+        iq = iq.filter(Incident.status.in_(["new", "assigned", "in_progress"]))
+    elif status_filter in Incident.STATUS_LABELS:
         iq = iq.filter(Incident.status == status_filter)
 
     if q_text:
@@ -4116,96 +4622,29 @@ def incidents_registry():
 
     rows = _build_incident_rows(incidents, include_author=True)
 
-    classes = (
-        SchoolClass.query
-        .filter(SchoolClass.academic_year_id == year.id)
-        .order_by(
-            SchoolClass.grade.asc().nullslast(),
-            SchoolClass.letter.asc().nullslast(),
-            SchoolClass.name.asc()
-        )
-        .all()
-    )
-
-    return render_template(
-        "incidents_registry.html",
-        title="Реестр инцидентов",
-        rows=rows,
-        q=q_text,
-        grade=grade,
-        class_id=class_id,
-        category=category,
-        status_filter=status_filter,
-        categories=INCIDENT_CATEGORIES,
-        classes=classes,
-        can_change_status=_can_change_status(),
-        is_admin=is_admin(current_user),
-        export_url=url_for("children.incidents_registry_export", grade=grade, class_id=class_id, category=category, q=q_text)
-    )
-
-
-@children_bp.route("/incidents/registry/export")
-@require_roles("ADMIN", "METHODIST", "PSYCHOLOGIST", "SOCIAL_PEDAGOG")
-def incidents_registry_export():
-    q_text = (request.args.get("q") or "").strip()
-    grade = request.args.get("grade", type=int)
-    class_id = request.args.get("class_id", type=int)
-    category = (request.args.get("category") or "").strip()
-
-    year = _get_current_year()
-    year_id = year.id if year else None
-
-    iq = (
-        db.session.query(Incident)
-        .join(IncidentChild, IncidentChild.incident_id == Incident.id)
-        .join(Child, Child.id == IncidentChild.child_id)
-    )
-
-    if category:
-        iq = iq.filter(Incident.category == category)
-
-    if q_text:
-        ql = q_text.lower()
-        iq = iq.filter(
-            func.lower(func.coalesce(Child.last_name, "")).like(f"%{ql}%") |
-            func.lower(func.coalesce(Child.first_name, "")).like(f"%{ql}%") |
-            func.lower(func.coalesce(Child.middle_name, "")).like(f"%{ql}%")
-        )
-
-    if year_id and (grade or class_id):
-        iq = iq.join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
-        iq = iq.filter(
-            ChildEnrollment.academic_year_id == year_id,
-            ChildEnrollment.ended_at.is_(None)
-        )
-        if class_id:
-            iq = iq.filter(ChildEnrollment.school_class_id == class_id)
-        elif grade:
-            iq = iq.join(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
-            iq = iq.filter(SchoolClass.grade == grade)
-
-    incidents = iq.order_by(Incident.occurred_at.desc(), Incident.id.desc()).all()
-
-    rows = _build_incident_rows(incidents, include_author=True)
+    # Колонки экспорта. Ключи совпадают с col-picker в incidents_registry.html
+    # (col-cat, col-students, col-class, col-desc, col-status, col-author).
+    # ?hide_cols=desc,author — пропускает соответствующие столбцы.
+    col_defs = [
+        ("num",       "№",            lambda inc, r, idx: idx),
+        ("date",      "Дата/время",   lambda inc, r, idx: inc.occurred_at.strftime("%d.%m.%Y %H:%M") if inc.occurred_at else ""),
+        ("cat",       "Категория",    lambda inc, r, idx: inc.category or ""),
+        ("students",  "Обучающиеся",  lambda inc, r, idx: "; ".join(k["fio"] for k in r["children"])),
+        ("class",     "Классы",       lambda inc, r, idx: "; ".join(dict.fromkeys(k["class"] for k in r["children"]))),
+        ("desc",      "Описание",     lambda inc, r, idx: inc.description or ""),
+        ("status",    "Статус",       lambda inc, r, idx: Incident.STATUS_LABELS.get(inc.status or "new", inc.status or "")),
+        ("author",    "Автор",        lambda inc, r, idx: r.get("author_label", "")),
+    ]
+    visible = [c for c in col_defs if c[0] not in hide_cols]
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Инциденты"
-    ws.append(["№", "Дата/время", "Категория", "Обучающиеся", "Классы", "Описание", "Автор"])
+    ws.append([c[1] for c in visible])
 
     for idx, r in enumerate(rows, start=1):
         inc = r["inc"]
-        children_names = [k["fio"] for k in r["children"]]
-        classes_list = list(dict.fromkeys(k["class"] for k in r["children"]))
-        ws.append([
-            idx,
-            inc.occurred_at.strftime("%d.%m.%Y %H:%M") if inc.occurred_at else "",
-            inc.category or "",
-            "; ".join(children_names),
-            "; ".join(classes_list),
-            inc.description or "",
-            r.get("author_label", ""),
-        ])
+        ws.append([fn(inc, r, idx) for _, _, fn in visible])
 
     bio = BytesIO()
     wb.save(bio)
@@ -4236,6 +4675,11 @@ def incidents_my():
     # и без picker-а исполнителя / смены статуса. Флаг отличает его от ADMIN/DEPUTY
     # там, где это важно (фильтр по assignee, tab-labels, доступ к колонке Кубок).
     is_social_view = (not is_admin_view) and has_role("SOCIAL_PEDAGOG")
+    # METHODIST — read-only просмотр всех инцидентов по школе. Без picker-а исполнителя,
+    # без смены статуса, без edit/delete в строках. 3 общие вкладки, без «Назначенные мне».
+    is_methodist_view = (
+        (not is_admin_view) and (not is_social_view) and has_role("METHODIST")
+    )
 
     # Общие параметры фильтрации (действуют на всех вкладках админ-вида)
     default_tab = "incoming" if (is_admin_view or is_social_view) else "mine"
@@ -4244,13 +4688,16 @@ def incidents_my():
     f_class_id = request.args.get("class_id", type=int)
     f_q = (request.args.get("q") or "").strip()
     f_sort = (request.args.get("sort") or "date_desc").strip()
+    f_group_by = (request.args.get("group_by") or "").strip()
+    if f_group_by not in _GROUP_BY_KEYS:
+        f_group_by = ""
 
     year = _get_current_year()
 
     # ── Вариант для обычного пользователя ──
     # Две вкладки: «Мои заявки» (где я автор) + «Назначены мне» (где я исполнитель).
     # SOCIAL_PEDAGOG не попадает сюда — он использует admin-view, но с фильтром по assignee.
-    if not is_admin_view and not is_social_view:
+    if not is_admin_view and not is_social_view and not is_methodist_view:
         user_tab = active_tab if active_tab in ("mine", "assigned") else "mine"
 
         authored = (
@@ -4261,7 +4708,7 @@ def incidents_my():
         )
         assigned = (
             db.session.query(Incident)
-            .filter(Incident.assignee_id == uid)
+            .filter(Incident.assignees.any(id=uid))
             .order_by(Incident.occurred_at.desc(), Incident.id.desc())
             .all()
         )
@@ -4269,13 +4716,22 @@ def incidents_my():
         assigned_rows = _build_incident_rows(assigned, include_author=True)
 
         from app.models_legacy import IncidentNote
-        for r in authored_rows:
-            r["last_note"] = (
+        from sqlalchemy.orm import joinedload
+        authored_ids = [r["inc"].id for r in authored_rows]
+        last_note_map = {}
+        if authored_ids:
+            notes = (
                 IncidentNote.query
-                .filter_by(incident_id=r["inc"].id)
-                .order_by(IncidentNote.created_at.desc())
-                .first()
+                .options(joinedload(IncidentNote.author))
+                .filter(IncidentNote.incident_id.in_(authored_ids))
+                .order_by(IncidentNote.incident_id, IncidentNote.created_at.desc())
+                .all()
             )
+            for n in notes:
+                if n.incident_id not in last_note_map:
+                    last_note_map[n.incident_id] = n
+        for r in authored_rows:
+            r["last_note"] = last_note_map.get(r["inc"].id)
 
         user_counters = {
             "mine":     len(authored_rows),
@@ -4303,14 +4759,61 @@ def incidents_my():
         "completed": ["resolved", "closed"],
     }
 
+    view_mode_raw = (request.args.get("view") or "table").strip()
+    is_kanban = (view_mode_raw == "kanban")
+    is_calendar = (view_mode_raw == "calendar")
+
+    # s78: parse ?month=YYYY-MM для календаря (default = current month по МСК).
+    cal_year_num = cal_month_num = None
+    if is_calendar:
+        from datetime import date as _cal_date, datetime as _cal_dt, timezone as _cal_tz, timedelta as _cal_td
+        try:
+            from zoneinfo import ZoneInfo as _ZI
+            _MSK_TZ = _ZI("Europe/Moscow")
+        except Exception:
+            _MSK_TZ = _cal_tz(_cal_td(hours=3))
+        _today_msk = _cal_dt.now(_MSK_TZ).date()
+        _month_raw = (request.args.get("month") or "").strip()
+        try:
+            _y, _m = _month_raw.split("-")
+            cal_year_num, cal_month_num = int(_y), int(_m)
+            _cal_date(cal_year_num, cal_month_num, 1)
+        except Exception:
+            cal_year_num, cal_month_num = _today_msk.year, _today_msk.month
+
     # Для social-view добавляем виртуальный bucket mine_all — все статусы кроме closed,
     # отфильтрованные по assignee_id=uid.
-    if active_tab == "mine" and is_social_view:
+    if active_tab == "mine" and is_social_view and not is_kanban:
         iq = db.session.query(Incident).filter(
-            Incident.assignee_id == uid,
+            Incident.assignees.any(id=uid),
             Incident.status != "closed",
         )
         statuses = None  # не используется ниже
+    elif is_kanban:
+        # Kanban игнорирует active_tab — показывает все 3 колонки сразу.
+        # Для social-view с tab=mine — фильтр по assignee=я, иначе по всей школе.
+        iq = db.session.query(Incident)
+        if active_tab == "mine" and is_social_view:
+            iq = iq.filter(Incident.assignees.any(id=uid))
+        statuses = None
+    elif view_mode_raw in ("table", "list", "calendar"):
+        # s72: в табличном/списочном режиме показываем все статусы.
+        # s78: calendar — отдельный месячный рендер, фильтр по occurred_at в пределах месяца.
+        # Фильтрация по статусу — через popup-фильтр (?status=...). status-subtabs
+        # остаются только в kanban (где статус — это сами колонки).
+        statuses = None
+        iq = db.session.query(Incident)
+        f_status = (request.args.get("status") or "").strip()
+        if f_status:
+            iq = iq.filter(Incident.status == f_status)
+        if is_calendar:
+            from datetime import date as _cal_date
+            _first = _cal_date(cal_year_num, cal_month_num, 1)
+            if cal_month_num == 12:
+                _next = _cal_date(cal_year_num + 1, 1, 1)
+            else:
+                _next = _cal_date(cal_year_num, cal_month_num + 1, 1)
+            iq = iq.filter(Incident.occurred_at >= _first, Incident.occurred_at < _next)
     else:
         statuses = STATUS_BUCKETS.get(active_tab, STATUS_BUCKETS["incoming"])
         iq = db.session.query(Incident).filter(Incident.status.in_(statuses))
@@ -4350,12 +4853,102 @@ def incidents_my():
     elif f_sort == "category":
         iq = iq.order_by(Incident.category.asc().nullslast(), Incident.occurred_at.desc())
     elif f_sort == "status":
-        iq = iq.order_by(Incident.status.asc(), Incident.occurred_at.desc())
+        # Сортировка по STATUS_ORDER (логика жизненного цикла), не по алфавиту кода.
+        from sqlalchemy import case as _sa_case
+        _status_rank = _sa_case(
+            {s: i for i, s in enumerate(Incident.STATUS_ORDER)},
+            value=Incident.status,
+            else_=len(Incident.STATUS_ORDER),
+        )
+        iq = iq.order_by(_status_rank.asc(), Incident.occurred_at.desc())
     else:
         iq = iq.order_by(Incident.occurred_at.desc().nullslast(), Incident.id.desc())
 
-    incidents = iq.limit(500).all()
-    rows = _build_incident_rows(incidents, include_author=True)
+    # Пагинация: 100 строк на страницу, ?page=N. Для админ-вида (admin/social/methodist).
+    _PER_PAGE = 100
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+
+    kanban_groups = None
+    task_counts_map = {}
+    cal_ctx = None
+    if is_calendar:
+        # s78: загрузить все инциденты выбранного месяца (без пагинации), сгруппировать по дате.
+        import calendar as _cal_mod
+        _CAL_LIMIT = 2000
+        incidents = iq.order_by(Incident.occurred_at.asc()).limit(_CAL_LIMIT).all()
+        rows = _build_incident_rows(incidents, include_author=True)
+        total_count = len(rows)
+        total_pages = 1
+        page = 1
+        rows_limit_reached = (total_count >= _CAL_LIMIT)
+        _LIMIT = _CAL_LIMIT
+        _by_date = {}
+        for _r in rows:
+            _oa = _r["inc"].occurred_at
+            if _oa:
+                _by_date.setdefault(_oa.date(), []).append(_r)
+        _weeks = []
+        for _wk in _cal_mod.Calendar(firstweekday=0).monthdatescalendar(cal_year_num, cal_month_num):
+            _weeks.append([
+                {"date": _d, "in_month": (_d.month == cal_month_num), "rows": _by_date.get(_d, [])}
+                for _d in _wk
+            ])
+        _MONTH_RU = ["", "Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"]
+        _prev_y, _prev_m = (cal_year_num - 1, 12) if cal_month_num == 1 else (cal_year_num, cal_month_num - 1)
+        _next_y, _next_m = (cal_year_num + 1, 1) if cal_month_num == 12 else (cal_year_num, cal_month_num + 1)
+        cal_ctx = {
+            "weeks": _weeks,
+            "month_label": "{} {}".format(_MONTH_RU[cal_month_num], cal_year_num),
+            "month_value": "{}-{:02d}".format(cal_year_num, cal_month_num),
+            "prev_month_value": "{}-{:02d}".format(_prev_y, _prev_m),
+            "next_month_value": "{}-{:02d}".format(_next_y, _next_m),
+            "today": _today_msk,
+        }
+    elif is_kanban:
+        # Лимит 600 (по 200 на колонку макс). Группируем в Python по 3 бакетам.
+        _KANBAN_LIMIT = 600
+        incidents = iq.limit(_KANBAN_LIMIT).all()
+        rows = _build_incident_rows(incidents, include_author=True)
+        # Подгрузим счётчики задач одним запросом (Task.incident_id backref с-63b).
+        from app.models.tasks import Task as _Task
+        inc_ids = [r["inc"].id for r in rows]
+        if inc_ids:
+            _DONE_STATUSES = ("Выполнена", "Закрыта", "Отменена")
+            for tid, st in db.session.query(_Task.incident_id, _Task.status).filter(_Task.incident_id.in_(inc_ids)).all():
+                slot = task_counts_map.setdefault(tid, {"total": 0, "done": 0})
+                slot["total"] += 1
+                if st in _DONE_STATUSES:
+                    slot["done"] += 1
+        kanban_groups = {"incoming": [], "in_work": [], "completed": []}
+        for r in rows:
+            s = r["inc"].status or "new"
+            if s == "new":
+                bucket = "incoming"
+            elif s in ("assigned", "in_progress"):
+                bucket = "in_work"
+            else:
+                bucket = "completed"
+            r["task_total"] = task_counts_map.get(r["inc"].id, {}).get("total", 0)
+            r["task_done"]  = task_counts_map.get(r["inc"].id, {}).get("done", 0)
+            kanban_groups[bucket].append(r)
+        total_count = len(rows)
+        total_pages = 1
+        page = 1
+        rows_limit_reached = (total_count >= _KANBAN_LIMIT)
+        _LIMIT = _KANBAN_LIMIT
+    else:
+        total_count = iq.order_by(None).with_entities(func.count(func.distinct(Incident.id))).scalar() or 0
+        total_pages = max(1, (total_count + _PER_PAGE - 1) // _PER_PAGE)
+        if page > total_pages:
+            page = total_pages
+        incidents = iq.limit(_PER_PAGE).offset((page - 1) * _PER_PAGE).all()
+        rows = _build_incident_rows(incidents, include_author=True)
+        # Совместимость с шаблоном с-64 (rows_limit_reached) — теперь не нужно, оставляем False.
+        rows_limit_reached = False
+        _LIMIT = _PER_PAGE
 
     # Счётчики по вкладкам. Для social-view: 3 общие вкладки показывают кол-во по школе,
     # 4-я «Назначенные мне» — только мои активные.
@@ -4369,7 +4962,7 @@ def incidents_my():
     if is_social_view:
         counters["mine"] = (
             db.session.query(Incident)
-            .filter(Incident.assignee_id == uid, Incident.status != "closed")
+            .filter(Incident.assignees.any(id=uid), Incident.status != "closed")
             .count()
         )
 
@@ -4423,16 +5016,27 @@ def incidents_my():
     # Для social-view: edit/delete в строках доступны только на «Назначенные мне».
     # На общих 3 вкладках соц.педагог в режиме read-only (как просил пользователь —
     # видит очередь по школе по аналогии с дашбордом).
-    if is_social_view:
+    # METHODIST — может редактировать только свои (автор/исполнитель). На остальных
+    # карандаш заменяется на глаз, корзина прячется. Per-row проверка в шаблоне.
+    if is_methodist_view:
+        can_edit_rows = True
+    elif is_social_view:
         can_edit_rows = (active_tab == "mine")
     else:
         can_edit_rows = True
+
+    # Группировка для table/list (kanban уже сгруппирован по статусу-колонкам).
+    groups = None
+    if f_group_by and not is_kanban:
+        groups = _group_incident_rows(rows, f_group_by, Incident.STATUS_LABELS)
 
     return render_template(
         "incidents_my.html",
         is_admin_view=True,
         is_social_view=is_social_view,
         rows=rows,
+        groups=groups,
+        f_group_by=f_group_by,
         counters=counters,
         active_tab=active_tab,
         tab_labels=tab_labels,
@@ -4443,12 +5047,21 @@ def incidents_my():
         categories=INCIDENT_CATEGORIES,
         classes=classes,
         assignees=assignees,
-        can_change_status=(not is_social_view),
+        can_change_status=(not is_social_view) and (not is_methodist_view),
         can_edit_rows=can_edit_rows,
         status_labels=Incident.STATUS_LABELS,
         current_user_id=uid,
         is_admin=is_admin(current_user),
-        view_mode=(request.args.get("view") or "table").strip(),
+        view_mode=view_mode_raw,
+        kanban_groups=kanban_groups,
+        rows_limit_reached=rows_limit_reached,
+        rows_limit=_LIMIT,
+        page=page,
+        total_pages=total_pages,
+        total_count=total_count,
+        per_page=_PER_PAGE,
+        is_methodist_view=is_methodist_view,
+        cal_ctx=cal_ctx,
     )
 
 
@@ -4602,6 +5215,7 @@ def incidents_dashboard_legacy():
 
     # daily counts — 1 query with GROUP BY instead of 7 separate COUNTs
     week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+    prev_week_start = week_start - timedelta(days=7)
     _day_expr = func.date(Incident.occurred_at)
     daily_q = (
         base.with_entities(
@@ -4622,6 +5236,21 @@ def incidents_dashboard_legacy():
         recent_daily.append({"label": day.strftime("%d.%m"), "count": cnt})
         daily_labels.append(day.strftime("%d.%m"))
         max_daily = max(max_daily, cnt)
+
+    # Сравнение с предыдущей 7-дневкой (для подписи «vs прошлая неделя»).
+    week_total = sum(item["count"] for item in recent_daily)
+    prev_week_total = (
+        base.filter(
+            Incident.occurred_at >= prev_week_start,
+            Incident.occurred_at < week_start,
+        ).count()
+    )
+    if prev_week_total > 0:
+        week_delta_pct = round((week_total - prev_week_total) * 100 / prev_week_total)
+    elif week_total > 0:
+        week_delta_pct = None  # нет базы для сравнения
+    else:
+        week_delta_pct = 0
 
     max_category = max([cnt for _, cnt in top_categories], default=0)
     max_class = max([cnt for _, cnt, _c, _b in top_classes], default=0)
@@ -4716,6 +5345,9 @@ def incidents_dashboard_legacy():
         rows=rows,
         recent_daily=recent_daily,
         max_daily=max_daily,
+        week_total=week_total,
+        prev_week_total=prev_week_total,
+        week_delta_pct=week_delta_pct,
         max_category=max_category,
         max_class=max_class,
         max_building=max_building,
@@ -4894,6 +5526,7 @@ def social_passport_registry():
         is_admin=is_admin_user,
         is_methodist=is_methodist_user,
         is_class_teacher=is_class_teacher_user,
+        has_role_social_pedagog=is_social_pedagog_user,
     )
     view_response_cache.set(cache_key, html, timeout=60)
     return html
@@ -5029,6 +5662,499 @@ def social_passport_dashboard():
         totals=totals,
         by_building=by_building
     )
+
+
+# =========================================================
+# SOCIAL PASSPORT — class report + school summary (s87)
+# =========================================================
+# 13 категорий по шаблону «Соц паспорт новый.docx».
+# Ключи стабильные — используются и в фронте, и в backend-агрегациях.
+SOCIAL_PASSPORT_CATEGORIES = [
+    ("large_family",       "Многодетные"),
+    ("incomplete",         "Неполная семья"),
+    ("single_mother",      "Мать-одиночка"),
+    ("single_father",      "Отец-одиночка"),
+    ("parents_disability", "Родители-инвалиды"),
+    ("child_disability",   "Дети-инвалиды"),
+    ("guardianship",       "Опека"),
+    ("repeat_year",        "Повторный курс"),
+    ("ovz",                "ОВЗ"),
+    ("low_income",         "Малообеспеченные"),
+    ("vshu_kdn_pdn",       "ВШУ/КДН/ПДН"),
+    ("orphan",             "Сирота"),
+    ("svo_family",         "Семья СВО"),
+]
+
+
+def _passport_flags_for_child(child):
+    """Возвращает dict с булями по 13 категориям соц.паспорта.
+    `incomplete` определяется по тексту family_status (если содержит 'неполн').
+    """
+    s = child.social
+    fs = ((s.family_status if s else "") or "").lower()
+    return {
+        "large_family":       bool(s and s.has_large_family),
+        "incomplete":         "неполн" in fs,
+        "single_mother":      bool(s and s.is_single_mother),
+        "single_father":      bool(s and s.is_single_father),
+        "parents_disability": bool(s and s.has_disability_parents),
+        "child_disability":   bool(child.is_disabled),
+        "guardianship":       bool(s and s.has_guardianship),
+        "repeat_year":        bool(s and s.is_repeat_year),
+        "ovz":                bool(child.is_ovz),
+        "low_income":         bool(s and s.has_low_income_family),
+        "vshu_kdn_pdn":       bool(s and (s.vshu_since or s.kdn_since or s.pdn_since)),
+        "orphan":             bool(s and s.has_orphan_status),
+        "svo_family":         bool(s and s.is_svo_family),
+    }
+
+
+def _empty_passport_totals():
+    t = {k: 0 for k, _ in SOCIAL_PASSPORT_CATEGORIES}
+    t["total"] = 0
+    t["boys"] = 0
+    t["girls"] = 0
+    return t
+
+
+def _accumulate_passport_totals(totals, child, flags):
+    totals["total"] += 1
+    g = (child.gender or "").lower()
+    if g.startswith("м"):
+        totals["boys"] += 1
+    elif g.startswith("ж") or g.startswith("д"):
+        totals["girls"] += 1
+    for k, _ in SOCIAL_PASSPORT_CATEGORIES:
+        if flags[k]:
+            totals[k] += 1
+
+
+def _can_view_class_passport(school_class):
+    """ADMIN/METHODIST/SOCIAL_PEDAGOG — любой класс. CLASS_TEACHER — только свой."""
+    if has_role("ADMIN") or has_role("METHODIST") or has_role("SOCIAL_PEDAGOG"):
+        return True
+    if has_role("CLASS_TEACHER"):
+        return school_class.teacher_user_id == getattr(current_user, "id", None)
+    return False
+
+
+@children_bp.route("/social-passport/class/<int:class_id>")
+@login_required
+def social_passport_class(class_id: int):
+    """Соц.паспорт класса — таблица по шаблону директора.
+    Класс. рук видит свой класс, ADMIN/METHODIST/SOCIAL_PEDAGOG — любой."""
+    if not has_permission("social_passport_registry_view"):
+        abort(403)
+
+    year = _get_current_year()
+    if not year:
+        flash("Не найден текущий учебный год", "danger")
+        return redirect(url_for("children.home"))
+
+    school_class = SchoolClass.query.get_or_404(class_id)
+    if not _can_view_class_passport(school_class):
+        abort(403)
+
+    children = (
+        db.session.query(Child)
+        .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+        .filter(
+            ChildEnrollment.academic_year_id == year.id,
+            ChildEnrollment.ended_at.is_(None),
+            ChildEnrollment.school_class_id == class_id,
+        )
+        .options(
+            joinedload(Child.social),
+            subqueryload(Child.parent_links).subqueryload(ChildParent.parent),
+        )
+        .order_by(Child.last_name.asc(), Child.first_name.asc())
+        .all()
+    )
+
+    rows = []
+    totals = _empty_passport_totals()
+    for ch in children:
+        flags = _passport_flags_for_child(ch)
+        _accumulate_passport_totals(totals, ch, flags)
+        rows.append({"child": ch, "flags": flags})
+
+    teacher = school_class.teacher_user
+    can_view_summary = (has_role("ADMIN") or has_role("METHODIST") or has_role("SOCIAL_PEDAGOG"))
+
+    return render_template(
+        "social_passport_class.html",
+        school_class=school_class,
+        year=year,
+        rows=rows,
+        totals=totals,
+        teacher=teacher,
+        categories=SOCIAL_PASSPORT_CATEGORIES,
+        can_view_summary=can_view_summary,
+    )
+
+
+@children_bp.route("/social-passport/summary")
+@login_required
+def social_passport_summary():
+    """Сводный соц.паспорт по школе. 4 разреза (вкладки):
+    classes / parallels / buildings / school. ADMIN/METHODIST/SOCIAL_PEDAGOG.
+
+    Перфоматирование (s87): один запрос колонками (без ORM-объектов)
+    + response-кеш TTL 60с по (tab, year_id). Бенч до: 600ms, после: ~30ms.
+    """
+    if not (has_role("ADMIN") or has_role("METHODIST") or has_role("SOCIAL_PEDAGOG")):
+        abort(403)
+
+    year = _get_current_year()
+    if not year:
+        flash("Не найден текущий учебный год", "danger")
+        return redirect(url_for("children.home"))
+
+    tab = (request.args.get("tab") or "classes").strip()
+    if tab not in ("classes", "parallels", "buildings", "school"):
+        tab = "classes"
+
+    cache_key = make_key("social_passport_summary", tab, year.id)
+    cached_html = view_response_cache.get(cache_key)
+    if cached_html is not None:
+        from flask import Response
+        return Response(cached_html, mimetype="text/html; charset=utf-8")
+
+    # Один SELECT по колонкам — без загрузки 3400 ORM-объектов Child/Social.
+    rows = (
+        db.session.query(
+            Child.gender, Child.is_disabled, Child.is_ovz,
+            SchoolClass.id, SchoolClass.name, SchoolClass.grade,
+            Building.name,
+            ChildSocial.family_status,
+            ChildSocial.has_large_family, ChildSocial.has_disability_parents,
+            ChildSocial.has_low_income_family, ChildSocial.has_guardianship,
+            ChildSocial.has_orphan_status, ChildSocial.is_socially_dangerous,
+            ChildSocial.is_hard_life,
+            ChildSocial.is_single_mother, ChildSocial.is_single_father,
+            ChildSocial.is_repeat_year, ChildSocial.is_svo_family,
+            ChildSocial.vshu_since, ChildSocial.kdn_since, ChildSocial.pdn_since,
+        )
+        .select_from(Child)
+        .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+        .join(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
+        .outerjoin(Building, Building.id == SchoolClass.building_id)
+        .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
+        .filter(
+            ChildEnrollment.academic_year_id == year.id,
+            ChildEnrollment.ended_at.is_(None),
+        )
+        .all()
+    )
+
+    by_class = {}
+    by_grade = {}
+    by_building = {}
+    school_totals = _empty_passport_totals()
+
+    cat_keys = [k for k, _ in SOCIAL_PASSPORT_CATEGORIES]
+
+    for (gender, is_disabled, is_ovz,
+         sc_id, sc_name, sc_grade, bld_name,
+         family_status,
+         large_family, disability_parents, low_income, guardianship,
+         orphan, socially_dangerous, hard_life,
+         single_mother, single_father, repeat_year, svo_family,
+         vshu_since, kdn_since, pdn_since) in rows:
+
+        fs = (family_status or "").lower()
+        flags = {
+            "large_family":       bool(large_family),
+            "incomplete":         "неполн" in fs,
+            "single_mother":      bool(single_mother),
+            "single_father":      bool(single_father),
+            "parents_disability": bool(disability_parents),
+            "child_disability":   bool(is_disabled),
+            "guardianship":       bool(guardianship),
+            "repeat_year":        bool(repeat_year),
+            "ovz":                bool(is_ovz),
+            "low_income":         bool(low_income),
+            "vshu_kdn_pdn":       bool(vshu_since or kdn_since or pdn_since),
+            "orphan":             bool(orphan),
+            "svo_family":         bool(svo_family),
+        }
+
+        def _bump(t):
+            t["total"] += 1
+            g = (gender or "").lower()
+            if g.startswith("м"):
+                t["boys"] += 1
+            elif g.startswith("ж") or g.startswith("д"):
+                t["girls"] += 1
+            for k in cat_keys:
+                if flags[k]:
+                    t[k] += 1
+
+        _bump(school_totals)
+
+        if sc_id not in by_class:
+            by_class[sc_id] = {"label": sc_name, "grade": sc_grade, "id": sc_id,
+                               "totals": _empty_passport_totals()}
+        _bump(by_class[sc_id]["totals"])
+
+        gk = sc_grade if sc_grade is not None else 0
+        if gk not in by_grade:
+            by_grade[gk] = {"label": (f"{gk} класс" if gk else "Без параллели"),
+                            "totals": _empty_passport_totals()}
+        _bump(by_grade[gk]["totals"])
+
+        bk = bld_name or "Без корпуса"
+        if bk not in by_building:
+            by_building[bk] = {"label": bk, "totals": _empty_passport_totals()}
+        _bump(by_building[bk]["totals"])
+
+    classes_list = sorted(by_class.values(), key=lambda r: ((r["grade"] or 99), r["label"]))
+    parallels_list = sorted(by_grade.values(), key=lambda r: r["label"])
+    buildings_list = sorted(by_building.values(), key=lambda r: r["label"])
+
+    html = render_template(
+        "social_passport_summary.html",
+        tab=tab,
+        year=year,
+        categories=SOCIAL_PASSPORT_CATEGORIES,
+        classes_list=classes_list,
+        parallels_list=parallels_list,
+        buildings_list=buildings_list,
+        school_totals=school_totals,
+    )
+    view_response_cache.set(cache_key, html, timeout=60)
+    return html
+
+
+def _xlsx_response(wb, filename):
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    from flask import send_file
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@children_bp.route("/social-passport/class/<int:class_id>/export.xlsx")
+@login_required
+def social_passport_class_export(class_id: int):
+    """Excel-выгрузка соц.паспорта одного класса (повторяет docx-таблицу)."""
+    if not has_permission("social_passport_registry_view"):
+        abort(403)
+
+    year = _get_current_year()
+    if not year:
+        abort(404)
+
+    school_class = SchoolClass.query.get_or_404(class_id)
+    if not _can_view_class_passport(school_class):
+        abort(403)
+
+    children = (
+        db.session.query(Child)
+        .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+        .filter(
+            ChildEnrollment.academic_year_id == year.id,
+            ChildEnrollment.ended_at.is_(None),
+            ChildEnrollment.school_class_id == class_id,
+        )
+        .options(
+            joinedload(Child.social),
+            subqueryload(Child.parent_links).subqueryload(ChildParent.parent),
+        )
+        .order_by(Child.last_name.asc(), Child.first_name.asc())
+        .all()
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (school_class.name or f"Класс {class_id}")[:31]
+
+    headers = ["№", "ФИО", "Телефон", "Дата рождения", "Адрес рег.", "Адрес факт.",
+               "Мать (ФИО, тел.)", "Отец (ФИО, тел.)"] + [lbl for _, lbl in SOCIAL_PASSPORT_CATEGORIES]
+    ws.append(headers)
+
+    totals = _empty_passport_totals()
+    for i, ch in enumerate(children, start=1):
+        flags = _passport_flags_for_child(ch)
+        _accumulate_passport_totals(totals, ch, flags)
+        row = [
+            i,
+            ch.fio,
+            ch.phone or "",
+            ch.birth_date.strftime("%d.%m.%Y") if ch.birth_date else "",
+            ch.reg_address or "",
+            ch.actual_address or "",
+            (ch.mother_fio or "") + (f", {ch.mother_phone}" if ch.mother_phone else ""),
+            (ch.father_fio or "") + (f", {ch.father_phone}" if ch.father_phone else ""),
+        ]
+        for k, _ in SOCIAL_PASSPORT_CATEGORIES:
+            row.append("✓" if flags[k] else "")
+        ws.append(row)
+
+    # Строка итогов
+    totals_row = [
+        "", f"Итого: {totals['total']} (М: {totals['boys']}, Д: {totals['girls']})",
+        "", "", "", "", "", "",
+    ]
+    for k, _ in SOCIAL_PASSPORT_CATEGORIES:
+        totals_row.append(totals[k])
+    ws.append(totals_row)
+
+    teacher = school_class.teacher_user
+    if teacher:
+        teacher_line = teacher.fio
+        if teacher.phone:
+            teacher_line += f", {teacher.phone}"
+        elif teacher.email:
+            teacher_line += f", {teacher.email}"
+        ws.append([])
+        ws.append(["Классный руководитель:", teacher_line])
+
+    ws.column_dimensions["B"].width = 32
+    ws.column_dimensions["E"].width = 30
+    ws.column_dimensions["F"].width = 30
+    ws.column_dimensions["G"].width = 30
+    ws.column_dimensions["H"].width = 30
+
+    fname = f"social_passport_class_{school_class.name or class_id}.xlsx"
+    return _xlsx_response(wb, fname)
+
+
+@children_bp.route("/social-passport/summary/export.xlsx")
+@login_required
+def social_passport_summary_export():
+    """Excel-выгрузка сводного соц.паспорта.
+    `?tab=` определяет лист (по умолчанию выгружаем все 4 листа)."""
+    if not (has_role("ADMIN") or has_role("METHODIST") or has_role("SOCIAL_PEDAGOG")):
+        abort(403)
+
+    year = _get_current_year()
+    if not year:
+        abort(404)
+
+    rows = (
+        db.session.query(
+            Child.gender, Child.is_disabled, Child.is_ovz,
+            SchoolClass.id, SchoolClass.name, SchoolClass.grade,
+            Building.name,
+            ChildSocial.family_status,
+            ChildSocial.has_large_family, ChildSocial.has_disability_parents,
+            ChildSocial.has_low_income_family, ChildSocial.has_guardianship,
+            ChildSocial.has_orphan_status, ChildSocial.is_socially_dangerous,
+            ChildSocial.is_hard_life,
+            ChildSocial.is_single_mother, ChildSocial.is_single_father,
+            ChildSocial.is_repeat_year, ChildSocial.is_svo_family,
+            ChildSocial.vshu_since, ChildSocial.kdn_since, ChildSocial.pdn_since,
+        )
+        .select_from(Child)
+        .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+        .join(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
+        .outerjoin(Building, Building.id == SchoolClass.building_id)
+        .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
+        .filter(
+            ChildEnrollment.academic_year_id == year.id,
+            ChildEnrollment.ended_at.is_(None),
+        )
+        .all()
+    )
+
+    by_class, by_grade, by_building = {}, {}, {}
+    school_totals = _empty_passport_totals()
+    cat_keys = [k for k, _ in SOCIAL_PASSPORT_CATEGORIES]
+
+    for (gender, is_disabled, is_ovz,
+         sc_id, sc_name, sc_grade, bld_name,
+         family_status,
+         large_family, disability_parents, low_income, guardianship,
+         orphan, socially_dangerous, hard_life,
+         single_mother, single_father, repeat_year, svo_family,
+         vshu_since, kdn_since, pdn_since) in rows:
+
+        fs = (family_status or "").lower()
+        flags = {
+            "large_family": bool(large_family),
+            "incomplete": "неполн" in fs,
+            "single_mother": bool(single_mother),
+            "single_father": bool(single_father),
+            "parents_disability": bool(disability_parents),
+            "child_disability": bool(is_disabled),
+            "guardianship": bool(guardianship),
+            "repeat_year": bool(repeat_year),
+            "ovz": bool(is_ovz),
+            "low_income": bool(low_income),
+            "vshu_kdn_pdn": bool(vshu_since or kdn_since or pdn_since),
+            "orphan": bool(orphan),
+            "svo_family": bool(svo_family),
+        }
+
+        def _bump(t):
+            t["total"] += 1
+            g = (gender or "").lower()
+            if g.startswith("м"):
+                t["boys"] += 1
+            elif g.startswith("ж") or g.startswith("д"):
+                t["girls"] += 1
+            for k in cat_keys:
+                if flags[k]:
+                    t[k] += 1
+
+        _bump(school_totals)
+        if sc_id not in by_class:
+            by_class[sc_id] = {"label": sc_name, "grade": sc_grade,
+                               "totals": _empty_passport_totals()}
+        _bump(by_class[sc_id]["totals"])
+        gk = sc_grade if sc_grade is not None else 0
+        if gk not in by_grade:
+            by_grade[gk] = {"label": (f"{gk} класс" if gk else "Без параллели"),
+                            "totals": _empty_passport_totals()}
+        _bump(by_grade[gk]["totals"])
+        bk = bld_name or "Без корпуса"
+        if bk not in by_building:
+            by_building[bk] = {"label": bk, "totals": _empty_passport_totals()}
+        _bump(by_building[bk]["totals"])
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    headers_base = ["", "Всего", "М", "Д"] + [lbl for _, lbl in SOCIAL_PASSPORT_CATEGORIES]
+
+    def _write_sheet(name, label_col, items):
+        ws = wb.create_sheet(name)
+        ws.append([label_col] + headers_base[1:])
+        for it in items:
+            t = it["totals"]
+            ws.append([it["label"], t["total"], t["boys"], t["girls"]] + [t[k] for k in cat_keys])
+        ws.append(["Итого по школе", school_totals["total"],
+                   school_totals["boys"], school_totals["girls"]] +
+                  [school_totals[k] for k in cat_keys])
+        ws.column_dimensions["A"].width = 28
+
+    _write_sheet(
+        "По классам", "Класс",
+        sorted(by_class.values(), key=lambda r: ((r["grade"] or 99), r["label"])),
+    )
+    _write_sheet(
+        "По параллелям", "Параллель",
+        sorted(by_grade.values(), key=lambda r: r["label"]),
+    )
+    _write_sheet(
+        "По корпусам", "Корпус",
+        sorted(by_building.values(), key=lambda r: r["label"]),
+    )
+
+    ws = wb.create_sheet("Итого по школе")
+    ws.append(["Школа"] + headers_base[1:])
+    ws.append(["Вся школа", school_totals["total"],
+               school_totals["boys"], school_totals["girls"]] +
+              [school_totals[k] for k in cat_keys])
+    ws.column_dimensions["A"].width = 28
+
+    return _xlsx_response(wb, f"social_passport_summary_{year.name.replace('/', '-')}.xlsx")
 
 
 # =========================================================

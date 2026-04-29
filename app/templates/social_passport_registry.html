@@ -27,6 +27,53 @@
   @media (min-width: 768px) {
     #spViewCards.auto { display:none; }
   }
+
+  /* UX-фиксы для широкой таблицы (17 столбцов): sticky-header + sticky ФИО,
+     ограниченная высота со scroll внутри (горизонталка не уезжает в самый низ),
+     truncate адресов до 2 строк с подсказкой по hover.
+     Однотонный стиль: белый фон, тонкие разделители #e9ecef — без зебры,
+     чтобы sticky-колонка не разрывала ритм цветами. */
+  #spViewTable { max-height: 75vh; overflow: auto; }
+  #spViewTable table { margin-bottom: 0; background: #fff; }
+  #spViewTable .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg: transparent; }
+  #spViewTable tbody tr { background: #fff; }
+  #spViewTable thead th, #spViewTable tbody td { border-color: #e9ecef; }
+  #spViewTable thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: #fff; border-bottom: 1px solid #e9ecef;
+    font-weight: 600;
+  }
+  /* Колонка ФИО (2-я) залипает при горизонтальной прокрутке. */
+  #spViewTable tbody td:nth-child(2),
+  #spViewTable thead th:nth-child(2) {
+    position: sticky; left: 0; z-index: 2; background: #fff;
+    border-right: 1px solid #e9ecef;
+    min-width: 200px;
+  }
+  #spViewTable thead th:nth-child(2) { z-index: 4; }
+  #spViewTable tbody tr:hover td { background: #fafafa; }
+  #spViewTable tbody tr:hover td:nth-child(2) { background: #fafafa; }
+
+  /* Адрес — режем в 2 строки, остальное — title-tooltip */
+  .sp-addr {
+    max-width: 240px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+  }
+  /* Длинное «Состав семьи» / «Примечание» — то же truncate */
+  .sp-clip2 {
+    max-width: 220px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+  }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -40,7 +87,19 @@
       {% endif %}
     </div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if selected_class_id %}
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('children.social_passport_class', class_id=selected_class_id) }}">
+        <i class="bi bi-table"></i> Паспорт класса
+      </a>
+    {% endif %}
+    {% if is_admin or is_methodist or has_role_social_pedagog %}
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('children.social_passport_summary') }}">
+        <i class="bi bi-grid-3x3-gap"></i> Сводная
+      </a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
 </div>
 
 <div class="card mb-3">
@@ -118,8 +177,8 @@
             <td>{{ ch.mother_phone or "—" }}</td>
             <td>{{ ch.father_fio or "—" }}</td>
             <td>{{ ch.father_phone or "—" }}</td>
-            <td>{{ ch.reg_address or "—" }}</td>
-            <td>{{ ch.social.family_status if ch.social else "—" }}</td>
+            <td><div class="sp-addr" title="{{ ch.reg_address or '' }}">{{ ch.reg_address or "—" }}</div></td>
+            <td><div class="sp-clip2" title="{{ (ch.social.family_status if ch.social else '') or '' }}">{{ (ch.social.family_status if ch.social else None) or "—" }}</div></td>
             <td>{{ "Да" if ch.social and ch.social.has_large_family else "—" }}</td>
             <td>{{ "Да" if ch.social and ch.social.has_low_income_family else "—" }}</td>
             <td>{{ "Да" if ch.social and ch.social.has_guardianship else "—" }}</td>
@@ -127,7 +186,7 @@
             <td>{{ "Да" if ch.social and ch.social.has_disability_parents else "—" }}</td>
             <td>{{ "Да" if ch.social and ch.social.is_socially_dangerous else "—" }}</td>
             <td>{{ "Да" if ch.social and ch.social.is_hard_life else "—" }}</td>
-            <td>{{ ch.social.notes if ch.social and ch.social.notes else "—" }}</td>
+            <td><div class="sp-clip2" title="{{ (ch.social.notes if ch.social else '') or '' }}">{{ ch.social.notes if ch.social and ch.social.notes else "—" }}</div></td>
           </tr>
         {% endfor %}
         {% if children|length == 0 %}

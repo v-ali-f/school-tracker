@@ -1,0 +1,49 @@
+/* Цвета 5 статусов инцидента — единый файл, дублировал в incidents_registry/dashboard/my.html.
+   Подключается глобально через layout.html. Селекторы узкие (s-*), на других страницах
+   классы не используются — побочных эффектов нет. */
+
+.status-badge.s-new         { background: #fff3e0; color: #92400e; }
+.status-badge.s-new::before { background: #f59e0b; }
+.status-badge.s-assigned         { background: #fef3c7; color: #92400e; }
+.status-badge.s-assigned::before { background: #f59e0b; }
+.status-badge.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
+.status-badge.s-in_progress::before { background: #3b82f6; }
+.status-badge.s-resolved         { background: #f3e8ff; color: #6b21a8; }
+.status-badge.s-resolved::before { background: #a855f7; }
+.status-badge.s-closed         { background: #f0fdf4; color: #15803d; }
+.status-badge.s-closed::before { background: #22c55e; }
+
+.status-pill.s-new         { background: #fff3e0; color: #92400e; }
+.status-pill.s-new::before { background: #f59e0b; }
+.status-pill.s-assigned         { background: #fef3c7; color: #92400e; }
+.status-pill.s-assigned::before { background: #f59e0b; }
+.status-pill.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
+.status-pill.s-in_progress::before { background: #3b82f6; }
+.status-pill.s-resolved         { background: #f3e8ff; color: #6b21a8; }
+.status-pill.s-resolved::before { background: #a855f7; }
+.status-pill.s-closed         { background: #f0fdf4; color: #15803d; }
+.status-pill.s-closed::before { background: #22c55e; }
+
+.sp-pill.s-new         { background: #fff3e0; color: #92400e; }
+.sp-pill.s-assigned    { background: #fef3c7; color: #92400e; }
+.sp-pill.s-in_progress { background: #eff6ff; color: #1d4ed8; }
+.sp-pill.s-resolved    { background: #f3e8ff; color: #6b21a8; }
+.sp-pill.s-closed      { background: #f0fdf4; color: #15803d; }
+
+.sp-dot.d-new         { background:#f59e0b; }
+.sp-dot.d-assigned    { background:#f59e0b; }
+.sp-dot.d-in_progress { background:#3b82f6; }
+.sp-dot.d-resolved    { background:#a855f7; }
+.sp-dot.d-closed      { background:#22c55e; }
+
+/* s74: filter popup на узких экранах — не уезжает за край, занимает почти всю ширину */
+@media (max-width: 480px) {
+  .filter-popup {
+    position: fixed;
+    top: auto; bottom: 0; left: 0; right: 0;
+    width: 100vw; max-width: 100vw; min-width: 0;
+    border-radius: 14px 14px 0 0;
+    max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 -10px 28px rgba(0,0,0,.18);
+  }
+}

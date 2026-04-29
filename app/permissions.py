@@ -49,7 +49,7 @@ PERMISSIONS = {
     },
 
     "incident_add": {
-        ADMIN, TEACHER, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG
+        ADMIN, TEACHER, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG, METHODIST
     },
 
     "incident_registry_view": {

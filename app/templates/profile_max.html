@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+{% block title %}MAX-бот — {{ app_display_title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-9">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-chat-dots text-primary" style="font-size:1.4rem;"></i>
+      <h4 class="m-0">Привязка MAX-бота</h4>
+    </div>
+
+    <p class="text-muted">
+      Подавайте инциденты прямо из мессенджера MAX, без захода на портал.
+      Бот задаст несколько простых вопросов: про какого ученика, что произошло, когда — и при необходимости попросит фото или видео.
+    </p>
+
+    {% if active %}
+      <div class="alert alert-success">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <strong>✅ Привязано:</strong>
+            {{ active.max_full_name or '—' }}
+            {% if bound_msk %}
+              <span class="text-muted small ms-2">с {{ bound_msk.strftime('%d.%m.%Y %H:%M') }} МСК</span>
+            {% endif %}
+          </div>
+          <form method="post" action="{{ url_for('auth.profile_max_revoke') }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger" type="submit"
+                    onclick="return confirm('Отвязать MAX от вашей учётной записи?')">
+              <i class="bi bi-x-circle me-1"></i>Отвязать
+            </button>
+          </form>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <h6 class="mb-2">Бот в MAX</h6>
+          <p class="mb-2">
+            <a href="{{ bot_url }}" target="_blank" rel="noopener">
+              <i class="bi bi-box-arrow-up-right me-1"></i>{{ bot_url }}
+            </a>
+          </p>
+          <p class="text-muted small mb-0">
+            Откройте бот в MAX и нажмите «📝 Новый инцидент».
+          </p>
+        </div>
+      </div>
+    {% elif pending %}
+      <div class="card border-warning">
+        <div class="card-body">
+          <h5 class="card-title mb-3"><i class="bi bi-key me-1"></i>Ваш код привязки</h5>
+
+          <ol class="mb-3">
+            <li class="mb-2">Откройте бота в MAX: <a href="{{ bot_url }}" target="_blank" rel="noopener">{{ bot_url }}</a></li>
+            <li class="mb-2">
+              Скопируйте команду ниже и отправьте её боту:
+              <div class="input-group input-group-lg mt-2">
+                <input id="max-start-cmd" type="text" class="form-control fw-bold text-center"
+                       style="font-family:monospace; letter-spacing:.15rem;"
+                       value="/start {{ pending.code }}" readonly>
+                <button class="btn btn-primary" type="button" id="max-start-copy"
+                        onclick="(function(){
+                          var inp=document.getElementById('max-start-cmd');
+                          var btn=document.getElementById('max-start-copy');
+                          var ok=function(){btn.innerHTML='<i class=&quot;bi bi-check2&quot;></i> Скопировано';
+                                            setTimeout(function(){btn.innerHTML='<i class=&quot;bi bi-clipboard&quot;></i> Копировать';},2000);};
+                          if(navigator.clipboard&&navigator.clipboard.writeText){
+                            navigator.clipboard.writeText(inp.value).then(ok,function(){inp.select();document.execCommand('copy');ok();});
+                          } else { inp.select(); inp.setSelectionRange(0,99); document.execCommand('copy'); ok(); }
+                        })();">
+                  <i class="bi bi-clipboard"></i> Копировать
+                </button>
+              </div>
+              <p class="text-muted small mt-1 mb-0">
+                Работает на компьютере и телефоне — нажмите «Копировать» и вставьте в чат с ботом.
+              </p>
+            </li>
+            <li>Через 10–20 секунд бот напишет «Привязано» — и эта страница обновится автоматически.</li>
+          </ol>
+
+          <p class="text-muted small mb-3">
+            Код действителен до {{ pending_msk.strftime('%H:%M') }} МСК (около 15 минут).
+          </p>
+          <form method="post" action="{{ url_for('auth.profile_max_revoke') }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Отменить запрос</button>
+          </form>
+        </div>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Привязать аккаунт MAX</h5>
+          <p class="text-muted small">
+            Вам выдадут 6-значный код, который надо отправить боту в MAX.
+            Привязка возможна только на один аккаунт MAX.
+          </p>
+          <form method="post" action="{{ url_for('auth.profile_max_generate') }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-key me-1"></i>Получить код
+            </button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="mt-4">
+      <a href="{{ url_for('auth.profile_settings') }}" class="text-muted small">
+        <i class="bi bi-arrow-left"></i> К настройкам профиля
+      </a>
+    </div>
+  </div>
+</div>
+
+{% if pending %}
+<script>
+(function(){
+  var url = "{{ url_for('auth.profile_max_status') }}";
+  var tries = 0;
+  var maxTries = 240;  // ~12 минут при 3с интервале
+  var t = setInterval(function(){
+    tries++;
+    if (tries > maxTries) { clearInterval(t); return; }
+    fetch(url, {credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d) return;
+        if (d.status === 'done' || d.status === 'none') {
+          clearInterval(t);
+          window.location.reload();
+        }
+      })
+      .catch(function(){ /* сеть мигнула — продолжаем */ });
+  }, 3000);
+})();
+</script>
+{% endif %}
+{% endblock %}

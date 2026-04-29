@@ -1,4 +1,13 @@
 {% extends "layout.html" %}
+{% block breadcrumb %}
+<nav class="app-breadcrumb" aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('children.classes_registry') }}">Классы</a></li>
+    <li class="breadcrumb-item active">Класс {{ school_class.name }}</li>
+  </ol>
+</nav>
+{% endblock %}
 {% block content %}
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
