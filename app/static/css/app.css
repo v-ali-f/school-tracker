@@ -75,15 +75,18 @@ body {
   object-fit: contain;
 }
 
-.login-title {
+.login-title,
+.login-form-title {
   font-size: 1.9rem;
   font-weight: 700;
   color: var(--brand-dark);
   line-height: 1.15;
+  margin: 0;
 }
 
-.login-subtitle {
+.login-form-hint {
   color: #6c757d;
+  font-size: 1rem;
 }
 
 .login-form-wrap {
@@ -150,7 +153,8 @@ body {
     padding: 26px;
   }
 
-  .login-title {
+  .login-title,
+  .login-form-title {
     font-size: 1.45rem;
   }
 
@@ -2674,6 +2678,17 @@ body {
   .app-navbar .brand-title .sub { font-size: .72rem; }
   .app-navbar .navbar-logo { width: 32px; height: 32px; }
   .app-navbar .navbar-brand { padding: .25rem 0; }
+}
+/* s90: на самых узких (<420px) бренд налезал на toggler и провоцировал
+   горизонтальный скролл всей страницы. Ограничиваем ширину и обрезаем хвосты. */
+@media (max-width: 419.98px) {
+  .navbar-brand-wrap { max-width: calc(100vw - 90px); overflow: hidden; }
+  .brand-title { min-width: 0; flex: 1 1 auto; }
+  .app-navbar .brand-title .main {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%; font-size: .95rem;
+  }
+  .app-navbar .brand-title .sub { display: none; }
 }
 
 /* Блок пользователя: ФИО + роль двумя строками */

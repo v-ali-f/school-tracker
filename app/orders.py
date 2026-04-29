@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from sqlalchemy import or_
+from sqlalchemy.orm import selectinload, joinedload
 
 from app.core.extensions import db
 from .models import SchoolOrder, OrderResponsible, OrderResponsibleLink, User
@@ -91,6 +92,10 @@ def registry():
             or_(SchoolOrder.responsible_user_id == responsible_id, OrderResponsibleLink.user_id == responsible_id)
         )
 
+    # s85: убираем N+1 на responsible_links[*].user
+    query = query.options(
+        selectinload(SchoolOrder.responsible_links).joinedload(OrderResponsibleLink.user)
+    )
     items = query.distinct().order_by(SchoolOrder.order_date.desc(), SchoolOrder.number.desc()).all()
     _attach_responsible_display(items)
     responsibles = OrderResponsible.query.order_by(OrderResponsible.section.asc()).all()

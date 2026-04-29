@@ -1,0 +1,106 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+  .sps-table { font-size:.82rem; }
+  .sps-table th { vertical-align:bottom; font-size:.72rem; line-height:1.15; }
+  .sps-table th.sps-cat { writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; min-width:1.6rem; padding:.4rem .25rem; }
+  .sps-table td.sps-num { text-align:center; }
+  .sps-totals td { font-weight:600; background:#f8f9fa; }
+  .sps-tabs .nav-link { color:#495057; }
+  .sps-tabs .nav-link.active { background:#fff1e6; color:#c25b00; border-color:#fed7aa #fed7aa #fff; }
+  @media print {
+    .no-print { display:none !important; }
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2 no-print">
+  <div>
+    <h3 class="mb-1">Сводный социальный паспорт</h3>
+    <div class="text-muted">{{ year.name }} · по школе</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.social_passport_registry') }}">По ученикам</a>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('children.social_passport_summary_export') }}">
+      <i class="bi bi-file-earmark-excel"></i> Excel (все 4 листа)
+    </a>
+    <button class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Печать</button>
+  </div>
+</div>
+
+<ul class="nav nav-tabs sps-tabs mb-3 no-print">
+  <li class="nav-item"><a class="nav-link {% if tab=='classes' %}active{% endif %}"   href="{{ url_for('children.social_passport_summary', tab='classes') }}">По классам</a></li>
+  <li class="nav-item"><a class="nav-link {% if tab=='parallels' %}active{% endif %}" href="{{ url_for('children.social_passport_summary', tab='parallels') }}">По параллелям</a></li>
+  <li class="nav-item"><a class="nav-link {% if tab=='buildings' %}active{% endif %}" href="{{ url_for('children.social_passport_summary', tab='buildings') }}">По корпусам</a></li>
+  <li class="nav-item"><a class="nav-link {% if tab=='school' %}active{% endif %}"    href="{{ url_for('children.social_passport_summary', tab='school') }}">Итого по школе</a></li>
+</ul>
+
+<div class="card">
+  <div class="card-body p-2">
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle sps-table mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>{{ {'classes':'Класс','parallels':'Параллель','buildings':'Корпус','school':'Школа'}[tab] }}</th>
+            <th class="sps-num">Всего</th>
+            <th class="sps-num">М</th>
+            <th class="sps-num">Д</th>
+            {% for key, label in categories %}
+              <th class="sps-cat">{{ label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% macro row(label, t, link=None) %}
+            <tr>
+              <td>{% if link %}<a href="{{ link }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</td>
+              <td class="sps-num">{{ t.total }}</td>
+              <td class="sps-num">{{ t.boys }}</td>
+              <td class="sps-num">{{ t.girls }}</td>
+              {% for key, _ in categories %}
+                <td class="sps-num">{{ t[key] }}</td>
+              {% endfor %}
+            </tr>
+          {% endmacro %}
+
+          {% if tab == 'classes' %}
+            {% for r in classes_list %}
+              {{ row(r.label, r.totals, url_for('children.social_passport_class', class_id=r.id)) }}
+            {% else %}
+              <tr><td colspan="{{ 4 + categories|length }}" class="text-muted text-center">Нет данных</td></tr>
+            {% endfor %}
+          {% elif tab == 'parallels' %}
+            {% for r in parallels_list %}
+              {{ row(r.label, r.totals) }}
+            {% else %}
+              <tr><td colspan="{{ 4 + categories|length }}" class="text-muted text-center">Нет данных</td></tr>
+            {% endfor %}
+          {% elif tab == 'buildings' %}
+            {% for r in buildings_list %}
+              {{ row(r.label, r.totals) }}
+            {% else %}
+              <tr><td colspan="{{ 4 + categories|length }}" class="text-muted text-center">Нет данных</td></tr>
+            {% endfor %}
+          {% else %}
+            {{ row('Вся школа', school_totals) }}
+          {% endif %}
+        </tbody>
+        {% if tab in ('classes', 'parallels', 'buildings') %}
+        <tfoot>
+          <tr class="sps-totals">
+            <td>Итого по школе</td>
+            <td class="sps-num">{{ school_totals.total }}</td>
+            <td class="sps-num">{{ school_totals.boys }}</td>
+            <td class="sps-num">{{ school_totals.girls }}</td>
+            {% for key, _ in categories %}
+              <td class="sps-num">{{ school_totals[key] }}</td>
+            {% endfor %}
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

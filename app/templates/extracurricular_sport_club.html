@@ -1,0 +1,99 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-dribbble"></i> Школьный спортивный клуб</h4>
+    <div class="text-muted small">{{ scope_label }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('extracurricular_hub.index') }}">← К своду</a>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('extracurricular_hub.export_xlsx', section='sport-club') }}">
+      <i class="bi bi-file-earmark-excel"></i> Excel
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Учеников всего</div>
+        <div class="fs-3 fw-bold">{{ totals.total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 col-6">
+    <div class="card h-100 border-warning">
+      <div class="card-body">
+        <div class="text-muted small">Состоят в ШСК</div>
+        <div class="fs-3 fw-bold">
+          {{ totals.in_sport_club }}
+          {% if totals.total %}
+            <span class="text-muted small fs-6">· {{ totals.in_sport_club * 100 // totals.total }}%</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 col-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="text-muted small">Не состоят</div>
+        <div class="fs-3 fw-bold">{{ totals.total - totals.in_sport_club }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="mb-3">По классам</h5>
+    <div class="text-muted small mb-2">Источник: schoolsportmos.ru. Учитывается членство в командах (активные и архивные).</div>
+    <div class="table-responsive">
+      <table class="table table-striped mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="min-width:90px;">Класс</th>
+            <th style="min-width:160px;">Здание</th>
+            <th style="width:120px;">Учеников</th>
+            <th style="width:160px;">В ШСК</th>
+            <th style="width:120px;">Охват</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td class="fw-bold">
+                <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="text-decoration-none">
+                  {{ r.class.name }}
+                </a>
+              </td>
+              <td class="text-muted">{{ r.building_name }}</td>
+              <td>{{ r.total }}</td>
+              <td>
+                {% if r.in_sport_club %}
+                  <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                    <i class="bi bi-dribbble"></i> {{ r.in_sport_club }} из {{ r.total }}
+                  </span>
+                {% else %}
+                  <span class="text-muted small">0 из {{ r.total }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.total %}
+                  {{ r.in_sport_club * 100 // r.total }}%
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          {% if rows|length == 0 %}
+            <tr><td colspan="5" class="text-muted">Нет данных</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

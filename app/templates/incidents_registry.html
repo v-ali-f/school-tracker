@@ -3,7 +3,6 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_dashboard') }}">Дашборд инцидентов</a></li>
     {% if class_id or grade or category or status_filter or q %}
       <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_registry') }}">Реестр инцидентов</a></li>
       <li class="breadcrumb-item active">Фильтр</li>
@@ -18,37 +17,14 @@
 <style>
   .incident-hero { background:#fff; border:1px solid #e9ecef; border-radius:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }
   .incident-panel { border:0; border-radius:16px; box-shadow:0 10px 24px rgba(0,0,0,.06); }
-  .incident-chip { display:inline-block; padding:.22rem .55rem; border-radius:999px; background:#fff1e6; color:#c25b00; font-size:.82rem; font-weight:600; }
   .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    padding: .2rem .65rem;
-    border-radius: 999px;
-    font-size: .8rem;
-    font-weight: 500;
-    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .2rem .65rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 500; white-space: nowrap;
   }
-  .status-badge::before {
-    content: '';
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .status-badge.s-new         { background: #fff3e0; color: #92400e; }
-  .status-badge.s-new::before { background: #f59e0b; }
-  .status-badge.s-assigned         { background: #fef3c7; color: #92400e; }
-  .status-badge.s-assigned::before { background: #f59e0b; }
-  .status-badge.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
-  .status-badge.s-in_progress::before { background: #3b82f6; }
-  .status-badge.s-resolved         { background: #f3e8ff; color: #6b21a8; }
-  .status-badge.s-resolved::before { background: #a855f7; }
-  .status-badge.s-closed         { background: #f0fdf4; color: #15803d; }
-  .status-badge.s-closed::before { background: #22c55e; }
+  .status-badge::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 
-  /* ── status picker (Notion-style) ── */
+  /* status picker */
   .status-picker { position: relative; display: inline-block; }
   .status-pill {
     display: inline-flex; align-items: center; gap: .35rem;
@@ -56,20 +32,7 @@
     font-size: .8rem; font-weight: 500; white-space: nowrap;
     border: none; cursor: pointer; line-height: 1.4;
   }
-  .status-pill::before {
-    content: ''; display: inline-block;
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  }
-  .status-pill.s-new         { background: #fff3e0; color: #92400e; }
-  .status-pill.s-new::before { background: #f59e0b; }
-  .status-pill.s-assigned         { background: #fef3c7; color: #92400e; }
-  .status-pill.s-assigned::before { background: #f59e0b; }
-  .status-pill.s-in_progress         { background: #eff6ff; color: #1d4ed8; }
-  .status-pill.s-in_progress::before { background: #3b82f6; }
-  .status-pill.s-resolved         { background: #f3e8ff; color: #6b21a8; }
-  .status-pill.s-resolved::before { background: #a855f7; }
-  .status-pill.s-closed         { background: #f0fdf4; color: #15803d; }
-  .status-pill.s-closed::before { background: #22c55e; }
+  .status-pill::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .status-picker-menu {
     display: none; position: absolute; left: 0; top: calc(100% + 4px);
     background: #fff; border: 1px solid #e9ecef; border-radius: 10px;
@@ -77,133 +40,253 @@
     min-width: 170px; z-index: 1050;
   }
   .status-picker-menu.open { display: block; }
-  .sp-group {
-    font-size: .7rem; font-weight: 700; color: #adb5bd;
-    text-transform: uppercase; letter-spacing: .07em;
-    padding: .4rem .5rem .15rem;
-  }
+  .sp-group { font-size:.7rem; font-weight:700; color:#adb5bd; text-transform:uppercase; letter-spacing:.07em; padding:.4rem .5rem .15rem; }
   .sp-sep { height: 1px; background: #f1f3f5; margin: .3rem 0; }
-  .sp-opt {
-    display: flex; align-items: center; gap: .5rem;
-    padding: .35rem .5rem; border-radius: 6px; cursor: pointer; font-size: .83rem;
-  }
-  .sp-opt:hover { background: #f8f9fa; }
-  .sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .sp-opt { display:flex; align-items:center; gap:.5rem; padding:.35rem .5rem; border-radius:6px; cursor:pointer; font-size:.83rem; }
+  .sp-opt:hover { background:#f8f9fa; }
+  .sp-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
   .sp-dot.d-new         { background: #f59e0b; }
   .sp-dot.d-assigned    { background: #f59e0b; }
   .sp-dot.d-in_progress { background: #3b82f6; }
   .sp-dot.d-resolved    { background: #a855f7; }
   .sp-dot.d-closed      { background: #22c55e; }
-  .sp-pill {
-    display: inline-flex; align-items: center; gap: .3rem;
-    padding: .15rem .5rem; border-radius: 999px;
-    font-size: .8rem; font-weight: 500;
-  }
-  .sp-pill.s-new         { background: #fff3e0; color: #92400e; }
-  .sp-pill.s-assigned    { background: #fef3c7; color: #92400e; }
-  .sp-pill.s-in_progress { background: #eff6ff; color: #1d4ed8; }
-  .sp-pill.s-resolved    { background: #f3e8ff; color: #6b21a8; }
-  .sp-pill.s-closed      { background: #f0fdf4; color: #15803d; }
+  .sp-pill { display:inline-flex; align-items:center; gap:.3rem; padding:.15rem .5rem; border-radius:999px; font-size:.8rem; font-weight:500; }
 
-  .view-btn { padding:.3rem .75rem; border-radius:8px; border:1px solid #dee2e6; background:#fff; cursor:pointer; font-size:.85rem; color:#495057; }
-  .view-btn.active { background:#ff7043; color:#fff; border-color:#ff7043; }
+  .view-btn { padding:.3rem .75rem; border-radius:8px; border:1px solid #dee2e6; background:#fff; cursor:pointer; font-size:.85rem; color:#495057; display:inline-flex; align-items:center; gap:.35rem; }
+  .view-btn:hover { background:#f8f9fa; }
+  .view-btn.active { background:#fff1e6; color:#c25b00; border-color:#ffd9bf; }
 
   .col-picker-dropdown { min-width:200px; padding:.5rem .75rem; font-size:.85rem; }
   .col-picker-dropdown label { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; cursor:pointer; }
 
-  .inc-list { display:flex; flex-direction:column; gap:.5rem; padding:1rem; }
-  .inc-list-item { display:flex; flex-direction:column; gap:.2rem; padding:.75rem 1rem; border:1px solid #e9ecef; border-radius:10px; background:#fff; }
-  .inc-list-item:hover { background:#f8f9fa; }
-  .inc-list-row { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
-  .inc-list-date { font-size:.82rem; color:#6c757d; white-space:nowrap; }
-  .inc-list-desc { font-size:.88rem; color:#495057; }
-  .inc-list-meta { font-size:.78rem; color:#6c757d; }
+  /* Group by + collapse */
+  .group-by-dropdown { min-width:200px; padding:.35rem; font-size:.85rem; }
+  .group-by-dropdown a { display:block; padding:.35rem .5rem; border-radius:6px; color:#212529; text-decoration:none; cursor:pointer; }
+  .group-by-dropdown a:hover { background:#f4f4f2; }
+  .group-by-dropdown a.active { background:#fff1e6; color:#c25b00; font-weight:500; }
+  .group-by-dropdown .gb-sep { height:1px; background:#f1f3f5; margin:.25rem 0; }
+  /* Sort dropdown (Notion-style: prop + ↑/↓ arrows) */
+  .sort-dropdown { min-width:240px; padding:.35rem; font-size:.85rem; }
+  .sort-dropdown .gb-sep { height:1px; background:#f1f3f5; margin:.25rem 0; }
+  .sort-dropdown .sort-row-clear { display:block; padding:.35rem .5rem; border-radius:6px; color:#212529; text-decoration:none; cursor:pointer; }
+  .sort-dropdown .sort-row-clear:hover { background:#f4f4f2; }
+  .sort-dropdown .sort-row-clear.active { background:#fff1e6; color:#c25b00; font-weight:500; }
+  .sort-dropdown .sort-row {
+    display:flex; align-items:center; gap:.4rem;
+    padding:.25rem .5rem; border-radius:6px;
+  }
+  .sort-dropdown .sort-row:hover { background:#f8f9fa; }
+  .sort-dropdown .sort-prop-name { flex:1; color:#212529; }
+  .sort-dropdown .sort-arrow {
+    width:28px; height:28px; line-height:1; padding:0; border:1px solid #e9ecef;
+    background:#fff; border-radius:6px; color:#495057; cursor:pointer; font-size:1rem;
+  }
+  .sort-dropdown .sort-arrow:hover { background:#f4f4f2; border-color:#dee2e6; }
+  .sort-dropdown .sort-arrow.active { background:#fff1e6; color:#c25b00; border-color:#fed7aa; font-weight:600; }
+  .group-header { background:#fafbfc; cursor:pointer; user-select:none; }
+  tr.group-header td { padding:.55rem .75rem; font-weight:600; font-size:.85rem; color:#374151; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
+  tr.group-header:hover td { background:#f4f4f2; }
+  .gh-caret { display:inline-block; width:14px; transition:transform .15s; color:#9ca3af; }
+  .group-header.collapsed .gh-caret { transform:rotate(-90deg); }
+  .gh-count { color:#9ca3af; font-weight:500; margin-left:.4rem; font-size:.8rem; }
+  tr.group-row.collapsed { display:none; }
+
   .incident-table thead th { white-space:nowrap; background:#fff8ef; }
   .desc-toggle { background:none; border:none; color:#6c757d; cursor:pointer; padding:0 .15rem; font-size:.85rem; vertical-align:middle; }
   .desc-toggle:hover { color:#ff7043; }
+
+  /* Filters popup */
+  .filter-popup {
+    display:none; position:absolute; right:0; top:calc(100% + 4px); z-index:1050;
+    background:#fff; border:1px solid #e9ecef; border-radius:12px;
+    box-shadow:0 12px 28px rgba(0,0,0,.13); padding:1rem;
+    min-width:320px; max-width:90vw;
+  }
+  .filter-popup.open { display:block; }
+  .filter-popup .form-label { font-size:.78rem; color:#6c757d; margin-bottom:.2rem; }
+  .filter-active-dot { width:8px; height:8px; border-radius:50%; background:#ff7043; display:inline-block; margin-left:.25rem; }
+
+  /* Named views chips */
+  .nv-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.45rem .8rem; background:#f4f4f2; border-radius:8px; font-size:.85rem; color:#3a3a39; cursor:pointer; border:1px solid transparent; }
+  .nv-chip:hover { background:#ececec; }
+  .nv-chip.active { background:#fff1e6; color:#c25b00; font-weight:600; border-color:#ffd9bf; }
+  .nv-chip .x { opacity:.4; cursor:pointer; padding-left:.25rem; font-size:1rem; line-height:1; }
+  .nv-chip .x:hover { opacity:.9; color:#dc3545; }
+  .nv-chip-input {
+    display:inline-flex; align-items:center; gap:.3rem;
+    padding:.4rem .55rem; background:#fff1e6; border:1px solid #ffb98a;
+    border-radius:8px; font-size:.85rem;
+  }
+  .nv-chip-input input {
+    border:0; outline:none; background:transparent; font-size:.85rem;
+    color:#c25b00; min-width:140px; max-width:220px;
+  }
+  .nv-add { display:inline-flex; align-items:center; gap:.25rem; color:#6c757d; font-size:.85rem; cursor:pointer; padding:.45rem .8rem; border-radius:8px; border:1px dashed #d8d8d6; background:transparent; line-height:1.2; }
+  .nv-add:hover { background:#f4f4f2; color:#191918; border-color:#9ca3af; }
+
+  .nv-bar { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:.85rem 1rem; }
 </style>
 
 <!-- Hero -->
 <div class="incident-hero p-4 mb-4">
   <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
     <div>
-      <div class="incident-chip mb-2">Инциденты · реестр</div>
       <h2 class="mb-0">{{ title }}</h2>
     </div>
     <div class="d-flex flex-wrap gap-2">
       <a class="btn btn-warning fw-semibold" href="{{ url_for('children.incidents_dashboard') }}">Дашборд</a>
-      <a class="btn btn-success fw-semibold" href="{{ export_url }}">Excel</a>
+      <a class="btn btn-success fw-semibold" id="excelExportBtn" href="{{ export_url }}">Excel</a>
       <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
     </div>
   </div>
 </div>
 
-<!-- Фильтр-панель -->
-<div class="card incident-panel mb-4">
-  <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-6 col-md-2">
-        <label class="form-label">Параллель</label>
-        <select class="form-select" name="grade" id="gradeSelect">
-          <option value="">—</option>
-          {% for g in range(1, 12) %}
-            <option value="{{ g }}" {% if grade==g %}selected{% endif %}>{{ g }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label">Класс</label>
-        <select class="form-select" name="class_id" id="classSelect">
-          <option value="">—</option>
-          {% for c in classes %}
-            <option value="{{ c.id }}" {% if class_id==c.id %}selected{% endif %}>{{ c.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label">Категория</label>
-        <select class="form-select" name="category">
-          <option value="">— все —</option>
-          {% for c in categories %}
-            <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label">Статус</label>
-        <select class="form-select" name="status">
-          <option value="">— все —</option>
-          <option value="new"         {% if status_filter == 'new' %}selected{% endif %}>Новый</option>
-          <option value="assigned"    {% if status_filter == 'assigned' %}selected{% endif %}>Назначен</option>
-          <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>В работе</option>
-          <option value="resolved"    {% if status_filter == 'resolved' %}selected{% endif %}>Отработан</option>
-          <option value="closed"      {% if status_filter == 'closed' %}selected{% endif %}>Закрыт</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label">ФИО</label>
-        <input class="form-control" name="q" value="{{ q or '' }}" placeholder="Иванов Иван">
-      </div>
-      <div class="col-auto">
-        <button class="btn btn-sm btn-primary">Применить</button>
-      </div>
-      <div class="col-auto">
-        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incidents_registry') }}">Сброс</a>
-      </div>
-    </form>
+<!-- Named views: «Все» + сохранённые + «+ Создать вид» -->
+<div class="card incident-panel mb-3">
+  <div class="nv-bar" id="nvBar">
+    <span class="nv-chip" data-qs="" id="nvDefault" title="Сбросить именной вид">Все</span>
+    {# чипсы видов вставляются JS-ом из БД #}
+    <button type="button" class="nv-add" id="nvCreateBtn"
+            title="Создать новый вид. Откроется поле для названия — введите имя и нажмите Enter.">
+      <i class="bi bi-plus-lg"></i> Создать вид
+    </button>
   </div>
 </div>
 
-<!-- Таблица/список -->
+<!-- Таблица + Group + Filters popup + Свойства -->
 <div class="card incident-panel">
   <div class="card-body pb-2">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
       <h5 class="mb-0">Записи реестра</h5>
       <div class="d-flex align-items-center gap-2">
-        <!-- Col-picker -->
+        {# Group by #}
+        {% set _gb_opts = [
+          ('',          'Без группировки'),
+          ('category',  'Категория'),
+          ('class',     'Класс'),
+          ('building',  'Здание'),
+          ('assignee',  'Исполнитель'),
+          ('status',    'Статус'),
+        ] %}
         <div class="dropdown" style="position:relative;">
-          <button class="view-btn" type="button" id="regColPickerBtn" title="Настроить колонки">
-            <i class="bi bi-layout-three-columns"></i> Колонки
+          <button class="view-btn" type="button" id="regGroupByBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Сгруппировать строки по свойству">
+            <i class="bi bi-collection"></i>
+            <span id="regGroupByLabel">{% if f_group_by %}Группа: {{ {'category':'Категория','class':'Класс','building':'Здание','assignee':'Исполнитель','status':'Статус'}.get(f_group_by, f_group_by) }}{% else %}Группировать{% endif %}</span>
+            <i class="bi bi-caret-down-fill" style="font-size:.6em; opacity:.6;"></i>
+          </button>
+          <div class="dropdown-menu group-by-dropdown" id="regGroupByMenu" aria-labelledby="regGroupByBtn">
+            {% for code, label in _gb_opts %}
+              <a data-gb="{{ code }}"
+                 class="js-gb-opt {% if (f_group_by or '') == code %}active{% endif %}">{{ label }}</a>
+              {% if loop.first %}<div class="gb-sep"></div>{% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Sort dropdown (Notion-style): одно свойство → ↑/↓. #}
+        {% set _reg_sort_props = [
+          ('date',     'Дата'),
+          ('category', 'Категория'),
+          ('class',    'Класс'),
+          ('building', 'Здание'),
+          ('assignee', 'Исполнитель'),
+          ('status',   'Статус'),
+        ] %}
+        {% set _reg_sort_label_map = {
+          'date_desc':'Дата ↓','date_asc':'Дата ↑',
+          'category_asc':'Категория ↑','category_desc':'Категория ↓',
+          'class_asc':'Класс ↑','class_desc':'Класс ↓',
+          'building_asc':'Здание ↑','building_desc':'Здание ↓',
+          'assignee_asc':'Исполнитель ↑','assignee_desc':'Исполнитель ↓',
+          'status_asc':'Статус ↑','status_desc':'Статус ↓'
+        } %}
+        {% set _reg_f_sort = request.args.get('sort') or '' %}
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="regSortBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Сортировать строки по свойству">
+            <i class="bi bi-arrow-down-up"></i>
+            <span id="regSortLabel">{% if _reg_f_sort and _reg_f_sort in _reg_sort_label_map %}Сорт.: {{ _reg_sort_label_map[_reg_f_sort] }}{% else %}Сортировка{% endif %}</span>
+            <span id="regSortDot" class="filter-active-dot" style="display:{% if _reg_f_sort and _reg_f_sort in _reg_sort_label_map %}inline-block{% else %}none{% endif %};"></span>
+            <i class="bi bi-caret-down-fill" style="font-size:.6em; opacity:.6;"></i>
+          </button>
+          <div class="dropdown-menu sort-dropdown" id="regSortMenu" aria-labelledby="regSortBtn">
+            <a data-sort="" class="js-reg-sort-opt sort-row-clear {% if not _reg_f_sort %}active{% endif %}">Без сортировки</a>
+            <div class="gb-sep"></div>
+            {% for code, label in _reg_sort_props %}
+              <div class="sort-row">
+                <span class="sort-prop-name">{{ label }}</span>
+                <button type="button" class="sort-arrow js-reg-sort-opt {% if _reg_f_sort == code + '_asc' %}active{% endif %}" data-sort="{{ code }}_asc" title="По возрастанию">↑</button>
+                <button type="button" class="sort-arrow js-reg-sort-opt {% if _reg_f_sort == code + '_desc' %}active{% endif %}" data-sort="{{ code }}_desc" title="По убыванию">↓</button>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Filters popup #}
+        <div style="position:relative;">
+          <button class="view-btn" type="button" id="regFilterBtn"
+                  title="Фильтры">
+            <i class="bi bi-funnel"></i> Фильтры<span id="regFilterDot" class="filter-active-dot" style="display:none;"></span>
+          </button>
+          <div class="filter-popup" id="regFilterPopup">
+            <form method="get" class="row g-2" id="incRegFiltersForm">
+              <div class="col-6">
+                <label class="form-label">Параллель</label>
+                <select class="form-select form-select-sm" name="grade" id="gradeSelect">
+                  <option value="">—</option>
+                  {% for g in range(1, 12) %}
+                    <option value="{{ g }}" {% if grade==g %}selected{% endif %}>{{ g }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Класс</label>
+                <select class="form-select form-select-sm" name="class_id" id="classSelect">
+                  <option value="">—</option>
+                  {% for c in classes %}
+                    <option value="{{ c.id }}" {% if class_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Категория</label>
+                <select class="form-select form-select-sm" name="category">
+                  <option value="">Все</option>
+                  {% for c in categories %}
+                    <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label">Статус</label>
+                <select class="form-select form-select-sm" name="status">
+                  <option value="">Все</option>
+                  <option value="new"         {% if status_filter == 'new' %}selected{% endif %}>Новый</option>
+                  <option value="assigned"    {% if status_filter == 'assigned' %}selected{% endif %}>Назначен</option>
+                  <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>В работе</option>
+                  <option value="resolved"    {% if status_filter == 'resolved' %}selected{% endif %}>Отработан</option>
+                  <option value="closed"      {% if status_filter == 'closed' %}selected{% endif %}>Закрыт</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label">ФИО</label>
+                <input class="form-control form-control-sm" name="q" value="{{ q or '' }}" placeholder="Иванов Иван">
+              </div>
+              <div class="col-12 d-flex gap-2 mt-2">
+                <button class="btn btn-sm btn-primary flex-grow-1">Применить</button>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incidents_registry') }}">Сброс</a>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {# Col-picker — управляет отображением колонок ИЛИ Excel-экспортом #}
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="regColPickerBtn" title="Показать или скрыть свойства. Эти же свойства попадут в Excel-экспорт.">
+            <i class="bi bi-eye"></i><span class="d-none d-md-inline"> Свойства</span>
           </button>
           <div class="dropdown-menu col-picker-dropdown" id="regColPickerMenu">
             <label><input type="checkbox" class="col-toggle" data-col="col-num"      checked> №</label>
@@ -219,15 +302,18 @@
             <label><input type="checkbox" class="col-toggle" data-col="col-actions"  checked> Действия</label>
           </div>
         </div>
-        <!-- View switcher -->
-        <button class="view-btn active" id="btnTable" title="Таблица"><i class="bi bi-table"></i></button>
-        <button class="view-btn" id="btnList" title="Список"><i class="bi bi-list-ul"></i></button>
-        <span class="text-muted small">{{ rows|length }} записей</span>
+        <span class="text-muted small text-truncate" style="min-width:0;">
+          {% if total_count is defined and total_pages and total_pages > 1 %}
+            {{ rows|length }} из {{ total_count }} · стр. {{ page }}/{{ total_pages }}
+          {% else %}
+            {{ rows|length }} записей
+          {% endif %}
+        </span>
       </div>
     </div>
   </div>
 
-  <!-- TABLE VIEW -->
+  <!-- TABLE -->
   <div id="viewTable" class="table-responsive">
     <table class="table mb-0 align-middle incident-table">
       <thead>
@@ -245,12 +331,41 @@
           <th class="col-actions" style="width:100px;">Действия</th>
         </tr>
       </thead>
-      <tbody>
-        {% for r in rows %}
-          <tr>
+      <tbody id="regTbody">
+        {% set _col_count = 11 if is_admin else 10 %}
+        {% if groups %}
+        {% set _gb_chunks = groups %}
+        {% else %}
+        {% set _gb_chunks = [{'key':'_all', 'label':'', 'rows': rows}] %}
+        {% endif %}
+        {% for _grp in _gb_chunks %}
+          {% if groups %}
+          <tr class="group-header" data-group-key="{{ _grp.key }}">
+            <td colspan="{{ _col_count }}">
+              <span class="gh-caret">▾</span>
+              {{ _grp.label }}
+              <span class="gh-count">· {{ _grp.rows|length }}</span>
+            </td>
+          </tr>
+          {% endif %}
+          {% for r in _grp.rows %}
+          {% set _kid_classes = r.children | map(attribute='class') | list %}
+          {% set _kid_class_id = (r.children[0].class_id if r.children else '') %}
+          {% set _kid_class = (r.children[0].class if r.children else '') %}
+          {% set _kid_building = (r.children[0].building if r.children and r.children[0].building else '') %}
+          <tr {% if groups %}class="group-row" data-group-key="{{ _grp.key }}"{% endif %}
+              data-row="1"
+              data-occurred="{{ r.inc.occurred_at.isoformat() if r.inc.occurred_at else '' }}"
+              data-category="{{ incident_category_label(r.inc.category) }}"
+              data-class="{{ _kid_class }}"
+              data-class-id="{{ _kid_class_id }}"
+              data-building="{{ _kid_building }}"
+              data-assignee-id="{{ r.inc.assignee_id or '' }}"
+              data-assignee-label="{% if r.inc.assignee %}{{ r.inc.assignee.last_name or '' }} {{ r.inc.assignee.first_name or '' }}{% else %}— Без исполнителя{% endif %}"
+              data-status="{{ r.inc.status or 'new' }}">
             <td class="text-muted col-num">{{ loop.index }}</td>
             <td class="text-muted col-dt">{{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</td>
-            <td class="col-cat">{{ r.inc.category }}</td>
+            <td class="col-cat">{{ incident_category_label(r.inc.category) }}</td>
             <td class="col-children">
               {% for ch in r.children %}
                 <div>
@@ -285,7 +400,7 @@
                         <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
                            class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
                            style="font-size:.72rem;"
-                           title="Кубок школы класса {{ ch.class }}">
+                           title="Кубок школы — {{ ch.class }}">
                           <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
                         </a>
                       {% else %}
@@ -300,10 +415,10 @@
             <td class="text-muted col-desc">
               {% if r.inc.description and r.inc.description|length > 60 %}
                 <span class="desc-short">{{ r.inc.description[:60] }}…
-                  <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.nextElementSibling.style.display='inline';" title="Развернуть">▸</button>
+                  <button type="button" class="desc-toggle js-desc-expand" title="Развернуть">▸</button>
                 </span>
                 <span class="desc-full" style="display:none;">{{ r.inc.description }}
-                  <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.previousElementSibling.style.display='inline';" title="Свернуть">▾</button>
+                  <button type="button" class="desc-toggle js-desc-collapse" title="Свернуть">▾</button>
                 </span>
               {% else %}
                 {{ r.inc.description or "—" }}
@@ -314,18 +429,18 @@
               {% set _lbl = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
               {% if can_change_status %}
                 <div class="status-picker" data-incident-id="{{ r.inc.id }}">
-                  <button type="button" class="status-pill s-{{ s }}"><span class="sp-label">{{ _lbl[s] }}</span></button>
-                  <div class="status-picker-menu">
-                    <div class="sp-group">To-do</div>
-                    <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
-                    <div class="sp-opt" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
+                  <button type="button" class="status-pill s-{{ s }}" aria-haspopup="listbox" aria-expanded="false" aria-label="Изменить статус инцидента"><span class="sp-label">{{ _lbl[s] }}</span></button>
+                  <div class="status-picker-menu" role="listbox">
+                    <div class="sp-group">Открытые</div>
+                    <div class="sp-opt" role="option" tabindex="-1" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
                     <div class="sp-sep"></div>
-                    <div class="sp-group">In progress</div>
-                    <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
-                    <div class="sp-opt" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
+                    <div class="sp-group">В работе</div>
+                    <div class="sp-opt" role="option" tabindex="-1" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
+                    <div class="sp-opt" role="option" tabindex="-1" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
                     <div class="sp-sep"></div>
-                    <div class="sp-group">Complete</div>
-                    <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
+                    <div class="sp-group">Закрытые</div>
+                    <div class="sp-opt" role="option" tabindex="-1" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
+                    <div class="sp-opt" role="option" tabindex="-1" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
                   </div>
                 </div>
               {% else %}
@@ -333,35 +448,40 @@
               {% endif %}
             </td>
             <td class="text-muted small col-assignee">
-              {% if r.inc.assignee %}{% set a = r.inc.assignee %}
-                {{ (a.last_name or "") }} {{ (a.first_name or "")[:1] }}{% if a.first_name %}.{% endif %}{{ (a.middle_name or "")[:1] }}{% if a.middle_name %}.{% endif %}
-              {% else %}—{% endif %}
+              {{ r.assignees_label or '—' }}
             </td>
             <td class="text-muted small col-author">{{ r.author_label }}</td>
             <td class="col-actions">
-              {% if can_change_status or r.inc.author_id == current_user.id %}
+              {% set _row_editable = (can_change_status or is_social_pedagog or r.inc.author_id == current_user.id) and (not is_methodist or r.inc.author_id == current_user.id or current_user.id in r.assignee_ids) %}
+              {% if can_change_status or is_social_pedagog or r.inc.author_id == current_user.id %}
                 <div class="d-flex gap-1">
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}"
+                     title="{% if _row_editable %}Открыть{% else %}Просмотр{% endif %}"><i class="bi {% if _row_editable %}bi-pencil{% else %}bi-eye{% endif %}"></i></a>
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}" title="История"><i class="bi bi-clock-history"></i></a>
-                  <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');">
+                  {% if _row_editable %}
+                  <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" class="js-incident-delete-form d-inline">
                     <input type="hidden" name="next" value="{{ request.full_path }}">
-                    <button class="btn btn-sm btn-outline-secondary" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger js-incident-delete-btn" type="button" title="Удалить"
+                            data-category="{{ r.inc.category }}"
+                            data-kids="{{ r.children | map(attribute='fio') | join(', ') }}"><i class="bi bi-trash"></i></button>
                   </form>
+                  {% endif %}
                 </div>
               {% else %}
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}" title="История"><i class="bi bi-clock-history"></i></a>
               {% endif %}
             </td>
           </tr>
+          {% endfor %}
         {% endfor %}
         {% if rows|length == 0 %}
           <tr>
-            <td colspan="{{ 11 if is_admin else 10 }}" class="text-center py-5 text-muted">
+            <td colspan="{{ _col_count }}" class="text-center py-5 text-muted">
               <i class="bi bi-search" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>
               {% if q or grade or class_id or category or status_filter %}
                 По вашему запросу инцидентов не найдено. Попробуйте изменить фильтры.
               {% else %}
-                Инцидентов пока нет.
+                За выбранный период инцидентов нет — это хороший день.
               {% endif %}
             </td>
           </tr>
@@ -370,127 +490,81 @@
     </table>
   </div>
 
-  <!-- LIST VIEW -->
-  <div id="viewList" class="inc-list" style="display:none;">
-    {% for r in rows %}
-      {% set s = r.inc.status or 'new' %}
-      {% set _lbl = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
-      <div class="inc-list-item">
-        <div class="inc-list-row">
-          <span class="inc-list-date col-dt"><i class="bi bi-calendar3"></i> {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</span>
-          <span class="text-dark small fw-semibold col-cat">{{ r.inc.category }}</span>
-          <span class="col-status">
-            {% if can_change_status %}
-              <div class="status-picker" data-incident-id="{{ r.inc.id }}">
-                <button type="button" class="status-pill s-{{ s }}"><span class="sp-label">{{ _lbl[s] }}</span></button>
-                <div class="status-picker-menu">
-                  <div class="sp-group">To-do</div>
-                  <div class="sp-opt" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
-                  <div class="sp-opt" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
-                  <div class="sp-sep"></div>
-                  <div class="sp-group">In progress</div>
-                  <div class="sp-opt" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
-                  <div class="sp-opt" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
-                  <div class="sp-sep"></div>
-                  <div class="sp-group">Complete</div>
-                  <div class="sp-opt" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
-                </div>
-              </div>
-            {% else %}
-              <span class="status-badge s-{{ s }}">{{ r.inc.status_label }}</span>
-            {% endif %}
-          </span>
-          <span class="col-assignee">{% if r.inc.assignee %}{% set a = r.inc.assignee %}<span class="inc-list-meta">&#128100; {{ (a.last_name or "") }} {{ (a.first_name or "")[:1] }}{% if a.first_name %}.{% endif %}</span>{% endif %}</span>
-        </div>
-        <div class="inc-list-row col-children">
-          {% set klns = namespace(seen=[]) %}
-          {% for ch in r.children %}
-            <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="inc-list-meta fw-semibold">{{ ch.fio }}</a>
-            {% if ch.class_id %}
-              <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}" class="inc-list-meta text-muted text-decoration-none">{{ ch.class }}</a>
-            {% else %}
-              <span class="inc-list-meta text-muted">{{ ch.class }}</span>
-            {% endif %}
-            {% if ch.building %}
-              <span class="inc-list-meta text-muted col-building">· {{ ch.building }}</span>
-            {% endif %}
-            {% if is_admin and ch.class_id and ch.class_id not in klns.seen %}
-              {% set _ = klns.seen.append(ch.class_id) %}
-              {% set _kr = kubok_rating(ch.class) %}
-              {% if _kr %}
-                <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
-                   class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
-                   style="font-size:.7rem;"
-                   title="Кубок школы — {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}">
-                  <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
-                </a>
-              {% endif %}
-            {% endif %}
-          {% endfor %}
-        </div>
-        {% if r.inc.description %}
-          <div class="inc-list-desc col-desc">{{ r.inc.description }}</div>
-        {% endif %}
-        <div class="inc-list-row mt-1">
-          <span class="inc-list-meta col-author">{{ r.author_label }}</span>
-          <span class="col-actions d-inline-flex gap-1 align-items-center">
-            {% if can_change_status or r.inc.author_id == current_user.id %}
-              <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Изменить"><i class="bi bi-pencil"></i></a>
-              <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
-                <input type="hidden" name="next" value="{{ request.full_path }}">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
-              </form>
-            {% endif %}
-          </span>
-        </div>
-      </div>
-    {% else %}
-      <div class="text-center py-5 text-muted">
-        <i class="bi bi-inbox" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>
-        Инцидентов пока нет.
-      </div>
-    {% endfor %}
-  </div>
+  {% if total_pages is defined and total_pages and total_pages > 1 %}
+    {% set _qp = request.args.to_dict() %}
+    {% set _qprev = _qp.copy() %}{% set _ = _qprev.update({'page': page - 1}) %}
+    {% set _qnext = _qp.copy() %}{% set _ = _qnext.update({'page': page + 1}) %}
+    <nav class="mt-3 d-flex justify-content-center" aria-label="Постраничная навигация">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('children.incidents_registry', **_qprev) if page > 1 else '#' }}">← Назад</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('children.incidents_registry', **_qnext) if page < total_pages else '#' }}">Вперёд →</a>
+        </li>
+      </ul>
+    </nav>
+  {% endif %}
 </div>
 
 <script>
 (function(){
-  // Status picker
+  // ── Status picker ──
   const SP_LABELS = {new:'Новый', assigned:'Назначен', in_progress:'В работе', resolved:'Отработан', closed:'Закрыт'};
-  document.querySelectorAll('.status-picker .status-pill').forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      const menu = this.closest('.status-picker').querySelector('.status-picker-menu');
-      document.querySelectorAll('.status-picker-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
-      menu.classList.toggle('open');
+  function bindStatusPicker(root){
+    (root||document).querySelectorAll('.status-picker .status-pill').forEach(btn => {
+      if (btn.dataset.bound) return; btn.dataset.bound = '1';
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const menu = this.closest('.status-picker').querySelector('.status-picker-menu');
+        document.querySelectorAll('.status-picker-menu.open').forEach(m => {
+          if (m !== menu) {
+            m.classList.remove('open');
+            const b = m.parentElement && m.parentElement.querySelector('.status-pill');
+            if (b) b.setAttribute('aria-expanded', 'false');
+          }
+        });
+        menu.classList.toggle('open');
+        this.setAttribute('aria-expanded', menu.classList.contains('open') ? 'true' : 'false');
+      });
     });
-  });
-  document.querySelectorAll('.sp-opt').forEach(opt => {
-    opt.addEventListener('click', async function() {
-      const picker = this.closest('.status-picker');
-      const id = picker.dataset.incidentId;
-      const newStatus = this.dataset.value;
-      picker.querySelector('.status-picker-menu').classList.remove('open');
-      const fd = new FormData(); fd.append('status', newStatus);
-      try {
-        const res = await fetch('/incidents/' + id + '/set-status', {method:'POST', body:fd});
-        const data = await res.json();
-        if (data.ok) {
-          const s = data.status;
-          document.querySelectorAll('.status-picker[data-incident-id="' + id + '"]').forEach(p => {
-            const pill = p.querySelector('.status-pill');
-            pill.className = 'status-pill s-' + s;
-            pill.querySelector('.sp-label').textContent = SP_LABELS[s] || s;
-          });
-        } else { alert('Ошибка: ' + (data.error || 'неизвестно')); }
-      } catch(e) { alert('Ошибка сети'); }
+    (root||document).querySelectorAll('.sp-opt').forEach(opt => {
+      if (opt.dataset.bound) return; opt.dataset.bound = '1';
+      opt.addEventListener('click', async function() {
+        const picker = this.closest('.status-picker');
+        const id = picker.dataset.incidentId;
+        const newStatus = this.dataset.value;
+        picker.querySelector('.status-picker-menu').classList.remove('open');
+        const fd = new FormData(); fd.append('status', newStatus);
+        try {
+          const res = await fetch('/incidents/' + id + '/set-status', {method:'POST', body:fd});
+          const data = await res.json();
+          if (data.ok) {
+            const s = data.status;
+            document.querySelectorAll('.status-picker[data-incident-id="' + id + '"]').forEach(p => {
+              const pill = p.querySelector('.status-pill');
+              pill.className = 'status-pill s-' + s;
+              pill.querySelector('.sp-label').textContent = SP_LABELS[s] || s;
+            });
+            // Обновляем data-status у строки для группировки
+            const tr = picker.closest('tr');
+            if (tr) tr.dataset.status = s;
+          } else { alert('Ошибка: ' + (data.error || 'неизвестно')); }
+        } catch(e) { alert('Ошибка сети'); }
+      });
     });
-  });
+  }
+  bindStatusPicker(document);
   document.addEventListener('click', () => {
-    document.querySelectorAll('.status-picker-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.status-picker-menu.open').forEach(m => {
+      m.classList.remove('open');
+      const b = m.parentElement && m.parentElement.querySelector('.status-pill');
+      if (b) b.setAttribute('aria-expanded', 'false');
+    });
   });
 
-  // Параллель → классы AJAX
+  // ── Параллель → классы AJAX ──
   const gradeSel = document.getElementById("gradeSelect");
   const classSel = document.getElementById("classSelect");
   if (gradeSel && classSel) {
@@ -509,24 +583,33 @@
     });
   }
 
-  // View switcher
-  const btnTable  = document.getElementById("btnTable");
-  const btnList   = document.getElementById("btnList");
-  const viewTable = document.getElementById("viewTable");
-  const viewList  = document.getElementById("viewList");
-  btnTable.addEventListener("click", () => {
-    viewTable.style.display = ""; viewList.style.display  = "none";
-    btnTable.classList.add("active"); btnList.classList.remove("active");
-    localStorage.setItem("reg_inc_view", "table");
-  });
-  btnList.addEventListener("click", () => {
-    viewTable.style.display = "none"; viewList.style.display  = "";
-    btnList.classList.add("active"); btnTable.classList.remove("active");
-    localStorage.setItem("reg_inc_view", "list");
-  });
-  if (localStorage.getItem("reg_inc_view") === "list") btnList.click();
+  // ── Filters popup ──
+  (function(){
+    var btn = document.getElementById('regFilterBtn');
+    var pop = document.getElementById('regFilterPopup');
+    var dot = document.getElementById('regFilterDot');
+    if (!btn || !pop) return;
+    function hasActiveFilter(){
+      var u = new URLSearchParams(window.location.search);
+      return ['grade','class_id','category','status','q'].some(function(k){ return !!u.get(k); });
+    }
+    if (hasActiveFilter()) dot.style.display = 'inline-block';
+    btn.addEventListener('click', function(e){ e.stopPropagation(); pop.classList.toggle('open'); });
+    pop.addEventListener('click', function(e){ e.stopPropagation(); });
+    document.addEventListener('click', function(){ pop.classList.remove('open'); });
 
-  // Col-picker dropdown (custom, без Bootstrap)
+    // Live submit
+    var form = document.getElementById('incRegFiltersForm');
+    if (form) {
+      form.querySelectorAll('select').forEach(function(s){ s.addEventListener('change', function(){ form.submit(); }); });
+      var qInp = form.querySelector('input[name="q"]');
+      if (qInp) {
+        var t; qInp.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(function(){ form.submit(); }, 350); });
+      }
+    }
+  })();
+
+  // ── Col-picker ──
   const regColBtn  = document.getElementById("regColPickerBtn");
   const regColMenu = document.getElementById("regColPickerMenu");
   if (regColBtn && regColMenu) {
@@ -538,7 +621,29 @@
     document.addEventListener("click", function() { regColMenu.classList.remove("show"); });
   }
 
-  // Col-picker checkboxes
+  function toggleCol(col, visible) {
+    document.querySelectorAll("." + col).forEach(el => {
+      el.style.display = visible ? "" : "none";
+    });
+  }
+  function getHiddenCols(){
+    var hidden = [];
+    document.querySelectorAll('.col-toggle').forEach(function(cb){
+      if (!cb.checked) hidden.push(cb.dataset.col);
+    });
+    return hidden;
+  }
+  function updateExportLink(){
+    var link = document.getElementById('excelExportBtn');
+    if (!link) return;
+    try {
+      var url = new URL(link.href, window.location.origin);
+      var hidden = getHiddenCols();
+      if (hidden.length) url.searchParams.set('hide_cols', hidden.join(','));
+      else url.searchParams.delete('hide_cols');
+      link.href = url.toString();
+    } catch(e){}
+  }
   document.querySelectorAll(".col-toggle").forEach(cb => {
     const col   = cb.dataset.col;
     const saved = localStorage.getItem("reg_col_" + col);
@@ -546,15 +651,414 @@
     cb.addEventListener("change", () => {
       toggleCol(col, cb.checked);
       localStorage.setItem("reg_col_" + col, cb.checked ? "1" : "0");
+      updateExportLink();
+    });
+  });
+  updateExportLink();
+
+  // ── Desc toggle ──
+  document.addEventListener("click", function(e) {
+    const exp = e.target.closest(".js-desc-expand");
+    if (exp) {
+      const sShort = exp.parentElement;
+      sShort.style.display = "none";
+      if (sShort.nextElementSibling) sShort.nextElementSibling.style.display = "inline";
+      return;
+    }
+    const col = e.target.closest(".js-desc-collapse");
+    if (col) {
+      const sFull = col.parentElement;
+      sFull.style.display = "none";
+      if (sFull.previousElementSibling) sFull.previousElementSibling.style.display = "inline";
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // Бесшовное переключение группировки (без reload)
+  // ══════════════════════════════════════════════════════════
+  var GB_LABELS = {
+    '': 'Группировать',
+    'category': 'Категория',
+    'class': 'Класс',
+    'building': 'Здание',
+    'assignee': 'Исполнитель',
+    'status': 'Статус',
+  };
+  var STATUS_LABELS = {new:'Новый', assigned:'Назначен', in_progress:'В работе', resolved:'Отработан', closed:'Закрыт'};
+  var COLLAPSE_KEY = 'incidents_registry_collapsed_v1';
+
+  function getRows(){
+    return Array.prototype.slice.call(document.querySelectorAll('#regTbody tr[data-row="1"]'));
+  }
+  function colCount(){
+    return document.querySelectorAll('.incident-table thead th').length;
+  }
+  function groupKeyForRow(tr, gb){
+    if (gb === 'category')  return tr.dataset.category || 'Без категории';
+    if (gb === 'class')     return tr.dataset.class || 'Без класса';
+    if (gb === 'building')  return tr.dataset.building || 'Без здания';
+    if (gb === 'assignee')  return tr.dataset.assigneeId ? tr.dataset.assigneeLabel : 'Без исполнителя';
+    if (gb === 'status')    return STATUS_LABELS[tr.dataset.status] || tr.dataset.status || 'Без статуса';
+    return '';
+  }
+  function readCollapsed(gb){
+    try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY + '::' + gb) || '{}'); } catch(e){ return {}; }
+  }
+  function persistCollapsed(gb, st){
+    try { localStorage.setItem(COLLAPSE_KEY + '::' + gb, JSON.stringify(st)); } catch(e){}
+  }
+  function regroup(gb){
+    var tbody = document.getElementById('regTbody');
+    if (!tbody) return;
+    var rows = getRows();
+    if (!rows.length) return;
+
+    // Удаляем старые group-header
+    Array.prototype.slice.call(tbody.querySelectorAll('tr.group-header')).forEach(function(h){ h.remove(); });
+    rows.forEach(function(r){ r.classList.remove('group-row','collapsed'); r.removeAttribute('data-group-key'); });
+
+    if (!gb) {
+      // Без группировки — просто добавляем подряд
+      rows.forEach(function(r){ tbody.appendChild(r); });
+      return;
+    }
+    // Группируем по ключу, сохраняя порядок первого появления
+    var orderedKeys = [];
+    var byKey = {};
+    rows.forEach(function(r){
+      var k = groupKeyForRow(r, gb);
+      if (!byKey[k]) { byKey[k] = []; orderedKeys.push(k); }
+      byKey[k].push(r);
+    });
+    var collapsed = readCollapsed(gb);
+    var cc = colCount();
+    orderedKeys.forEach(function(k){
+      var hdr = document.createElement('tr');
+      hdr.className = 'group-header' + (collapsed[k] ? ' collapsed' : '');
+      hdr.dataset.groupKey = k;
+      hdr.innerHTML = '<td colspan="' + cc + '"><span class="gh-caret">▾</span> ' +
+                      escapeHtml(k) + ' <span class="gh-count">· ' + byKey[k].length + '</span></td>';
+      tbody.appendChild(hdr);
+      byKey[k].forEach(function(r){
+        r.classList.add('group-row');
+        r.dataset.groupKey = k;
+        if (collapsed[k]) r.classList.add('collapsed');
+        tbody.appendChild(r);
+      });
+    });
+    bindGroupHeaders(gb);
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function bindGroupHeaders(gb){
+    document.querySelectorAll('#regTbody tr.group-header').forEach(function(h){
+      h.addEventListener('click', function(){
+        var k = h.dataset.groupKey;
+        var collapsed = readCollapsed(gb);
+        collapsed[k] = !collapsed[k];
+        persistCollapsed(gb, collapsed);
+        h.classList.toggle('collapsed', !!collapsed[k]);
+        document.querySelectorAll('#regTbody tr.group-row[data-group-key="' + (CSS.escape ? CSS.escape(k) : k) + '"]').forEach(function(tr){
+          tr.classList.toggle('collapsed', !!collapsed[k]);
+        });
+      });
+    });
+  }
+  // Init: уже отрендерено сервером, привязываем хендлеры
+  var _initialGB = {{ (f_group_by or '')|tojson }};
+  bindGroupHeaders(_initialGB);
+
+  // Перехватываем клики по group-by опциям — без reload
+  document.querySelectorAll('.js-gb-opt').forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var gb = a.dataset.gb || '';
+      // Active state
+      document.querySelectorAll('.js-gb-opt').forEach(function(x){ x.classList.remove('active'); });
+      a.classList.add('active');
+      var lbl = document.getElementById('regGroupByLabel');
+      if (lbl) lbl.textContent = gb ? ('Группа: ' + GB_LABELS[gb]) : 'Группировать';
+      // URL
+      try {
+        var u = new URL(window.location.href);
+        if (gb) u.searchParams.set('group_by', gb); else u.searchParams.delete('group_by');
+        history.replaceState(null, '', u.toString());
+      } catch(_){}
+      // Закрыть dropdown
+      var menu = document.getElementById('regGroupByMenu');
+      if (menu) menu.classList.remove('show');
+      // Перегруппировка
+      regroup(gb);
+      if (window.__regApplySort) window.__regApplySort();
     });
   });
 
-  function toggleCol(col, visible) {
-    document.querySelectorAll("." + col).forEach(el => {
-      el.style.display = visible ? "" : "none";
+  // ══════════════════════════════════════════════════════════
+  // Sort dropdown (Notion-style) — клиентская переcортировка
+  // ══════════════════════════════════════════════════════════
+  (function(){
+    var SORT_LABELS = {
+      date_desc:'Дата ↓', date_asc:'Дата ↑',
+      category_asc:'Категория А-Я', category_desc:'Категория Я-А',
+      class_asc:'Класс А-Я', class_desc:'Класс Я-А',
+      building_asc:'Здание А-Я', building_desc:'Здание Я-А',
+      assignee_asc:'Исполнитель А-Я', assignee_desc:'Исполнитель Я-А',
+      status_asc:'Статус ↓', status_desc:'Статус ↑'
+    };
+    var STATUS_RANK = {new:0, assigned:1, in_progress:2, resolved:3, closed:4};
+    var STORAGE_KEY = 'incidents_registry_sort_v1';
+
+    function parseKey(key){
+      var m = /^(.*)_(asc|desc)$/.exec(key || '');
+      if (!m) return {prop:key, dir:'asc'};
+      return {prop:m[1], dir:m[2]};
+    }
+    function compareBy(key, a, b){
+      var pk = parseKey(key);
+      var dir = pk.dir === 'desc' ? -1 : 1;
+      var av, bv;
+      if (pk.prop === 'date'){
+        av = a.getAttribute('data-occurred') || '';
+        bv = b.getAttribute('data-occurred') || '';
+        if (av === bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return (av < bv ? -1 : 1) * dir;
+      }
+      if (pk.prop === 'status'){
+        av = STATUS_RANK[a.getAttribute('data-status')||'new']; if (av==null) av = 99;
+        bv = STATUS_RANK[b.getAttribute('data-status')||'new']; if (bv==null) bv = 99;
+        return (av - bv) * dir;
+      }
+      var attr = ({category:'data-category','class':'data-class',building:'data-building',assignee:'data-assignee-label'})[pk.prop];
+      if (!attr) return 0;
+      av = (a.getAttribute(attr) || '').trim().toLowerCase();
+      bv = (b.getAttribute(attr) || '').trim().toLowerCase();
+      if (av === bv) return 0;
+      var aEmpty = !av || av.charAt(0) === '—';
+      var bEmpty = !bv || bv.charAt(0) === '—';
+      if (aEmpty && !bEmpty) return 1;
+      if (!aEmpty && bEmpty) return -1;
+      return av.localeCompare(bv, 'ru') * dir;
+    }
+    function getInitial(){
+      var fromUrl = new URLSearchParams(window.location.search).get('sort') || '';
+      if (fromUrl && SORT_LABELS[fromUrl]) return fromUrl;
+      try { var v = localStorage.getItem(STORAGE_KEY); if (v && SORT_LABELS[v]) return v; } catch(_){}
+      return '';
+    }
+    function applySort(sortKey){
+      if (!sortKey) return;
+      var tbody = document.getElementById('regTbody');
+      if (!tbody) return;
+      var hdrs = tbody.querySelectorAll('tr.group-header');
+      if (hdrs.length){
+        // сортировка внутри подгрупп
+        var allTrs = Array.prototype.slice.call(tbody.children);
+        var groups = [], cur = null;
+        allTrs.forEach(function(tr){
+          if (tr.classList && tr.classList.contains('group-header')){
+            cur = {header: tr, rows: []};
+            groups.push(cur);
+          } else if (cur && tr.getAttribute('data-row') === '1'){
+            cur.rows.push(tr);
+          }
+        });
+        groups.forEach(function(g){
+          g.rows.sort(function(a,b){ return compareBy(sortKey, a, b); });
+          g.rows.forEach(function(r){ if (r.parentNode === tbody) tbody.removeChild(r); });
+          var anchor = g.header.nextSibling;
+          g.rows.forEach(function(r){
+            if (anchor) tbody.insertBefore(r, anchor); else tbody.appendChild(r);
+          });
+        });
+      } else {
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-row="1"]'));
+        rows.sort(function(a,b){ return compareBy(sortKey, a, b); });
+        rows.forEach(function(r){ tbody.appendChild(r); });
+      }
+    }
+    window.__regApplySort = function(){
+      var act = document.querySelector('.js-reg-sort-opt.active');
+      applySort(act ? (act.dataset.sort || '') : '');
+    };
+    function setActive(k){
+      document.querySelectorAll('.js-reg-sort-opt').forEach(function(x){
+        x.classList.toggle('active', (x.dataset.sort||'') === k);
+      });
+      var lbl = document.getElementById('regSortLabel');
+      var dot = document.getElementById('regSortDot');
+      if (lbl) lbl.textContent = k ? ('Сорт.: ' + SORT_LABELS[k]) : 'Сортировка';
+      if (dot) dot.style.display = k ? 'inline-block' : 'none';
+    }
+    var init = getInitial();
+    if (init){ setActive(init); applySort(init); }
+    document.querySelectorAll('.js-reg-sort-opt').forEach(function(a){
+      a.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var k = a.dataset.sort || '';
+        setActive(k);
+        try { if (k) localStorage.setItem(STORAGE_KEY, k); else localStorage.removeItem(STORAGE_KEY); } catch(_){}
+        try {
+          var u = new URL(window.location.href);
+          if (k) u.searchParams.set('sort', k); else u.searchParams.delete('sort');
+          history.replaceState(null, '', u.toString());
+        } catch(_){}
+        var menu = document.getElementById('regSortMenu');
+        if (menu) menu.classList.remove('show');
+        applySort(k);
+      });
     });
-  }
+  })();
+
+  // ══════════════════════════════════════════════════════════
+  // Named views: «Все» + сохранённые + inline-создание
+  // ══════════════════════════════════════════════════════════
+  (function(){
+    var nvBar = document.getElementById('nvBar');
+    if (!nvBar) return;
+    var nvCreateBtn = document.getElementById('nvCreateBtn');
+    var nvDefault = document.getElementById('nvDefault');
+    var SCOPE = 'inc_registry';
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var CSRF = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    function curQS() {
+      var u = new URLSearchParams(window.location.search);
+      var out = new URLSearchParams();
+      ["grade","class_id","category","status","q","group_by"].forEach(function(k){
+        var v = u.get(k); if (v) out.set(k, v);
+      });
+      return out.toString();
+    }
+    function applyView(qs) {
+      var u = new URL(window.location.pathname, window.location.origin);
+      if (qs) new URLSearchParams(qs).forEach(function(val, key){ u.searchParams.set(key, val); });
+      window.location.href = u.toString();
+    }
+    function render(items) {
+      Array.prototype.slice.call(nvBar.querySelectorAll('.nv-chip[data-saved]')).forEach(function(el){ el.remove(); });
+      var cur = curQS();
+      nvDefault.classList.toggle('active', cur === '');
+      items.forEach(function(v){
+        var chip = document.createElement('span');
+        chip.className = 'nv-chip' + (cur === v.qs ? ' active' : '');
+        chip.dataset.saved = '1';
+        chip.dataset.id = v.id;
+        chip.title = 'Применить вид: ' + v.name;
+        chip.innerHTML = "<span class='nv-name'></span><span class='x' title='Удалить'>×</span>";
+        chip.querySelector('.nv-name').textContent = v.name;
+        chip.addEventListener('click', function(e){
+          if (e.target.classList.contains('x')) {
+            if (!confirm('Удалить вид «' + v.name + '»?')) return;
+            fetch('/api/saved-views/' + v.id, { method: 'DELETE', headers: {'X-CSRFToken': CSRF} })
+              .then(function(r){ if (r.ok) refresh(); else alert('Ошибка удаления'); });
+            return;
+          }
+          applyView(v.qs);
+        });
+        nvBar.insertBefore(chip, nvCreateBtn);
+      });
+    }
+    function refresh() {
+      fetch('/api/saved-views?scope=' + SCOPE)
+        .then(function(r){ return r.json(); })
+        .then(function(d){ render(d.items || []); })
+        .catch(function(){});
+    }
+    nvDefault.addEventListener('click', function(){ applyView(''); });
+
+    // inline создание: клик по «+ Создать вид» → inline input
+    nvCreateBtn.addEventListener('click', function(){
+      // Удаляем старый input если есть
+      var old = nvBar.querySelector('.nv-chip-input');
+      if (old) { old.querySelector('input').focus(); return; }
+
+      var wrap = document.createElement('span');
+      wrap.className = 'nv-chip-input';
+      wrap.innerHTML = '<input type="text" maxlength="80" placeholder="Название вида…">';
+      var inp = wrap.querySelector('input');
+      nvBar.insertBefore(wrap, nvCreateBtn);
+      setTimeout(function(){ inp.focus(); }, 10);
+
+      function submit(){
+        var name = (inp.value || '').trim();
+        if (!name) { wrap.remove(); return; }
+        var qs = curQS();
+        var fd = new FormData();
+        fd.append('scope', SCOPE);
+        fd.append('name', name.slice(0, 80));
+        fd.append('qs', qs);
+        inp.disabled = true;
+        fetch('/api/saved-views', { method: 'POST', body: fd, headers: {'X-CSRFToken': CSRF} })
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+          .then(function(res){
+            if (!res.ok) {
+              var err = res.data && res.data.error;
+              alert(err === 'limit_reached'
+                ? ('Достигнут лимит ' + res.data.limit + ' видов. Удалите ненужные.')
+                : ('Ошибка сохранения: ' + (err || 'неизвестно')));
+              inp.disabled = false; return;
+            }
+            wrap.remove();
+            refresh();
+          })
+          .catch(function(){ alert('Ошибка сети.'); inp.disabled = false; });
+      }
+      function cancel(){ wrap.remove(); }
+      inp.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+      inp.addEventListener('blur', function(){ setTimeout(function(){ if (document.body.contains(wrap) && !inp.disabled) submit(); }, 150); });
+    });
+
+    refresh();
+  })();
 })();
+</script>
+
+<div class="modal fade" id="incidentDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Удалить инцидент?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2"><span class="text-muted">Категория:</span> <strong id="incDelCategory">—</strong></p>
+        <p class="mb-2"><span class="text-muted">Участники:</span> <span id="incDelKids">—</span></p>
+        <p class="text-danger small mb-0">Действие необратимо. Будут удалены связанные заметки и снимутся ссылки в задачах.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-danger" id="incDelConfirmBtn"><i class="bi bi-trash me-1"></i>Удалить</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var modalEl = document.getElementById('incidentDeleteModal');
+  if (!modalEl) return;
+  var modal = new bootstrap.Modal(modalEl);
+  var pendingForm = null;
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('.js-incident-delete-btn');
+    if (!btn) return;
+    e.preventDefault();
+    pendingForm = btn.closest('form');
+    document.getElementById('incDelCategory').textContent = btn.dataset.category || '—';
+    document.getElementById('incDelKids').textContent = btn.dataset.kids || '—';
+    modal.show();
+  });
+  document.getElementById('incDelConfirmBtn').addEventListener('click', function(){
+    if (pendingForm) pendingForm.submit();
+  });
+});
 </script>
 
 {% endblock %}

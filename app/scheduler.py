@@ -15,11 +15,50 @@
 from __future__ import annotations
 
 import os
+import time
+from threading import RLock
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 _scheduler: BackgroundScheduler | None = None
+
+# Brute-force защита MaxBinding: 6-значный код можно перебирать через
+# `/start <код>` с разных MAX-аккаунтов. Считаем неудачные попытки по
+# chat_id; после порога — игнорируем bind-запросы от этого chat_id.
+_BIND_FAILS: dict[str, list[float]] = {}
+_BIND_FAILS_LOCK = RLock()
+_BIND_WINDOW_SECONDS = 300         # 5 минут на накопление неудач
+_BIND_MAX_FAILS = 5                # порог
+_BIND_BLOCK_SECONDS = 3600         # 1 час lockout
+
+
+def _bind_chat_blocked(chat_id) -> bool:
+    if not chat_id:
+        return False
+    key = str(chat_id)
+    now = time.time()
+    with _BIND_FAILS_LOCK:
+        fails = [t for t in _BIND_FAILS.get(key, []) if now - t < _BIND_BLOCK_SECONDS]
+        _BIND_FAILS[key] = fails
+        recent = [t for t in fails if now - t < _BIND_WINDOW_SECONDS]
+        return len(recent) >= _BIND_MAX_FAILS
+
+
+def _bind_record_fail(chat_id) -> None:
+    if not chat_id:
+        return
+    key = str(chat_id)
+    with _BIND_FAILS_LOCK:
+        _BIND_FAILS.setdefault(key, []).append(time.time())
+
+
+def _bind_reset(chat_id) -> None:
+    if not chat_id:
+        return
+    with _BIND_FAILS_LOCK:
+        _BIND_FAILS.pop(str(chat_id), None)
 
 
 def _kubok_weekly_refresh(app):
@@ -51,6 +90,272 @@ def _page_visit_retention(app, days: int = 30):
             app.logger.info("PageVisit retention OK: удалено %s записей старше %s дней", deleted, days)
         except Exception as exc:  # noqa: BLE001
             app.logger.error("PageVisit retention FAILED: %s", exc)
+
+
+def _bind_payload_for_user(user):
+    """Профиль пользователя для бота.
+
+    students — ВСЕ ученики школы за текущий учебный год (актуальные зачисления),
+    чтобы бот мог делать локальный поиск по фамилии без round-trip к порталу.
+    classes_meta — классы, где пользователь является классным руководителем
+    (оставлено для обратной совместимости; бот сам фильтрует по нужному классу).
+    """
+    from app.models import SchoolClass, ChildEnrollment, Child
+    from app.children import _get_current_year  # noqa: WPS437
+    try:
+        year = _get_current_year()
+    except Exception:
+        year = None
+
+    classes_meta = []
+    students = []
+    if year:
+        own_classes = (
+            SchoolClass.query
+            .filter_by(teacher_user_id=user.id, academic_year_id=year.id, is_archived=False)
+            .all()
+        )
+        classes_meta = [{"id": c.id, "name": c.name} for c in own_classes]
+
+        # Все классы школы за год → имена для меток.
+        all_classes = (
+            SchoolClass.query
+            .filter_by(academic_year_id=year.id, is_archived=False)
+            .all()
+        )
+        class_name_by_id = {c.id: c.name for c in all_classes}
+
+        # Все активные зачисления текущего года.
+        ens = (
+            ChildEnrollment.query
+            .join(Child, ChildEnrollment.child_id == Child.id)
+            .filter(
+                ChildEnrollment.academic_year_id == year.id,
+                ChildEnrollment.ended_at.is_(None),
+            )
+            .order_by(Child.last_name.asc(), Child.first_name.asc())
+            .all()
+        )
+        for en in ens:
+            ch = en.child
+            if not ch:
+                continue
+            students.append({
+                "id": ch.id,
+                "fio": ch.fio,
+                "class_id": en.school_class_id,
+                "class_name": class_name_by_id.get(en.school_class_id),
+            })
+
+    role = getattr(user, "role", None)
+    return {
+        "user_id": user.id,
+        "full_name": user.fio or user.username,
+        "role": role,
+        "class_ids_meta": classes_meta,
+        "students": students,
+    }
+
+
+def _poll_bot_queue(app):
+    with app.app_context():
+        try:
+            from datetime import datetime
+            from app.core.extensions import db
+            from app.models import MaxBinding, User, Incident, Child
+            from app.models_legacy import IncidentChild, IncidentNote
+            from app.services.bot_client import get_client
+
+            client = get_client()
+            if not client._enabled():  # noqa: SLF001
+                return  # env не настроен — тихо
+
+            # ---------- 1. Привязки ----------
+            try:
+                pending = client.pending_binds()
+            except Exception as e:
+                app.logger.warning("bot pending_binds failed: %s", e)
+                pending = []
+
+            now = datetime.utcnow()
+            for b in pending:
+                code = b.get("code")
+                chat_id = b.get("chat_id")
+                full_name = b.get("full_name") or ""
+                if not code or not chat_id:
+                    continue
+                if _bind_chat_blocked(chat_id):
+                    # Слишком много неудачных попыток с этого MAX-чата — игнорируем,
+                    # боту уже отвечали ok=False, у пользователя сообщение есть.
+                    app.logger.warning("MAX bind blocked: chat_id=%s (brute-force lockout)", chat_id)
+                    try:
+                        client.bind_result(chat_id=chat_id, code=code, ok=False)
+                    except Exception as e:
+                        app.logger.warning("bind_result(blocked) failed: %s", e)
+                    continue
+                binding = (
+                    MaxBinding.query
+                    .filter_by(code=code, status="pending")
+                    .filter(MaxBinding.expires_at > now)
+                    .order_by(MaxBinding.id.desc())
+                    .first()
+                )
+                if not binding:
+                    _bind_record_fail(chat_id)
+                    try:
+                        client.bind_result(chat_id=chat_id, code=code, ok=False)
+                    except Exception as e:
+                        app.logger.warning("bind_result(ok=False) failed: %s", e)
+                    continue
+
+                # Снимаем прежние done-привязки того же портала-юзера и того же chat_id
+                (
+                    MaxBinding.query
+                    .filter(MaxBinding.user_id == binding.user_id, MaxBinding.id != binding.id)
+                    .filter(MaxBinding.status.in_(("done", "pending")))
+                    .update({"status": "revoked"}, synchronize_session=False)
+                )
+                (
+                    MaxBinding.query
+                    .filter(MaxBinding.max_chat_id == chat_id, MaxBinding.id != binding.id)
+                    .filter(MaxBinding.status == "done")
+                    .update({"status": "revoked"}, synchronize_session=False)
+                )
+                binding.status = "done"
+                binding.max_chat_id = chat_id
+                binding.max_full_name = full_name
+                binding.bound_at = now
+                db.session.commit()
+
+                user = User.query.get(binding.user_id)
+                if not user:
+                    try:
+                        client.bind_result(chat_id=chat_id, code=code, ok=False)
+                    except Exception as e:
+                        app.logger.warning("bind_result no-user failed: %s", e)
+                    continue
+                payload = _bind_payload_for_user(user)
+                try:
+                    client.bind_result(chat_id=chat_id, code=code, ok=True, **payload)
+                    _bind_reset(chat_id)
+                    app.logger.info("MAX bind OK: user_id=%s chat_id=%s", user.id, chat_id)
+                except Exception as e:
+                    app.logger.warning("bind_result(ok=True) send failed: %s", e)
+
+            # ---------- 2. Очередь инцидентов ----------
+            try:
+                items = client.pending()
+            except Exception as e:
+                app.logger.warning("bot pending failed: %s", e)
+                items = []
+
+            for q in items:
+                qid = q.get("queue_id")
+                chat_id = q.get("chat_id")
+                payload = q.get("payload") or {}
+                if not qid or not chat_id:
+                    continue
+
+                binding = (
+                    MaxBinding.query
+                    .filter_by(max_chat_id=chat_id, status="done")
+                    .order_by(MaxBinding.id.desc())
+                    .first()
+                )
+                if not binding:
+                    try:
+                        client.ack(qid, ok=False, error="binding_revoked")
+                    except Exception as e:
+                        app.logger.warning("ack(no-bind) failed: %s", e)
+                    continue
+
+                try:
+                    occurred_at = datetime.fromisoformat(payload.get("occurred_at"))
+                    if occurred_at.tzinfo is not None:
+                        import pytz as _pytz
+                        occurred_at = occurred_at.astimezone(_pytz.timezone("Europe/Moscow")).replace(tzinfo=None)
+                except Exception:
+                    occurred_at = now
+
+                inc = Incident(
+                    occurred_at=occurred_at,
+                    category=payload.get("category") or "Другое",
+                    description=(payload.get("description") or "")[:5000] or "(из MAX-бота)",
+                    status="new",
+                    author_id=binding.user_id,
+                    created_at=now,
+                )
+                db.session.add(inc)
+                db.session.flush()
+
+                # Список учеников: поддерживаем новый формат student_ids (list)
+                # и старый student_id (single) для обратной совместимости.
+                sids = payload.get("student_ids")
+                if not sids:
+                    sid = payload.get("student_id")
+                    sids = [sid] if sid else []
+                seen = set()
+                for raw in sids:
+                    try:
+                        cid = int(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if cid in seen:
+                        continue
+                    seen.add(cid)
+                    ch = Child.query.get(cid)
+                    if ch:
+                        db.session.add(IncidentChild(incident_id=inc.id, child_id=ch.id))
+
+                # «Что уже сделано» — первая запись в журнале работы.
+                initial_work = (payload.get("initial_work") or "").strip()
+                if initial_work:
+                    db.session.add(IncidentNote(
+                        incident_id=inc.id,
+                        author_id=binding.user_id,
+                        text=initial_work[:5000],
+                    ))
+
+                attachments = payload.get("attachments") or []
+                saved_atts = 0
+                rejected_atts = 0
+                if attachments:
+                    from app.children import _save_max_attachment
+                    note = IncidentNote(
+                        incident_id=inc.id,
+                        author_id=binding.user_id,
+                        text=f"[Из MAX-бота] Вложения: {len(attachments)} шт.",
+                    )
+                    db.session.add(note)
+                    db.session.flush()
+                    for idx, a in enumerate(attachments):
+                        try:
+                            data, ct = client.fetch_attachment(qid, idx)
+                        except Exception as e:
+                            app.logger.warning("MAX fetch_attachment %s/%s failed: %s", qid, idx, e)
+                            rejected_atts += 1
+                            continue
+                        try:
+                            _save_max_attachment(note, a.get("filename") or f"attachment_{idx+1}", data, hint_mime=a.get("mime"))
+                            saved_atts += 1
+                        except Exception as e:
+                            app.logger.warning("MAX save_attachment %s/%s rejected: %s", qid, idx, e)
+                            rejected_atts += 1
+                    note.text = f"[Из MAX-бота] Вложения: сохранено {saved_atts} из {len(attachments)}" + (
+                        f" (отклонено: {rejected_atts})" if rejected_atts else ""
+                    )
+
+                db.session.commit()
+
+                base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+                link = f"{base}/incidents/{inc.id}/edit" if base else None
+                try:
+                    client.ack(qid, ok=True, incident_id=inc.id, link=link)
+                    app.logger.info("MAX queue ack: inc_id=%s qid=%s", inc.id, qid)
+                except Exception as e:
+                    app.logger.warning("ack(ok=True) failed: %s", e)
+        except Exception as exc:  # noqa: BLE001
+            app.logger.exception("poll_bot_queue FAILED: %s", exc)
 
 
 def _should_start() -> bool:
@@ -94,6 +399,21 @@ def init_scheduler(app):
         coalesce=True,
         misfire_grace_time=3600,
     )
+    if os.getenv("BOT_API_URL") and os.getenv("BOT_SHARED_SECRET"):
+        sched.add_job(
+            func=lambda: _poll_bot_queue(app),
+            trigger=IntervalTrigger(seconds=15),
+            id="poll_bot_queue",
+            name="Poll MAX-bot binds + queue (15s)",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=10,
+        )
+        app.logger.info("Scheduler: poll_bot_queue (15s) registered")
+    else:
+        app.logger.info("Scheduler: poll_bot_queue skipped (BOT_API_URL/BOT_SHARED_SECRET не заданы)")
+
     sched.start()
     app.logger.info("Scheduler started: kubok_weekly_refresh + page_visit_retention")
     _scheduler = sched

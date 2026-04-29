@@ -74,14 +74,12 @@
           <th>Макс.</th>
           <th>Классный руководитель</th>
           <th>Телефон</th>
-          <th title="Сколько учеников класса состоят в школьном спортивном клубе">ШСК</th>
-          {% if is_admin %}<th>Кубок школы</th>{% endif %}
           <th class="text-end">Действия</th>
         </tr>
       </thead>
       <tbody>
-      {% set _colspan = 9 if is_admin else 8 %}
-      {% for c, teacher_fio, teacher_phone, active_count, _task_total, _task_overdue, sc_in_club in classes %}
+      {% set _colspan = 7 %}
+      {% for c, teacher_fio, teacher_phone, active_count, _task_total, _task_overdue, sc_in_club, do_count in classes %}
         <tr>
           <td class="fw-bold">
             <a href="{{ url_for('children.class_detail', class_id=c.id) }}" class="text-decoration-none">{{ c.name }}</a>
@@ -91,35 +89,6 @@
           <td>{{ c.max_students or '—' }}</td>
           <td>{{ teacher_fio or '—' }}</td>
           <td class="text-muted">{{ teacher_phone or '—' }}</td>
-          <td>
-            {% if active_count %}
-              {% if sc_in_club %}
-                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
-                      title="{{ sc_in_club }} из {{ active_count }} учеников класса состоят в ШСК">
-                  <i class="bi bi-dribbble"></i> {{ sc_in_club }} из {{ active_count }}
-                </span>
-              {% else %}
-                <span class="text-muted small">0 из {{ active_count }}</span>
-              {% endif %}
-            {% else %}
-              <span class="text-muted small">—</span>
-            {% endif %}
-          </td>
-          {% if is_admin %}
-            {% set _kr = kubok_rating(c.name) %}
-            <td>
-              {% if _kr %}
-                <a href="{{ url_for('children.class_detail', class_id=c.id) }}"
-                   class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
-                   title="Подробности по классу">
-                  <i class="bi bi-trophy-fill"></i>
-                  {{ '{:g}'.format(_kr.total_points) }} баллов · #{{ _kr.place }} из {{ _kr.total_classes }}
-                </a>
-              {% else %}
-                <span class="text-muted small">—</span>
-              {% endif %}
-            </td>
-          {% endif %}
           <td class="text-end">
             <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#edit-class-{{ c.id }}">Редактировать</a>
             <form method="post" action="{{ url_for('children.classes_delete', class_id=c.id) }}" class="d-inline" onsubmit="return confirm('Удалить класс?');">

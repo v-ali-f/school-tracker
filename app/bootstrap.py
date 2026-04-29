@@ -104,6 +104,12 @@ def ensure_runtime_schema():
             "transfer_order_number": "ALTER TABLE child_parent ADD COLUMN transfer_order_number VARCHAR(100)",
             "transfer_order_date": "ALTER TABLE child_parent ADD COLUMN transfer_order_date DATE",
         },
+        "child_social": {
+            "is_single_mother": "ALTER TABLE child_social ADD COLUMN is_single_mother BOOLEAN DEFAULT FALSE",
+            "is_single_father": "ALTER TABLE child_social ADD COLUMN is_single_father BOOLEAN DEFAULT FALSE",
+            "is_repeat_year": "ALTER TABLE child_social ADD COLUMN is_repeat_year BOOLEAN DEFAULT FALSE",
+            "is_svo_family": "ALTER TABLE child_social ADD COLUMN is_svo_family BOOLEAN DEFAULT FALSE",
+        },
         "parent": {
             "retention_until": "ALTER TABLE parent ADD COLUMN retention_until DATE",
             "is_archived": "ALTER TABLE parent ADD COLUMN is_archived BOOLEAN DEFAULT FALSE",
@@ -197,6 +203,43 @@ def ensure_runtime_schema():
         "CREATE INDEX IF NOT EXISTS ix_olympiad_subject_mapping_olympiad_name ON olympiad_subject_mapping (olympiad_name)",
         "CREATE INDEX IF NOT EXISTS ix_olympiad_subject_mapping_subject_id ON olympiad_subject_mapping (subject_id)",
         "CREATE INDEX IF NOT EXISTS ix_olympiad_subject_mapping_department_id ON olympiad_subject_mapping (department_id)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_status ON incident (status)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_assignee_id ON incident (assignee_id)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_author_id ON incident (author_id)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_occurred_at ON incident (occurred_at)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_category ON incident (category)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_note_incident_id ON incident_note (incident_id)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_note_author_id ON incident_note (author_id)",
+        "CREATE INDEX IF NOT EXISTS ix_incident_status_occurred ON incident (status, occurred_at DESC)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_saved_view_user_scope_name ON saved_view (user_id, scope, name)",
+        # s85: индексы под колокольчик/задачи/контингент/события
+        "CREATE INDEX IF NOT EXISTS ix_incident_notification_user_unread ON incident_notification (user_id, is_read, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_task_notification_user_unread ON task_notification (user_id, is_read, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_task_responsible_status ON task (responsible_user_id, status)",
+        "CREATE INDEX IF NOT EXISTS ix_task_status_deadline ON task (status, deadline_at)",
+        'CREATE INDEX IF NOT EXISTS ix_user_employment_status ON "user" (employment_status)',
+        "CREATE INDEX IF NOT EXISTS ix_school_class_year_archived ON school_class (academic_year_id, is_archived)",
+        "CREATE INDEX IF NOT EXISTS ix_child_enrollment_status ON child_enrollment (status)",
+        "CREATE INDEX IF NOT EXISTS ix_child_enrollment_class_status ON child_enrollment (school_class_id, status)",
+        "CREATE INDEX IF NOT EXISTS ix_child_status ON child (status)",
+        "CREATE INDEX IF NOT EXISTS ix_child_events_from_class ON child_events (from_class)",
+        "CREATE INDEX IF NOT EXISTS ix_child_events_event_type_from_class ON child_events (event_type, from_class)",
+        # s96: множественные исполнители инцидента
+        """CREATE TABLE IF NOT EXISTS incident_assignee (
+            incident_id INTEGER NOT NULL REFERENCES incident(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+            added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            added_by_id INTEGER REFERENCES "user"(id),
+            PRIMARY KEY (incident_id, user_id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_incident_assignee_user ON incident_assignee (user_id)",
+        # backfill: переносим текущих assignee_id в junction-таблицу (идемпотентно).
+        """INSERT INTO incident_assignee (incident_id, user_id, added_at)
+           SELECT i.id, i.assignee_id, CURRENT_TIMESTAMP FROM incident i
+           WHERE i.assignee_id IS NOT NULL AND NOT EXISTS (
+             SELECT 1 FROM incident_assignee ia
+             WHERE ia.incident_id = i.id AND ia.user_id = i.assignee_id
+           )""",
     ]:
         try:
             db.session.execute(text(sql))

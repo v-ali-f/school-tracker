@@ -1,0 +1,204 @@
+{% extends "layout.html" %}
+{% block title %}Настройки профиля — {{ app_display_title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-9">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-person-gear text-primary" style="font-size:1.4rem;"></i>
+      <h4 class="m-0">Настройки профиля</h4>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-profile" data-bs-toggle="tab"
+                data-bs-target="#profile" type="button" role="tab">
+          <i class="bi bi-person me-1"></i>Профиль
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-password" data-bs-toggle="tab"
+                data-bs-target="#password" type="button" role="tab">
+          <i class="bi bi-key me-1"></i>Пароль
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-notifications" data-bs-toggle="tab"
+                data-bs-target="#notifications" type="button" role="tab">
+          <i class="bi bi-bell me-1"></i>Уведомления
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" href="{{ url_for('auth.profile_max') }}">
+          <i class="bi bi-chat-dots me-1"></i>MAX-бот
+        </a>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+
+      {# === Профиль (read-only) === #}
+      <div class="tab-pane fade show active" id="profile" role="tabpanel">
+        <p class="text-muted small mb-3">
+          Эти данные задаёт администратор. Если что-то указано неверно — обратитесь
+          к администратору системы.
+        </p>
+        <dl class="row mb-0">
+          <dt class="col-sm-3 text-muted fw-normal">ФИО</dt>
+          <dd class="col-sm-9">{{ current_user.fio or '—' }}</dd>
+
+          <dt class="col-sm-3 text-muted fw-normal">Логин</dt>
+          <dd class="col-sm-9"><code>{{ current_user.username }}</code></dd>
+
+          <dt class="col-sm-3 text-muted fw-normal">Роль</dt>
+          <dd class="col-sm-9">{{ role_labels.get(current_user.role, current_user.role or '—') }}</dd>
+
+          <dt class="col-sm-3 text-muted fw-normal">Email</dt>
+          <dd class="col-sm-9">{{ current_user.email or '—' }}</dd>
+
+          <dt class="col-sm-3 text-muted fw-normal">Телефон</dt>
+          <dd class="col-sm-9">{{ current_user.phone or '—' }}</dd>
+        </dl>
+      </div>
+
+      {# === Смена пароля === #}
+      <div class="tab-pane fade" id="password" role="tabpanel">
+        <p class="text-muted small mb-3">
+          Минимум 8 символов. После смены пароля текущая сессия не сбрасывается —
+          можно продолжать работу.
+        </p>
+        <form method="post" action="{{ url_for('auth.profile_settings_password') }}"
+              autocomplete="off" style="max-width:480px;">
+          <div class="mb-3">
+            <label class="form-label">Текущий пароль</label>
+            <input type="password" name="current_password" class="form-control" required
+                   autocomplete="current-password">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Новый пароль</label>
+            <input type="password" name="new_password" class="form-control" required
+                   minlength="8" autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Повторите новый пароль</label>
+            <input type="password" name="confirm_password" class="form-control" required
+                   minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check2 me-1"></i>Сменить пароль
+          </button>
+        </form>
+      </div>
+
+      {# === Уведомления === #}
+      <div class="tab-pane fade" id="notifications" role="tabpanel">
+        <p class="text-muted small mb-4">
+          Выберите, какие уведомления показывать в колокольчике. Настройки
+          применяются только к вашей учётной записи. Настройки по инцидентам
+          и задачам независимы — можно получать все события по задачам и
+          только закрытия по инцидентам, и наоборот.
+        </p>
+
+        <form method="post" action="{{ url_for('auth.profile_settings_notifications') }}">
+
+          <div class="d-flex align-items-center gap-2 mt-2 mb-2">
+            <i class="bi bi-exclamation-triangle text-warning"></i>
+            <h5 class="m-0">Уведомления по инцидентам</h5>
+          </div>
+          <p class="text-muted small mb-3">
+            Управляет событиями в колокольчике по инцидентам школьников
+            (назначение исполнителя, смена статуса, отработка, закрытие,
+            комментарии и ответы в журнале).
+          </p>
+          {% for code, label, hint in incident_modes %}
+          <label class="card mb-2 notify-mode-card {% if code == current_incident_mode %}border-primary{% endif %}"
+                 style="cursor:pointer;">
+            <div class="card-body py-3 d-flex gap-3 align-items-start">
+              <input type="radio" name="incident_mode" value="{{ code }}" class="form-check-input mt-1"
+                     {% if code == current_incident_mode %}checked{% endif %}>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ label }}</div>
+                <div class="small text-muted">{{ hint }}</div>
+              </div>
+              {% if code == current_incident_mode %}
+              <span class="badge bg-primary-subtle text-primary-emphasis align-self-center">Текущий</span>
+              {% endif %}
+            </div>
+          </label>
+          {% endfor %}
+
+          <hr class="my-4">
+
+          <div class="d-flex align-items-center gap-2 mt-2 mb-2">
+            <i class="bi bi-check2-square text-primary"></i>
+            <h5 class="m-0">Уведомления по задачам</h5>
+          </div>
+          <p class="text-muted small mb-3">
+            Управляет событиями в колокольчике по задачам и поручениям
+            (назначение задачи, смена статуса, отправка на проверку, возврат
+            на доработку, изменение срока, просрочка, комментарии, вложения,
+            закрытие).
+          </p>
+          {% for code, label, hint in task_modes %}
+          <label class="card mb-2 notify-mode-card {% if code == current_task_mode %}border-primary{% endif %}"
+                 style="cursor:pointer;">
+            <div class="card-body py-3 d-flex gap-3 align-items-start">
+              <input type="radio" name="task_mode" value="{{ code }}" class="form-check-input mt-1"
+                     {% if code == current_task_mode %}checked{% endif %}>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ label }}</div>
+                <div class="small text-muted">{{ hint }}</div>
+              </div>
+              {% if code == current_task_mode %}
+              <span class="badge bg-primary-subtle text-primary-emphasis align-self-center">Текущий</span>
+              {% endif %}
+            </div>
+          </label>
+          {% endfor %}
+
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check2 me-1"></i>Сохранить
+            </button>
+          </div>
+        </form>
+
+        <div class="alert alert-light border mt-4 small text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          Настройки режима задач не отменяют галочку «только важные уведомления»
+          в личных настройках задач — она применяется отдельно. Email-уведомления
+          по задачам тоже настраиваются отдельно (в вашем профиле задач).
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+  .notify-mode-card { transition: border-color .15s ease, box-shadow .15s ease; }
+  .notify-mode-card:hover { border-color: #86b7fe; box-shadow: 0 0 0 .15rem rgba(13,110,253,.1); }
+  .notify-mode-card input[type="radio"] { flex-shrink: 0; }
+</style>
+
+<script>
+(function () {
+  // Открыть нужную вкладку по hash (#profile / #password / #notifications)
+  var hash = (window.location.hash || '').replace('#', '');
+  var allowed = {profile: 1, password: 1, notifications: 1};
+  if (allowed[hash]) {
+    var btn = document.getElementById('tab-' + hash);
+    if (btn && window.bootstrap && window.bootstrap.Tab) {
+      window.bootstrap.Tab.getOrCreateInstance(btn).show();
+    }
+  }
+  // Обновлять hash при переключении вкладок (чтобы перезагрузка возвращала на ту же)
+  document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]').forEach(function (b) {
+    b.addEventListener('shown.bs.tab', function (e) {
+      var id = e.target.getAttribute('data-bs-target');
+      if (id) history.replaceState(null, '', id);
+    });
+  });
+})();
+</script>
+{% endblock %}

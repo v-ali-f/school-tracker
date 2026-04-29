@@ -459,6 +459,13 @@ class ChildSocial(db.Model):
     is_socially_dangerous = db.Column(db.Boolean, default=False, nullable=False)
     is_hard_life = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Поля по шаблону «Соц паспорт класса» (s87, директорский запрос).
+    # Дети-инвалиды и ОВЗ хранятся на Child (is_disabled, is_ovz) — не дублируем.
+    is_single_mother = db.Column(db.Boolean, default=False, nullable=False)
+    is_single_father = db.Column(db.Boolean, default=False, nullable=False)
+    is_repeat_year = db.Column(db.Boolean, default=False, nullable=False)
+    is_svo_family = db.Column(db.Boolean, default=False, nullable=False)
+
     notes = db.Column(db.Text, nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -859,17 +866,26 @@ class Incident(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    occurred_at = db.Column(db.DateTime, nullable=False)
-    category = db.Column(db.String(50), nullable=False)
+    occurred_at = db.Column(db.DateTime, nullable=False, index=True)
+    category = db.Column(db.String(50), nullable=False, index=True)
     description = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(20), nullable=False, default="new", server_default="new")
+    status = db.Column(db.String(20), nullable=False, default="new", server_default="new", index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    author_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    assignee_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    author_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
+    assignee_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
 
     author = db.relationship("User", foreign_keys=[author_id], backref="incidents_created")
     assignee = db.relationship("User", foreign_keys=[assignee_id], backref="incidents_assigned")
+
+    assignees = db.relationship(
+        "User",
+        secondary="incident_assignee",
+        primaryjoin="Incident.id == IncidentAssignee.incident_id",
+        secondaryjoin="User.id == IncidentAssignee.user_id",
+        lazy="select",
+        order_by="IncidentAssignee.added_at.asc()",
+    )
 
     notes = db.relationship(
         "IncidentNote",
@@ -887,12 +903,23 @@ class Incident(db.Model):
         return f"<Incident {self.category}>"
 
 
+class IncidentAssignee(db.Model):
+    """Многие-ко-многим: исполнители инцидента. Incident.assignee_id —
+    «основной» (последний добавленный), здесь — полный список."""
+    __tablename__ = "incident_assignee"
+
+    incident_id = db.Column(db.Integer, db.ForeignKey("incident.id", ondelete="CASCADE"), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), primary_key=True)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    added_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+
 class IncidentNote(db.Model):
     __tablename__ = "incident_note"
 
     id = db.Column(db.Integer, primary_key=True)
-    incident_id = db.Column(db.Integer, db.ForeignKey("incident.id"), nullable=False)
-    author_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incident.id"), nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey("incident_note.id"), nullable=True, index=True)

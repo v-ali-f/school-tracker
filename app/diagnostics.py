@@ -593,7 +593,8 @@ def index():
     subjects = _subject_choices()
     all_rows = _visible_sessions_with_stats()
 
-    rows = []
+    # s85: фильтруем сначала, потом подгружаем статистику только по нужным сессиям.
+    pre_filtered = []
     for row in all_rows:
         if academic_year_id and row.academic_year_id != academic_year_id:
             continue
@@ -605,11 +606,45 @@ def index():
             continue
         if status_filter and row.status != status_filter:
             continue
+        pre_filtered.append(row)
 
-        visible_results = _apply_results_visibility(DiagnosticResult.query.filter_by(session_id=row.id, is_final=True).all())
+    # s85: батч-запросы вместо N+1 — все агрегации одним SQL на отфильтрованные сессии.
+    session_ids = [r.id for r in pre_filtered]
+    visible_results_by_session = {}
+    imports_count_by_session = {}
+    sessions_with_any_result = set()
+    if session_ids:
+        all_visible = _apply_results_visibility(
+            DiagnosticResult.query
+            .filter(DiagnosticResult.session_id.in_(session_ids), DiagnosticResult.is_final == True)
+            .all()
+        )
+        for item in all_visible:
+            visible_results_by_session.setdefault(item.session_id, []).append(item)
+        for sid, cnt in (
+            db.session.query(DiagnosticImportBatch.session_id, func.count(DiagnosticImportBatch.id))
+            .filter(DiagnosticImportBatch.session_id.in_(session_ids))
+            .group_by(DiagnosticImportBatch.session_id)
+            .all()
+        ):
+            imports_count_by_session[sid] = cnt
+        sessions_with_any_result = {
+            sid for (sid,) in (
+                db.session.query(DiagnosticResult.session_id)
+                .filter(DiagnosticResult.session_id.in_(session_ids))
+                .distinct()
+                .all()
+            )
+        }
+
+    rows = []
+    can_manage = _can_manage_diagnostics()
+    for row in pre_filtered:
+        visible_results = visible_results_by_session.get(row.id, [])
         bound_count = sum(1 for item in visible_results if item.teacher_binding and item.teacher_binding.teacher_id)
-        row.can_delete = _can_manage_diagnostics() and not DiagnosticImportBatch.query.filter_by(session_id=row.id).first() and not DiagnosticResult.query.filter_by(session_id=row.id).first()
-        row.imports_count = DiagnosticImportBatch.query.filter_by(session_id=row.id).count()
+        imports_count = imports_count_by_session.get(row.id, 0)
+        row.can_delete = can_manage and imports_count == 0 and row.id not in sessions_with_any_result
+        row.imports_count = imports_count
         row.results_count = len(visible_results)
         row.bound_count = bound_count
         row.has_binding = bound_count > 0
@@ -853,11 +888,15 @@ def analytics():
     if not session_id and all_sessions:
         session_id = all_sessions[0].id
 
-    rows = DiagnosticResult.query.filter_by(is_final=True).order_by(DiagnosticResult.class_name_raw.asc(), DiagnosticResult.full_name_raw.asc()).all()
+    # s85: фильтр по session_id уходит в SQL вместо Python; полная история не грузится.
+    rows_q = DiagnosticResult.query.filter_by(is_final=True)
+    if session_id:
+        rows_q = rows_q.filter(DiagnosticResult.session_id == session_id)
+    rows = rows_q.order_by(DiagnosticResult.class_name_raw.asc(), DiagnosticResult.full_name_raw.asc()).all()
     rows = _apply_results_visibility(rows)
 
     selected_session = next((s for s in all_sessions if s.id == session_id), None)
-    session_rows = [row for row in rows if (not session_id or row.session_id == session_id)]
+    session_rows = rows  # фильтр по session_id уже применён в SQL
 
     available_parallels = []
     parallel_seen = set()

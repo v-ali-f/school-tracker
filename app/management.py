@@ -1,5 +1,5 @@
 from typing import Optional
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import date, datetime, time, timedelta
 
 from flask import Blueprint, render_template, request
@@ -208,6 +208,8 @@ def build_management_data(year_id: Optional[int] = None):
         report_rows.append(row)
 
     classes_count = len(classes)
+    # s85: O(N×M) → O(N+M) через Counter
+    enrollments_by_class = Counter(e.school_class_id for e in enrollments)
     summary = {
         'students': len(child_ids),
         'classes': classes_count,
@@ -219,7 +221,7 @@ def build_management_data(year_id: Optional[int] = None):
         'support_open': support_open,
         'incidents_today': incidents_today,
         'incidents_month': incidents_month,
-        'free_places': sum(max((int(c.max_students or 0) - sum(1 for e in enrollments if e.school_class_id == c.id)), 0) for c in classes.values()),
+        'free_places': sum(max(int(c.max_students or 0) - enrollments_by_class.get(c.id, 0), 0) for c in classes.values()),
     }
 
     return {

@@ -24,16 +24,7 @@
     content: ''; display: inline-block;
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
   }
-  .status-badge.s-new         { background:#fff3e0; color:#92400e; }
-  .status-badge.s-new::before { background:#f59e0b; }
-  .status-badge.s-assigned         { background:#fef3c7; color:#92400e; }
-  .status-badge.s-assigned::before { background:#f59e0b; }
-  .status-badge.s-in_progress         { background:#eff6ff; color:#1d4ed8; }
-  .status-badge.s-in_progress::before { background:#3b82f6; }
-  .status-badge.s-resolved         { background:#f3e8ff; color:#6b21a8; }
-  .status-badge.s-resolved::before { background:#a855f7; }
-  .status-badge.s-closed         { background:#f0fdf4; color:#15803d; }
-  .status-badge.s-closed::before { background:#22c55e; }
+  /* status-badge.s-* цвета — incidents-status.css */
 
   /* ── Picker-пилюля ── */
   .status-picker { position: relative; display: inline-block; }
@@ -47,16 +38,7 @@
     content: ''; display: inline-block;
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
   }
-  .status-pill.s-new         { background:#fff3e0; color:#92400e; }
-  .status-pill.s-new::before { background:#f59e0b; }
-  .status-pill.s-assigned         { background:#fef3c7; color:#92400e; }
-  .status-pill.s-assigned::before { background:#f59e0b; }
-  .status-pill.s-in_progress         { background:#eff6ff; color:#1d4ed8; }
-  .status-pill.s-in_progress::before { background:#3b82f6; }
-  .status-pill.s-resolved         { background:#f3e8ff; color:#6b21a8; }
-  .status-pill.s-resolved::before { background:#a855f7; }
-  .status-pill.s-closed         { background:#f0fdf4; color:#15803d; }
-  .status-pill.s-closed::before { background:#22c55e; }
+  /* status-pill.s-* цвета — incidents-status.css */
   .status-picker-menu {
     display: none; position: absolute; left: 0; top: calc(100% + 4px);
     background: #fff; border: 1px solid #e9ecef; border-radius: 10px;
@@ -70,11 +52,7 @@
   }
   .sp-opt:hover { background: #f8f9fa; }
   .sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .sp-dot.d-new         { background:#f59e0b; }
-  .sp-dot.d-assigned    { background:#f59e0b; }
-  .sp-dot.d-in_progress { background:#3b82f6; }
-  .sp-dot.d-resolved    { background:#a855f7; }
-  .sp-dot.d-closed      { background:#22c55e; }
+  /* sp-dot.d-* цвета — incidents-status.css */
 
   /* ── Вкладки ── */
   .inc-tabs { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1rem; }
@@ -146,7 +124,7 @@
 
   /* ── view-switcher / col-picker / truncate / list view (из incidents_registry) ── */
   .view-btn { padding:.3rem .75rem; border-radius:8px; border:1px solid #dee2e6; background:#fff; cursor:pointer; font-size:.85rem; color:#495057; }
-  .view-btn.active { background:#283149; color:#fff; border-color:#283149; }
+  .view-btn.active { background:#ff7043; color:#fff; border-color:#ff7043; }
   .col-picker-dropdown { min-width:220px; padding:.5rem .75rem; font-size:.85rem; }
   .col-picker-dropdown label { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; cursor:pointer; }
   .desc-toggle { background:none; border:none; color:#6c757d; cursor:pointer; padding:0 .15rem; font-size:.85rem; vertical-align:middle; }
@@ -164,6 +142,279 @@
     .incident-table th[class^="col-"],
     .incident-table th[class*=" col-"] { width: auto !important; }
   }
+  /* Picker assignee — fixed на узких экранах, чтобы не упирался в правый край */
+  @media (max-width: 575.98px) {
+    .assignee-menu {
+      position: fixed;
+      left: 1rem; right: 1rem; top: auto;
+      width: auto; max-width: none;
+    }
+  }
+
+  /* Kanban */
+  .inc-kanban { display:flex; gap:14px; padding:1rem; overflow-x:auto; min-height:60vh; }
+  .kb-col { flex:0 0 320px; max-width:320px; }
+  .kb-col-head { display:flex; align-items:center; gap:.5rem; padding:.4rem .25rem .65rem; }
+  .kb-col-pill { display:inline-flex; align-items:center; gap:.35rem; padding:.18rem .55rem; border-radius:999px; font-size:.78rem; font-weight:600; }
+  .kb-col-pill::before { content:''; width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .kb-col-pill.s-incoming { background:#fff3e0; color:#92400e; }
+  .kb-col-pill.s-incoming::before { background:#f59e0b; }
+  .kb-col-pill.s-in_work  { background:#eff6ff; color:#1d4ed8; }
+  .kb-col-pill.s-in_work::before  { background:#3b82f6; }
+  .kb-col-pill.s-completed{ background:#f0fdf4; color:#15803d; }
+  .kb-col-pill.s-completed::before{ background:#22c55e; }
+  .kb-col-count { font-size:.78rem; color:#9ca3af; }
+  .kb-col-body { display:flex; flex-direction:column; gap:8px; min-height:60px; }
+  .kb-card { background:#fff; border:1px solid #ececec; border-radius:8px; padding:.7rem .8rem; box-shadow:0 1px 0 rgba(0,0,0,.02); transition:box-shadow .15s, transform .15s; }
+  .kb-card:hover { box-shadow:0 4px 14px rgba(0,0,0,.06); transform:translateY(-1px); }
+  .kb-cat { display:inline-block; font-size:.7rem; padding:.1rem .45rem; border-radius:4px; font-weight:600; margin-bottom:.35rem; background:#f3f4f6; color:#374151; }
+  .kb-title { font-size:.88rem; font-weight:500; line-height:1.35; margin-bottom:.4rem; color:#191918; }
+  .kb-title a { color:inherit; text-decoration:none; }
+  .kb-title a:hover { color:#ff7043; }
+  .kb-students { font-size:.78rem; color:#3a3a39; margin-bottom:.5rem; }
+  .kb-students .grade { color:#9ca3af; margin-left:.25rem; }
+  .kb-meta { display:flex; align-items:center; gap:.5rem; font-size:.74rem; color:#6c757d; flex-wrap:wrap; }
+  .kb-meta .right { margin-left:auto; display:inline-flex; align-items:center; gap:.4rem; }
+  .kb-empty { color:#adb5bd; font-size:.8rem; padding:1rem .25rem; text-align:center; }
+  .kb-tasks { display:inline-flex; align-items:center; gap:.3rem; }
+  .kb-tasks-bar { width:42px; height:4px; background:#ececec; border-radius:2px; overflow:hidden; }
+  .kb-tasks-bar > i { display:block; height:100%; background:#22c55e; }
+  /* D&D в kanban */
+  .kb-draggable { cursor:grab; }
+  .kb-draggable:active { cursor:grabbing; }
+  .kb-card.kb-dragging { opacity:.45; }
+  .kb-col-body.kb-drop-over { background:#fff7ed; border-radius:8px; outline:2px dashed #ffd9bf; outline-offset:-4px; }
+  /* fix: во время D&D подавляем hover-jitter соседних карточек */
+  .inc-kanban.kb-dragging-active .kb-card { transition:none; }
+  .inc-kanban.kb-dragging-active .kb-card:hover { box-shadow:0 1px 0 rgba(0,0,0,.02); transform:none; }
+  /* fix: открытое status-меню в kanban — поднимаем карточку над соседями
+     (соседние kb-card на :hover получают transform → свой stacking context,
+     из-за которого absolute-меню с z:1050 «прячется» под их .status-pill) */
+  .kb-card.kb-menu-open { position:relative; z-index:1200; }
+  .kb-card.kb-menu-open:hover { transform:none; box-shadow:0 1px 0 rgba(0,0,0,.02); }
+  .inc-kanban:has(.status-picker-menu.open) .kb-card:hover { transform:none; }
+  /* Property visibility (chip-toggle через .hide-<prop> на корне kanban) */
+  .inc-kanban.hide-kp-cat       .kp-cat,
+  .inc-kanban.hide-kp-students  .kp-students,
+  .inc-kanban.hide-kp-date      .kp-date,
+  .inc-kanban.hide-kp-assignee  .kp-assignee,
+  .inc-kanban.hide-kp-tasks     .kp-tasks,
+  .inc-kanban.hide-kp-status    .kp-status { display:none !important; }
+
+  /* Главные view-tabs (Notion-style крупные) */
+  .view-tabs-bar { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:.85rem 1rem; }
+  .view-tab-btn {
+    display:inline-flex; align-items:center; gap:.5rem;
+    padding:.55rem 1rem; border-radius:10px;
+    background:transparent; color:#495057;
+    text-decoration:none; font-size:.95rem; font-weight:500;
+    border:1px solid transparent; transition:background .15s, border-color .15s;
+  }
+  .view-tab-btn:hover { background:#f4f4f2; color:#191918; }
+  .view-tab-btn.active { background:#fff1e6; color:#c25b00; border-color:#ffd9bf; font-weight:600; }
+  .view-tab-btn i { font-size:1.05rem; }
+  .view-tabs-sep { width:1px; height:28px; background:#e5e5e3; margin:0 .35rem; }
+
+  /* Подвкладки статусов (теперь под фильтрами, только в Таблице/Списке) */
+  .status-subtabs { display:flex; gap:.35rem; flex-wrap:wrap; padding:.5rem 1rem .25rem; border-top:1px solid #f1f3f5; }
+  .status-subtab {
+    display:inline-flex; align-items:center; gap:.4rem;
+    padding:.3rem .7rem; border-radius:6px;
+    color:#6c757d; text-decoration:none; font-size:.85rem;
+  }
+  .status-subtab:hover { background:#f8f9fa; color:#212529; }
+  .status-subtab.active { background:#283149; color:#fff; }
+  .status-subtab .badge { font-size:.7rem; }
+  .status-subtab.active .badge { background:#fff; color:#283149; }
+
+  /* Filters popup (s72) */
+  .filter-popup {
+    display:none; position:absolute; right:0; top:calc(100% + 4px); z-index:1050;
+    background:#fff; border:1px solid #e9ecef; border-radius:12px;
+    box-shadow:0 12px 28px rgba(0,0,0,.13); padding:1rem;
+    min-width:280px; max-width:90vw;
+  }
+  .filter-popup.open { display:block; }
+  .filter-active-dot { width:8px; height:8px; border-radius:50%; background:#ff7043; display:inline-block; margin-left:.25rem; }
+
+  /* Inline named view input (s72) */
+  .nv-chip-input {
+    display:inline-flex; align-items:center; gap:.3rem;
+    padding:.4rem .55rem; background:#fff1e6; border:1px solid #ffb98a;
+    border-radius:8px; font-size:.85rem;
+  }
+  .nv-chip-input input {
+    border:0; outline:none; background:transparent; font-size:.85rem;
+    color:#c25b00; min-width:140px; max-width:220px;
+  }
+
+  /* Named views */
+  .nv-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.45rem .8rem; background:#f4f4f2; border-radius:8px; font-size:.85rem; color:#3a3a39; cursor:pointer; border:1px solid transparent; }
+  .nv-chip:hover { background:#ececec; }
+  .nv-chip.active { background:#fff1e6; color:#c25b00; font-weight:600; border-color:#ffd9bf; }
+  .nv-chip .x { opacity:.4; cursor:pointer; padding-left:.25rem; font-size:1rem; line-height:1; }
+  .nv-chip .x:hover { opacity:.9; color:#dc3545; }
+  .nv-add { display:inline-flex; align-items:center; gap:.25rem; color:#6c757d; font-size:.85rem; cursor:pointer; padding:.45rem .8rem; border-radius:8px; border:1px dashed #d8d8d6; background:transparent; line-height:1.2; }
+  .nv-add:hover { background:#f4f4f2; color:#191918; border-color:#9ca3af; }
+
+  /* ── Группировка (s71) ── */
+  .group-by-dropdown { min-width:200px; padding:.35rem; font-size:.85rem; }
+  .group-by-dropdown a { display:block; padding:.35rem .5rem; border-radius:6px; color:#212529; text-decoration:none; }
+  .group-by-dropdown a:hover { background:#f4f4f2; }
+  .group-by-dropdown a.active { background:#fff1e6; color:#c25b00; font-weight:500; }
+  .group-by-dropdown .gb-sep { height:1px; background:#f1f3f5; margin:.25rem 0; }
+  /* Sort dropdown (Notion-style: prop + ↑/↓ arrows) */
+  .sort-dropdown { min-width:240px; padding:.35rem; font-size:.85rem; }
+  .sort-dropdown .gb-sep { height:1px; background:#f1f3f5; margin:.25rem 0; }
+  .sort-dropdown .sort-row-clear { display:block; padding:.35rem .5rem; border-radius:6px; color:#212529; text-decoration:none; cursor:pointer; }
+  .sort-dropdown .sort-row-clear:hover { background:#f4f4f2; }
+  .sort-dropdown .sort-row-clear.active { background:#fff1e6; color:#c25b00; font-weight:500; }
+  .sort-dropdown .sort-row {
+    display:flex; align-items:center; gap:.4rem;
+    padding:.25rem .5rem; border-radius:6px;
+  }
+  .sort-dropdown .sort-row:hover { background:#f8f9fa; }
+  .sort-dropdown .sort-prop-name { flex:1; color:#212529; }
+  .sort-dropdown .sort-arrow {
+    width:28px; height:28px; line-height:1; padding:0; border:1px solid #e9ecef;
+    background:#fff; border-radius:6px; color:#495057; cursor:pointer; font-size:1rem;
+  }
+  .sort-dropdown .sort-arrow:hover { background:#f4f4f2; border-color:#dee2e6; }
+  .sort-dropdown .sort-arrow.active { background:#fff1e6; color:#c25b00; border-color:#fed7aa; font-weight:600; }
+
+  /* s77: Notion-style 2-step sort */
+  .sort-dropdown-v2 { min-width:260px; padding:.5rem; }
+  .sort-active-bar { padding:.25rem .25rem .5rem; border-bottom:1px solid #f1f3f5; margin-bottom:.4rem; }
+  .sort-active-pill {
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.3rem .35rem .3rem .6rem; background:#fff1e6;
+    border:1px solid #ffd9bf; border-radius:8px; color:#c25b00; font-weight:500;
+  }
+  .sort-active-prop { font-size:.85rem; }
+  .sort-dir-btn, .sort-x-btn {
+    border:1px solid #ffd9bf; background:#fff; color:#c25b00; cursor:pointer;
+    border-radius:6px; padding:.1rem .35rem; font-size:.8rem; line-height:1.1;
+  }
+  .sort-dir-btn:hover, .sort-x-btn:hover { background:#fff1e6; }
+  .sort-x-btn { padding:.1rem .4rem; font-size:1rem; }
+  .sort-change-prop {
+    display:block; padding:.35rem .5rem; margin-top:.3rem;
+    color:#6c757d; font-size:.8rem; text-decoration:none; cursor:pointer; border-radius:6px;
+  }
+  .sort-change-prop:hover { background:#f4f4f2; color:#191918; }
+  .sort-picker-hint { padding:.25rem .5rem; color:#9ca3af; font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
+  .sort-pick-row {
+    display:block; padding:.4rem .5rem; border-radius:6px;
+    color:#212529; text-decoration:none; cursor:pointer; font-size:.88rem;
+  }
+  .sort-pick-row:hover { background:#f4f4f2; }
+
+  /* s77: Notion-style 2-step view creator */
+  .nv-popup {
+    position:absolute; top:calc(100% + 6px); left:0; z-index:1060;
+    background:#fff; border:1px solid #e9ecef; border-radius:12px;
+    box-shadow:0 14px 32px rgba(0,0,0,.14); padding:.85rem;
+    min-width:300px; display:none;
+  }
+  .nv-popup.open { display:block; }
+  .nv-popup-title { font-size:.78rem; color:#9ca3af; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.5rem; }
+  .nv-type-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:.4rem; }
+  .nv-type-tile {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:.7rem .5rem; gap:.35rem;
+    border:1px solid #e9ecef; border-radius:10px; background:#fff;
+    cursor:pointer; color:#374151; transition:background .12s, border-color .12s;
+  }
+  .nv-type-tile i { font-size:1.4rem; color:#6c757d; }
+  .nv-type-tile span { font-size:.83rem; }
+  .nv-type-tile:hover { background:#f8fafc; border-color:#cbd5e1; }
+  .nv-type-tile.selected { background:#fff1e6; border-color:#ffd9bf; color:#c25b00; }
+  .nv-type-tile.selected i { color:#c25b00; }
+  .nv-name-panel { display:none; }
+  .nv-name-panel.show { display:block; }
+  .nv-name-panel input {
+    width:100%; padding:.4rem .55rem; font-size:.9rem;
+    border:1px solid #d1d5db; border-radius:8px; outline:none;
+  }
+  .nv-name-panel input:focus { border-color:#ffd9bf; box-shadow:0 0 0 3px #fff1e6; }
+  .nv-name-actions { display:flex; gap:.4rem; justify-content:flex-end; margin-top:.6rem; }
+  .nv-btn {
+    padding:.35rem .8rem; border-radius:7px; font-size:.85rem; cursor:pointer; border:1px solid transparent;
+  }
+  .nv-btn-secondary { background:#fff; border-color:#d1d5db; color:#374151; }
+  .nv-btn-secondary:hover { background:#f4f4f2; }
+  .nv-btn-primary { background:#c25b00; border-color:#c25b00; color:#fff; font-weight:600; }
+  .nv-btn-primary:hover { background:#a14b00; }
+
+  /* s78: calendar grid */
+  .cal-toolbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.5rem; }
+  .cal-month-label { font-weight:600; font-size:1rem; color:#191918; min-width:160px; text-align:center; }
+  .cal-nav-btn {
+    border:1px solid #e9ecef; background:#fff; color:#374151; cursor:pointer;
+    padding:.3rem .55rem; border-radius:6px; font-size:.85rem; text-decoration:none;
+  }
+  .cal-nav-btn:hover { background:#f4f4f2; color:#191918; }
+  .cal-grid {
+    display:grid; grid-template-columns:repeat(7, minmax(0,1fr));
+    gap:1px; background:#e9ecef; border:1px solid #e9ecef; border-radius:10px; overflow:hidden;
+  }
+  .cal-dow {
+    background:#f8f9fa; padding:.4rem .5rem; font-size:.78rem; color:#6c757d;
+    text-transform:uppercase; letter-spacing:.04em; text-align:center; font-weight:600;
+  }
+  .cal-cell {
+    background:#fff; min-height:110px; padding:.4rem .5rem;
+    display:flex; flex-direction:column; gap:.25rem;
+    font-size:.82rem;
+  }
+  .cal-cell.cal-out { background:#fafbfc; color:#bbb; }
+  .cal-cell.cal-today .cal-day-num {
+    background:#c25b00; color:#fff; border-radius:50%;
+    width:1.5rem; height:1.5rem; display:inline-flex; align-items:center; justify-content:center;
+    font-size:.78rem;
+  }
+  .cal-day-num { font-weight:600; color:#374151; }
+  .cal-cell.cal-out .cal-day-num { color:#c5c5c5; font-weight:400; }
+  .cal-evt {
+    display:block; padding:.18rem .4rem; border-radius:5px; font-size:.76rem;
+    color:#191918; text-decoration:none; line-height:1.25; border-left:3px solid #c25b00;
+    background:#fff7ed; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .cal-evt:hover { background:#fff1e6; color:#c25b00; }
+  .cal-evt.s-new       { border-left-color:#3b82f6; background:#eff6ff; }
+  .cal-evt.s-assigned  { border-left-color:#f59e0b; background:#fef3c7; }
+  .cal-evt.s-in_progress { border-left-color:#a855f7; background:#f3e8ff; }
+  .cal-evt.s-resolved  { border-left-color:#a855f7; background:#f3e8ff; }
+  .cal-evt.s-closed    { border-left-color:#10b981; background:#d1fae5; }
+  .cal-empty { color:#9ca3af; font-size:.78rem; padding:.5rem; text-align:center; }
+  @media (max-width: 600px) {
+    .cal-cell { min-height:64px; padding:.3rem .35rem; }
+    .cal-evt { font-size:.7rem; padding:.1rem .3rem; }
+    .cal-dow { padding:.3rem .25rem; font-size:.7rem; }
+  }
+
+  .group-header { background:#fafbfc; cursor:pointer; user-select:none; }
+  tr.group-header td { padding:.55rem .75rem; font-weight:600; font-size:.85rem; color:#374151; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
+  tr.group-header:hover td { background:#f4f4f2; }
+  .gh-caret { display:inline-block; width:14px; transition:transform .15s; color:#9ca3af; }
+  .group-header.collapsed .gh-caret { transform:rotate(-90deg); }
+  .gh-count { color:#9ca3af; font-weight:500; margin-left:.4rem; font-size:.8rem; }
+  .group-header.collapsed + tr.group-spacer,
+  tr.group-row.collapsed { display:none; }
+
+  /* List-view group header */
+  .inc-list-group-header {
+    display:flex; align-items:center; gap:.5rem;
+    padding:.55rem .9rem; border-radius:8px;
+    background:#fafbfc; cursor:pointer; user-select:none;
+    font-weight:600; font-size:.88rem; color:#374151;
+    margin-top:.6rem;
+  }
+  .inc-list-group-header:first-child { margin-top:0; }
+  .inc-list-group-header:hover { background:#f4f4f2; }
+  .inc-list-group-header.collapsed .gh-caret { transform:rotate(-90deg); }
+  .inc-list-group-body { display:flex; flex-direction:column; gap:.5rem; }
+  .inc-list-group-body.collapsed { display:none; }
 </style>
 
 {# ═════════════════ HERO ═════════════════ #}
@@ -202,13 +453,15 @@
   {% if can_change_status %}
     <div class="status-picker">
       <button type="button" class="status-pill s-{{ inc.status or 'new' }}"
-              data-incident-id="{{ inc.id }}">
+              data-incident-id="{{ inc.id }}"
+              aria-haspopup="listbox" aria-expanded="false" aria-label="Изменить статус инцидента">
         {{ status_labels.get(inc.status or 'new') }}
         <i class="bi bi-chevron-down small"></i>
       </button>
-      <div class="status-picker-menu">
+      <div class="status-picker-menu" role="listbox">
         {% for code, label in status_labels.items() %}
-          <div class="sp-opt" data-status="{{ code }}" data-incident-id="{{ inc.id }}">
+          <div class="sp-opt" data-status="{{ code }}" data-incident-id="{{ inc.id }}"
+               role="option" tabindex="-1">
             <span class="sp-dot d-{{ code }}"></span>
             <span>{{ label }}</span>
           </div>
@@ -245,7 +498,7 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="fw-semibold">#{{ r.inc.id }}</span>
         <span class="text-muted">·</span>
-        <span>{{ r.inc.category }}</span>
+        <span>{{ incident_category_label(r.inc.category) }}</span>
         {{ status_badge(r.inc.status or 'new') }}
         <span class="text-muted small ms-auto">
           {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
@@ -267,7 +520,7 @@
         <span><span class="text-muted">Автор:</span> {{ r.author_label or "—" }}</span>
         {% else %}
         <span><span class="text-muted">Исполнитель:</span>
-          {% if r.inc.assignee %}{{ r.inc.assignee.fio }}{% else %}<em class="text-muted">не назначен</em>{% endif %}
+          {% if r.assignee_ids %}{{ r.assignees_label }}{% else %}<em class="text-muted">не назначен</em>{% endif %}
         </span>
         {% endif %}
       </div>
@@ -286,7 +539,7 @@
          href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}">История хода</a>
       <a class="btn btn-sm btn-outline-secondary"
          href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}">Открыть</a>
-      {% if show_author and current_user_id == r.inc.assignee_id and (r.inc.status or 'new') not in ('resolved','closed') %}
+      {% if show_author and current_user_id in r.assignee_ids and (r.inc.status or 'new') not in ('resolved','closed') %}
       <button class="btn btn-sm btn-outline-success user-mark-resolved" data-incident-id="{{ r.inc.id }}">Я отработал</button>
       {% endif %}
     </div>
@@ -339,74 +592,331 @@
      sort=f_sort if f_sort != 'date_desc' else None) }}
 {%- endmacro %}
 
-<div class="inc-tabs">
-  {% for code, label, cnt in tabs %}
-  <a class="inc-tab {% if active_tab == code %}active{% endif %}" href="{{ tab_url(code) }}">
-    <span>{{ label }}</span>
-    <span class="badge bg-light text-dark">{{ cnt }}</span>
-  </a>
-  {% endfor %}
-</div>
-
-{# ── Фильтр-панель (живой поиск/фильтры, submit на input/change) ── #}
+{# Главный переключатель видов отображения (Notion-style большие табы) + named views.
+   Status-вкладки (Входящие/В работе/Завершённые) переехали ниже под фильтры — они показываются
+   только в Таблице и Списке. В Kanban-режиме статусы — это колонки, отдельных вкладок нет. #}
 <div class="card inc-panel mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-2 align-items-end" id="incFiltersForm">
-      <input type="hidden" name="tab" value="{{ active_tab }}">
-      <input type="hidden" name="view" value="{{ view_mode }}">
-      <div class="col-12 col-md-3">
-        <label class="form-label small">Поиск</label>
-        <div class="position-relative">
-          <input type="text" class="form-control form-control-sm inc-live-input"
-                 name="q" value="{{ f_q }}" placeholder="ФИО ученика или текст описания" autocomplete="off">
-          <span class="inc-live-spinner" id="incLiveSpinner" aria-hidden="true"></span>
+  <div class="view-tabs-bar" id="viewTabsBar">
+    {% set _q = request.args.to_dict() %}
+    {# s79: дефолт — только Таблица и Доска. Список/Календарь — через «+ Создать вид». #}
+    {% set _qt = _q.copy() %}{% set _ = _qt.update({'view':'table'}) %}
+    {% set _qk = _q.copy() %}{% set _ = _qk.update({'view':'kanban'}) %}
+    <a class="view-tab-btn {% if view_mode == 'table' %}active{% endif %}" data-view-tab="table"
+       href="{{ url_for('children.incidents_my', **_qt) }}">
+      <i class="bi bi-table"></i><span>Таблица</span>
+    </a>
+    <a class="view-tab-btn {% if view_mode == 'kanban' %}active{% endif %}" data-view-tab="kanban"
+       href="{{ url_for('children.incidents_my', **_qk) }}">
+      <i class="bi bi-kanban"></i><span>Доска</span>
+    </a>
+    <span class="view-tabs-sep"></span>
+    <span id="nvBar" class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="nv-chip" data-qs="" id="nvDefault" title="Сбросить именной вид">Все</span>
+      {# чипсы видов вставляются JS-ом из БД #}
+      <span style="position:relative; display:inline-block;">
+        <button type="button" class="nv-add" id="nvCreateBtn"
+                title="Создать новый вид. Шаг 1: выбор типа. Шаг 2: имя.">
+          <i class="bi bi-plus-lg"></i> Создать вид
+        </button>
+        {# s77: Notion-style 2-step popup #}
+        <div class="nv-popup" id="nvPopup">
+          <div class="nv-step" data-step="type">
+            <div class="nv-popup-title">Выберите тип вида</div>
+            <div class="nv-type-grid">
+              <div class="nv-type-tile" data-view="table"><i class="bi bi-table"></i><span>Таблица</span></div>
+              <div class="nv-type-tile" data-view="kanban"><i class="bi bi-kanban"></i><span>Доска</span></div>
+              <div class="nv-type-tile" data-view="list"><i class="bi bi-list-ul"></i><span>Список</span></div>
+              <div class="nv-type-tile" data-view="calendar"><i class="bi bi-calendar3"></i><span>Календарь</span></div>
+            </div>
+          </div>
+          <div class="nv-step nv-name-panel" data-step="name">
+            <div class="nv-popup-title" id="nvNameTitle">Название вида</div>
+            <input type="text" id="nvNameInput" maxlength="80" placeholder="Новый вид" autocomplete="off">
+            <div class="nv-name-actions">
+              <button type="button" class="nv-btn nv-btn-secondary" id="nvBackBtn">Назад</button>
+              <button type="button" class="nv-btn nv-btn-primary" id="nvDoneBtn">Готово</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label small">Категория</label>
-        <select class="form-select form-select-sm inc-live-select" name="category">
-          <option value="">— все —</option>
-          {% for c in categories %}
-            <option value="{{ c }}" {% if f_category == c %}selected{% endif %}>{{ c }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label small">Класс</label>
-        <select class="form-select form-select-sm inc-live-select" name="class_id">
-          <option value="">— все —</option>
-          {% for c in classes %}
-            <option value="{{ c.id }}" {% if f_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label small">Сортировка</label>
-        <select class="form-select form-select-sm inc-live-select" name="sort">
-          <option value="date_desc" {% if f_sort == 'date_desc' %}selected{% endif %}>Сначала новые</option>
-          <option value="date_asc"  {% if f_sort == 'date_asc'  %}selected{% endif %}>Сначала старые</option>
-          <option value="category"  {% if f_sort == 'category'  %}selected{% endif %}>По категории</option>
-          <option value="status"    {% if f_sort == 'status'    %}selected{% endif %}>По статусу</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <a class="btn btn-sm btn-outline-secondary"
-           href="{{ url_for('children.incidents_my', tab=active_tab) }}">Сброс</a>
-      </div>
-    </form>
+      </span>
+    </span>
   </div>
 </div>
 
-{# ── Табличная панель с col-picker и view-switcher ── #}
+{% if view_mode == 'calendar' and cal_ctx %}
+<div class="card inc-panel">
+  <div class="card-body">
+    <div class="cal-toolbar">
+      <a class="cal-nav-btn" href="{{ url_for('children.incidents_my', view='calendar', month=cal_ctx.prev_month_value, category=f_category or None, class_id=f_class_id or None, q=f_q or None, status=request.args.get('status') or None) }}" title="Предыдущий месяц">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+      <div class="cal-month-label">{{ cal_ctx.month_label }}</div>
+      <a class="cal-nav-btn" href="{{ url_for('children.incidents_my', view='calendar', month=cal_ctx.next_month_value, category=f_category or None, class_id=f_class_id or None, q=f_q or None, status=request.args.get('status') or None) }}" title="Следующий месяц">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+      <a class="cal-nav-btn" href="{{ url_for('children.incidents_my', view='calendar', category=f_category or None, class_id=f_class_id or None, q=f_q or None, status=request.args.get('status') or None) }}" title="Текущий месяц (МСК)">Сегодня</a>
+      <span class="text-muted small ms-auto">Часовой пояс: МСК · {{ total_count }} инц.</span>
+    </div>
+    <div class="cal-grid">
+      {% for dow in ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}<div class="cal-dow">{{ dow }}</div>{% endfor %}
+      {% for week in cal_ctx.weeks %}
+        {% for cell in week %}
+          <div class="cal-cell {% if not cell.in_month %}cal-out{% endif %} {% if cell.date == cal_ctx.today %}cal-today{% endif %}">
+            <span class="cal-day-num">{{ cell.date.day }}</span>
+            {% for r in cell.rows[:5] %}
+              {% set s = r.inc.status or 'new' %}
+              <a class="cal-evt s-{{ s }}"
+                 href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}"
+                 title="{{ incident_category_label(r.inc.category) }} · {{ status_labels.get(s, s) }} · {{ r.inc.occurred_at.strftime('%H:%M') if r.inc.occurred_at else '' }} · {{ (r.inc.description or '')[:120] }}">
+                {{ r.inc.occurred_at.strftime('%H:%M') if r.inc.occurred_at else '' }} {{ incident_category_label(r.inc.category) }}
+              </a>
+            {% endfor %}
+            {% if cell.rows|length > 5 %}
+              <span class="text-muted small">+ ещё {{ cell.rows|length - 5 }}</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+    {% if total_count == 0 %}
+    <div class="cal-empty">За этот месяц инцидентов нет.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Фильтры теперь в popup рядом с кнопкой «Группировать». Старый бар убран. ── #}
+<span class="inc-live-spinner" id="incLiveSpinner" aria-hidden="true" style="display:none;"></span>
+{# Status-subtabs убраны: на доске статус — это сами колонки, в таблице/списке —
+   фильтр через popup. Для SOCIAL_PEDAGOG оставлен переключатель «Все по школе ↔
+   Назначенные мне» (это scope, а не статус). #}
+{% if is_social_view %}
+<div class="card inc-panel mb-3">
+  <div class="status-subtabs">
+    <a class="status-subtab {% if active_tab != 'mine' %}active{% endif %}"
+       href="{{ url_for('children.incidents_my', view=view_mode) }}">
+      <span>Все по школе</span>
+    </a>
+    {% for code, label, cnt in tabs %}
+      {% if code == 'mine' %}
+      <a class="status-subtab {% if active_tab == 'mine' %}active{% endif %}" href="{{ tab_url('mine') }}">
+        <span>{{ label }}</span>
+        <span class="badge bg-light text-dark">{{ cnt }}</span>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Табличная панель (скрыта в режиме «Календарь») ── #}
+{% if view_mode != 'calendar' %}
 <div class="card inc-panel">
   <div class="card-body pb-2">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
       <h5 class="mb-0">Инциденты</h5>
       <div class="d-flex align-items-center gap-2">
-        {# Col-picker #}
+        {# Property-picker: показывает свойства таблицы/списка либо карточки kanban #}
+        {% if view_mode == 'kanban' %}
+        {# Sort dropdown для kanban (Notion-style): одно свойство → ↑/↓. Без статуса (он = колонки). #}
+        {% set _kb_sort_props = [
+          ('date',     'Дата'),
+          ('category', 'Категория'),
+          ('class',    'Класс'),
+          ('building', 'Здание'),
+          ('assignee', 'Исполнитель'),
+        ] %}
+        {% set _kb_sort_label_map = {
+          'date_desc':'Дата ↓','date_asc':'Дата ↑',
+          'category_asc':'Категория ↑','category_desc':'Категория ↓',
+          'class_asc':'Класс ↑','class_desc':'Класс ↓',
+          'building_asc':'Здание ↑','building_desc':'Здание ↓',
+          'assignee_asc':'Исполнитель ↑','assignee_desc':'Исполнитель ↓'
+        } %}
         <div class="dropdown" style="position:relative;">
-          <button class="view-btn" type="button" id="myColPickerBtn" title="Настроить колонки">
-            <i class="bi bi-layout-three-columns"></i> Колонки
+          <button class="view-btn" type="button" id="mySortBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Сортировать карточки по свойству">
+            <i class="bi bi-arrow-down-up"></i>
+            <span id="mySortLabel">{% if f_sort and f_sort in _kb_sort_label_map %}Сорт.: {{ _kb_sort_label_map[f_sort] }}{% else %}Сортировка{% endif %}</span>
+            <span id="mySortDot" class="filter-active-dot" style="display:{% if f_sort and f_sort in _kb_sort_label_map %}inline-block{% else %}none{% endif %};"></span>
+            <i class="bi bi-caret-down-fill" style="font-size:.6em; opacity:.6;"></i>
+          </button>
+          {# s79: классический dropdown — стрелки ↑/↑ напротив свойств, как в /registry. #}
+          <div class="dropdown-menu sort-dropdown" id="mySortMenu" aria-labelledby="mySortBtn">
+            <a data-sort="" class="js-sort-opt sort-row-clear {% if not f_sort %}active{% endif %}">Без сортировки</a>
+            <div class="gb-sep"></div>
+            {% for code, label in _kb_sort_props %}
+              <div class="sort-row">
+                <span class="sort-prop-name">{{ label }}</span>
+                <button type="button" class="sort-arrow js-sort-opt {% if f_sort == code + '_asc' %}active{% endif %}" data-sort="{{ code }}_asc" title="По возрастанию">↑</button>
+                <button type="button" class="sort-arrow js-sort-opt {% if f_sort == code + '_desc' %}active{% endif %}" data-sort="{{ code }}_desc" title="По убыванию">↓</button>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Filters popup для kanban — те же поля что в table/list, без статуса (статус — это колонки) #}
+        <div style="position:relative;">
+          <button class="view-btn" type="button" id="myFilterBtn" title="Фильтры">
+            <i class="bi bi-funnel"></i> Фильтры<span id="myFilterDot" class="filter-active-dot" style="display:none;"></span>
+          </button>
+          <div class="filter-popup" id="myFilterPopup">
+            <form method="get" id="incFiltersForm">
+              <input type="hidden" name="tab" value="{{ active_tab }}">
+              <input type="hidden" name="view" value="{{ view_mode }}">
+              <div class="mb-2">
+                <label class="form-label small mb-1">Поиск (ФИО или текст)</label>
+                <input type="text" class="form-control form-control-sm inc-live-input"
+                       name="q" value="{{ f_q }}" placeholder="Иванов или текст" autocomplete="off">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Категория</label>
+                <select class="form-select form-select-sm inc-live-select" name="category">
+                  <option value="">Все</option>
+                  {% for c in categories %}<option value="{{ c }}" {% if f_category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Класс</label>
+                <select class="form-select form-select-sm inc-live-select" name="class_id">
+                  <option value="">Все</option>
+                  {% for c in classes %}<option value="{{ c.id }}" {% if f_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                </select>
+              </div>
+              <a class="btn btn-sm btn-outline-secondary w-100"
+                 href="{{ url_for('children.incidents_my', view='kanban', tab=active_tab) }}">Сброс</a>
+            </form>
+          </div>
+        </div>
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="myKbPropPickerBtn" title="Показать или скрыть свойства карточки">
+            <i class="bi bi-eye"></i><span class="d-none d-md-inline"> Свойства</span>
+          </button>
+          <div class="dropdown-menu col-picker-dropdown" id="myKbPropPickerMenu">
+            <label><input type="checkbox" class="kb-prop-toggle" data-prop="kp-cat"      checked> Категория</label>
+            <label><input type="checkbox" class="kb-prop-toggle" data-prop="kp-students" checked> Ученики</label>
+            <label><input type="checkbox" class="kb-prop-toggle" data-prop="kp-date"     checked> Дата</label>
+            <label><input type="checkbox" class="kb-prop-toggle" data-prop="kp-assignee" checked> Исполнитель</label>
+            <label><input type="checkbox" class="kb-prop-toggle" data-prop="kp-tasks"    checked> Задачи</label>
+            <label><input type="checkbox" class="kb-prop-toggle" data-prop="kp-status"   checked> Статус</label>
+          </div>
+        </div>
+        {% else %}
+        {# ── Group by + Filters popup (s72): для table/list ── #}
+        {% set _gb_opts = [
+          ('',          'Без группировки'),
+          ('category',  'Категория'),
+          ('class',     'Класс'),
+          ('building',  'Здание'),
+          ('assignee',  'Исполнитель'),
+          ('status',    'Статус'),
+        ] %}
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="myGroupByBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Сгруппировать строки по свойству">
+            <i class="bi bi-collection"></i>
+            <span id="myGroupByLabel">{% if f_group_by %}Группа: {{ {'category':'Категория','class':'Класс','building':'Здание','assignee':'Исполнитель','status':'Статус'}.get(f_group_by, f_group_by) }}{% else %}Группировать{% endif %}</span>
+            <i class="bi bi-caret-down-fill" style="font-size:.6em; opacity:.6;"></i>
+          </button>
+          <div class="dropdown-menu group-by-dropdown" id="myGroupByMenu" aria-labelledby="myGroupByBtn">
+            {% for code, label in _gb_opts %}
+              <a data-gb="{{ code }}"
+                 class="js-gb-opt {% if (f_group_by or '') == code %}active{% endif %}">{{ label }}</a>
+              {% if loop.first %}<div class="gb-sep"></div>{% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Sort dropdown (Notion-style): одно свойство → две стрелки ↑/↓. #}
+        {% set _sort_props = [
+          ('date',     'Дата'),
+          ('category', 'Категория'),
+          ('class',    'Класс'),
+          ('building', 'Здание'),
+          ('assignee', 'Исполнитель'),
+          ('status',   'Статус'),
+        ] %}
+        {% set _sort_label_map = {
+          'date_desc':'Дата ↓','date_asc':'Дата ↑',
+          'category_asc':'Категория ↑','category_desc':'Категория ↓',
+          'class_asc':'Класс ↑','class_desc':'Класс ↓',
+          'building_asc':'Здание ↑','building_desc':'Здание ↓',
+          'assignee_asc':'Исполнитель ↑','assignee_desc':'Исполнитель ↓',
+          'status_asc':'Статус ↑','status_desc':'Статус ↓'
+        } %}
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="mySortBtn"
+                  data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Сортировать строки по свойству">
+            <i class="bi bi-arrow-down-up"></i>
+            <span id="mySortLabel">{% if f_sort and f_sort in _sort_label_map %}Сорт.: {{ _sort_label_map[f_sort] }}{% else %}Сортировка{% endif %}</span>
+            <span id="mySortDot" class="filter-active-dot" style="display:{% if f_sort and f_sort in _sort_label_map %}inline-block{% else %}none{% endif %};"></span>
+            <i class="bi bi-caret-down-fill" style="font-size:.6em; opacity:.6;"></i>
+          </button>
+          {# s79: классический dropdown — стрелки ↑/↓ напротив свойств. #}
+          <div class="dropdown-menu sort-dropdown" id="mySortMenu" aria-labelledby="mySortBtn">
+            <a data-sort="" class="js-sort-opt sort-row-clear {% if not f_sort %}active{% endif %}">Без сортировки</a>
+            <div class="gb-sep"></div>
+            {% for code, label in _sort_props %}
+              <div class="sort-row">
+                <span class="sort-prop-name">{{ label }}</span>
+                <button type="button" class="sort-arrow js-sort-opt {% if f_sort == code + '_asc' %}active{% endif %}" data-sort="{{ code }}_asc" title="По возрастанию">↑</button>
+                <button type="button" class="sort-arrow js-sort-opt {% if f_sort == code + '_desc' %}active{% endif %}" data-sort="{{ code }}_desc" title="По убыванию">↓</button>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Filters popup #}
+        <div style="position:relative;">
+          <button class="view-btn" type="button" id="myFilterBtn" title="Фильтры">
+            <i class="bi bi-funnel"></i> Фильтры<span id="myFilterDot" class="filter-active-dot" style="display:none;"></span>
+          </button>
+          <div class="filter-popup" id="myFilterPopup">
+            <form method="get" id="incFiltersForm">
+              <input type="hidden" name="tab" value="{{ active_tab }}">
+              <input type="hidden" name="view" value="{{ view_mode }}">
+              <div class="mb-2">
+                <label class="form-label small mb-1">Поиск (ФИО или текст)</label>
+                <input type="text" class="form-control form-control-sm inc-live-input"
+                       name="q" value="{{ f_q }}" placeholder="Иванов или текст" autocomplete="off">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Категория</label>
+                <select class="form-select form-select-sm inc-live-select" name="category">
+                  <option value="">Все</option>
+                  {% for c in categories %}<option value="{{ c }}" {% if f_category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Класс</label>
+                <select class="form-select form-select-sm inc-live-select" name="class_id">
+                  <option value="">Все</option>
+                  {% for c in classes %}<option value="{{ c.id }}" {% if f_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Статус</label>
+                <select class="form-select form-select-sm inc-live-select" name="status">
+                  <option value="">Все</option>
+                  {% set _f_status = request.args.get('status') or '' %}
+                  <option value="new"         {% if _f_status == 'new' %}selected{% endif %}>Новый</option>
+                  <option value="assigned"    {% if _f_status == 'assigned' %}selected{% endif %}>Назначен</option>
+                  <option value="in_progress" {% if _f_status == 'in_progress' %}selected{% endif %}>В работе</option>
+                  <option value="resolved"    {% if _f_status == 'resolved' %}selected{% endif %}>Отработан</option>
+                  <option value="closed"      {% if _f_status == 'closed' %}selected{% endif %}>Закрыт</option>
+                </select>
+              </div>
+              <a class="btn btn-sm btn-outline-secondary w-100"
+                 href="{{ url_for('children.incidents_my', tab=active_tab) }}">Сброс</a>
+            </form>
+          </div>
+        </div>
+        <div class="dropdown" style="position:relative;">
+          <button class="view-btn" type="button" id="myColPickerBtn" title="Показать или скрыть свойства">
+            <i class="bi bi-eye"></i><span class="d-none d-md-inline"> Свойства</span>
           </button>
           <div class="dropdown-menu col-picker-dropdown" id="myColPickerMenu">
             <label><input type="checkbox" class="col-toggle" data-col="col-num"      checked> №</label>
@@ -422,18 +932,107 @@
             <label><input type="checkbox" class="col-toggle" data-col="col-actions"  checked> Действия</label>
           </div>
         </div>
-        {# View switcher (через ?view=) #}
-        {% set _q = request.args.to_dict() %}
-        {% set _qt = _q.copy() %}{% set _ = _qt.update({'view':'table'}) %}
-        {% set _ql = _q.copy() %}{% set _ = _ql.update({'view':'list'}) %}
-        <a class="view-btn {% if view_mode != 'list' %}active{% endif %}" href="{{ url_for('children.incidents_my', **_qt) }}" id="myBtnTable" title="Таблица"><i class="bi bi-table"></i></a>
-        <a class="view-btn {% if view_mode == 'list'  %}active{% endif %}" href="{{ url_for('children.incidents_my', **_ql) }}" id="myBtnList"  title="Список"><i class="bi bi-list-ul"></i></a>
-        <span class="text-muted small">{{ rows|length }} записей</span>
+        {% endif %}
+        <span class="text-muted small">
+          {% if total_count is defined and total_pages and total_pages > 1 %}
+            {{ rows|length }} из {{ total_count }} · стр. {{ page }} из {{ total_pages }}
+          {% else %}
+            {{ rows|length }} записей
+          {% endif %}
+        </span>
       </div>
     </div>
   </div>
 
-  {% if view_mode != 'list' %}
+  {% if view_mode == 'kanban' %}
+  {# ── KANBAN VIEW ── #}
+  <div id="myViewKanban" class="inc-kanban">
+    {% set _kb_cols = [
+      ('incoming',  'Открытые'),
+      ('in_work',   'В работе'),
+      ('completed', 'Закрытые'),
+    ] %}
+    {% set _lbl = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'} %}
+    {% for ckey, ctitle in _kb_cols %}
+      {% set crows = (kanban_groups or {}).get(ckey, []) %}
+      <div class="kb-col">
+        <div class="kb-col-head">
+          <span class="kb-col-pill s-{{ ckey }}">{{ ctitle }}</span>
+          <span class="kb-col-count">{{ crows|length }}</span>
+        </div>
+        <div class="kb-col-body" data-bucket="{{ ckey }}">
+          {% for r in crows %}
+            {% set s = r.inc.status or 'new' %}
+            {% set _can_pick = can_change_status or ((current_user_id in r.assignee_ids or r.inc.author_id == current_user_id) and not is_methodist_view) %}
+            {% set _kb_kid_class = (r.children[0].class if r.children else '') %}
+            {% set _kb_kid_building = (r.children[0].building if r.children and r.children[0].building else '') %}
+            <div class="kb-card{% if _can_pick %} kb-draggable{% endif %}"
+                 {% if _can_pick %}draggable="true"{% endif %}
+                 data-incident-id="{{ r.inc.id }}" data-status="{{ s }}"
+                 data-occurred="{{ r.inc.occurred_at.isoformat() if r.inc.occurred_at else '' }}"
+                 data-category="{{ incident_category_label(r.inc.category) }}"
+                 data-class="{{ _kb_kid_class }}"
+                 data-building="{{ _kb_kid_building }}"
+                 data-assignee-label="{% if r.inc.assignee %}{{ r.inc.assignee.last_name or '' }} {{ r.inc.assignee.first_name or '' }}{% else %}— Без исполнителя{% endif %}">
+              <span class="kb-cat kb-prop kp-cat">{{ incident_category_label(r.inc.category) }}</span>
+              <div class="kb-title">
+                <a href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" draggable="false">
+                  {{ (r.inc.description or '(без описания)')[:90] }}{% if r.inc.description and r.inc.description|length > 90 %}…{% endif %}
+                </a>
+              </div>
+              <div class="kb-students kb-prop kp-students">
+                {% for ch in r.children %}
+                  {% if can("child_card_view_basic") %}<a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="text-decoration-none text-dark" draggable="false">{{ ch.fio }}</a>{% else %}{{ ch.fio }}{% endif %}<span class="grade">{{ ch.class }}</span>{% if not loop.last %} · {% endif %}
+                {% endfor %}
+              </div>
+              <div class="kb-meta">
+                <span class="kb-prop kp-date" title="Дата происшествия"><i class="bi bi-calendar-event"></i> {{ r.inc.occurred_at.strftime("%d.%m") if r.inc.occurred_at else "—" }}</span>
+                {% if r.assignee_ids %}
+                  <span class="kb-prop kp-assignee" title="Исполнители: {{ r.assignees_label }}"><i class="bi bi-person"></i> {{ r.assignees_label }}</span>
+                {% else %}
+                  <span class="kb-prop kp-assignee text-muted" title="Исполнитель не назначен"><i class="bi bi-person"></i> не назначен</span>
+                {% endif %}
+                {% if r.task_total and r.task_total > 0 %}
+                  {% set _pct = (r.task_done * 100 // r.task_total) %}
+                  <span class="kb-tasks kb-prop kp-tasks" title="Связанные задачи: {{ r.task_done }} из {{ r.task_total }} закрыто">
+                    <span class="kb-tasks-bar"><i style="width:{{ _pct }}%"></i></span>{{ r.task_done }}/{{ r.task_total }}
+                  </span>
+                {% endif %}
+                <span class="right kb-prop kp-status">
+                  {% if _can_pick %}
+                    <div class="status-picker" data-incident-id="{{ r.inc.id }}" draggable="false">
+                      <button type="button" class="status-pill s-{{ s }}" draggable="false" aria-haspopup="listbox" aria-expanded="false" aria-label="Изменить статус инцидента"><span class="sp-label">{{ _lbl[s] }}</span></button>
+                      <div class="status-picker-menu" role="listbox" draggable="false">
+                        <div class="sp-group">Открытые</div>
+                        <div class="sp-opt" role="option" tabindex="-1" data-value="new"><span class="sp-dot d-new"></span><span class="sp-pill s-new">Новый</span></div>
+                        <div class="sp-sep"></div>
+                        <div class="sp-group">В работе</div>
+                        <div class="sp-opt" role="option" tabindex="-1" data-value="assigned"><span class="sp-dot d-assigned"></span><span class="sp-pill s-assigned">Назначен</span></div>
+                        <div class="sp-opt" role="option" tabindex="-1" data-value="in_progress"><span class="sp-dot d-in_progress"></span><span class="sp-pill s-in_progress">В работе</span></div>
+                        <div class="sp-sep"></div>
+                        <div class="sp-group">Закрытые</div>
+                        <div class="sp-opt" role="option" tabindex="-1" data-value="resolved"><span class="sp-dot d-resolved"></span><span class="sp-pill s-resolved">Отработан</span></div>
+                        <div class="sp-opt" role="option" tabindex="-1" data-value="closed"><span class="sp-dot d-closed"></span><span class="sp-pill s-closed">Закрыт</span></div>
+                      </div>
+                    </div>
+                  {% else %}
+                    <span class="status-badge s-{{ s }}">{{ r.inc.status_label }}</span>
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          {% else %}
+            <div class="kb-empty">пусто</div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if rows_limit_reached %}
+    <div class="text-center text-muted small mt-2">Показаны первые {{ rows_limit }} инцидентов. Уточните фильтр, чтобы увидеть остальные.</div>
+  {% endif %}
+
+  {% elif view_mode != 'list' %}
   {# ── TABLE VIEW ── #}
   <div id="myViewTable" class="table-responsive">
     <table class="table mb-0 align-middle incident-table">
@@ -452,14 +1051,42 @@
           <th class="col-actions" style="width:170px;">Действия</th>
         </tr>
       </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr>
+      <tbody id="myTbody">
+        {% set _col_count = 10 if is_admin else 9 %}
+        {% if groups %}
+        {% set _gb_chunks = groups %}
+        {% else %}
+        {% set _gb_chunks = [{'key':'_all', 'label':'', 'rows': rows}] %}
+        {% endif %}
+        {% for _grp in _gb_chunks %}
+          {% if groups %}
+          <tr class="group-header" data-group-key="{{ _grp.key }}">
+            <td colspan="{{ _col_count }}">
+              <span class="gh-caret">▾</span>
+              {{ _grp.label }}
+              <span class="gh-count">· {{ _grp.rows|length }}</span>
+            </td>
+          </tr>
+          {% endif %}
+          {% for r in _grp.rows %}
+          {% set _kid_class_id = (r.children[0].class_id if r.children else '') %}
+          {% set _kid_class = (r.children[0].class if r.children else '') %}
+          {% set _kid_building = (r.children[0].building if r.children and r.children[0].building else '') %}
+        <tr {% if groups %}class="group-row" data-group-key="{{ _grp.key }}"{% endif %}
+            data-row="1"
+            data-occurred="{{ r.inc.occurred_at.isoformat() if r.inc.occurred_at else '' }}"
+            data-category="{{ incident_category_label(r.inc.category) }}"
+            data-class="{{ _kid_class }}"
+            data-class-id="{{ _kid_class_id }}"
+            data-building="{{ _kid_building }}"
+            data-assignee-id="{{ r.inc.assignee_id or '' }}"
+            data-assignee-label="{% if r.inc.assignee %}{{ r.inc.assignee.last_name or '' }} {{ r.inc.assignee.first_name or '' }}{% else %}— Без исполнителя{% endif %}"
+            data-status="{{ r.inc.status or 'new' }}">
           <td class="text-muted col-num">{{ loop.index }}</td>
           <td class="text-muted small col-dt">
             {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}
           </td>
-          <td class="col-cat">{{ r.inc.category or "—" }}</td>
+          <td class="col-cat">{{ incident_category_label(r.inc.category) }}</td>
           <td class="small col-children">
             {% for ch in r.children %}
               <div>
@@ -496,7 +1123,7 @@
                       <a href="{{ url_for('children.class_detail', class_id=ch.class_id) }}"
                          class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none"
                          style="font-size:.72rem;"
-                         title="Кубок школы класса {{ ch.class }}">
+                         title="Кубок школы — {{ ch.class }}">
                         <i class="bi bi-trophy-fill"></i> {{ '{:g}'.format(_kr.total_points) }} · #{{ _kr.place }}
                       </a>
                     {% else %}
@@ -511,10 +1138,10 @@
           <td class="desc-cell text-muted small col-desc">
             {% if r.inc.description and r.inc.description|length > 70 %}
               <span class="desc-short">{{ r.inc.description[:70] }}…
-                <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.nextElementSibling.style.display='inline';" title="Развернуть">▸</button>
+                <button type="button" class="desc-toggle js-desc-expand" title="Развернуть">▸</button>
               </span>
               <span class="desc-full" style="display:none;">{{ r.inc.description }}
-                <button type="button" class="desc-toggle" onclick="this.parentElement.style.display='none';this.parentElement.previousElementSibling.style.display='inline';" title="Свернуть">▾</button>
+                <button type="button" class="desc-toggle js-desc-collapse" title="Свернуть">▾</button>
               </span>
             {% else %}
               {{ r.inc.description or "—" }}
@@ -523,10 +1150,11 @@
           <td class="small text-muted col-author">{{ r.author_label or "—" }}</td>
           <td class="small col-assignee">
             {% if can_change_status %}
-              <div class="assignee-picker" data-incident-id="{{ r.inc.id }}">
-                <button type="button" class="btn btn-sm assignee-btn {% if r.inc.assignee %}has-assignee{% endif %}">
-                  {% if r.inc.assignee %}
-                    {{ r.inc.assignee.last_name }} {{ (r.inc.assignee.first_name or '')[:1] }}.
+              <div class="assignee-picker" data-incident-id="{{ r.inc.id }}"
+                   data-current-ids="{{ r.assignee_ids | join(',') }}">
+                <button type="button" class="btn btn-sm assignee-btn {% if r.assignee_ids %}has-assignee{% endif %}">
+                  {% if r.assignee_ids %}
+                    {{ r.assignees_label }}
                   {% else %}
                     <i class="bi bi-person-plus"></i> Назначить
                   {% endif %}
@@ -536,49 +1164,58 @@
                     <input type="text" class="assignee-search" placeholder="Поиск…" autocomplete="off">
                   </div>
                   <div class="assignee-list">
-                    <div class="assignee-opt" data-aid="">— не назначен —</div>
                     {% for u in assignees %}
-                    <div class="assignee-opt" data-aid="{{ u.id }}"
+                    <label class="assignee-opt d-flex align-items-center gap-2"
+                         data-aid="{{ u.id }}"
+                         data-label="{{ u.last_name }} {{ (u.first_name or '')[:1] }}."
                          data-search="{{ (u.last_name or '')|lower }} {{ (u.first_name or '')|lower }} {{ (u.username or '')|lower }}">
-                      {{ u.last_name }} {{ u.first_name }}{% if u.middle_name %} {{ u.middle_name[:1] }}.{% endif %}
-                    </div>
+                      <input type="checkbox" class="form-check-input m-0 assignee-cb" value="{{ u.id }}"
+                             {% if u.id in r.assignee_ids %}checked{% endif %}>
+                      <span>{{ u.last_name }} {{ u.first_name }}{% if u.middle_name %} {{ u.middle_name[:1] }}.{% endif %}</span>
+                    </label>
                     {% endfor %}
+                  </div>
+                  <div class="assignee-apply-wrap" style="border-top:1px solid #f1f3f5;padding:.4rem .5rem;display:flex;justify-content:flex-end;gap:.4rem;">
+                    <button type="button" class="btn btn-sm btn-outline-secondary assignee-clear">Очистить</button>
+                    <button type="button" class="btn btn-sm btn-primary assignee-apply">Применить</button>
                   </div>
                 </div>
               </div>
             {% else %}
-              {% if r.inc.assignee %}
-                {{ r.inc.assignee.last_name }} {{ (r.inc.assignee.first_name or '')[:1] }}.
-              {% else %}<em class="text-muted">—</em>{% endif %}
+              {{ r.assignees_label or '—' }}
             {% endif %}
           </td>
           <td class="col-status">{{ status_picker(r.inc) }}</td>
           <td class="col-actions">
+            {% set _row_editable = can_edit_rows and (not is_methodist_view or r.inc.author_id == current_user_id or current_user_id in r.assignee_ids) %}
             <div class="d-inline-flex gap-1 align-items-center flex-nowrap">
               <a class="btn btn-sm btn-outline-secondary py-0 px-2"
                  href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}"
-                 title="Открыть и редактировать"><i class="bi bi-pencil"></i></a>
+                 title="{% if _row_editable %}Открыть{% else %}Просмотр{% endif %}"><i class="bi {% if _row_editable %}bi-pencil{% else %}bi-eye{% endif %}"></i></a>
               <a class="btn btn-sm btn-outline-secondary py-0 px-2"
                  href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}"
                  title="История хода"><i class="bi bi-clock-history"></i></a>
-              {% if can_edit_rows %}
+              {% if _row_editable %}
               <form method="post"
                     action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}"
-                    onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
+                    class="js-incident-delete-form d-inline">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-sm btn-outline-danger js-incident-delete-btn py-0 px-2" type="button" title="Удалить"
+                        data-category="{{ r.inc.category }}"
+                        data-kids="{{ r.children | map(attribute='fio') | join(', ') }}"><i class="bi bi-trash"></i></button>
               </form>
               {% endif %}
-              {% if is_social_view and r.inc.assignee_id == current_user_id and (r.inc.status or 'new') not in ('resolved','closed') %}
+              {% if is_social_view and current_user_id in r.assignee_ids and (r.inc.status or 'new') not in ('resolved','closed') %}
               <button class="btn btn-sm btn-outline-secondary py-0 px-2 user-mark-resolved"
                       data-incident-id="{{ r.inc.id }}" title="Я отработал"><i class="bi bi-check2"></i></button>
               {% endif %}
             </div>
           </td>
         </tr>
+          {% endfor %}
         {% endfor %}
         {% if rows|length == 0 %}
-          <tr><td colspan="{% if is_admin %}10{% else %}9{% endif %}" class="text-center text-muted py-4">Ничего не найдено по выбранным фильтрам.</td></tr>
+          <tr><td colspan="{{ _col_count }}" class="text-center text-muted py-4">Ничего не найдено по выбранным фильтрам.</td></tr>
         {% endif %}
       </tbody>
     </table>
@@ -586,17 +1223,42 @@
 
   {% else %}
   {# ── LIST VIEW ── #}
-  <div id="myViewList" class="inc-list">
-    {% for r in rows %}
+  <div id="myViewList" class="inc-list" data-list-container="1">
+    {% if groups %}
+    {% set _gb_chunks_l = groups %}
+    {% else %}
+    {% set _gb_chunks_l = [{'key':'_all', 'label':'', 'rows': rows}] %}
+    {% endif %}
+    {% for _grp in _gb_chunks_l %}
+    {% if groups %}
+    <div class="inc-list-group-header" data-group-key="{{ _grp.key }}">
+      <span class="gh-caret">▾</span>
+      <span>{{ _grp.label }}</span>
+      <span class="gh-count">· {{ _grp.rows|length }}</span>
+    </div>
+    <div class="inc-list-group-body" data-group-key="{{ _grp.key }}">
+    {% endif %}
+    {% for r in _grp.rows %}
       {% set s = r.inc.status or 'new' %}
-      <div class="inc-list-item">
+      {% set _kid_class_id = (r.children[0].class_id if r.children else '') %}
+      {% set _kid_class = (r.children[0].class if r.children else '') %}
+      {% set _kid_building = (r.children[0].building if r.children and r.children[0].building else '') %}
+      <div class="inc-list-item" data-row="1"
+           data-occurred="{{ r.inc.occurred_at.isoformat() if r.inc.occurred_at else '' }}"
+           data-category="{{ incident_category_label(r.inc.category) }}"
+           data-class="{{ _kid_class }}"
+           data-class-id="{{ _kid_class_id }}"
+           data-building="{{ _kid_building }}"
+           data-assignee-id="{{ r.inc.assignee_id or '' }}"
+           data-assignee-label="{% if r.inc.assignee %}{{ r.inc.assignee.last_name or '' }} {{ r.inc.assignee.first_name or '' }}{% else %}— Без исполнителя{% endif %}"
+           data-status="{{ r.inc.status or 'new' }}">
         <div class="inc-list-row">
           <span class="inc-list-date col-dt"><i class="bi bi-calendar3"></i> {{ r.inc.occurred_at.strftime("%d.%m.%Y %H:%M") if r.inc.occurred_at else "—" }}</span>
-          <span class="text-dark small fw-semibold col-cat">{{ r.inc.category or "—" }}</span>
+          <span class="text-dark small fw-semibold col-cat">{{ incident_category_label(r.inc.category) }}</span>
           <span class="col-status">{{ status_picker(r.inc) }}</span>
           <span class="col-assignee">
-            {% if r.inc.assignee %}
-              <span class="inc-list-meta">&#128100; {{ r.inc.assignee.last_name }} {{ (r.inc.assignee.first_name or '')[:1] }}.</span>
+            {% if r.assignee_ids %}
+              <span class="inc-list-meta">&#128100; {{ r.assignees_label }}</span>
             {% endif %}
           </span>
         </div>
@@ -635,27 +1297,52 @@
         {% endif %}
         <div class="inc-list-row mt-1">
           <span class="inc-list-meta col-author">{{ r.author_label or "—" }}</span>
+          {% set _row_editable_l = can_edit_rows and (not is_methodist_view or r.inc.author_id == current_user_id or current_user_id in r.assignee_ids) %}
           <span class="col-actions d-inline-flex gap-1 align-items-center flex-nowrap">
-            <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="Открыть"><i class="bi bi-pencil"></i></a>
+            <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_edit', incident_id=r.inc.id, next=request.full_path) }}" title="{% if _row_editable_l %}Открыть{% else %}Просмотр{% endif %}"><i class="bi {% if _row_editable_l %}bi-pencil{% else %}bi-eye{% endif %}"></i></a>
             <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="{{ url_for('children.incident_timeline', incident_id=r.inc.id) }}" title="История"><i class="bi bi-clock-history"></i></a>
-            {% if can_edit_rows %}
-            <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" onsubmit="return confirm('Удалить инцидент?');" class="d-inline">
+            {% if _row_editable_l %}
+            <form method="post" action="{{ url_for('children.incident_delete', incident_id=r.inc.id) }}" class="js-incident-delete-form d-inline">
               <input type="hidden" name="next" value="{{ request.full_path }}">
-              <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="submit" title="Удалить"><i class="bi bi-trash"></i></button>
+              <button class="btn btn-sm btn-outline-danger js-incident-delete-btn py-0 px-2" type="button" title="Удалить"
+                      data-category="{{ r.inc.category }}"
+                      data-kids="{{ r.children | map(attribute='fio') | join(', ') }}"><i class="bi bi-trash"></i></button>
             </form>
             {% endif %}
-            {% if is_social_view and r.inc.assignee_id == current_user_id and (r.inc.status or 'new') not in ('resolved','closed') %}
+            {% if is_social_view and current_user_id in r.assignee_ids and (r.inc.status or 'new') not in ('resolved','closed') %}
             <button class="btn btn-sm btn-outline-secondary py-0 px-2 user-mark-resolved" data-incident-id="{{ r.inc.id }}" title="Я отработал"><i class="bi bi-check2"></i></button>
             {% endif %}
           </span>
         </div>
       </div>
     {% else %}
-      <div class="text-center py-4 text-muted">Ничего не найдено по выбранным фильтрам.</div>
+      {% if not groups %}<div class="text-center py-4 text-muted">Ничего не найдено по выбранным фильтрам.</div>{% endif %}
     {% endfor %}
+    {% if groups %}</div>{% endif %}
+    {% endfor %}
+    {% if groups and rows|length == 0 %}<div class="text-center py-4 text-muted">Ничего не найдено по выбранным фильтрам.</div>{% endif %}
   </div>
   {% endif %}
+
+  {# Пагинация — общая для table+list, показывается только если страниц больше одной #}
+  {% if total_pages is defined and total_pages and total_pages > 1 %}
+    {% set _qp = request.args.to_dict() %}
+    {% set _qprev = _qp.copy() %}{% set _ = _qprev.update({'page': page - 1}) %}
+    {% set _qnext = _qp.copy() %}{% set _ = _qnext.update({'page': page + 1}) %}
+    <nav class="mt-3 d-flex justify-content-center" aria-label="Постраничная навигация">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('children.incidents_my', **_qprev) if page > 1 else '#' }}">← Назад</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ page }} / {{ total_pages }}</span></li>
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('children.incidents_my', **_qnext) if page < total_pages else '#' }}">Вперёд →</a>
+        </li>
+      </ul>
+    </nav>
+  {% endif %}
 </div>
+{% endif %}
 {% endif %}
 
 <script>
@@ -667,35 +1354,124 @@
     if (!btn || !menu) return;
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ if (m !== menu) m.classList.remove('open'); });
+      document.querySelectorAll('.status-picker-menu.open').forEach(function(m){
+        if (m !== menu) {
+          m.classList.remove('open');
+          var b = m.parentElement && m.parentElement.querySelector('.status-pill');
+          if (b) b.setAttribute('aria-expanded', 'false');
+          var c = m.closest('.kb-card');
+          if (c) c.classList.remove('kb-menu-open');
+        }
+      });
       menu.classList.toggle('open');
+      var isOpen = menu.classList.contains('open');
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      var card = pk.closest('.kb-card');
+      if (card) card.classList.toggle('kb-menu-open', isOpen);
     });
     menu.querySelectorAll('.sp-opt').forEach(function(opt){
       opt.addEventListener('click', function(){
-        var id = opt.dataset.incidentId;
-        var status = opt.dataset.status;
+        var id = pk.dataset.incidentId || opt.dataset.incidentId || (btn && btn.dataset.incidentId);
+        var status = opt.dataset.value || opt.dataset.status;
+        if (!id || !status) return;
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
         var fd = new FormData(); fd.append('status', status);
-        fetch('/incidents/' + id + '/set-status', {method:'POST', body:fd})
+        fetch('/incidents/' + id + '/set-status', {method:'POST', body:fd, headers:{'X-CSRFToken': csrf}})
           .then(function(r){ return r.json(); })
           .then(function(data){
             if (data.ok) {
               btn.className = 'status-pill s-' + data.status;
-              var newLbl = menu.querySelector('.sp-opt[data-status="' + data.status + '"] span:last-child');
-              if (newLbl) {
-                btn.innerHTML = newLbl.textContent + ' <i class="bi bi-chevron-down small"></i>';
+              var newOpt = menu.querySelector('.sp-opt[data-value="' + data.status + '"]') ||
+                           menu.querySelector('.sp-opt[data-status="' + data.status + '"]');
+              if (newOpt) {
+                var pillEl = newOpt.querySelector('.sp-pill');
+                var lblText = pillEl ? pillEl.textContent : (newOpt.querySelector('span:last-child') ? newOpt.querySelector('span:last-child').textContent : '');
+                var sp = btn.querySelector('.sp-label');
+                if (sp) {
+                  sp.textContent = lblText;
+                } else {
+                  btn.innerHTML = lblText + ' <i class="bi bi-chevron-down small"></i>';
+                  btn.dataset.incidentId = id;
+                }
               }
+              var card = pk.closest('.kb-card');
+              if (card) {
+                card.dataset.status = data.status;
+                // Kanban: при ручной смене статуса перенести карточку в колонку этапа.
+                var STATUS_TO_BUCKET = {
+                  'new': 'incoming',
+                  'assigned': 'in_work', 'in_progress': 'in_work',
+                  'resolved': 'completed', 'closed': 'completed'
+                };
+                var targetBucket = STATUS_TO_BUCKET[data.status];
+                var sourceBody = card.parentElement;
+                var targetBody = targetBucket ? document.querySelector('.kb-col-body[data-bucket="' + targetBucket + '"]') : null;
+                if (targetBody && sourceBody && sourceBody !== targetBody) {
+                  var emptyEl = targetBody.querySelector('.kb-empty');
+                  if (emptyEl) emptyEl.remove();
+                  targetBody.appendChild(card);
+                  function _refreshKbCount(b){
+                    var col = b.closest('.kb-col');
+                    if (!col) return;
+                    var countEl = col.querySelector('.kb-col-count');
+                    if (countEl) countEl.textContent = b.querySelectorAll('.kb-card').length;
+                    if (!b.querySelector('.kb-card') && !b.querySelector('.kb-empty')) {
+                      var em = document.createElement('div'); em.className = 'kb-empty'; em.textContent = 'пусто';
+                      b.appendChild(em);
+                    }
+                  }
+                  _refreshKbCount(sourceBody); _refreshKbCount(targetBody);
+                }
+              }
+              var row = pk.closest('[data-row]');
+              if (row) row.dataset.status = data.status;
             } else {
               alert('Ошибка: ' + (data.error || 'неизвестно'));
             }
             menu.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+            var cardX = pk.closest('.kb-card');
+            if (cardX) cardX.classList.remove('kb-menu-open');
           }).catch(function(){ alert('Ошибка сети'); });
       });
     });
   });
-  document.addEventListener('click', function(){
-    document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ m.classList.remove('open'); });
+  // Клики внутри assignee-menu не закрывают меню (для multi-select)
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('.assignee-menu')) {
+      // если это «Применить» — пусть закрытие сделает обработчик apply (он ставит .open снято)
+      var apply = e.target.closest('.assignee-apply');
+      if (!apply) return; // не закрываем status и assignee, клик внутри открытого меню
+    }
+    document.querySelectorAll('.status-picker-menu.open').forEach(function(m){
+      m.classList.remove('open');
+      var b = m.parentElement && m.parentElement.querySelector('.status-pill');
+      if (b) b.setAttribute('aria-expanded', 'false');
+      var c = m.closest('.kb-card');
+      if (c) c.classList.remove('kb-menu-open');
+    });
     document.querySelectorAll('.assignee-menu.open').forEach(function(m){ m.classList.remove('open'); });
   });
+
+  // ── Filters popup (s72) ──
+  (function(){
+    var btn = document.getElementById('myFilterBtn');
+    var pop = document.getElementById('myFilterPopup');
+    var dot = document.getElementById('myFilterDot');
+    if (btn && pop) {
+      function hasActiveFilter(){
+        var u = new URLSearchParams(window.location.search);
+        return ['category','class_id','q','sort'].some(function(k){
+          var v = u.get(k); return v && v !== 'date_desc';
+        });
+      }
+      if (hasActiveFilter() && dot) dot.style.display = 'inline-block';
+      btn.addEventListener('click', function(e){ e.stopPropagation(); pop.classList.toggle('open'); });
+      pop.addEventListener('click', function(e){ e.stopPropagation(); });
+      document.addEventListener('click', function(){ pop.classList.remove('open'); });
+    }
+  })();
 
   // ── Живой поиск / авто-фильтры ──
   var form = document.getElementById('incFiltersForm');
@@ -789,6 +1565,44 @@
   })();
   });  // DOMContentLoaded (mark-resolved modal init)
 
+  // ── Desc toggle (без inline onclick) ──
+  document.addEventListener("click", function(e) {
+    var exp = e.target.closest(".js-desc-expand");
+    if (exp) {
+      var sShort = exp.parentElement;
+      sShort.style.display = "none";
+      if (sShort.nextElementSibling) sShort.nextElementSibling.style.display = "inline";
+      return;
+    }
+    var col = e.target.closest(".js-desc-collapse");
+    if (col) {
+      var sFull = col.parentElement;
+      sFull.style.display = "none";
+      if (sFull.previousElementSibling) sFull.previousElementSibling.style.display = "inline";
+    }
+  });
+
+  // ── View-switcher запоминание (?view= в URL + localStorage). ──
+  (function(){
+    var btnT = document.getElementById('myBtnTable');
+    var btnL = document.getElementById('myBtnList');
+    if (!btnT || !btnL) return;
+    btnT.addEventListener('click', function(){ localStorage.setItem('my_inc_view', 'table'); });
+    btnL.addEventListener('click', function(){ localStorage.setItem('my_inc_view', 'list'); });
+    var hasUrlView = new URLSearchParams(window.location.search).has('view');
+    var saved = localStorage.getItem('my_inc_view');
+    // s74 P2: на узких экранах без явного выбора пользователя — list по умолчанию.
+    if (!hasUrlView && !saved && window.innerWidth < 768) {
+      saved = 'list';
+    }
+    if (!hasUrlView && saved === 'list') {
+      // Один безопасный редирект на list-view, чтобы не было цикла.
+      var u = new URL(window.location.href);
+      u.searchParams.set('view', 'list');
+      window.location.replace(u.toString());
+    }
+  })();
+
   // ── Col-picker (admin-view). View-switcher теперь = ссылки с ?view=  ──
   (function(){
     var colBtn  = document.getElementById('myColPickerBtn');
@@ -824,14 +1638,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
 (function(){
-    var modalEl = document.getElementById('setAssigneeModal');
-    if (!modalEl) return;
-    function $(id){ return document.getElementById(id); }
-    function getBsModal(){ return bootstrap.Modal.getOrCreateInstance(modalEl); }
-
-    // state
-    var pending = { pk:null, btn:null, menu:null, aid:'', incId:'' };
-
     // Открытие меню пикера
     document.addEventListener('click', function(e){
       var trigger = e.target.closest && e.target.closest('.assignee-btn');
@@ -859,88 +1665,43 @@ document.addEventListener('DOMContentLoaded', function(){
       if (!pk) return;
       var q = (e.target.value || '').trim().toLowerCase();
       pk.querySelectorAll('.assignee-opt').forEach(function(o){
-        if (!o.dataset.search && o.dataset.aid === '') { o.classList.remove('hidden'); return; }
         var txt = o.dataset.search || (o.textContent || '').toLowerCase();
         o.classList.toggle('hidden', q && txt.indexOf(q) === -1);
       });
     });
 
-    // Выбор опции
-    document.addEventListener('click', function(e){
-      var opt = e.target.closest && e.target.closest('.assignee-opt');
-      if (!opt) return;
-      var pk = opt.closest('.assignee-picker');
+    // state для модалки
+    var pendingAssign = { pk:null, btn:null, menu:null, incId:'', ids:[], addedLabels:[] };
+    var modalEl = document.getElementById('setAssigneeModal');
+    function getBsModal(){ return modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null; }
+
+    function postAssignees(note){
+      var pk = pendingAssign.pk;
       if (!pk) return;
-      var btn = pk.querySelector('.assignee-btn');
       var menu = pk.querySelector('.assignee-menu');
-      var id  = pk.dataset.incidentId;
-      var aid = opt.dataset.aid || '';
-
-      if (!aid) {
-        // Снятие назначения — без модалки.
-        var fd0 = new FormData(); fd0.append('assignee_id', '');
-        fetch('/incidents/' + id + '/set-assignee', {method:'POST', body:fd0})
-          .then(function(r){ return r.json(); })
-          .then(function(data){
-            if (!data.ok) { alert('Ошибка: ' + (data.error || 'неизвестно')); return; }
-            if (btn) { btn.classList.remove('has-assignee'); btn.innerHTML = '<i class="bi bi-person-plus"></i> Назначить'; }
-            if (menu) menu.classList.remove('open');
-          })
-          .catch(function(){ alert('Ошибка сети'); });
-        return;
-      }
-
-      // Сохраним pending и откроем модалку
-      pending.pk = pk; pending.btn = btn; pending.menu = menu;
-      pending.aid = aid; pending.incId = id;
-      var subtitle = $('setAssigneeSubtitle');
-      if (subtitle) {
-        var lbl = (opt.dataset.label || opt.textContent || '').trim();
-        subtitle.textContent = lbl ? ('Исполнитель: ' + lbl) : '';
-      }
-      var ta = $('setAssigneeNote'); if (ta) ta.value = '';
-      var err = $('setAssigneeError'); if (err) { err.style.display = 'none'; err.textContent = ''; }
-      var sub = $('setAssigneeSubmit'); if (sub) sub.disabled = false;
-      var skip = $('setAssigneeSkip'); if (skip) skip.disabled = false;
-      if (menu) menu.classList.remove('open');
-      getBsModal().show();
-    });
-
-    // Отправка назначения
-    function sendAssignment(includeNote){
-      var err = $('setAssigneeError'); if (err) { err.style.display = 'none'; err.textContent = ''; }
-      var ta  = $('setAssigneeNote');
-      var sub = $('setAssigneeSubmit');
-      var skip = $('setAssigneeSkip');
-      if (sub) sub.disabled = true;
-      if (skip) skip.disabled = true;
+      var btn = pk.querySelector('.assignee-btn');
       var fd = new FormData();
-      fd.append('assignee_id', pending.aid || '');
-      if (includeNote && ta) {
-        var note = (ta.value || '').trim();
-        if (note) fd.append('note', note);
+      if (pendingAssign.ids.length === 0) {
+        fd.append('assignee_ids', '');
+      } else {
+        pendingAssign.ids.forEach(function(v){ fd.append('assignee_ids', v); });
       }
-      fetch('/incidents/' + pending.incId + '/set-assignee', {method:'POST', body:fd})
+      if (note) fd.append('note', note);
+      fetch('/incidents/' + pendingAssign.incId + '/set-assignee', {method:'POST', body:fd})
         .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
         .then(function(res){
-          if (sub) sub.disabled = false; if (skip) skip.disabled = false;
-          if (!res.ok || !res.data.ok) {
-            if (err) { err.textContent = 'Ошибка: ' + ((res.data && res.data.error) || 'неизвестно'); err.style.display = ''; }
-            return;
+          if (!res.ok || !res.data.ok) { alert('Ошибка: ' + ((res.data && res.data.error) || 'неизвестно')); return; }
+          if (btn) {
+            var lbl = res.data.assignee_label;
+            if (lbl) { btn.classList.add('has-assignee'); btn.textContent = lbl; }
+            else { btn.classList.remove('has-assignee'); btn.innerHTML = '<i class="bi bi-person-plus"></i> Назначить'; }
           }
-          // Обновить кнопку и статус
-          if (pending.btn) {
-            if (res.data.assignee_label) {
-              pending.btn.classList.add('has-assignee');
-              pending.btn.textContent = res.data.assignee_label;
-            } else {
-              pending.btn.classList.remove('has-assignee');
-              pending.btn.innerHTML = '<i class="bi bi-person-plus"></i> Назначить';
-            }
-          }
-          if (pending.pk) {
-            var row = pending.pk.closest('tr');
-            if (row && res.data.status) {
+          var ids = (res.data.assignee_ids || []).join(',');
+          pk.dataset.currentIds = ids;
+          var row = pk.closest('tr') || pk.closest('.inc-list-item') || pk.closest('.kb-card');
+          if (row) {
+            row.dataset.assigneeId = res.data.assignee_id || '';
+            if (res.data.status) {
               var statusPill = row.querySelector('.status-picker .status-pill');
               if (statusPill) {
                 statusPill.className = 'status-pill s-' + res.data.status;
@@ -949,26 +1710,70 @@ document.addEventListener('DOMContentLoaded', function(){
               }
             }
           }
-          if (pending.menu) pending.menu.classList.remove('open');
-          getBsModal().hide();
+          if (menu) menu.classList.remove('open');
+          var m = getBsModal(); if (m) m.hide();
         })
-        .catch(function(){
-          if (sub) sub.disabled = false; if (skip) skip.disabled = false;
-          if (err) { err.textContent = 'Сетевая ошибка.'; err.style.display = ''; }
-        });
+        .catch(function(){ alert('Сетевая ошибка'); });
     }
 
+    // Применение мульти-выбора (кнопка «Применить»)
     document.addEventListener('click', function(e){
-      if (e.target && e.target.id === 'setAssigneeSubmit') sendAssignment(true);
-      if (e.target && e.target.id === 'setAssigneeSkip')   sendAssignment(false);
+      var apply = e.target.closest && e.target.closest('.assignee-apply');
+      if (!apply) return;
+      var pk = apply.closest('.assignee-picker');
+      if (!pk) return;
+      var btn = pk.querySelector('.assignee-btn');
+      var menu = pk.querySelector('.assignee-menu');
+      var id = pk.dataset.incidentId;
+      var currentIds = (pk.dataset.currentIds || '').split(',').filter(Boolean);
+      var newIds = [];
+      var addedLabels = [];
+      pk.querySelectorAll('.assignee-cb:checked').forEach(function(cb){
+        newIds.push(cb.value);
+        if (currentIds.indexOf(cb.value) === -1) {
+          var lbl = cb.closest('.assignee-opt');
+          addedLabels.push(lbl && lbl.dataset.label ? lbl.dataset.label : cb.value);
+        }
+      });
+      pendingAssign = { pk:pk, btn:btn, menu:menu, incId:id, ids:newIds, addedLabels:addedLabels };
+      // Если добавлений нет (только сняли или без изменений) — постим без модалки
+      if (addedLabels.length === 0) { postAssignees(''); return; }
+      // Иначе — модалка с опциональным пояснением
+      var subtitle = document.getElementById('setAssigneeSubtitle');
+      if (subtitle) {
+        subtitle.textContent = (addedLabels.length === 1 ? 'Исполнитель: ' : 'Исполнители: ') + addedLabels.join(', ');
+      }
+      var ta = document.getElementById('setAssigneeNote'); if (ta) ta.value = '';
+      var err = document.getElementById('setAssigneeError'); if (err) { err.style.display = 'none'; err.textContent = ''; }
+      if (menu) menu.classList.remove('open');
+      var m = getBsModal(); if (m) m.show();
     });
+
+    // Кнопки модалки
+    document.addEventListener('click', function(e){
+      if (e.target && e.target.id === 'setAssigneeSubmit') {
+        var ta = document.getElementById('setAssigneeNote');
+        postAssignees(ta && (ta.value || '').trim() ? ta.value.trim() : '');
+      }
+      if (e.target && e.target.id === 'setAssigneeSkip') postAssignees('');
+    });
+
+    // Кнопка «Очистить» — снимает все галки в меню (без сохранения; подтверждение через «Применить»).
+    document.addEventListener('click', function(e){
+      var clr = e.target.closest && e.target.closest('.assignee-clear');
+      if (!clr) return;
+      var pk = clr.closest('.assignee-picker');
+      if (!pk) return;
+      pk.querySelectorAll('.assignee-cb').forEach(function(cb){ cb.checked = false; });
+    });
+
 })();
 });
 </script>
 
 {# ── Модалка «Я отработал инцидент» (общая для всех видов: user-card/table/list) ── #}
 <div class="modal fade" id="myMarkResolvedModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="bi bi-check2-circle me-1 text-success"></i>Отметить инцидент как отработанный</h5>
@@ -1005,7 +1810,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
 {# ── Модалка «Назначить исполнителя» — пояснение необязательное ── #}
 <div class="modal fade" id="setAssigneeModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="bi bi-person-plus me-1"></i>Назначить исполнителя</h5>
@@ -1030,5 +1835,649 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="incidentDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Удалить инцидент?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2"><span class="text-muted">Категория:</span> <strong id="incDelCategory">—</strong></p>
+        <p class="mb-2"><span class="text-muted">Участники:</span> <span id="incDelKids">—</span></p>
+        <p class="text-danger small mb-0">Действие необратимо. Будут удалены связанные заметки и снимутся ссылки в задачах.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-danger" id="incDelConfirmBtn"><i class="bi bi-trash me-1"></i>Удалить</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var modalEl = document.getElementById('incidentDeleteModal');
+  if (!modalEl) return;
+  var modal = new bootstrap.Modal(modalEl);
+  var pendingForm = null;
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('.js-incident-delete-btn');
+    if (!btn) return;
+    e.preventDefault();
+    pendingForm = btn.closest('form');
+    document.getElementById('incDelCategory').textContent = btn.dataset.category || '—';
+    document.getElementById('incDelKids').textContent = btn.dataset.kids || '—';
+    modal.show();
+  });
+  document.getElementById('incDelConfirmBtn').addEventListener('click', function(){
+    if (pendingForm) pendingForm.submit();
+  });
+});
+</script>
+
+<script>
+// Kanban: drag-and-drop статусов + property visibility (s69).
+(function(){
+  var board = document.getElementById('myViewKanban');
+  if (!board) return;
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var CSRF = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  // ── property visibility ──
+  var STORAGE = 'kanban_my_props_v1';
+  var ALL_PROPS = ['kp-cat','kp-students','kp-date','kp-assignee','kp-tasks','kp-status'];
+  function loadHidden() {
+    try { return JSON.parse(localStorage.getItem(STORAGE) || '[]') || []; }
+    catch(e){ return []; }
+  }
+  function saveHidden(arr) {
+    try { localStorage.setItem(STORAGE, JSON.stringify(arr)); } catch(e){}
+  }
+  function applyHidden() {
+    var hidden = loadHidden();
+    ALL_PROPS.forEach(function(p){ board.classList.toggle('hide-' + p, hidden.indexOf(p) >= 0); });
+    document.querySelectorAll('.kb-prop-toggle').forEach(function(cb){
+      cb.checked = hidden.indexOf(cb.dataset.prop) < 0;
+    });
+  }
+  applyHidden();
+  document.querySelectorAll('.kb-prop-toggle').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var p = cb.dataset.prop, hidden = loadHidden();
+      var i = hidden.indexOf(p);
+      if (cb.checked) { if (i >= 0) hidden.splice(i, 1); }
+      else if (i < 0) hidden.push(p);
+      saveHidden(hidden); applyHidden();
+    });
+  });
+  // dropdown toggle (нативный — Bootstrap dropdown ожидает data-bs-toggle, у нас своя кнопка)
+  var kbBtn = document.getElementById('myKbPropPickerBtn');
+  var kbMenu = document.getElementById('myKbPropPickerMenu');
+  if (kbBtn && kbMenu) {
+    kbBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      kbMenu.classList.toggle('show');
+    });
+    document.addEventListener('click', function(e){
+      if (!kbMenu.contains(e.target) && e.target !== kbBtn) kbMenu.classList.remove('show');
+    });
+  }
+
+  // ── drag-and-drop ──
+  // Маппинг колонок-бакетов → конкретный статус. Бакет → дефолтный статус для drop.
+  var BUCKET_TO_STATUS = { 'incoming': 'new', 'in_work': 'in_progress', 'completed': 'closed' };
+  var STATUS_LABEL = {'new':'Новый','assigned':'Назначен','in_progress':'В работе','resolved':'Отработан','closed':'Закрыт'};
+
+  var dragged = null;
+  var kbBoard = document.getElementById('myViewKanban');
+  document.querySelectorAll('.kb-card.kb-draggable').forEach(function(card){
+    card.addEventListener('dragstart', function(e){
+      dragged = card;
+      card.classList.add('kb-dragging');
+      if (kbBoard) kbBoard.classList.add('kb-dragging-active');
+      // закрыть открытое status-меню — иначе оно зависнет на старой позиции
+      document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ m.classList.remove('open'); });
+      document.querySelectorAll('.kb-card.kb-menu-open').forEach(function(c){ c.classList.remove('kb-menu-open'); });
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', card.dataset.incidentId); } catch(_){}
+    });
+    card.addEventListener('dragend', function(){
+      card.classList.remove('kb-dragging');
+      if (kbBoard) kbBoard.classList.remove('kb-dragging-active');
+      document.querySelectorAll('.kb-col-body.kb-drop-over').forEach(function(el){ el.classList.remove('kb-drop-over'); });
+      dragged = null;
+    });
+  });
+  document.querySelectorAll('.kb-col-body').forEach(function(body){
+    body.addEventListener('dragover', function(e){
+      if (!dragged) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      body.classList.add('kb-drop-over');
+    });
+    body.addEventListener('dragleave', function(e){
+      if (e.target === body) body.classList.remove('kb-drop-over');
+    });
+    body.addEventListener('drop', function(e){
+      e.preventDefault();
+      body.classList.remove('kb-drop-over');
+      if (!dragged) return;
+      var card = dragged;
+      var bucket = body.dataset.bucket;
+      var curStatus = card.dataset.status;
+      var newStatus = BUCKET_TO_STATUS[bucket];
+      if (!newStatus) return;
+      var sourceBody = card.parentElement;
+      // Если статус уже правильный для бакета (и бакет не сменился) — игнор.
+      if (sourceBody === body && curStatus === newStatus) return;
+      // Оптимистичный UI: переносим карточку.
+      var emptyEl = body.querySelector('.kb-empty');
+      if (emptyEl) emptyEl.remove();
+      body.appendChild(card);
+      // Обновляем счётчики обеих колонок.
+      function refreshCount(b){
+        var col = b.closest('.kb-col');
+        if (!col) return;
+        var countEl = col.querySelector('.kb-col-count');
+        if (countEl) countEl.textContent = b.querySelectorAll('.kb-card').length;
+        if (!b.querySelector('.kb-card') && !b.querySelector('.kb-empty')) {
+          var em = document.createElement('div'); em.className = 'kb-empty'; em.textContent = 'пусто';
+          b.appendChild(em);
+        }
+      }
+      refreshCount(sourceBody); refreshCount(body);
+
+      var fd = new FormData();
+      fd.append('status', newStatus);
+      fetch('/incidents/' + card.dataset.incidentId + '/set-status', {
+        method: 'POST', body: fd, headers: {'X-CSRFToken': CSRF}
+      })
+      .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+      .then(function(res){
+        if (!res.ok || !res.data || !res.data.ok) {
+          // откат
+          sourceBody.appendChild(card);
+          refreshCount(sourceBody); refreshCount(body);
+          alert('Не удалось сменить статус: ' + ((res.data && res.data.error) || 'ошибка'));
+          return;
+        }
+        card.dataset.status = res.data.status;
+        // Обновить плашку статуса внутри карточки, если есть status-pill/badge.
+        var pillLabel = card.querySelector('.status-pill .sp-label');
+        if (pillLabel && STATUS_LABEL[res.data.status]) {
+          pillLabel.textContent = STATUS_LABEL[res.data.status];
+          var pill = card.querySelector('.status-pill');
+          if (pill) pill.className = pill.className.replace(/\bs-\w+/g, '') + ' s-' + res.data.status;
+        }
+        var badge = card.querySelector('.status-badge');
+        if (badge) {
+          badge.textContent = res.data.label || STATUS_LABEL[res.data.status] || res.data.status;
+          badge.className = badge.className.replace(/\bs-\w+/g, '') + ' s-' + res.data.status;
+        }
+      })
+      .catch(function(){
+        sourceBody.appendChild(card);
+        refreshCount(sourceBody); refreshCount(body);
+        alert('Ошибка сети при смене статуса.');
+      });
+    });
+  });
+})();
+</script>
+
+<script>
+// Named views на /incidents/my (БД через /api/saved-views, scope=inc_my).
+// s72: одна кнопка «+ Создать вид» → inline input. Тип берётся из текущего view_mode.
+(function(){
+  var nvBar = document.getElementById('nvBar');
+  if (!nvBar) return;
+  var nvCreateBtn = document.getElementById('nvCreateBtn');
+  var nvDefault = document.getElementById('nvDefault');
+  var SCOPE = 'inc_my';
+  var CUR_VIEW = '{{ view_mode }}';
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var CSRF = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  function curQS() {
+    var u = new URLSearchParams(window.location.search);
+    var out = new URLSearchParams();
+    ['category','class_id','q','sort','tab','group_by'].forEach(function(k){
+      var v = u.get(k); if (v) out.set(k, v);
+    });
+    return out.toString();
+  }
+  function applyView(qs) {
+    var u = new URL(window.location.pathname, window.location.origin);
+    var curView = new URLSearchParams(window.location.search).get('view');
+    if (curView) u.searchParams.set('view', curView);
+    if (qs) new URLSearchParams(qs).forEach(function(val, key){ u.searchParams.set(key, val); });
+    window.location.href = u.toString();
+  }
+  function render(items) {
+    Array.prototype.slice.call(nvBar.querySelectorAll('.nv-chip[data-saved]')).forEach(function(el){ el.remove(); });
+    var cur = curQS();
+    nvDefault.classList.toggle('active', cur === '');
+    var anySavedActive = false;
+    items.forEach(function(v){
+      var chip = document.createElement('span');
+      var isActive = (cur === v.qs);
+      if (isActive) anySavedActive = true;
+      chip.className = 'nv-chip' + (isActive ? ' active' : '');
+      chip.dataset.saved = '1';
+      chip.dataset.id = v.id;
+      chip.title = 'Применить вид: ' + v.name;
+      chip.innerHTML = "<span class='nv-name'></span><span class='x' title='Удалить'>×</span>";
+      chip.querySelector('.nv-name').textContent = v.name;
+      chip.addEventListener('click', function(e){
+        if (e.target.classList.contains('x')) {
+          if (!confirm('Удалить вид «' + v.name + '»?')) return;
+          fetch('/api/saved-views/' + v.id, { method: 'DELETE', headers: {'X-CSRFToken': CSRF} })
+            .then(function(r){ if (r.ok) refresh(); else alert('Ошибка удаления'); });
+          return;
+        }
+        applyView(v.qs);
+      });
+      // s78: nvCreateBtn внутри wrapper-span (s77), вставляем перед wrapper'ом — иначе NotFoundError.
+      var nvAnchor = nvCreateBtn.parentNode === nvBar ? nvCreateBtn : nvCreateBtn.parentNode;
+      nvBar.insertBefore(chip, nvAnchor);
+    });
+    // s79: если активен сохранённый вид — снять подсветку со стандартных view-tab-btn,
+    // чтобы визуально подсвечивался только чип, а не базовый тип отображения.
+    document.querySelectorAll('.view-tab-btn').forEach(function(btn){
+      if (anySavedActive) btn.classList.remove('active');
+    });
+  }
+  function refresh() {
+    fetch('/api/saved-views?scope=' + SCOPE)
+      .then(function(r){ return r.json(); })
+      .then(function(d){ render(d.items || []); })
+      .catch(function(){});
+  }
+  nvDefault.addEventListener('click', function(){ applyView(''); });
+
+  // s77: Notion-style 2-step popup для создания вида
+  var nvPopup = document.getElementById('nvPopup');
+  var nvNameInput = document.getElementById('nvNameInput');
+  var nvDoneBtn = document.getElementById('nvDoneBtn');
+  var nvBackBtn = document.getElementById('nvBackBtn');
+  var nvNameTitle = document.getElementById('nvNameTitle');
+  var typeTiles = nvPopup.querySelectorAll('.nv-type-tile');
+  var typeStep = nvPopup.querySelector('[data-step="type"]');
+  var nameStep = nvPopup.querySelector('[data-step="name"]');
+  var pickedView = null;
+  var TYPE_LABELS = { table:'Таблица', kanban:'Доска', list:'Список', calendar:'Календарь' };
+
+  function openPopup(){
+    pickedView = null;
+    typeStep.style.display = '';
+    nameStep.classList.remove('show');
+    nvNameInput.value = '';
+    nvNameInput.disabled = false;
+    nvPopup.classList.add('open');
+  }
+  function closePopup(){ nvPopup.classList.remove('open'); }
+  function gotoNameStep(view){
+    pickedView = view;
+    typeStep.style.display = 'none';
+    nameStep.classList.add('show');
+    nvNameTitle.textContent = 'Название вида · ' + (TYPE_LABELS[view] || view);
+    setTimeout(function(){ nvNameInput.focus(); }, 10);
+  }
+  function goBack(){
+    pickedView = null;
+    typeStep.style.display = '';
+    nameStep.classList.remove('show');
+  }
+  function submitView(){
+    var name = (nvNameInput.value || '').trim() || 'Новый вид';
+    if (!pickedView) return;
+    var qsParams = new URLSearchParams(curQS());
+    qsParams.set('view', pickedView);
+    var fd = new FormData();
+    fd.append('scope', SCOPE);
+    fd.append('name', name.slice(0, 80));
+    fd.append('qs', qsParams.toString());
+    nvNameInput.disabled = true;
+    nvDoneBtn.disabled = true;
+    fetch('/api/saved-views', { method: 'POST', body: fd, headers: {'X-CSRFToken': CSRF} })
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+      .then(function(res){
+        nvDoneBtn.disabled = false;
+        if (!res.ok) {
+          var err = res.data && res.data.error;
+          alert(err === 'limit_reached'
+            ? ('Достигнут лимит ' + res.data.limit + ' видов. Удалите ненужные.')
+            : ('Ошибка сохранения: ' + (err || 'неизвестно')));
+          nvNameInput.disabled = false; return;
+        }
+        closePopup();
+        refresh();
+      })
+      .catch(function(){
+        alert('Ошибка сети.');
+        nvNameInput.disabled = false;
+        nvDoneBtn.disabled = false;
+      });
+  }
+
+  nvCreateBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if (nvPopup.classList.contains('open')) { closePopup(); return; }
+    openPopup();
+  });
+  typeTiles.forEach(function(tile){
+    tile.addEventListener('click', function(){ gotoNameStep(tile.dataset.view); });
+  });
+  nvBackBtn.addEventListener('click', goBack);
+  nvDoneBtn.addEventListener('click', submitView);
+  nvNameInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); submitView(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePopup(); }
+  });
+  document.addEventListener('click', function(e){
+    if (!nvPopup.classList.contains('open')) return;
+    if (nvPopup.contains(e.target) || nvCreateBtn.contains(e.target)) return;
+    closePopup();
+  });
+
+  refresh();
+})();
+</script>
+
+{# ── s72: seamless регроупинг table+list через JS ── #}
+<script>
+(function(){
+  var GB_LABELS = {'':'Группировать','category':'Категория','class':'Класс','building':'Здание','assignee':'Исполнитель','status':'Статус'};
+  var STATUS_LABELS = {new:'Новый', assigned:'Назначен', in_progress:'В работе', resolved:'Отработан', closed:'Закрыт'};
+  var COLLAPSE_KEY = 'incidents_my_collapsed_v1';
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+  }
+  function groupKeyForRow(el, gb){
+    if (gb === 'category')  return el.dataset.category || 'Без категории';
+    if (gb === 'class')     return el.dataset.class || 'Без класса';
+    if (gb === 'building')  return el.dataset.building || 'Без здания';
+    if (gb === 'assignee')  return el.dataset.assigneeId ? (el.dataset.assigneeLabel || 'Исполнитель') : 'Без исполнителя';
+    if (gb === 'status')    return STATUS_LABELS[el.dataset.status] || el.dataset.status || 'Без статуса';
+    return '';
+  }
+  function readCollapsed(gb){ try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY+'::'+gb) || '{}'); } catch(e){ return {}; } }
+  function persistCollapsed(gb, st){ try { localStorage.setItem(COLLAPSE_KEY+'::'+gb, JSON.stringify(st)); } catch(e){} }
+
+  function regroupTable(gb){
+    var tbody = document.getElementById('myTbody');
+    if (!tbody) return;
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-row="1"]'));
+    if (!rows.length) return;
+    Array.prototype.slice.call(tbody.querySelectorAll('tr.group-header')).forEach(function(h){ h.remove(); });
+    rows.forEach(function(r){ r.classList.remove('group-row','collapsed'); r.removeAttribute('data-group-key'); });
+    if (!gb) { rows.forEach(function(r){ tbody.appendChild(r); }); return; }
+    var ordered = [], byKey = {};
+    rows.forEach(function(r){
+      var k = groupKeyForRow(r, gb);
+      if (!byKey[k]) { byKey[k] = []; ordered.push(k); }
+      byKey[k].push(r);
+    });
+    var collapsed = readCollapsed(gb);
+    var cc = document.querySelectorAll('.incident-table thead th').length;
+    ordered.forEach(function(k){
+      var hdr = document.createElement('tr');
+      hdr.className = 'group-header' + (collapsed[k] ? ' collapsed' : '');
+      hdr.dataset.groupKey = k;
+      hdr.innerHTML = '<td colspan="'+cc+'"><span class="gh-caret">▾</span> '+escapeHtml(k)+' <span class="gh-count">· '+byKey[k].length+'</span></td>';
+      tbody.appendChild(hdr);
+      byKey[k].forEach(function(r){
+        r.classList.add('group-row');
+        r.dataset.groupKey = k;
+        if (collapsed[k]) r.classList.add('collapsed');
+        tbody.appendChild(r);
+      });
+    });
+    bindTableHeaders(gb);
+  }
+
+  function regroupList(gb){
+    var cont = document.querySelector('[data-list-container="1"]');
+    if (!cont) return;
+    // Собираем существующие inc-list-item
+    var items = Array.prototype.slice.call(cont.querySelectorAll('.inc-list-item[data-row="1"]'));
+    if (!items.length) return;
+    // Чистим старые group-headers
+    Array.prototype.slice.call(cont.querySelectorAll('.inc-list-group-header, .inc-list-group-body')).forEach(function(el){
+      // Если это group-body — извлекаем элементы наружу
+      if (el.classList.contains('inc-list-group-body')) {
+        while (el.firstChild) cont.appendChild(el.firstChild);
+      }
+      el.remove();
+    });
+    // Удаляем все items, потом разложим заново
+    items.forEach(function(it){ if (it.parentElement) it.parentElement.removeChild(it); });
+    if (!gb) { items.forEach(function(it){ cont.appendChild(it); }); return; }
+    var ordered = [], byKey = {};
+    items.forEach(function(it){
+      var k = groupKeyForRow(it, gb);
+      if (!byKey[k]) { byKey[k] = []; ordered.push(k); }
+      byKey[k].push(it);
+    });
+    var collapsed = readCollapsed(gb);
+    ordered.forEach(function(k){
+      var hdr = document.createElement('div');
+      hdr.className = 'inc-list-group-header' + (collapsed[k] ? ' collapsed' : '');
+      hdr.dataset.groupKey = k;
+      hdr.innerHTML = '<span class="gh-caret">▾</span><span>'+escapeHtml(k)+'</span><span class="gh-count">· '+byKey[k].length+'</span>';
+      cont.appendChild(hdr);
+      var body = document.createElement('div');
+      body.className = 'inc-list-group-body' + (collapsed[k] ? ' collapsed' : '');
+      body.dataset.groupKey = k;
+      byKey[k].forEach(function(it){ body.appendChild(it); });
+      cont.appendChild(body);
+    });
+    bindListHeaders(gb);
+  }
+
+  function bindTableHeaders(gb){
+    document.querySelectorAll('#myTbody tr.group-header').forEach(function(h){
+      h.addEventListener('click', function(){
+        var k = h.dataset.groupKey;
+        var c = readCollapsed(gb); c[k] = !c[k]; persistCollapsed(gb, c);
+        h.classList.toggle('collapsed', !!c[k]);
+        document.querySelectorAll('#myTbody tr.group-row[data-group-key="'+(CSS.escape?CSS.escape(k):k)+'"]').forEach(function(tr){
+          tr.classList.toggle('collapsed', !!c[k]);
+        });
+      });
+    });
+  }
+  function bindListHeaders(gb){
+    document.querySelectorAll('.inc-list-group-header').forEach(function(h){
+      h.addEventListener('click', function(){
+        var k = h.dataset.groupKey;
+        var c = readCollapsed(gb); c[k] = !c[k]; persistCollapsed(gb, c);
+        h.classList.toggle('collapsed', !!c[k]);
+        var body = h.nextElementSibling;
+        if (body && body.classList.contains('inc-list-group-body')) body.classList.toggle('collapsed', !!c[k]);
+      });
+    });
+  }
+
+  // Init: уже отрендерено сервером, привязываем
+  var initialGB = {{ (f_group_by or '')|tojson }};
+  bindTableHeaders(initialGB);
+  bindListHeaders(initialGB);
+
+  // Перехват кликов на gb-опции
+  document.querySelectorAll('.js-gb-opt').forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var gb = a.dataset.gb || '';
+      document.querySelectorAll('.js-gb-opt').forEach(function(x){ x.classList.remove('active'); });
+      a.classList.add('active');
+      var lbl = document.getElementById('myGroupByLabel');
+      if (lbl) lbl.textContent = gb ? ('Группа: ' + GB_LABELS[gb]) : 'Группировать';
+      try {
+        var u = new URL(window.location.href);
+        if (gb) u.searchParams.set('group_by', gb); else u.searchParams.delete('group_by');
+        history.replaceState(null, '', u.toString());
+      } catch(_){}
+      var menu = document.getElementById('myGroupByMenu');
+      if (menu) menu.classList.remove('show');
+      regroupTable(gb);
+      regroupList(gb);
+      // После перегруппировки — переприменить сортировку.
+      if (window.__incApplySort) window.__incApplySort();
+    });
+  });
+})();
+</script>
+
+{# ── s76: Sort dropdown (Notion-style) — клиентская переcортировка через data-attrs ── #}
+<script>
+(function(){
+  var SORT_LABELS = {
+    date_desc:'Дата ↓', date_asc:'Дата ↑',
+    category_asc:'Категория А-Я', category_desc:'Категория Я-А',
+    class_asc:'Класс А-Я', class_desc:'Класс Я-А',
+    building_asc:'Здание А-Я', building_desc:'Здание Я-А',
+    assignee_asc:'Исполнитель А-Я', assignee_desc:'Исполнитель Я-А',
+    status_asc:'Статус ↓', status_desc:'Статус ↑'
+  };
+  var STATUS_RANK = {new:0, assigned:1, in_progress:2, resolved:3, closed:4};
+  var STORAGE_KEY = 'incidents_my_sort_v1';
+
+  function getInitial(){
+    var fromUrl = {{ (f_sort or '')|tojson }};
+    if (fromUrl && SORT_LABELS[fromUrl]) return fromUrl;
+    try { var v = localStorage.getItem(STORAGE_KEY); if (v && SORT_LABELS[v]) return v; } catch(_){}
+    return '';
+  }
+
+  function parseKey(key){
+    // 'date_asc' → {prop:'date', dir:'asc'}; 'category_desc' → {prop:'category', dir:'desc'}
+    var m = /^(.*)_(asc|desc)$/.exec(key || '');
+    if (!m) return {prop: key, dir: 'asc'};
+    return {prop: m[1], dir: m[2]};
+  }
+  function compareBy(key, a, b){
+    var pk = parseKey(key);
+    var dir = pk.dir === 'desc' ? -1 : 1;
+    var av, bv;
+    if (pk.prop === 'date'){
+      av = a.getAttribute('data-occurred') || '';
+      bv = b.getAttribute('data-occurred') || '';
+      if (av === bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      return (av < bv ? -1 : 1) * dir;
+    }
+    if (pk.prop === 'status'){
+      av = STATUS_RANK[a.getAttribute('data-status')||'new']; if (av==null) av = 99;
+      bv = STATUS_RANK[b.getAttribute('data-status')||'new']; if (bv==null) bv = 99;
+      return (av - bv) * dir;
+    }
+    var attr = ({category:'data-category','class':'data-class',building:'data-building',assignee:'data-assignee-label'})[pk.prop];
+    if (!attr) return 0;
+    av = (a.getAttribute(attr) || '').trim().toLowerCase();
+    bv = (b.getAttribute(attr) || '').trim().toLowerCase();
+    if (av === bv) return 0;
+    var aEmpty = !av || av.charAt(0) === '—';
+    var bEmpty = !bv || bv.charAt(0) === '—';
+    if (aEmpty && !bEmpty) return 1;
+    if (!aEmpty && bEmpty) return -1;
+    return av.localeCompare(bv, 'ru') * dir;
+  }
+
+  function sortContainer(container, rowSelector, sortKey){
+    var rows = Array.prototype.slice.call(container.querySelectorAll(rowSelector));
+    if (!rows.length) return;
+    rows.sort(function(a,b){ return compareBy(sortKey, a, b); });
+    rows.forEach(function(r){ container.appendChild(r); });
+  }
+
+  function applySort(sortKey){
+    if (!sortKey){ return; } // без сортировки — серверный порядок (DOM как пришёл)
+    // Table: внутри каждого tbody, со скипом group-header и пустых строк.
+    document.querySelectorAll('table tbody').forEach(function(tb){
+      // если есть group-header — сортируем подгруппы между ними
+      var hdrs = tb.querySelectorAll('tr.group-header');
+      if (hdrs.length){
+        // собрать диапазоны: от каждого header до следующего
+        var allTrs = Array.prototype.slice.call(tb.children);
+        var groups = [];
+        var cur = null;
+        allTrs.forEach(function(tr){
+          if (tr.classList && tr.classList.contains('group-header')){
+            cur = {header: tr, rows: []};
+            groups.push(cur);
+          } else if (cur && tr.getAttribute('data-row') === '1'){
+            cur.rows.push(tr);
+          }
+        });
+        groups.forEach(function(g){
+          g.rows.sort(function(a,b){ return compareBy(sortKey, a, b); });
+          g.rows.forEach(function(r){ if (r.parentNode === tb) tb.removeChild(r); });
+          var anchor = g.header.nextSibling;
+          g.rows.forEach(function(r){
+            if (anchor) tb.insertBefore(r, anchor);
+            else tb.appendChild(r);
+          });
+        });
+      } else {
+        sortContainer(tb, 'tr[data-row="1"]', sortKey);
+      }
+    });
+    // List: внутри каждого .inc-list-group-body или прямо в #myViewList.
+    var bodies = document.querySelectorAll('.inc-list-group-body');
+    if (bodies.length){
+      bodies.forEach(function(b){ sortContainer(b, '.inc-list-item[data-row="1"]', sortKey); });
+    } else {
+      var listRoot = document.getElementById('myViewList');
+      if (listRoot) sortContainer(listRoot, '.inc-list-item[data-row="1"]', sortKey);
+    }
+    // Kanban: внутри каждой колонки kb-col-body.
+    document.querySelectorAll('.kb-col-body').forEach(function(b){
+      sortContainer(b, '.kb-card', sortKey);
+    });
+  }
+  window.__incApplySort = function(){
+    var k = document.querySelector('.js-sort-opt.active');
+    applySort(k ? (k.dataset.sort || '') : '');
+  };
+
+  function setActive(sortKey){
+    document.querySelectorAll('.js-sort-opt').forEach(function(x){
+      x.classList.toggle('active', (x.dataset.sort||'') === sortKey);
+    });
+    var lbl = document.getElementById('mySortLabel');
+    var dot = document.getElementById('mySortDot');
+    if (lbl) lbl.textContent = sortKey ? ('Сорт.: ' + SORT_LABELS[sortKey]) : 'Сортировка';
+    if (dot) dot.style.display = sortKey ? 'inline-block' : 'none';
+  }
+
+  // Init
+  var init = getInitial();
+  if (init){ setActive(init); applySort(init); }
+
+  document.querySelectorAll('.js-sort-opt').forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var k = a.dataset.sort || '';
+      try {
+        if (k) localStorage.setItem(STORAGE_KEY, k);
+        else localStorage.removeItem(STORAGE_KEY);
+      } catch(_){}
+      setActive(k);
+      try {
+        var u2 = new URL(window.location.href);
+        if (k) u2.searchParams.set('sort', k); else u2.searchParams.delete('sort');
+        history.replaceState(null, '', u2.toString());
+      } catch(_){}
+      var menu = document.getElementById('mySortMenu');
+      if (menu) menu.classList.remove('show');
+      applySort(k);
+    });
+  });
+})();
+</script>
 
 {% endblock %}
