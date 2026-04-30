@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3 admin-email-settings-page">
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Электронная почта и уведомления</h1>
+      <div class="text-muted small">SMTP-настройки для уведомлений портала, задач и тестовой отправки.</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="/">На главную</a>
+  </div>
+
+  <form method="post" class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-check">
+            <input class="form-check-input" type="checkbox" name="smtp_enabled" value="1" {% if settings.smtp_enabled %}checked{% endif %}>
+            <span class="form-check-label">Включить отправку email-уведомлений</span>
+          </label>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">SMTP-сервер</label>
+          <input class="form-control" name="smtp_host" value="{{ settings.smtp_host or '' }}" placeholder="smtp.yandex.ru">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Порт</label>
+          <input class="form-control" name="smtp_port" value="{{ settings.smtp_port or 465 }}" inputmode="numeric">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Защита</label>
+          <div class="d-flex gap-3 pt-2">
+            <label class="form-check"><input class="form-check-input" type="checkbox" name="smtp_use_ssl" value="1" {% if settings.smtp_use_ssl %}checked{% endif %}> SSL</label>
+            <label class="form-check"><input class="form-check-input" type="checkbox" name="smtp_use_tls" value="1" {% if settings.smtp_use_tls %}checked{% endif %}> STARTTLS</label>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Логин SMTP</label>
+          <input class="form-control" name="smtp_username" value="{{ settings.smtp_username or '' }}" autocomplete="off">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Пароль SMTP / пароль приложения</label>
+          <input class="form-control" type="password" name="smtp_password" value="" placeholder="Оставьте пустым, чтобы не менять сохраненный пароль" autocomplete="new-password">
+          {% if settings.smtp_password %}<div class="form-text">Пароль сохранён и скрыт.</div>{% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Email отправителя</label>
+          <input class="form-control" name="mail_sender_email" value="{{ settings.mail_sender_email or '' }}" placeholder="portal@1324.ru">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Имя отправителя</label>
+          <input class="form-control" name="mail_sender_name" value="{{ settings.mail_sender_name or '' }}" placeholder="ГБОУ Школа № 1324">
+        </div>
+
+        <div class="col-12"><hr></div>
+        <div class="col-md-4">
+          <label class="form-check">
+            <input class="form-check-input" type="checkbox" name="task_email_notifications_enabled" value="1" {% if settings.task_email_notifications_enabled %}checked{% endif %}>
+            <span class="form-check-label">Email по новым задачам</span>
+          </label>
+        </div>
+        <div class="col-md-4">
+          <label class="form-check">
+            <input class="form-check-input" type="checkbox" name="task_comment_email_enabled" value="1" {% if settings.task_comment_email_enabled %}checked{% endif %}>
+            <span class="form-check-label">Email по комментариям</span>
+          </label>
+        </div>
+        <div class="col-md-4">
+          <label class="form-check">
+            <input class="form-check-input" type="checkbox" name="task_deadline_email_enabled" value="1" {% if settings.task_deadline_email_enabled %}checked{% endif %}>
+            <span class="form-check-label">Напоминания о сроках</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2">
+      <button class="btn btn-primary">Сохранить настройки</button>
+    </div>
+  </form>
+
+  <form method="post" action="{{ url_for('admin_email_settings.test_email') }}" class="card shadow-sm border-0">
+    <div class="card-body">
+      <h2 class="h6 mb-2">Тестовое письмо</h2>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label">Адрес получателя</label>
+          <input class="form-control" name="test_email" placeholder="user@example.ru">
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-outline-primary w-100">Отправить тестовое письмо</button>
+        </div>
+      </div>
+      {% if settings.email_last_test_at or settings.email_last_test_status %}
+      <div class="alert alert-light border mt-3 mb-0 small">
+        <div><b>Последняя проверка:</b> {{ settings.email_last_test_at or '—' }}</div>
+        <div>{{ settings.email_last_test_status or '—' }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

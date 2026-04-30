@@ -71,9 +71,20 @@ def uploaded_media(filename):
     return send_from_directory(_organization_media_dir(), filename)
 
 
+
+def ensure_olympiad_school_columns():
+    try:
+        db.session.execute(db.text("ALTER TABLE organization_settings ADD COLUMN IF NOT EXISTS olympiad_school_login VARCHAR(80)"))
+        db.session.execute(db.text("ALTER TABLE organization_settings ADD COLUMN IF NOT EXISTS olympiad_ekis_code VARCHAR(80)"))
+        db.session.execute(db.text("ALTER TABLE organization_settings ADD COLUMN IF NOT EXISTS olympiad_school_name VARCHAR(255)"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
 @organization_settings_bp.route('/admin/organization-settings', methods=['GET', 'POST'])
 @require_roles('ADMIN')
 def edit():
+    ensure_olympiad_school_columns()
     settings = OrganizationSettings.query.filter_by(is_active=True).order_by(OrganizationSettings.id.desc()).first()
 
     if request.method == 'POST':
@@ -112,6 +123,10 @@ def edit():
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+        settings.olympiad_school_login = (request.form.get('olympiad_school_login') or '').strip() or None
+        settings.olympiad_ekis_code = (request.form.get('olympiad_ekis_code') or '').strip() or None
+        settings.olympiad_school_name = (request.form.get('olympiad_school_name') or '').strip() or None
 
         flash('Настройки организации сохранены.', 'success')
         return redirect(url_for('organization_settings.edit'))

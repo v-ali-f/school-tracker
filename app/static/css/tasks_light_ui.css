@@ -1,0 +1,83 @@
+
+/* v183: облегчение модуля задач */
+body.tasks-light-ui .tasks-page,
+body.tasks-light-ui [data-page="tasks"],
+body.tasks-light-ui .task-board,
+body.tasks-light-ui .kanban-board { font-size: 14px; }
+
+body.tasks-light-ui .task-toolbar,
+body.tasks-light-ui .tasks-toolbar,
+body.tasks-light-ui .page-actions { gap: .5rem !important; flex-wrap: wrap; }
+
+body.tasks-light-ui .task-toolbar .btn,
+body.tasks-light-ui .tasks-toolbar .btn,
+body.tasks-light-ui .page-actions .btn { padding: .35rem .65rem !important; border-radius: 10px !important; }
+
+body.tasks-light-ui .task-stat-card,
+body.tasks-light-ui .tasks-stat-card,
+body.tasks-light-ui .stat-card,
+body.tasks-light-ui .summary-card { min-height: auto !important; padding: .75rem !important; }
+
+body.tasks-light-ui .task-filters:not(.is-open),
+body.tasks-light-ui .tasks-filters:not(.is-open),
+body.tasks-light-ui form.task-filter-form:not(.is-open),
+body.tasks-light-ui form.tasks-filter-form:not(.is-open) {
+  max-height: 46px;
+  overflow: hidden;
+  position: relative;
+}
+
+body.tasks-light-ui .task-filters:not(.is-open)::after,
+body.tasks-light-ui .tasks-filters:not(.is-open)::after,
+body.tasks-light-ui form.task-filter-form:not(.is-open)::after,
+body.tasks-light-ui form.tasks-filter-form:not(.is-open)::after {
+  content: "Фильтры свернуты";
+  position: absolute;
+  right: .75rem;
+  top: .65rem;
+  font-size: 12px;
+  color: #6b7280;
+  background: #fff;
+  padding-left: .5rem;
+}
+
+body.tasks-light-ui .kanban-board,
+body.tasks-light-ui .task-kanban,
+body.tasks-light-ui .tasks-kanban {
+  display: flex;
+  gap: .75rem !important;
+  overflow-x: auto;
+  padding-bottom: .75rem;
+}
+
+body.tasks-light-ui .kanban-column,
+body.tasks-light-ui .task-column,
+body.tasks-light-ui .tasks-column {
+  min-width: 260px !important;
+  max-width: 310px !important;
+  border-radius: 14px !important;
+}
+
+body.tasks-light-ui .kanban-card,
+body.tasks-light-ui .task-card,
+body.tasks-light-ui .tasks-card {
+  padding: .7rem !important;
+  border-radius: 12px !important;
+  margin-bottom: .55rem !important;
+}
+
+body.tasks-light-ui .kanban-card .description,
+body.tasks-light-ui .task-card .description,
+body.tasks-light-ui .tasks-card .description,
+body.tasks-light-ui .kanban-card .task-description,
+body.tasks-light-ui .task-card .task-description { display: none !important; }
+
+body.tasks-light-ui:not(.tasks-detailed-mode) [data-status="closed"],
+body.tasks-light-ui:not(.tasks-detailed-mode) [data-status="cancelled"],
+body.tasks-light-ui:not(.tasks-detailed-mode) [data-status="canceled"],
+body.tasks-light-ui:not(.tasks-detailed-mode) [data-status="done"] .task-closed-only { display: none !important; }
+
+body.tasks-light-ui:not(.tasks-detailed-mode) .v183-hidden-kanban-column { display: none !important; }
+
+.v183-task-ui-toggle { border-radius: 10px; padding: .35rem .65rem; border: 1px solid #d0d7e2; background: #fff; color: #1f3b5b; font-size: 13px; }
+.v183-task-ui-toggle:hover { background: #f4f7fb; }

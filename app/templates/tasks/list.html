@@ -1,7 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
 {% set current_view = request.args.get('view') or ('archive' if list_kind == 'archive' else 'kanban') %}
+{% set board_view = request.args.get('board_view', 'compact') %}
 {% set board_statuses = [
+  'Новая', 'В работе', 'На проверке', 'Возвращена на доработку'
+] if board_view != 'full' else [
   'Новая', 'В работе', 'Ждет информации', 'На согласовании', 'На проверке',
   'Возвращена на доработку', 'Выполнена', 'Закрыта', 'Отменена'
 ] %}
@@ -132,7 +135,20 @@
     </div>
 
     <div class="tasks-filters-card">
-      <form method="get" class="tasks-filters-grid">
+      
+<div class="tasks-view-toggle" style="display:flex; gap:8px; align-items:center; margin:12px 0 16px 0;">
+  <span style="font-size:13px; color:#64748b;">Вид канбана:</span>
+  <a class="btn {% if request.args.get('board_view', 'compact') != 'full' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+     href="{{ url_for(request.endpoint, view=request.args.get('view','kanban'), board_view='compact') }}">
+    Компактно
+  </a>
+  <a class="btn {% if request.args.get('board_view') == 'full' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+     href="{{ url_for(request.endpoint, view=request.args.get('view','kanban'), board_view='full') }}">
+    Подробно
+  </a>
+</div>
+
+<form method="get" class="tasks-filters-grid">
         <div><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option>{% for x in status_choices %}<option value="{{ x }}" {% if request.args.get('status') == x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></div>
         <div><label class="form-label">Исполнитель</label><select class="form-select" name="responsible_user_id"><option value="">Все</option>{% for x in users %}<option value="{{ x.id }}" {% if request.args.get('responsible_user_id', '')|int == x.id %}selected{% endif %}>{{ x.fio or x.username }}</option>{% endfor %}</select></div>
         <div><label class="form-label">Класс</label><input class="form-control" type="number" name="class_id" value="{{ request.args.get('class_id','') }}" placeholder="ID класса"></div>
@@ -234,7 +250,14 @@
         </div>
       </div>
     {% elif current_view == 'deadlines' %}
-      <div class="board-wrap">
+      
+<div class="mb-3 d-flex gap-2 align-items-center">
+  <span class="text-muted small">Вид канбана:</span>
+  <a class="btn btn-sm {% if board_view != 'full' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for(request.endpoint, view=request.args.get('view','kanban'), board_view='compact') }}">Компактно</a>
+  <a class="btn btn-sm {% if board_view == 'full' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for(request.endpoint, view=request.args.get('view','kanban'), board_view='full') }}">Подробно</a>
+</div>
+
+<div class="board-wrap">
         <div class="board">
           {% set ns = namespace(today=[], overdue=[], no_deadline=[], done=[], this_week=[], next_week=[]) %}
           {% for task in tasks %}
