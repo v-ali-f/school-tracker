@@ -127,15 +127,30 @@ def _normalize_school_name(value):
     return _norm(value).replace('"', '')
 
 
-def filter_school_rows(rows: List[dict], use_login=True, use_ekis=True, use_name=True):
+def filter_school_rows(rows: List[dict], use_login=True, use_ekis=True, use_name=True,
+                       school_login_value=None, school_ekis_value=None, school_name_value=None):
+    """Фильтрует строки по данным школы.
+
+    Значения school_login_value / school_ekis_value / school_name_value приходят из
+    настроек организации. Если они не заполнены, сохранен старый fallback, чтобы
+    существующие установки не сломались до заполнения настроек.
+    """
+    login_target = str(school_login_value or "sch778547").strip().lower()
+    ekis_target = str(school_ekis_value or "2357").strip()
+    name_target = _normalize_school_name(school_name_value or "ГБОУ Школа № 547")
+    name_targets = {name_target} if name_target else set()
+    if name_target:
+        name_targets.add(name_target.replace("№", "no"))
+        name_targets.add(name_target.replace("№", "n"))
+
     filtered = []
     for row in rows:
         login = str(row.get("school_login") or "").strip().lower()
         ekis = str(row.get("school_ekis") or "").strip()
         school_name = _normalize_school_name(row.get("school_name") or "")
-        login_ok = login == "sch778547"
-        ekis_ok = ekis == "2357"
-        name_ok = school_name in {"гбоу школа № 547", "гбоу школа no 547", "гбоу школа n 547"}
+        login_ok = bool(login_target) and login == login_target
+        ekis_ok = bool(ekis_target) and ekis == ekis_target
+        name_ok = bool(name_targets) and school_name in name_targets
         if (use_login and login_ok) or (use_ekis and ekis_ok) or (use_name and name_ok):
             filtered.append(row)
     return filtered

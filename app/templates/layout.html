@@ -37,6 +37,7 @@
     }
     .bell-item.bell-hidden { display:none; }
   </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tasks_light_ui.css') }}?v=20260430v183">
 </head>
 
 <body>
@@ -473,6 +474,7 @@
 })();
 </script>
 {% block scripts %}{% endblock %}
+<script src="{{ url_for('static', filename='js/tasks_light_ui.js') }}?v=20260430v183"></script>
 </body>
 </html>
 

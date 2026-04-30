@@ -185,9 +185,59 @@
       </div>
       <div class="card-footer bg-white d-flex gap-2 justify-content-end">
         <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Отменить</a>
-        <button class="btn btn-primary" type="submit">Сохранить</button>
+        
+<div class="settings-section">
+  <h2>Данные школы для импорта олимпиад</h2>
+  <p class="muted">
+    Эти данные используются на странице импорта олимпиад для фильтрации строк своей школы.
+    Если школа изменилась, достаточно поменять значения здесь, без правки кода.
+  </p>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label for="olympiad_school_login">Логин школы для олимпиад</label>
+      <input
+        type="text"
+        id="olympiad_school_login"
+        name="olympiad_school_login"
+        value="{{ settings.olympiad_school_login or '' }}"
+        placeholder="например: sch778547"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="olympiad_ekis_code">ЕКИС-код школы</label>
+      <input
+        type="text"
+        id="olympiad_ekis_code"
+        name="olympiad_ekis_code"
+        value="{{ settings.olympiad_ekis_code or '' }}"
+        placeholder="например: 2357"
+      >
+    </div>
+
+    <div class="form-group full-width">
+      <label for="olympiad_school_name">Название школы для поиска в файлах</label>
+      <input
+        type="text"
+        id="olympiad_school_name"
+        name="olympiad_school_name"
+        value="{{ settings.olympiad_school_name or '' }}"
+        placeholder="например: ГБОУ Школа № 1324"
+      >
+    </div>
+  </div>
+</div>
+
+<button class="btn btn-primary" type="submit">Сохранить</button>
       </div>
     </form>
   </section>
 </div>
 {% endblock %}
+
+<div class="alert alert-info mt-3">
+  <strong>Импорт олимпиад:</strong>
+  логин школы, ЕКИС-код и название для фильтрации результатов задаются на отдельной странице.
+  <a href="/admin/olympiad-school-settings">Открыть настройки импорта олимпиад</a>
+</div>

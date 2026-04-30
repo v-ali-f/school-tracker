@@ -28,6 +28,11 @@ class OrganizationSettings(db.Model):
     logo_path = db.Column(db.String(500), nullable=True)
     emblem_path = db.Column(db.String(500), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+
+    olympiad_school_login = db.Column(db.String(80), nullable=True)
+    olympiad_ekis_code = db.Column(db.String(80), nullable=True)
+    olympiad_school_name = db.Column(db.String(255), nullable=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

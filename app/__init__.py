@@ -54,7 +54,13 @@ def create_app():
         init_profiler(app, db.engine)
         init_user_activity(app)
         init_page_visit_logger(app)
-        app.register_blueprint(role_access_admin_bp)
+        app.register_blueprint(role_access_admin_bp) 
+        try:
+            from app.email_settings_admin import admin_email_settings_bp
+            app.register_blueprint(admin_email_settings_bp)
+        except Exception as exc:
+            app.logger.warning("Email settings admin blueprint registration failed: %s", exc)
+
         try:
             ensure_single_active_organization_settings()
             db.session.commit()

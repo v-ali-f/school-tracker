@@ -5,6 +5,9 @@
 
 {% extends "layout.html" %}
 {% block content %}
+<div class="mb-2"><a class="list-group-item list-group-item-action" href="{{ url_for('admin_email_settings.email_settings') }}">Электронная почта и уведомления</a>
+</div>
+
 <div class="dashboard-shell dashboard-home dashboard-home-classic dashboard-home-v109">
 
   {# ── Баннер превью-режима (только для ADMIN при ?preview_role=...) ── #}
@@ -337,4 +340,14 @@
   }
 })();
 </script>
+
+
+<a class="mesh-link admin-email-settings-link" href="/admin/email-settings">
+  <span class="mesh-link-icon">✉️</span>
+  <span>
+    <span class="mesh-link-title">Электронная почта и уведомления</span>
+    <span class="mesh-link-subtitle">SMTP, тестовое письмо, уведомления задач</span>
+  </span>
+</a>
+
 {% endblock %}

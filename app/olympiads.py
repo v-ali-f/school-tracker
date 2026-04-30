@@ -75,6 +75,51 @@ def _mapping_linked_subject_names(row):
     return names
 
 
+
+
+def _ensure_olympiad_school_columns():
+    """Runtime-схема для полей фильтрации школы в импорте олимпиад."""
+    try:
+        db.session.execute(db.text("ALTER TABLE organization_settings ADD COLUMN IF NOT EXISTS olympiad_school_login VARCHAR(80)"))
+        db.session.execute(db.text("ALTER TABLE organization_settings ADD COLUMN IF NOT EXISTS olympiad_ekis_code VARCHAR(80)"))
+        db.session.execute(db.text("ALTER TABLE organization_settings ADD COLUMN IF NOT EXISTS olympiad_school_name VARCHAR(255)"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _olympiad_school_filter_values():
+    _ensure_olympiad_school_columns()
+    try:
+        row = db.session.execute(db.text("""
+            SELECT short_name, full_name,
+                   olympiad_school_login, olympiad_ekis_code, olympiad_school_name
+            FROM organization_settings
+            ORDER BY COALESCE(is_active, FALSE) DESC, id DESC
+            LIMIT 1
+        """)).mappings().first()
+    except Exception:
+        db.session.rollback()
+        try:
+            row = db.session.execute(db.text("""
+                SELECT short_name, full_name,
+                       olympiad_school_login, olympiad_ekis_code, olympiad_school_name
+                FROM organization_settings
+                ORDER BY id DESC
+                LIMIT 1
+            """)).mappings().first()
+        except Exception:
+            db.session.rollback()
+            row = None
+    if not row:
+        return {"school_login_value": None, "school_ekis_value": None, "school_name_value": None}
+    school_name = row.get("olympiad_school_name") or row.get("short_name") or row.get("full_name")
+    return {
+        "school_login_value": row.get("olympiad_school_login"),
+        "school_ekis_value": row.get("olympiad_ekis_code"),
+        "school_name_value": school_name,
+    }
+
 def _deny_unless(code: str):
     if not has_permission(code):
         abort(403)
@@ -403,7 +448,14 @@ def import_view():
         use_ekis = filter_mode in {"both", "ekis"}
 
         rows = read_zip(file) if mode == "zip" else read_excel(file)
-        school_rows = filter_school_rows(rows, use_login=use_login, use_ekis=use_ekis, use_name=True)
+        school_filter_values = _olympiad_school_filter_values()
+        school_rows = filter_school_rows(
+            rows,
+            use_login=use_login,
+            use_ekis=use_ekis,
+            use_name=True,
+            **school_filter_values,
+        )
         unique_subjects = extract_unique_subjects(school_rows)
         preview_rows = preview_import(
             school_rows,
@@ -472,6 +524,7 @@ def import_view():
         selected_department_id=department_id,
         selected_academic_year_id=academic_year_id,
         teachers_for_subject=_subject_teachers(subject_id, academic_year_id, department_id),
+        olympiad_school_filter_values=_olympiad_school_filter_values(),
     )
 
 
