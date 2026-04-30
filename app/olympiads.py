@@ -26,8 +26,9 @@ from .models import (
     User,
 )
 from .permissions import CLASS_TEACHER, METHODIST, TEACHER, has_permission
-from .services.olympiad_import_service import execute_import, extract_unique_subjects, filter_school_rows, preview_import, read_excel, read_zip
+from .services.olympiad_import_service import execute_import, extract_unique_subjects, filter_school_rows, preview_import, read_excel, read_zip, ensure_olympiad_result_schema
 from .services.olympiad_matcher import find_department_for_row, find_teacher_for_row
+from .services.olympiad_normalization import STATUS_LABELS, STAGE_LABELS, normalize_olympiad_stage, normalize_olympiad_status, stage_badge, stage_label, status_label
 from .services.olympiad_stats_service import all_analytics, class_stats, dashboard_stats, department_stats, subject_stats, teacher_stats, yearly_comparison
 
 olympiads_bp = Blueprint("olympiads", __name__, url_prefix="/olympiads")
@@ -247,6 +248,7 @@ def _binding_groups_query(academic_year_id=None, stage=None, subject_id=None, de
 @login_required
 def registry():
     _deny_unless("olympiad_view")
+    ensure_olympiad_result_schema()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     stage = (request.args.get("stage") or "").strip()
@@ -254,6 +256,7 @@ def registry():
     teacher_id = request.args.get("teacher_id", type=int)
     department_id = request.args.get("department_id", type=int)
     status = request.args.get("status", "").strip()
+    status_group = request.args.get("status_group", "").strip()
     child_q = request.args.get("child", "").strip()
 
     allowed_dep_ids = _department_ids_for_user()
@@ -278,7 +281,12 @@ def registry():
         subject_id or 0,
         teacher_id or 0,
         department_id or 0,
+        stage_group or "",
+        status_group or "",
+        year_from_id or 0,
+        year_to_id or 0,
         status,
+        status_group,
         child_q,
     )
     cached_html = view_response_cache.get(cache_key)
@@ -308,7 +316,9 @@ def registry():
             rows_q = rows_q.filter(OlympiadResult.department_id.in_(allowed_dep_ids))
         else:
             rows_q = rows_q.filter(db.text("1=0"))
-    if status:
+    if status_group:
+        rows_q = rows_q.filter(OlympiadResult.status_group == status_group)
+    elif status:
         rows_q = rows_q.filter(OlympiadResult.status.ilike(f"%{status}%"))
     if child_q:
         rows_q = rows_q.join(Child, OlympiadResult.child_id == Child.id).filter(
@@ -345,6 +355,12 @@ def registry():
         teacher_id=teacher_id,
         department_id=department_id,
         status=status,
+        status_group=status_group,
+        status_labels=STATUS_LABELS,
+        stage_labels=STAGE_LABELS,
+        stage_badge=stage_badge,
+        stage_label=stage_label,
+        status_label=status_label,
         child_q=child_q,
     )
     view_response_cache.set(cache_key, html, timeout=120)
@@ -603,6 +619,7 @@ def rollback_import(session_id: int):
 @login_required
 def department_registry():
     _deny_unless("olympiad_department_summary_view")
+    ensure_olympiad_result_schema()
     department_id = request.args.get("department_id", type=int)
     academic_year_id = request.args.get("academic_year_id", type=int)
     subject_id = request.args.get("subject_id", type=int)
@@ -641,6 +658,9 @@ def department_registry():
         academic_year_id=academic_year_id,
         subject_id=subject_id,
         stage=stage,
+        stage_badge=stage_badge,
+        stage_label=stage_label,
+        status_label=status_label,
     )
 
 
@@ -796,10 +816,17 @@ def teacher_binding():
 @login_required
 def analytics():
     _deny_unless("olympiad_dashboard_view")
+    ensure_olympiad_result_schema()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
+    year_from_id = request.args.get("year_from_id", type=int)
+    year_to_id = request.args.get("year_to_id", type=int)
+    if year_from_id or year_to_id:
+        academic_year_id = None
     teacher_id = request.args.get("teacher_id", type=int)
     department_id = request.args.get("department_id", type=int)
+    stage_group = request.args.get("stage_group", "").strip()
+    status_group = request.args.get("status_group", "").strip()
 
     # Response-кеш для /olympiads/analytics — 1.7 с из-за 6 агрегаций в all_analytics.
     # Ключ по фильтрам + department_ids роли (для teacher-view разные данные).
@@ -811,14 +838,18 @@ def analytics():
         academic_year_id or 0,
         teacher_id or 0,
         department_id or 0,
+        stage_group or "",
+        status_group or "",
+        year_from_id or 0,
+        year_to_id or 0,
     )
     cached_html = view_response_cache.get(cache_key)
     if cached_html is not None:
         from flask import Response
         return Response(cached_html, mimetype="text/html; charset=utf-8")
 
-    summary, by_teacher, by_department, by_subject, by_class, comparison = all_analytics(
-        academic_year_id, teacher_id, department_id
+    summary, by_teacher, by_department, by_subject, by_class, comparison, movement, yearly_stage_rows = all_analytics(
+        academic_year_id, teacher_id, department_id, stage_group, status_group, year_from_id, year_to_id
     )
 
     html = render_template(
@@ -833,12 +864,20 @@ def analytics():
         comparison=comparison or [],
         yearly_rows=comparison or [],
         status_rows=(summary or {}).get("by_status", []),
+        movement=movement or {},
+        yearly_stage_rows=yearly_stage_rows or [],
+        stage_labels=STAGE_LABELS,
+        status_labels=STATUS_LABELS,
         years=AcademicYear.query.order_by(AcademicYear.name.desc()).all(),
         teachers=User.query.order_by(User.last_name.asc(), User.first_name.asc()).all(),
         departments=_allowed_departments(),
         academic_year_id=academic_year_id,
         teacher_id=teacher_id,
         department_id=department_id,
+        stage_group=stage_group,
+        status_group=status_group,
+        year_from_id=year_from_id,
+        year_to_id=year_to_id,
     )
     view_response_cache.set(cache_key, html, timeout=120)
     return html
@@ -932,4 +971,4 @@ def my_results():
     if current_user.role in {TEACHER, CLASS_TEACHER}:
         q = q.filter(OlympiadResult.teacher_id == current_user.id)
     rows = q.order_by(OlympiadResult.created_at.desc()).limit(300).all()
-    return render_template("olympiad_my.html", rows=rows)
+    return render_template("olympiad_my.html", rows=rows, stage_badge=stage_badge, stage_label=stage_label, status_label=status_label)

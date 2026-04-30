@@ -74,14 +74,15 @@
 <div class="card mb-4"><div class="card-body">
   <h5>Олимпиады / ВСОШ по кафедре</h5>
   <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Всего участий</div><div class="fs-4 fw-semibold">{{ olympiad_stats.total_results }}</div></div></div>
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Уникальных учеников</div><div class="fs-4 fw-semibold">{{ olympiad_stats.unique_children }}</div></div></div>
+    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Всего записей</div><div class="fs-4 fw-semibold">{{ olympiad_stats.total_results }}</div></div></div>
+    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Участников</div><div class="fs-4 fw-semibold">{{ olympiad_stats.unique_children }}</div></div></div>
     <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Победителей</div><div class="fs-4 fw-semibold">{{ olympiad_stats.winners }}</div></div></div>
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Призеров</div><div class="fs-4 fw-semibold">{{ olympiad_stats.prizers }}</div></div></div>
+    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Призёров</div><div class="fs-4 fw-semibold">{{ olympiad_stats.prizers }}</div></div></div>
+    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Аннулировано</div><div class="fs-4 fw-semibold text-danger">{{ olympiad_stats.annulled or 0 }}</div></div></div>
   </div>
   <div class="row g-4">
     <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Участий</th></tr></thead><tbody>{% for item in olympiad_stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
-    <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Предмет</th><th class="text-end">Участий</th><th class="text-end">Победителей</th><th class="text-end">Призеров</th></tr></thead><tbody>{% for item in olympiad_stats.by_teacher %}<tr><td>{{ item.name }}</td><td>{{ item.subject }}</td><td class="text-end">{{ item.total }}</td><td class="text-end">{{ item.winners }}</td><td class="text-end">{{ item.prizers }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Предмет</th><th class="text-end">Участий</th><th class="text-end">Победителей</th><th class="text-end">Призёров</th><th class="text-end">Аннулировано</th></tr></thead><tbody>{% for item in olympiad_stats.by_teacher %}<tr><td>{{ item.name }}</td><td>{{ item.subject }}</td><td class="text-end">{{ item.total }}</td><td class="text-end">{{ item.winners }}</td><td class="text-end">{{ item.prizers }}</td><td class="text-end text-danger">{{ item.annulled or 0 }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
   </div>
 </div></div>
 

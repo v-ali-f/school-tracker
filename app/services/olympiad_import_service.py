@@ -11,6 +11,11 @@ from openpyxl import load_workbook
 
 from app.core.extensions import db
 from ..models import OlympiadImportSession, OlympiadResult, OlympiadUnmatchedRow
+from .olympiad_normalization import (
+    normalize_olympiad_stage,
+    normalize_olympiad_status,
+    status_label,
+)
 from .olympiad_matcher import (
     find_child_for_row,
     find_department_for_row,
@@ -66,6 +71,19 @@ def _to_date(value):
         except Exception:
             continue
     return None
+
+
+def ensure_olympiad_result_schema():
+    """Runtime-миграция для v185: этапы, статусы, аннулированные результаты."""
+    try:
+        db.session.execute(db.text("ALTER TABLE olympiad_result ALTER COLUMN status TYPE VARCHAR(500)"))
+        db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS status_original TEXT"))
+        db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS status_group VARCHAR(50)"))
+        db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS stage_group VARCHAR(50)"))
+        db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS is_annulled BOOLEAN DEFAULT FALSE"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def detect_columns(headers: Iterable[str]):
@@ -205,6 +223,8 @@ def find_existing_result(child_id, subject_id, academic_year_id, stage=None, sco
 def preview_import(rows: List[dict], academic_year_id=None, stage=None, subject_id=None,
                    teacher_binding_mode: str = "auto", selected_teacher_id=None, selected_teacher_ids=None,
                    selected_department_id=None):
+    ensure_olympiad_result_schema()
+    stage_group = normalize_olympiad_stage(stage)
     preview = []
     for row in rows[:500]:
         child, child_error = find_child_for_row(row, academic_year_id=academic_year_id)
@@ -223,13 +243,15 @@ def preview_import(rows: List[dict], academic_year_id=None, stage=None, subject_
         if load and not department:
             department, _ = find_department_for_row(row, teacher_load=load, subject=subject, subject_department=mapped_department, selected_department_id=selected_department_id)
         row_subject_id = subject.id if subject else subject_id
+        raw_status = str(row.get("status") or "").strip()
+        status_group = normalize_olympiad_status(raw_status, row.get("reason"))
         existing = find_existing_result(
             child.id if child else None,
             row_subject_id,
             academic_year_id,
             stage=stage,
             score=_to_float(row.get("score")),
-            status=str(row.get("status") or "").strip() or None,
+            status=status_label(status_group, raw_status) if raw_status else None,
         )
         duplicate_status = "already_loaded" if existing else None
         reasons = [x for x in [subject_error, child_error, teacher_error] if x]
@@ -245,6 +267,11 @@ def preview_import(rows: List[dict], academic_year_id=None, stage=None, subject_
             "row_hash": build_row_hash(row, academic_year_id, stage, row_subject_id),
             "duplicate_status": duplicate_status,
             "existing_result": existing,
+            "stage_group": stage_group,
+            "status_original": raw_status,
+            "status_group": status_group,
+            "status_label": status_label(status_group, raw_status),
+            "is_annulled": status_group == "annulled",
             "unmatched_reason": "; ".join(reasons) if reasons else None,
         })
     return preview
@@ -253,7 +280,9 @@ def preview_import(rows: List[dict], academic_year_id=None, stage=None, subject_
 def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subject_id=None, subject_name=None,
                    imported_by=None, teacher_binding_mode: str = "auto", selected_teacher_id=None,
                    selected_teacher_ids=None, selected_department_id=None):
-    status_counter = {"winner": 0, "prizer": 0, "participant": 0}
+    ensure_olympiad_result_schema()
+    normalized_stage_group = normalize_olympiad_stage(stage)
+    status_counter = {"winner": 0, "prizer": 0, "participant": 0, "annulled": 0, "out_of_competition": 0}
     session = OlympiadImportSession(
         academic_year_id=academic_year_id,
         stage=stage,
@@ -297,11 +326,16 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
 
             unmatched_reason = "; ".join([x for x in [subject_error, child_error, teacher_error] if x]) or None
             raw_status = str(row.get("status") or "").strip()
-            raw_status_lower = raw_status.lower()
-            if "побед" in raw_status_lower:
+            normalized_status_group = normalize_olympiad_status(raw_status, row.get("reason"))
+            display_status = status_label(normalized_status_group, raw_status)
+            if normalized_status_group == "winner":
                 status_counter["winner"] += 1
-            elif "приз" in raw_status_lower:
+            elif normalized_status_group == "prize":
                 status_counter["prizer"] += 1
+            elif normalized_status_group == "annulled":
+                status_counter["annulled"] += 1
+            elif normalized_status_group == "out_of_competition":
+                status_counter["out_of_competition"] += 1
             else:
                 status_counter["participant"] += 1
 
@@ -336,7 +370,7 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
                 academic_year_id,
                 stage=stage,
                 score=_to_float(row.get("score")),
-                status=raw_status or None,
+                status=display_status if raw_status else None,
             )
             if existing:
                 duplicate_rows += 1
@@ -356,12 +390,16 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
                 subject_id=resolved_subject_id,
                 subject_name=(subject.name if subject else (row.get("subject") or subject_name)),
                 stage=stage,
+                stage_group=normalized_stage_group,
                 class_study_text=str(row.get("class_study") or ""),
                 class_participation_text=str(row.get("class_participation") or ""),
                 score=_to_float(row.get("score")),
                 max_score=_to_float(row.get("max_score")),
                 percent=_to_float(row.get("percent")),
-                status=raw_status or None,
+                status=display_status if raw_status else None,
+                status_original=raw_status or None,
+                status_group=normalized_status_group,
+                is_annulled=(normalized_status_group == "annulled"),
                 reason=str(row.get("reason") or "").strip() or None,
                 olympiad_date=_to_date(row.get("olympiad_date")),
                 publication_date=_to_date(row.get("publication_date")),
@@ -389,7 +427,7 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
     session.error_rows = error_rows
     session.comment = (
         "В файле присутствуют результаты учеников, которые не были сопоставлены с карточками обучающихся. "
-        f"Среди них: победителей — {status_counter['winner']}, призеров — {status_counter['prizer']}, участников — {status_counter['participant']}. "
+        f"Среди них: победителей — {status_counter['winner']}, призеров — {status_counter['prizer']}, участников — {status_counter['participant']}, аннулировано — {status_counter['annulled']}. "
         "Часть результатов может относиться к выбывшим ученикам."
         if unmatched_rows
         else "Все строки файла сопоставлены успешно."
