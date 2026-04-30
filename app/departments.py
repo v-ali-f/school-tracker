@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 
 from typing import Optional
 
@@ -255,12 +256,261 @@ def _rebind_all_loads_to_departments():
     db.session.commit()
 
 
+
+def _clean_excel_text(value):
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value).replace("\xa0", " ")).strip()
+
+
+def _normalize_person_key(value: str) -> str:
+    value = _clean_excel_text(value).lower().replace("ё", "е")
+    value = re.sub(r"[^а-яa-z\s.-]", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _fio_initials(value: str):
+    parts = [p for p in _normalize_person_key(value).replace(".", " ").split() if p]
+    if not parts:
+        return None, None, None
+    last = parts[0]
+    first_i = parts[1][0] if len(parts) > 1 and parts[1] else None
+    middle_i = parts[2][0] if len(parts) > 2 and parts[2] else None
+    return last, first_i, middle_i
+
+
+def _find_teacher_by_fio_any_format(fio: str, users_cache: dict):
+    fio = _clean_excel_text(fio)
+    if not fio:
+        return None, "empty_fio"
+    key = _normalize_person_key(fio)
+    if key in users_cache:
+        return users_cache[key], "cache_exact"
+
+    user = None
+    try:
+        user, reason = find_existing_user(fio=fio)
+    except Exception as exc:
+        reason = f"find_existing_user_error:{exc}"
+    if user:
+        users_cache[key] = user
+        return user, reason or "find_existing_user"
+
+    last, first_i, middle_i = _fio_initials(fio)
+    if not last:
+        return None, reason or "no_last_name"
+
+    candidates = []
+    for u in User.query.all():
+        full = _clean_excel_text(getattr(u, "fio", None) or " ".join([getattr(u, "last_name", "") or "", getattr(u, "first_name", "") or "", getattr(u, "middle_name", "") or ""]))
+        u_last, u_first_i, u_middle_i = _fio_initials(full)
+        if u_last != last:
+            continue
+        if first_i and u_first_i and first_i != u_first_i:
+            continue
+        if middle_i and u_middle_i and middle_i != u_middle_i:
+            continue
+        candidates.append(u)
+
+    if len(candidates) == 1:
+        users_cache[key] = candidates[0]
+        return candidates[0], "matched_by_lastname_initials"
+    if len(candidates) > 1:
+        return None, "ambiguous_lastname_initials"
+    return None, reason or "not_found"
+
+
+def _normalize_load_class_name(value):
+    text = _clean_excel_text(value)
+    if not text:
+        return None
+    text = text.replace("—", "-").replace("–", "-")
+    text = re.sub(r"\s*,\s*", ",", text)
+    text = re.sub(r"\s*;\s*", ";", text)
+    text = re.sub(r"\s*/\s*", "/", text)
+    text = re.sub(r"\s*\+\s*", "+", text)
+
+    def one(item):
+        item = item.strip()
+        m = re.match(r"^(\d{1,2})\s*[- ]\s*([А-Яа-яA-Za-zЁё0-9]+)$", item)
+        if m:
+            return f"{m.group(1)}-{m.group(2).upper()}".replace("Ё", "Е")
+        return item.upper().replace("Ё", "Е")
+
+    parts = re.split(r"([,;/+])", text)
+    return "".join(one(p) if i % 2 == 0 else p for i, p in enumerate(parts))
+
+
+def _sheet_building_name(ws_title, filename):
+    title = _clean_excel_text(ws_title)
+    if title.lower().startswith("учителя"):
+        name = re.sub(r"^Учителя\s+", "", title, flags=re.I).strip()
+        return name or None
+    generic = bool(re.search(r"нагру|учител", title.lower())) or bool(re.match(r"^\d+\s", title))
+    if filename and generic:
+        stem = Path(filename).stem
+        stem = re.sub(r"^(УК|Корпус|Площадка)\s+", "", stem, flags=re.I).strip()
+        return stem or title
+    return title or None
+
+
+def _find_header_map(row):
+    labels = [_clean_excel_text(x).lower().replace("ё", "е") for x in row]
+    aliases = {
+        "num": {"#", "№", "номер", "n"},
+        "class": {"классы", "класс", "класcы"},
+        "subject": {"предмет", "дисциплина"},
+        "group": {"группа", "подгруппа"},
+        "hours": {"всего", "часы", "часов", "нагрузка"},
+    }
+    found = {}
+    for idx, label in enumerate(labels):
+        for key, names in aliases.items():
+            if label in names:
+                found[key] = idx
+    if "class" in found and "subject" in found and "hours" in found:
+        return found
+    return None
+
+
+def _parse_float_hours(value):
+    text = _clean_excel_text(value).replace(",", ".")
+    if not text:
+        return 0.0
+    m = re.search(r"-?\d+(?:\.\d+)?", text)
+    return float(m.group(0)) if m else 0.0
+
+
+
+def _clean_excel_text(value):
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value).replace("\xa0", " ")).strip()
+
+
+def _normalize_person_key(value: str) -> str:
+    value = _clean_excel_text(value).lower().replace("ё", "е")
+    value = re.sub(r"[^а-яa-z\s.-]", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _fio_initials(value: str):
+    parts = [p for p in _normalize_person_key(value).replace(".", " ").split() if p]
+    if not parts:
+        return None, None, None
+    last = parts[0]
+    first_i = parts[1][0] if len(parts) > 1 and parts[1] else None
+    middle_i = parts[2][0] if len(parts) > 2 and parts[2] else None
+    return last, first_i, middle_i
+
+
+def _find_teacher_by_fio_any_format(fio: str, users_cache: dict):
+    fio = _clean_excel_text(fio)
+    if not fio:
+        return None, "empty_fio"
+    key = _normalize_person_key(fio)
+    if key in users_cache:
+        return users_cache[key], "cache_exact"
+
+    user = None
+    try:
+        user, reason = find_existing_user(fio=fio)
+    except Exception as exc:
+        reason = f"find_existing_user_error:{exc}"
+    if user:
+        users_cache[key] = user
+        return user, reason or "find_existing_user"
+
+    last, first_i, middle_i = _fio_initials(fio)
+    if not last:
+        return None, reason or "no_last_name"
+
+    candidates = []
+    for u in User.query.all():
+        full = _clean_excel_text(getattr(u, "fio", None) or " ".join([getattr(u, "last_name", "") or "", getattr(u, "first_name", "") or "", getattr(u, "middle_name", "") or ""]))
+        u_last, u_first_i, u_middle_i = _fio_initials(full)
+        if u_last != last:
+            continue
+        if first_i and u_first_i and first_i != u_first_i:
+            continue
+        if middle_i and u_middle_i and middle_i != u_middle_i:
+            continue
+        candidates.append(u)
+
+    if len(candidates) == 1:
+        users_cache[key] = candidates[0]
+        return candidates[0], "matched_by_lastname_initials"
+    if len(candidates) > 1:
+        return None, "ambiguous_lastname_initials"
+    return None, reason or "not_found"
+
+
+def _normalize_load_class_name(value):
+    text = _clean_excel_text(value)
+    if not text:
+        return None
+    text = text.replace("—", "-").replace("–", "-")
+    text = re.sub(r"\s*,\s*", ",", text)
+    text = re.sub(r"\s*;\s*", ";", text)
+    text = re.sub(r"\s*/\s*", "/", text)
+    text = re.sub(r"\s*\+\s*", "+", text)
+
+    def one(item):
+        item = item.strip()
+        m = re.match(r"^(\d{1,2})\s*[- ]\s*([А-Яа-яA-Za-zЁё0-9]+)$", item)
+        if m:
+            return f"{m.group(1)}-{m.group(2).upper()}".replace("Ё", "Е")
+        return item.upper().replace("Ё", "Е")
+
+    parts = re.split(r"([,;/+])", text)
+    return "".join(one(p) if i % 2 == 0 else p for i, p in enumerate(parts))
+
+
+def _sheet_building_name(ws_title, filename):
+    title = _clean_excel_text(ws_title)
+    if title.lower().startswith("учителя"):
+        name = re.sub(r"^Учителя\s+", "", title, flags=re.I).strip()
+        return name or None
+    generic = bool(re.search(r"нагру|учител", title.lower())) or bool(re.match(r"^\d+\s", title))
+    if filename and generic:
+        stem = Path(filename).stem
+        stem = re.sub(r"^(УК|Корпус|Площадка)\s+", "", stem, flags=re.I).strip()
+        return stem or title
+    return title or None
+
+
+def _find_header_map(row):
+    labels = [_clean_excel_text(x).lower().replace("ё", "е") for x in row]
+    aliases = {
+        "num": {"#", "№", "номер", "n"},
+        "class": {"классы", "класс", "класcы"},
+        "subject": {"предмет", "дисциплина"},
+        "group": {"группа", "подгруппа"},
+        "hours": {"всего", "часы", "часов", "нагрузка"},
+    }
+    found = {}
+    for idx, label in enumerate(labels):
+        for key, names in aliases.items():
+            if label in names:
+                found[key] = idx
+    if "class" in found and "subject" in found and "hours" in found:
+        return found
+    return None
+
+
+def _parse_float_hours(value):
+    text = _clean_excel_text(value).replace(",", ".")
+    if not text:
+        return 0.0
+    m = re.search(r"-?\d+(?:\.\d+)?", text)
+    return float(m.group(0)) if m else 0.0
+
+
 def _parse_excel_loads(file_storage):
     wb = load_workbook(file_storage, data_only=True)
     created = 0
     updated = 0
     skipped = 0
-
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     retention_until = None
     if current_year and current_year.end_date:
@@ -269,99 +519,138 @@ def _parse_excel_loads(file_storage):
         except Exception:
             retention_until = None
 
-    TeacherLoad.query.delete()
-    db.session.flush()
-
-    buildings = {b.name.lower(): b for b in Building.query.all() if b.name}
-    users = {u.fio.lower(): u for u in User.query.all() if u.fio}
+    filename = getattr(file_storage, "filename", None)
+    users_cache = {_normalize_person_key(u.fio): u for u in User.query.all() if getattr(u, "fio", None)}
     subjects = {s.name.lower(): s for s in Subject.query.all()}
+    buildings = {b.name.lower(): b for b in Building.query.all() if b.name}
 
+    parsed_rows = []
+    unmatched_seen = set()
     for ws in wb.worksheets:
-        building_name = re.sub(r"^Учителя\s+", "", ws.title or "").strip() or None
+        building_name = _sheet_building_name(ws.title, filename)
         building = buildings.get((building_name or "").lower())
         current_teacher = None
         teacher_total = None
+        header = None
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-            if row_idx == 1:
+            possible_header = _find_header_map(row)
+            if possible_header:
+                header = possible_header
                 continue
-            first = row[0] if len(row) > 0 else None
-            class_text = row[1] if len(row) > 1 else None
-            subject_name = row[2] if len(row) > 2 else None
-            group_name = row[3] if len(row) > 3 else None
-            hours = row[4] if len(row) > 4 else None
+            if not header:
+                skipped += 1
+                continue
 
-            if isinstance(first, str) and first.strip() and not subject_name:
-                fio = first.strip()
-                current_teacher = users.get(fio.lower())
+            first = row[header.get("num", 0)] if len(row) > header.get("num", 0) else None
+            class_raw = row[header["class"]] if len(row) > header["class"] else None
+            subject_raw = row[header["subject"]] if len(row) > header["subject"] else None
+            group_raw = row[header.get("group", header["subject"])] if len(row) > header.get("group", header["subject"]) else None
+            hours_raw = row[header["hours"]] if len(row) > header["hours"] else None
+
+            first_text = _clean_excel_text(first)
+            class_text_raw = _clean_excel_text(class_raw)
+            subject_text = _clean_excel_text(subject_raw)
+            group_text = _clean_excel_text(group_raw)
+
+            if first_text and not subject_text and not class_text_raw:
+                current_teacher, match_reason = _find_teacher_by_fio_any_format(first_text, users_cache)
+                teacher_total = _parse_float_hours(hours_raw) if hours_raw not in (None, "") else None
                 if not current_teacher:
-                    current_teacher, match_reason = find_existing_user(fio=fio)
-                    if current_teacher:
-                        users[fio.lower()] = current_teacher
-                    else:
+                    key = (first_text, ws.title, row_idx)
+                    if key not in unmatched_seen:
                         register_unmatched_staff(
                             source="teacher_load_import",
-                            staff_fio=fio,
-                            import_filename=getattr(file_storage, "filename", None),
-                            source_session_key=f"teacher_load:{getattr(file_storage, 'filename', '')}",
+                            staff_fio=first_text,
+                            import_filename=filename,
+                            source_session_key=f"teacher_load:{filename}:{building_name}",
                             role_hint="Учитель",
                             details=f"Лист: {ws.title}; строка: {row_idx}; причина: {match_reason}",
                         )
-                        teacher_total = float(hours or 0) if hours not in (None, "") else None
-                        current_teacher = None
-                        skipped += 1
-                        continue
-                teacher_total = float(hours or 0) if hours not in (None, "") else None
+                        unmatched_seen.add(key)
+                    skipped += 1
                 continue
 
             if not current_teacher:
-                skipped += 1
+                if any(_clean_excel_text(x) for x in row):
+                    skipped += 1
                 continue
-            if first in (None, ""):
-                continue
-
-            subject_text = str(subject_name or "").strip()
             if not subject_text:
                 skipped += 1
                 continue
-            subject = subjects.get(subject_text.lower())
-            if not subject:
-                subject = Subject(name=subject_text)
-                db.session.add(subject)
-                db.session.flush()
-                subjects[subject_text.lower()] = subject
-                updated += 1
 
-            class_text = str(class_text or "").strip() or None
-            group_text = str(group_name or "").strip() or None
+            class_text = _normalize_load_class_name(class_text_raw)
+            group_text = group_text or None
+            hours = _parse_float_hours(hours_raw)
             grade = _extract_grade_from_class_text(class_text)
             is_meta_group = bool(class_text and any(sep in class_text for sep in [",", ";", "/", "+"]))
             is_whole_class = (group_text or "").strip().lower() == "весь класс"
-            load = TeacherLoad(
-                teacher_id=current_teacher.id,
-                subject_id=subject.id,
-                academic_year_id=current_year.id if current_year else None,
-                subject_name=subject.name,
-                class_name=class_text,
-                group_name=group_text,
-                hours=float(hours or 0),
-                grade=grade,
-                building_id=building.id if building else None,
-                building_name=building_name,
-                source_sheet=ws.title,
-                row_number=row_idx,
-                is_whole_class=is_whole_class,
-                is_meta_group=is_meta_group,
-                teacher_total_hours=teacher_total,
-                retention_until=retention_until,
-            )
-            db.session.add(load)
-            created += 1
+            parsed_rows.append({
+                "teacher": current_teacher,
+                "subject_text": subject_text,
+                "class_text": class_text,
+                "group_text": group_text,
+                "hours": hours,
+                "grade": grade,
+                "building": building,
+                "building_name": building_name,
+                "source_sheet": ws.title,
+                "row_number": row_idx,
+                "is_whole_class": is_whole_class,
+                "is_meta_group": is_meta_group,
+                "teacher_total_hours": teacher_total,
+            })
+
+    if not parsed_rows:
+        db.session.rollback()
+        return 0, 0, skipped
+
+    building_names = {x["building_name"] for x in parsed_rows if x.get("building_name")}
+    building_ids = {x["building"].id for x in parsed_rows if x.get("building")}
+    delete_q = TeacherLoad.query
+    if building_ids:
+        delete_q = delete_q.filter(TeacherLoad.building_id.in_(building_ids))
+        delete_q.delete(synchronize_session=False)
+    elif building_names:
+        delete_q = delete_q.filter(TeacherLoad.building_name.in_(building_names))
+        delete_q.delete(synchronize_session=False)
+    else:
+        TeacherLoad.query.delete()
+    db.session.flush()
+
+    for item in parsed_rows:
+        subject_text = item["subject_text"]
+        subject = subjects.get(subject_text.lower())
+        if not subject:
+            subject = Subject(name=subject_text)
+            db.session.add(subject)
+            db.session.flush()
+            subjects[subject_text.lower()] = subject
+            updated += 1
+        load = TeacherLoad(
+            teacher_id=item["teacher"].id,
+            subject_id=subject.id,
+            academic_year_id=current_year.id if current_year else None,
+            subject_name=subject.name,
+            class_name=item["class_text"],
+            group_name=item["group_text"],
+            hours=item["hours"],
+            grade=item["grade"],
+            building_id=item["building"].id if item.get("building") else None,
+            building_name=item["building_name"],
+            source_sheet=item["source_sheet"],
+            row_number=item["row_number"],
+            is_whole_class=item["is_whole_class"],
+            is_meta_group=item["is_meta_group"],
+            teacher_total_hours=item["teacher_total_hours"],
+            retention_until=retention_until,
+        )
+        db.session.add(load)
+        created += 1
 
     db.session.commit()
     _rebind_all_loads_to_departments()
     return created, updated, skipped
-
 
 def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None):
     subject_ids = _subject_ids_for_department(dep)
