@@ -26,7 +26,6 @@ from .school_plan import school_plan_bp
 from app.knowledge import knowledge_bp
 from app.datalens import datalens_bp
 from app.saved_views import saved_views_bp
-from app.extracurricular_hub import extracurricular_hub_bp
 
 BLUEPRINTS = [
     main_bp,
@@ -57,7 +56,6 @@ BLUEPRINTS = [
     knowledge_bp,
     datalens_bp,
     saved_views_bp,
-    extracurricular_hub_bp,
 ]
 
 

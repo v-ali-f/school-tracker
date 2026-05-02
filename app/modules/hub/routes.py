@@ -408,12 +408,6 @@ def _main_page_config():
                 "description": "Инструкции и материалы по работе в системе для каждой роли.",
                 "endpoint": "knowledge.knowledge_list",
             },
-            {
-                "title": "Доп. образование",
-                "description": "Свод по ШСК, ДО и Кубку: охват, аналитика, по классам.",
-                "endpoint": "extracurricular_hub.index",
-                "roles_any": ["ADMIN", "SOCIAL_PEDAGOG", "METHODIST", "CLASS_TEACHER"],
-            },
         ]),
         "admin_sections": _materialize([
             {"title": "Учебные годы", "endpoint": "children.academic_years_registry", "roles_any": ["ADMIN"]},

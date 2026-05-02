@@ -1856,28 +1856,8 @@ def contingent():
             .all()
         ):
             transfer_by_class[class_id][t_type] = int(cnt or 0)
-
-    # ── ШСК-членство по классам (batch, один проход по sportmos-индексу) ──
     sc_by_class: dict[int, int] = {}
     do_by_class: dict[int, int] = {}
-    if year_id and class_ids:
-        from app.sport_club import count_in_club_for_children as _sc_count
-        from app.extracurricular import count_in_do_for_children as _do_count
-        children_by_class: dict[int, list] = defaultdict(list)
-        for ch, cls_id in (
-            db.session.query(Child, ChildEnrollment.school_class_id)
-            .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
-            .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.ended_at.is_(None),
-                ChildEnrollment.school_class_id.in_(class_ids),
-            )
-            .all()
-        ):
-            children_by_class[cls_id].append(ch)
-        for cls_id, kids in children_by_class.items():
-            sc_by_class[cls_id] = _sc_count(kids)
-            do_by_class[cls_id] = _do_count(kids)
 
     rows = []
 
@@ -2294,28 +2274,8 @@ def classes_registry():
             Task.deadline_at < datetime.utcnow()
         ).group_by(Task.class_id).all():
             task_overdue_map[class_id] = cnt
-
-    # ── ШСК-членство по классам (batch, один проход по sportmos-индексу) ──
     sc_in_club_by_class: dict[int, int] = {}
     do_in_class_by_class: dict[int, int] = {}
-    if class_ids:
-        from app.sport_club import count_in_club_for_children as _sc_count
-        from app.extracurricular import count_in_do_for_children as _do_count
-        from collections import defaultdict as _dd
-        children_by_class: dict[int, list] = _dd(list)
-        for ch, cls_id in (
-            db.session.query(Child, ChildEnrollment.school_class_id)
-            .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
-            .filter(
-                ChildEnrollment.school_class_id.in_(class_ids),
-                ChildEnrollment.ended_at.is_(None),
-            )
-            .all()
-        ):
-            children_by_class[cls_id].append(ch)
-        for cls_id, kids in children_by_class.items():
-            sc_in_club_by_class[cls_id] = _sc_count(kids)
-            do_in_class_by_class[cls_id] = _do_count(kids)
 
     classes = []
     for c in raw_classes:

@@ -11,6 +11,25 @@ logger = logging.getLogger(__name__)
 
 def ensure_runtime_schema():
     inspector = inspect(db.engine)
+
+    # Важно для старых баз: поле is_annulled в олимпиадах в модели NOT NULL,
+    # поэтому добавляем его заранее с DEFAULT FALSE, чтобы общий metadata-sweep
+    # не пытался выполнить ADD COLUMN ... BOOLEAN NOT NULL на таблице с данными.
+    try:
+        olymp_cols = {c["name"] for c in inspector.get_columns("olympiad_result")}
+        if "is_annulled" not in olymp_cols:
+            db.session.execute(text("ALTER TABLE olympiad_result ADD COLUMN is_annulled BOOLEAN DEFAULT FALSE"))
+            db.session.execute(text("UPDATE olympiad_result SET is_annulled = FALSE WHERE is_annulled IS NULL"))
+            db.session.execute(text("ALTER TABLE olympiad_result ALTER COLUMN is_annulled SET NOT NULL"))
+            db.session.commit()
+        else:
+            db.session.execute(text("UPDATE olympiad_result SET is_annulled = FALSE WHERE is_annulled IS NULL"))
+            db.session.execute(text("ALTER TABLE olympiad_result ALTER COLUMN is_annulled SET DEFAULT FALSE"))
+            db.session.execute(text("ALTER TABLE olympiad_result ALTER COLUMN is_annulled SET NOT NULL"))
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception("bootstrap: olympiad_result.is_annulled safe migration failed")
     try:
         cols = {c["name"] for c in inspector.get_columns("child")}
     except Exception:

@@ -81,6 +81,9 @@ def ensure_olympiad_result_schema():
         db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS status_group VARCHAR(50)"))
         db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS stage_group VARCHAR(50)"))
         db.session.execute(db.text("ALTER TABLE olympiad_result ADD COLUMN IF NOT EXISTS is_annulled BOOLEAN DEFAULT FALSE"))
+        db.session.execute(db.text("UPDATE olympiad_result SET is_annulled = FALSE WHERE is_annulled IS NULL"))
+        db.session.execute(db.text("ALTER TABLE olympiad_result ALTER COLUMN is_annulled SET DEFAULT FALSE"))
+        db.session.execute(db.text("ALTER TABLE olympiad_result ALTER COLUMN is_annulled SET NOT NULL"))
         db.session.commit()
     except Exception:
         db.session.rollback()
