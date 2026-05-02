@@ -1,0 +1,21 @@
+Версия без раздела «Доп. образование / кружки / ШСК».
+
+Что удалено из актуального архива GitHub:
+- app/extracurricular.py
+- app/extracurricular_hub.py
+- app/sport_club.py
+- app/templates/extracurricular_do.html
+- app/templates/extracurricular_hub.html
+- app/templates/extracurricular_sport_club.html
+- data/do_index.json
+
+Что отключено в коде:
+- регистрация extracurricular_hub_bp в app/modules/__init__.py
+- карточка раздела «Доп. образование» в app/modules/hub/routes.py
+- кнопка «Доп. образование» в app/templates/contingent.html
+- блоки ШСК и дополнительного образования в карточке ученика app/templates/child_card.html
+- значок ШСК в списке класса app/templates/class_detail.html
+- прямые batch-подсчёты ШСК/ДО в app/children.py заменены нулевыми словарями, чтобы не было импортов удалённых модулей
+- context processors для sport_club/do удалены из app/core/context_processors.py
+
+База данных не трогалась. В этом архиве удаляется код и JSON-индекс кружков, но миграции на удаление таблиц не добавлялись.

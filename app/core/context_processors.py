@@ -38,36 +38,6 @@ def register_context_processors(app, has_permission, build_menu_flags):
             )
 
     @app.context_processor
-    def inject_sport_club():
-        try:
-            from app.sport_club import get_info_for_child, is_in_club
-            return dict(
-                sport_club_info=get_info_for_child,
-                sport_club_in_club=is_in_club,
-            )
-        except Exception:
-            return dict(
-                sport_club_info=lambda _child=None: None,
-                sport_club_in_club=lambda _child=None: False,
-            )
-
-    @app.context_processor
-    def inject_extracurricular():
-        try:
-            from app.extracurricular import get_info_for_child, is_in_do, get_meta
-            return dict(
-                do_info=get_info_for_child,
-                do_in_club=is_in_do,
-                do_meta=get_meta,
-            )
-        except Exception:
-            return dict(
-                do_info=lambda _child=None: None,
-                do_in_club=lambda _child=None: False,
-                do_meta=lambda: {"valid_from": "", "valid_to": ""},
-            )
-
-    @app.context_processor
     def inject_organization_settings():
         settings = get_active_organization_settings()
         default_system_name = "Система сопровождения обучающихся"

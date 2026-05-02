@@ -5,9 +5,6 @@
 
 {% extends "layout.html" %}
 {% block content %}
-<div class="mb-2"><a class="list-group-item list-group-item-action" href="{{ url_for('admin_email_settings.email_settings') }}">Электронная почта и уведомления</a>
-</div>
-
 <div class="dashboard-shell dashboard-home dashboard-home-classic dashboard-home-v109">
 
   {# ── Баннер превью-режима (только для ADMIN при ?preview_role=...) ── #}
@@ -213,6 +210,7 @@
     <div class="admin-links-grid admin-links-grid-v109">
       {% if current_user.is_authenticated and current_user.role == 'ADMIN' %}
       <a class="btn btn-outline-primary text-start admin-link-chip zone-btn zone-btn-soft zone-blue" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders me-2"></i>Настройка ролей</a>
+      <a class="btn btn-outline-primary text-start admin-link-chip zone-btn zone-btn-soft zone-blue" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear me-2"></i>Настройки почты</a>
       {% endif %}
       {% for item in page.admin_sections %}
         {% if item.title == 'Обновить архив по срокам хранения' %}

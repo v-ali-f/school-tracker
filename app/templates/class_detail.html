@@ -123,11 +123,6 @@
                 <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="text-decoration-none fw-semibold">
                   {{ ch.last_name }} {{ ch.first_name }}{% if ch.middle_name %} {{ ch.middle_name }}{% endif %}
                 </a>
-                {% if sport_club_in_club(ch) %}
-                  <span class="ms-2 text-warning" title="Состоит в школьном спортивном клубе">
-                    <i class="bi bi-dribbble"></i>
-                  </span>
-                {% endif %}
               </td>
               <td class="text-muted">{{ ch.birth_date.strftime('%d.%m.%Y') if ch.birth_date else '—' }}</td>
               <td class="text-end">
