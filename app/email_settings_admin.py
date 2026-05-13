@@ -17,6 +17,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import text
 
 from app.core.extensions import db
+from app.models import SystemMailSettings
 
 admin_email_settings_bp = Blueprint("admin_email_settings", __name__, url_prefix="/admin")
 
@@ -81,6 +82,30 @@ def get_email_settings() -> dict[str, Any]:
     _ensure_table()
     row = db.session.execute(text("SELECT * FROM system_email_settings WHERE id = 1")).mappings().first()
     return dict(row or {})
+
+
+def _sync_system_mail_settings(params: dict[str, Any], *, updated_by_user_id: int | None = None) -> None:
+    """Синхронизирует админскую форму с основной таблицей отправки писем.
+
+    Уведомления задач используют сервис app.services.mail_settings_service,
+    который читает модель SystemMailSettings / таблицу system_mail_settings.
+    Поэтому одной служебной таблицы system_email_settings недостаточно.
+    """
+    row = SystemMailSettings.query.filter_by(is_active=True).order_by(SystemMailSettings.id.desc()).first()
+    if row is None:
+        row = SystemMailSettings(is_active=True)
+        db.session.add(row)
+
+    row.provider = "custom"
+    row.smtp_host = (params.get("smtp_host") or "").strip() or None
+    row.smtp_port = int(params.get("smtp_port") or 465)
+    row.smtp_username = (params.get("smtp_username") or "").strip() or None
+    row.smtp_password = params.get("smtp_password") or None
+    row.sender_email = (params.get("mail_sender_email") or params.get("smtp_username") or "").strip() or None
+    row.use_ssl = _as_bool(params.get("smtp_use_ssl"))
+    row.use_tls = _as_bool(params.get("smtp_use_tls"))
+    row.is_active = _as_bool(params.get("smtp_enabled"))
+    row.updated_by_user_id = updated_by_user_id
 
 
 def apply_email_settings_to_config() -> None:
@@ -220,6 +245,7 @@ def email_settings():
                 updated_at=:updated_at
             WHERE id=1
         """), params)
+        _sync_system_mail_settings(params, updated_by_user_id=getattr(current_user, "id", None))
         db.session.commit()
         flash("Настройки электронной почты сохранены.", "success")
         return redirect(url_for("admin_email_settings.email_settings"))
