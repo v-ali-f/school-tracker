@@ -246,6 +246,18 @@ def ensure_runtime_schema():
         "CREATE INDEX IF NOT EXISTS ix_child_status ON child (status)",
         "CREATE INDEX IF NOT EXISTS ix_child_events_from_class ON child_events (from_class)",
         "CREATE INDEX IF NOT EXISTS ix_child_events_event_type_from_class ON child_events (event_type, from_class)",
+        # Password reset tokens
+        """CREATE TABLE IF NOT EXISTS password_reset_token (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+            token_hash VARCHAR(64) NOT NULL UNIQUE,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            request_ip VARCHAR(64)
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_password_reset_token_user_id ON password_reset_token (user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_password_reset_token_token_hash ON password_reset_token (token_hash)",
         # s96: множественные исполнители инцидента
         """CREATE TABLE IF NOT EXISTS incident_assignee (
             incident_id INTEGER NOT NULL REFERENCES incident(id) ON DELETE CASCADE,

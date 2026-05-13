@@ -1,5 +1,6 @@
+import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import RLock
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, session
@@ -94,6 +95,129 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for("auth.login"))
+
+
+# =====================================================================
+# Восстановление пароля по email пользователя
+# =====================================================================
+_RESET_TOKEN_TTL_HOURS = 1
+_RESET_EMAIL_DOMAIN = os.getenv("PASSWORD_RESET_EMAIL_DOMAIN", "").strip().lower()
+
+
+def _hash_reset_token(raw_token: str) -> str:
+    import hashlib
+    return hashlib.sha256((raw_token or "").encode("utf-8")).hexdigest()
+
+
+def _password_reset_allowed_email(email: str) -> bool:
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        return False
+    if _RESET_EMAIL_DOMAIN:
+        return email.endswith(_RESET_EMAIL_DOMAIN)
+    return True
+
+
+@auth_bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    from app.models import PasswordResetToken
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        if not username:
+            flash("Введите логин", "danger")
+            return render_template("forgot_password.html", reset_email_domain=_RESET_EMAIL_DOMAIN)
+
+        user = User.query.filter_by(username=username).first()
+        email = (getattr(user, "email", None) or "").strip().lower() if user else ""
+        if not user or not _password_reset_allowed_email(email):
+            current_app.logger.info("FORGOT_PW: rejected for username=%s (user=%s, email_ok=%s)", username, bool(user), bool(_password_reset_allowed_email(email)))
+            if _RESET_EMAIL_DOMAIN:
+                msg = f"Восстановление пароля недоступно: у этой учётной записи нет почты {_RESET_EMAIL_DOMAIN}. Обратитесь к администратору."
+            else:
+                msg = "Восстановление пароля недоступно: у этой учётной записи не указан email. Обратитесь к администратору."
+            flash(msg, "danger")
+            return render_template("forgot_password.html", reset_email_domain=_RESET_EMAIL_DOMAIN)
+
+        import secrets
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _hash_reset_token(raw_token)
+        try:
+            PasswordResetToken.query.filter_by(user_id=user.id, used_at=None).update({"used_at": datetime.utcnow()}, synchronize_session=False)
+            prt = PasswordResetToken(user_id=user.id, token_hash=token_hash, created_at=datetime.utcnow(), expires_at=datetime.utcnow() + timedelta(hours=_RESET_TOKEN_TTL_HOURS), request_ip=_client_ip()[:64])
+            db.session.add(prt)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("FORGOT_PW: failed to issue token for %s", username)
+            flash("Не удалось сформировать ссылку. Попробуйте ещё раз.", "danger")
+            return render_template("forgot_password.html", reset_email_domain=_RESET_EMAIL_DOMAIN)
+
+        try:
+            from app.services.mail_settings_service import send_mail_via_config, get_organization_name
+            base_url = (current_app.config.get("APP_BASE_URL") or os.getenv("APP_BASE_URL") or request.url_root).rstrip("/")
+            org_name = get_organization_name()
+            link = f"{base_url}/reset-password/{raw_token}"
+            subject = f"Восстановление пароля — {org_name}"
+            body = ("Здравствуйте!\n\n"
+                    f"Вы запросили восстановление пароля в системе {org_name}.\n"
+                    f"Перейдите по ссылке, чтобы задать новый пароль. Ссылка действует {_RESET_TOKEN_TTL_HOURS} час:\n\n"
+                    f"{link}\n\n"
+                    "Если вы не запрашивали восстановление, просто проигнорируйте письмо. Пароль останется прежним.\n")
+            send_mail_via_config(recipient=user.email, subject=subject, body=body)
+        except Exception:
+            current_app.logger.exception("FORGOT_PW: failed to send email to %s", user.email)
+            flash("Ссылка создана, но письмо не отправилось. Обратитесь к администратору.", "danger")
+            return render_template("forgot_password.html", reset_email_domain=_RESET_EMAIL_DOMAIN)
+
+        flash(f"Письмо со ссылкой отправлено на {user.email}. Ссылка действует {_RESET_TOKEN_TTL_HOURS} час.", "success")
+        return render_template("forgot_password.html", reset_email_domain=_RESET_EMAIL_DOMAIN)
+
+    return render_template("forgot_password.html", reset_email_domain=_RESET_EMAIL_DOMAIN)
+
+
+@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    from app.models import PasswordResetToken
+    token_hash = _hash_reset_token(token or "")
+    prt = PasswordResetToken.query.filter_by(token_hash=token_hash).first()
+    now = datetime.utcnow()
+    invalid = not prt or prt.used_at is not None or prt.expires_at is None or prt.expires_at < now
+    if invalid:
+        flash("Ссылка недействительна или истекла. Запросите восстановление заново.", "danger")
+        return redirect(url_for("auth.forgot_password"))
+
+    user = User.query.get(prt.user_id)
+    if not user or not getattr(user, "is_active_user", True):
+        flash("Учётная запись недоступна.", "danger")
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        new_pw = request.form.get("new_password") or ""
+        confirm_pw = request.form.get("confirm_password") or ""
+        if len(new_pw) < 8:
+            flash("Новый пароль должен быть не короче 8 символов", "danger")
+            return render_template("reset_password.html", token=token)
+        if new_pw != confirm_pw:
+            flash("Пароль и повтор не совпадают", "danger")
+            return render_template("reset_password.html", token=token)
+        if user.check_password(new_pw):
+            flash("Новый пароль совпадает с текущим", "danger")
+            return render_template("reset_password.html", token=token)
+
+        try:
+            user.set_password(new_pw)
+            prt.used_at = datetime.utcnow()
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("RESET_PW: failed to apply for user_id=%s", user.id)
+            flash("Не удалось сохранить пароль, попробуйте ещё раз.", "danger")
+            return render_template("reset_password.html", token=token)
+
+        flash("Пароль обновлён. Войдите с новым паролем.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template("reset_password.html", token=token)
 
 
 # Гибкие режимы уведомлений по инцидентам. См. children._notify_user.

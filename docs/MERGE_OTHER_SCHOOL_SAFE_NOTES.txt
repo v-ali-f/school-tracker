@@ -1,0 +1,21 @@
+Безопасное объединение с архивом другой школы
+
+Перенесено только независимое улучшение: восстановление пароля по email пользователя.
+
+Не переносились и не возвращались:
+- Доп. образование / ШСК / кружки;
+- app/extracurricular.py, app/extracurricular_hub.py, app/extracurricular_apps.py, app/sport_club.py;
+- шаблоны app/templates/extracurricular*;
+- data/do_index.json;
+- изменения олимпиад поверх текущей аналитики всех этапов;
+- замена app/tasks.py поверх исправления email-уведомлений.
+
+Добавлено:
+- app/models/password_reset.py;
+- маршруты /forgot-password и /reset-password/<token>;
+- шаблоны forgot_password.html и reset_password.html;
+- автоматическое создание таблицы password_reset_token в app/bootstrap.py;
+- ссылка «Забыли пароль?» на странице входа.
+
+Письма восстановления используют текущие SMTP-настройки системы.
+Можно ограничить домен через PASSWORD_RESET_EMAIL_DOMAIN, например @school1324.moscow.
