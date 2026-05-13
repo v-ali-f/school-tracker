@@ -85,6 +85,18 @@ class User(db.Model, UserMixin):
         db.String(20), nullable=False, default="all", server_default="all"
     )
 
+    # Персональные настройки уведомлений по задачам.
+    # Важно: app/tasks.py проверяет эти поля перед отправкой внутренних и email-уведомлений.
+    task_notifications_enabled = db.Column(
+        db.Boolean, nullable=False, default=True, server_default="true"
+    )
+    task_email_enabled = db.Column(
+        db.Boolean, nullable=False, default=True, server_default="true"
+    )
+    task_notify_only_important = db.Column(
+        db.Boolean, nullable=False, default=False, server_default="false"
+    )
+
     roles = db.relationship(
         "Role",
         secondary="user_role",

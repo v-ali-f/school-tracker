@@ -21,9 +21,10 @@ def _as_bool(value, default=False):
 
 def get_active_mail_settings():
     try:
-        row = SystemMailSettings.query.filter_by(is_active=True).order_by(SystemMailSettings.id.desc()).first()
-        if row:
-            return row
+        rows = SystemMailSettings.query.filter_by(is_active=True).order_by(SystemMailSettings.id.desc()).all()
+        for row in rows:
+            if (row.smtp_host or '').strip() and (row.sender_email or row.smtp_username or '').strip():
+                return row
     except Exception:
         db.session.rollback()
     return None

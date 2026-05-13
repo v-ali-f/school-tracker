@@ -1,46 +1,32 @@
-# Python cache
+# База данных
+*.db
+*.db-journal
+instance/
+
+# Загрузки пользователей
+uploads/
+
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
 
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Environment variables
+# Окружение
 .env
 *.env
 
-# Local database files and backups
-*.db
-*.sqlite
-*.sqlite3
-*.db-journal
-backup.sql
-backup.dump
-*.dump
-data/*.db
-data/*.sqlite
-data/*.sqlite3
-
-# User uploads and runtime files
-uploads/
-instance/
-logs/
-*.log
-
-# macOS / IDE
-.DS_Store
-__MACOSX/
+# IDE
 .vscode/
 .idea/
 
-# Temporary archives
-*.zip
-*.tar
-*.tar.gz
+# Логи
+*.log
 
-# Local worktrees
-.claude/
+# macOS
+__MACOSX/
+.DS_Store
+
 .claude/worktrees/
+.venv/
