@@ -31,7 +31,7 @@ from app.models import (
     TaskAutoRule,
     TaskEmailLog,
 )
-from app.services.task_notifications import is_important_notification, send_task_email
+from app.services.task_notifications import is_important_notification, send_task_email, send_task_max_notification
 
 
 tasks_bp = Blueprint('tasks', __name__, url_prefix='/tasks')
@@ -654,6 +654,14 @@ def _deliver_notifications(task, notification_type, title, message, extra_user_i
                 message=message,
                 is_important=is_important,
             ))
+            try:
+                send_task_max_notification(task, user, notification_type, title, message)
+            except Exception:
+                current_app.logger.exception(
+                    'Failed to send task MAX notification for task_id=%s user_id=%s',
+                    task.id,
+                    user.id,
+                )
         if _email_enabled_for_user(user, is_important=is_important):
             try:
                 current_app.logger.info(

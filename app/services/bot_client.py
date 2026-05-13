@@ -78,6 +78,10 @@ class BotClient:
     def revoke(self, *, chat_id):
         return self._post("/api/revoke", {"chat_id": chat_id})
 
+    def notify(self, *, chat_id, text: str):
+        """Отправляет текстовое уведомление пользователю в MAX через endpoint бота /api/notify."""
+        return self._post("/api/notify", {"chat_id": chat_id, "text": text})
+
     def fetch_attachment(self, queue_id: str, idx: int):
         """Скачивает байты вложения с бота. Возвращает (bytes, content_type)."""
         return self._get_binary(f"/api/attachment/{queue_id}/{int(idx)}", timeout=120)
