@@ -5,7 +5,8 @@ from datetime import datetime
 from flask import current_app
 
 from app.core.extensions import db
-from app.models import TaskEmailLog
+from app.models import MaxBinding, TaskEmailLog
+from app.services.bot_client import get_client as get_bot_client
 from app.services.mail_settings_service import get_mail_config, send_mail_via_config
 from app.services.task_email_templates import build_task_email
 
@@ -36,6 +37,113 @@ def make_email_content(task, user, notification_type: str, title: str, message: 
         message=message,
         is_sensitive=is_sensitive_task(task),
     )
+
+
+
+
+def _task_link(task) -> str:
+    cfg = get_mail_config()
+    base = (cfg.get('login_url') or '').rstrip('/')
+    task_id = getattr(task, 'id', None)
+    if base and task_id:
+        return f'{base}/tasks/{task_id}'
+    return base or ''
+
+
+def _fmt_due_for_max(value) -> str:
+    if not value:
+        return 'не указан'
+    if isinstance(value, datetime):
+        return value.strftime('%d.%m.%Y %H:%M') if (value.hour or value.minute) else value.strftime('%d.%m.%Y')
+    return str(value)
+
+
+def build_task_max_message(task, user, notification_type: str, title: str, message: str) -> str:
+    icon_map = {
+        'new_task': '📌',
+        'deadline_changed': '⏰',
+        'comment_added': '💬',
+        'sent_to_review': '🔎',
+        'returned_for_rework': '↩️',
+        'closed': '✅',
+        'overdue': '⚠️',
+        'auto_created': '🤖',
+        'task_updated': '✏️',
+        'status_changed': '🔄',
+    }
+    icon = icon_map.get(notification_type, '📣')
+    task_id = getattr(task, 'id', None)
+    is_sensitive = is_sensitive_task(task)
+    task_title = 'служебная задача' if is_sensitive else (getattr(task, 'title', None) or 'Без названия')
+    status = getattr(task, 'status', None) or '—'
+    priority = getattr(task, 'priority', None) or '—'
+    due = _fmt_due_for_max(getattr(task, 'deadline_at', None))
+    link = _task_link(task)
+
+    lines = [
+        f'{icon} {title or "Уведомление по задаче"}',
+        '',
+        f'Задача: {task_title}',
+        f'№: {task_id or "—"}',
+        f'Статус: {status}',
+        f'Приоритет: {priority}',
+        f'Срок: {due}',
+    ]
+    if message and not is_sensitive:
+        lines.extend(['', str(message).strip()[:500]])
+    if link:
+        lines.extend(['', f'Открыть в портале: {link}'])
+    else:
+        lines.extend(['', 'Откройте задачу в портале.'])
+    return '\n'.join(lines).strip()
+
+
+def send_task_max_notification(task, user, notification_type: str, title: str, message: str):
+    """Отправляет уведомление по задаче в MAX, если пользователь привязал бот.
+
+    Не заменяет внутренние уведомления и email: это дополнительный канал.
+    Ошибки не должны ломать создание/обновление задачи.
+    """
+    client = get_bot_client()
+    if not client._enabled():
+        return False
+
+    try:
+        binding = (
+            MaxBinding.query
+            .filter_by(user_id=getattr(user, 'id', None), status='done')
+            .filter(MaxBinding.max_chat_id.isnot(None))
+            .order_by(MaxBinding.id.desc())
+            .first()
+        )
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Task MAX notification binding lookup failed')
+        return False
+
+    if not binding or not binding.max_chat_id:
+        return False
+
+    text = build_task_max_message(task, user, notification_type, title, message)
+    try:
+        client.notify(chat_id=binding.max_chat_id, text=text)
+        current_app.logger.info(
+            'Task MAX notification sent: task_id=%s user_id=%s chat_id=%s type=%s',
+            getattr(task, 'id', None),
+            getattr(user, 'id', None),
+            binding.max_chat_id,
+            notification_type,
+        )
+        return True
+    except Exception:
+        current_app.logger.exception(
+            'Task MAX notification failed: task_id=%s user_id=%s chat_id=%s type=%s',
+            getattr(task, 'id', None),
+            getattr(user, 'id', None),
+            binding.max_chat_id,
+            notification_type,
+        )
+        return False
 
 
 def send_task_email(task, user, notification_type: str, title: str, message: str):
