@@ -189,18 +189,18 @@ def email_settings():
         now = datetime.utcnow().isoformat()
 
         params = {
-            "smtp_enabled": 1 if request.form.get("smtp_enabled") else 0,
+            "smtp_enabled": True if request.form.get("smtp_enabled") else False,
             "smtp_host": (request.form.get("smtp_host") or "").strip(),
             "smtp_port": int(request.form.get("smtp_port") or 465),
-            "smtp_use_ssl": 1 if request.form.get("smtp_use_ssl") else 0,
-            "smtp_use_tls": 1 if request.form.get("smtp_use_tls") else 0,
+            "smtp_use_ssl": True if request.form.get("smtp_use_ssl") else False,
+            "smtp_use_tls": True if request.form.get("smtp_use_tls") else False,
             "smtp_username": (request.form.get("smtp_username") or "").strip(),
             "smtp_password": password_value,
             "mail_sender_email": (request.form.get("mail_sender_email") or "").strip(),
             "mail_sender_name": (request.form.get("mail_sender_name") or "").strip(),
-            "task_email_notifications_enabled": 1 if request.form.get("task_email_notifications_enabled") else 0,
-            "task_comment_email_enabled": 1 if request.form.get("task_comment_email_enabled") else 0,
-            "task_deadline_email_enabled": 1 if request.form.get("task_deadline_email_enabled") else 0,
+            "task_email_notifications_enabled": True if request.form.get("task_email_notifications_enabled") else False,
+            "task_comment_email_enabled": True if request.form.get("task_comment_email_enabled") else False,
+            "task_deadline_email_enabled": True if request.form.get("task_deadline_email_enabled") else False,
             "updated_at": now,
         }
         db.session.execute(text("""
