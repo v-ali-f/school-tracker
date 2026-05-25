@@ -41,3 +41,7 @@ from .max_binding import *
 from .password_reset import *
 
 from app.models_legacy import KnowledgeArticle, IncidentNote, IncidentNoteAttachment
+
+from app.models.drive import DriveItem, FileCollection, FileCollectionTarget, FileCollectionSubmission
+
+from app.models.appeals import Appeal, AppealAttachment

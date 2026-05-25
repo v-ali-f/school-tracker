@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container py-3">
+  <nav class="small mb-2"><a href="{{ url_for('main.dashboard') }}">Главная</a> / <a href="{{ url_for('appeals.index') }}">Обращения</a> / Новое</nav>
+  <h1 class="mb-3" style="color:#113b73; font-weight:750;">Новое обращение</h1>
+  <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4"><div class="card-body row g-3">
+    <div class="col-md-3"><label class="form-label">Номер</label><input class="form-control" name="number"></div>
+    <div class="col-md-3"><label class="form-label">Дата поступления</label><input class="form-control" type="date" name="received_at"></div>
+    <div class="col-md-3"><label class="form-label">Канал</label><select class="form-select" name="channel"><option value="">—</option>{% for c in channels %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Срок ответа</label><input class="form-control" type="date" name="deadline_at"></div>
+    <div class="col-md-6"><label class="form-label">Заявитель / организация</label><input class="form-control" name="applicant_name" required></div>
+    <div class="col-md-6"><label class="form-label">Контакты</label><input class="form-control" name="applicant_contact"></div>
+    <div class="col-12"><label class="form-label">Тема</label><input class="form-control" name="subject" required></div>
+    <div class="col-12"><label class="form-label">Содержание обращения</label><textarea class="form-control" rows="5" name="description"></textarea></div>
+    <div class="col-md-6"><label class="form-label">Ответственный</label><select class="form-select" name="responsible_user_id"><option value="">Не назначен</option>{% for u in users %}<option value="{{ u.id }}">{{ u.fio or u.username }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Статус</label><select class="form-select" name="status">{% for s in statuses %}<option>{{ s }}</option>{% endfor %}</select></div>
+    <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input class="form-check-input" type="checkbox" name="create_task" value="1" checked> <span class="form-check-label">Создать задачу ответственному</span></label></div>
+    <div class="col-12"><label class="form-label">Файлы</label><input class="form-control" type="file" name="attachments" multiple></div>
+    <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Сохранить</button><a class="btn btn-outline-secondary" href="{{ url_for('appeals.index') }}">Отмена</a></div>
+  </div></form>
+</div>
+{% endblock %}

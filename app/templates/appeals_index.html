@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <nav class="small mb-2"><a href="{{ url_for('main.dashboard') }}">Главная</a> / Обращения</nav>
+      <h1 class="mb-1" style="color:#113b73; font-weight:750;">Реестр обращений</h1>
+      <div class="text-muted">Фиксация входящих обращений, ответственных, сроков и результата исполнения.</div>
+    </div>
+    {% if can_create %}<a class="btn btn-primary" href="{{ url_for('appeals.new') }}"><i class="bi bi-plus-lg me-1"></i>Новое обращение</a>{% endif %}
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="text-muted small text-uppercase">Всего в выборке</div><div class="fs-2 fw-bold">{{ counts.total }}</div></div></div></div>
+    <div class="col-md-4"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="text-muted small text-uppercase">Новые</div><div class="fs-2 fw-bold">{{ counts.new }}</div></div></div></div>
+    <div class="col-md-4"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="text-muted small text-uppercase">Просроченные</div><div class="fs-2 fw-bold text-danger">{{ counts.overdue }}</div></div></div></div>
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm rounded-4 mb-3"><div class="card-body row g-2 align-items-end">
+    <div class="col-md-5"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Номер, заявитель, тема"></div>
+    <div class="col-md-3"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option>{% for s in statuses %}<option value="{{ s }}" {% if request.args.get('status') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Показать</button></div>
+    <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('appeals.index') }}">Сброс</a></div>
+  </div></form>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>№</th><th>Дата</th><th>Заявитель</th><th>Тема</th><th>Ответственный</th><th>Срок</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>
+        <tbody>
+          {% for a in appeals %}
+          <tr class="{% if a.is_overdue %}table-danger{% endif %}">
+            <td>{{ a.number or a.id }}</td>
+            <td>{{ a.received_at.strftime('%d.%m.%Y') if a.received_at else '—' }}</td>
+            <td>{{ a.applicant_name }}</td>
+            <td><a class="fw-semibold text-decoration-none" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">{{ a.subject }}</a>{% if a.linked_task_id %}<div class="small text-muted">Связана с задачей #{{ a.linked_task_id }}</div>{% endif %}</td>
+            <td>{{ a.responsible.fio or a.responsible.username if a.responsible else '—' }}</td>
+            <td>{{ a.deadline_at.strftime('%d.%m.%Y') if a.deadline_at else '—' }}</td>
+            <td><span class="badge text-bg-{{ 'danger' if a.is_overdue else ('success' if a.status == 'Закрыто' else 'primary') }}">{{ 'Просрочено' if a.is_overdue else a.status }}</span></td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">Открыть</a></td>
+          </tr>
+          {% else %}<tr><td colspan="8" class="text-center text-muted py-5">Обращения не найдены.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
