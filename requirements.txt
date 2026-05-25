@@ -16,3 +16,4 @@ pytz
 python-magic; sys_platform != "win32"
 python-magic-bin; sys_platform == "win32"
 requests>=2.31.0
+psycopg2-binary

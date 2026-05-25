@@ -30,3 +30,6 @@ __MACOSX/
 
 .claude/worktrees/
 .venv/
+
+# Local server backups
+backups/

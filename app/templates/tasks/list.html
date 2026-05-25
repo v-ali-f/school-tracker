@@ -76,6 +76,27 @@
   @media (max-width: 900px) {.tasks-shell {grid-template-columns:1fr;} .tasks-side {position:static;} .tasks-filters-grid {grid-template-columns:repeat(2, minmax(140px,1fr));} .tasks-metrics {grid-template-columns:repeat(2, minmax(120px,1fr));}}
   @media (max-width: 640px) {.tasks-filters-grid {grid-template-columns:1fr;} .tasks-metrics {grid-template-columns:1fr;}}
   @media (max-width: 575.98px) {.board {grid-auto-columns:minmax(240px, 1fr);} .tasks-title {font-size:22px;}}
+
+  /* v187 compact tasks header */
+  .tasks-topbar{padding:12px 14px;margin-bottom:10px;}
+  .tasks-title{font-size:24px;}
+  .tasks-subtitle{font-size:13px;}
+  .tasks-topline{margin-bottom:8px;align-items:center;}
+  .tasks-top-actions .btn{padding:6px 10px;border-radius:12px;}
+  .tasks-view-switch a{padding:6px 12px;font-size:14px;}
+  .tasks-chip-row{display:none;}
+  .tasks-metrics{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px;}
+  .metric-card{padding:8px 12px;border-radius:14px;min-width:130px;}
+  .metric-card .label{font-size:10px;}
+  .metric-card .value{font-size:22px;margin-top:0;}
+  .tasks-filters-card{padding:0;margin-bottom:10px;overflow:hidden;}
+  .tasks-filters-card summary{list-style:none;cursor:pointer;padding:10px 14px;font-weight:700;color:#0b5ed7;display:flex;align-items:center;gap:8px;}
+  .tasks-filters-card summary::-webkit-details-marker{display:none;}
+  .tasks-filters-card summary:after{content:'Показать фильтры';font-weight:600;}
+  .tasks-filters-card[open] summary:after{content:'Скрыть фильтры';}
+  .tasks-filters-grid{padding:0 14px 14px;grid-template-columns:repeat(4,minmax(140px,1fr));}
+  .tasks-view-toggle{padding:0 14px;margin:0 0 10px 0!important;}
+
 </style>
 
 <div class="tasks-shell">
@@ -134,7 +155,8 @@
       <div class="metric-card"><div class="label">Непрочитанные</div><div class="value">{{ counts.unread_notifications }}</div></div>
     </div>
 
-    <div class="tasks-filters-card">
+    <details class="tasks-filters-card tasks-filters-details">
+      <summary><i class="bi bi-funnel"></i></summary>
       
 <div class="tasks-view-toggle" style="display:flex; gap:8px; align-items:center; margin:12px 0 16px 0;">
   <span style="font-size:13px; color:#64748b;">Вид канбана:</span>
@@ -164,7 +186,7 @@
           <a class="btn btn-outline-secondary" href="{{ request.path }}?view={{ current_view }}">Сброс</a>
         </div>
       </form>
-    </div>
+    </details>
 
     {% macro render_task_card(task) -%}
       <article class="task-card-board">
