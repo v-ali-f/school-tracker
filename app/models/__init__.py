@@ -45,3 +45,5 @@ from app.models_legacy import KnowledgeArticle, IncidentNote, IncidentNoteAttach
 from app.models.drive import DriveItem, FileCollection, FileCollectionTarget, FileCollectionSubmission
 
 from app.models.appeals import Appeal, AppealAttachment
+
+from app.models.familiarizations import Familiarization, FamiliarizationRecipient
