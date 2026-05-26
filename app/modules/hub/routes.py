@@ -819,7 +819,7 @@ def build_home_context():
         "page": page,
         "quick_summary": _summary_cards() if show_summary else [],
         "show_quick_summary": show_summary,
-        "show_admin_block": has_role("ADMIN") and not preview_role,
+        "show_admin_block": (has_role("ADMIN") or has_role("DIRECTOR")) and not preview_role,
         "class_teacher_class": class_teacher_class,
         "is_class_teacher": is_ct,
         "role_block_codes": role_block_codes,

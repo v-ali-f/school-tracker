@@ -5,6 +5,7 @@ from flask_login import current_user
 # ROLES
 # =========================================================
 ADMIN = "ADMIN"
+DIRECTOR = "DIRECTOR"
 TEACHER = "TEACHER"
 CLASS_TEACHER = "CLASS_TEACHER"
 PSYCHOLOGIST = "PSYCHOLOGIST"
@@ -235,7 +236,14 @@ def _user_role_codes(user=None) -> set:
     # Временная совместимость со старой схемой: user.role = "ADMIN"
     single_role = getattr(user, "role", None)
     if single_role:
-        return {str(single_role).upper()}
+        code = str(single_role).upper()
+
+        # Директор — отдельная управленческая роль,
+        # но наследует административные права.
+        if code == "DIRECTOR":
+            return {"DIRECTOR", "ADMIN"}
+
+        return {code}
 
     return set()
 

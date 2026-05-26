@@ -232,7 +232,7 @@
       </div>
     </div>
     <div class="admin-links-grid admin-links-grid-v109">
-      {% if current_user.is_authenticated and current_user.role == 'ADMIN' %}
+      {% if current_user.is_authenticated and current_user.role in ['ADMIN', 'DIRECTOR'] %}
       <a class="btn btn-outline-primary text-start admin-link-chip zone-btn zone-btn-soft zone-blue" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders me-2"></i>Настройка ролей</a>
       <a class="btn btn-outline-primary text-start admin-link-chip zone-btn zone-btn-soft zone-blue" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear me-2"></i>Настройки почты</a>
       {% endif %}
