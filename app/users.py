@@ -16,11 +16,12 @@ from app.utils.user_matching import find_existing_user, normalize_fio, potential
 users_bp = Blueprint("users", __name__)
 
 ROLE_OPTIONS = [
-    "ADMIN", "CLASS_TEACHER", "CURATOR", "TEACHER", "VIEWER", "METHODIST", "KPP",
+    "ADMIN", "DIRECTOR", "CLASS_TEACHER", "CURATOR", "TEACHER", "VIEWER", "METHODIST", "KPP",
     "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT",
 ]
 ROLE_LABELS = {
     "ADMIN": "Администратор",
+    "DIRECTOR": "Директор",
     "CLASS_TEACHER": "Классный руководитель",
     "CURATOR": "Куратор",
     "TEACHER": "Учитель",
@@ -37,6 +38,7 @@ ROLE_LABELS = {
 }
 RUSSIAN_ROLE_MAP = {
     "администратор": "ADMIN",
+    "директор": "DIRECTOR",
     "классный руководитель": "CLASS_TEACHER",
     "куратор": "CURATOR",
     "учитель": "TEACHER",
