@@ -12,11 +12,59 @@
     <div class="col-md-6"><label class="form-label">Контакты</label><input class="form-control" name="applicant_contact"></div>
     <div class="col-12"><label class="form-label">Тема</label><input class="form-control" name="subject" required></div>
     <div class="col-12"><label class="form-label">Содержание обращения</label><textarea class="form-control" rows="5" name="description"></textarea></div>
-    <div class="col-md-6"><label class="form-label">Ответственный</label><select class="form-select" name="responsible_user_id"><option value="">Не назначен</option>{% for u in users %}<option value="{{ u.id }}">{{ u.fio or u.username }}</option>{% endfor %}</select></div>
+    <div class="col-md-6">
+  <label class="form-label">Ответственные</label>
+  <div class="border rounded-4 p-3 bg-light">
+    <input type="text"
+           class="form-control form-control-sm mb-2 js-responsible-search"
+           placeholder="Поиск по ФИО, логину или роли">
+
+    <div class="small text-muted mb-2">
+      Отметьте одного или нескольких ответственных. Первый выбранный станет основным ответственным.
+    </div>
+
+    <div class="responsible-check-list" style="max-height: 280px; overflow:auto;">
+      {% for u in users %}
+        <label class="d-flex align-items-center gap-2 py-1 responsible-check-item"
+               data-search="{{ ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or ''))|lower }}">
+          <input type="checkbox"
+                 class="form-check-input m-0"
+                 name="responsible_user_ids"
+                 value="{{ u.id }}">
+          <span>{{ u.fio or u.full_name or u.username }}</span>
+          {% if u.role %}
+            <span class="text-muted small">({{ u.role }})</span>
+          {% endif %}
+        </label>
+      {% endfor %}
+    </div>
+  </div>
+</div>
     <div class="col-md-3"><label class="form-label">Статус</label><select class="form-select" name="status">{% for s in statuses %}<option>{{ s }}</option>{% endfor %}</select></div>
     <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input class="form-check-input" type="checkbox" name="create_task" value="1" checked> <span class="form-check-label">Создать задачу ответственному</span></label></div>
     <div class="col-12"><label class="form-label">Файлы</label><input class="form-control" type="file" name="attachments" multiple></div>
     <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Сохранить</button><a class="btn btn-outline-secondary" href="{{ url_for('appeals.index') }}">Отмена</a></div>
   </div></form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.js-responsible-search').forEach(function (input) {
+    const container = input.closest('.border');
+    if (!container) return;
+
+    const items = container.querySelectorAll('.responsible-check-item');
+
+    input.addEventListener('input', function () {
+      const q = input.value.trim().toLowerCase();
+
+      items.forEach(function (item) {
+        const text = item.dataset.search || item.textContent.toLowerCase();
+        item.style.display = text.includes(q) ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
+
 {% endblock %}
