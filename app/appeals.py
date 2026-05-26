@@ -10,6 +10,7 @@ from sqlalchemy import or_
 
 from app.core.extensions import db
 from app.models import Appeal, AppealAttachment, Task, User
+from app.services.appeal_notifications import send_appeal_max_notification
 
 appeals_bp = Blueprint('appeals', __name__, url_prefix='/appeals')
 
@@ -127,6 +128,11 @@ def new():
             db.session.flush()
             appeal.linked_task_id = task.id
         db.session.commit()
+        try:
+            send_appeal_max_notification(appeal, notification_type='new_appeal')
+        except Exception as exc:
+            current_app.logger.warning("Appeal MAX notification failed: %s", exc)
+
         flash('Обращение добавлено.', 'success')
         return redirect(url_for('appeals.detail', appeal_id=appeal.id))
     return render_template('appeals_form.html', appeal=None, users=users, statuses=Appeal.STATUS_CHOICES, channels=Appeal.CHANNEL_CHOICES)
