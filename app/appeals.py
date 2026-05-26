@@ -68,6 +68,63 @@ def _parse_date(value):
         return None
 
 
+def _parse_responsible_ids():
+    values = request.form.getlist('responsible_user_ids')
+    if not values:
+        legacy = request.form.get('responsible_user_id')
+        values = [legacy] if legacy else []
+    ids = []
+    for value in values:
+        try:
+            uid = int(value)
+        except (TypeError, ValueError):
+            continue
+        if uid and uid not in ids:
+            ids.append(uid)
+    return ids
+
+
+def _apply_responsibles(appeal, responsible_ids):
+    appeal.responsible_user_ids = ','.join(str(x) for x in responsible_ids) if responsible_ids else None
+    appeal.responsible_user_id = responsible_ids[0] if responsible_ids else None
+
+
+def _appeal_responsible_ids(appeal):
+    ids = []
+    raw = getattr(appeal, 'responsible_user_ids', None)
+    if raw:
+        for part in str(raw).split(','):
+            try:
+                uid = int(part.strip())
+            except (TypeError, ValueError):
+                continue
+            if uid and uid not in ids:
+                ids.append(uid)
+    if getattr(appeal, 'responsible_user_id', None) and appeal.responsible_user_id not in ids:
+        ids.insert(0, appeal.responsible_user_id)
+    return ids
+
+
+def _appeal_responsible_users(appeal):
+    ids = _appeal_responsible_ids(appeal)
+    if not ids:
+        return []
+    users = User.query.filter(User.id.in_(ids)).all()
+    by_id = {u.id: u for u in users}
+    return [by_id[i] for i in ids if i in by_id]
+
+
+def _responsibles_text(appeal):
+    users = _appeal_responsible_users(appeal)
+    if not users:
+        return 'не назначены'
+    names = []
+    for user in users:
+        name = getattr(user, 'full_name', None) or getattr(user, 'display_name', None) or getattr(user, 'username', None) or f'ID {user.id}'
+        names.append(name)
+    return '\\n'.join(f'— {name}' for name in names)
+
+
 @appeals_bp.route('/')
 @login_required
 def index():
@@ -97,6 +154,7 @@ def new():
         abort(403)
     users = User.query.filter_by(is_active_user=True).order_by(User.last_name.asc(), User.first_name.asc()).all()
     if request.method == 'POST':
+        responsible_ids = _parse_responsible_ids()
         appeal = Appeal(
             number=request.form.get('number') or None,
             received_at=_parse_date(request.form.get('received_at')),
@@ -105,7 +163,6 @@ def new():
             channel=request.form.get('channel') or None,
             subject=request.form.get('subject') or 'Обращение',
             description=request.form.get('description') or None,
-            responsible_user_id=int(request.form.get('responsible_user_id') or 0) or None,
             deadline_at=_parse_date(request.form.get('deadline_at')),
             status=request.form.get('status') or 'Новое',
             creator_user_id=current_user.id,
@@ -129,7 +186,19 @@ def new():
             appeal.linked_task_id = task.id
         db.session.commit()
         try:
-            send_appeal_max_notification(appeal, notification_type='new_appeal')
+            # Уведомляем всех ответственных
+            for responsible_user in _appeal_responsible_users(appeal):
+                send_appeal_max_notification(appeal, user=responsible_user, notification_type='new_appeal')
+
+            # Директору отправляем отдельное уведомление с перечнем ответственных
+            directors = User.query.filter_by(role='DIRECTOR', is_active_user=True).all()
+            for director in directors:
+                send_appeal_max_notification(
+                    appeal,
+                    user=director,
+                    notification_type='new_appeal',
+                    extra_text="Ответственные:\n" + _responsibles_text(appeal)
+                )
         except Exception as exc:
             current_app.logger.warning("Appeal MAX notification failed: %s", exc)
 
@@ -146,6 +215,7 @@ def detail(appeal_id):
         abort(403)
     users = User.query.filter_by(is_active_user=True).order_by(User.last_name.asc(), User.first_name.asc()).all()
     if request.method == 'POST':
+        old_status = appeal.status
         appeal.number = request.form.get('number') or None
         appeal.received_at = _parse_date(request.form.get('received_at'))
         appeal.applicant_name = request.form.get('applicant_name') or appeal.applicant_name
@@ -153,16 +223,42 @@ def detail(appeal_id):
         appeal.channel = request.form.get('channel') or None
         appeal.subject = request.form.get('subject') or appeal.subject
         appeal.description = request.form.get('description') or None
-        appeal.responsible_user_id = int(request.form.get('responsible_user_id') or 0) or None
+        responsible_ids = _parse_responsible_ids()
+        _apply_responsibles(appeal, responsible_ids)
         appeal.deadline_at = _parse_date(request.form.get('deadline_at'))
         appeal.status = request.form.get('status') or appeal.status
         appeal.result_text = request.form.get('result_text') or None
         appeal.answered_at = _parse_date(request.form.get('answered_at'))
         _save_files(appeal, request.files.getlist('attachments'))
         db.session.commit()
+
+        closed_statuses = {'Закрыто', 'Подготовлен ответ'}
+        if old_status != appeal.status and appeal.status in closed_statuses:
+            try:
+                directors = User.query.filter_by(role='DIRECTOR', is_active_user=True).all()
+                for director in directors:
+                    send_appeal_max_notification(appeal, user=director, notification_type='appeal_closed')
+            except Exception as exc:
+                current_app.logger.warning("Appeal close MAX notification failed: %s", exc)
+
         flash('Обращение сохранено.', 'success')
         return redirect(url_for('appeals.detail', appeal_id=appeal.id))
     return render_template('appeals_detail.html', appeal=appeal, users=users, statuses=Appeal.STATUS_CHOICES, channels=Appeal.CHANNEL_CHOICES)
+
+
+@appeals_bp.route('/<int:appeal_id>/delete', methods=['POST'])
+@login_required
+def delete(appeal_id):
+    appeal = Appeal.query.get_or_404(appeal_id)
+    role = getattr(current_user, 'role', None)
+    if role not in (ADMIN_ROLES | SECRETARY_ROLES | {'DIRECTOR'}):
+        abort(403)
+
+    # Связанную задачу не удаляем автоматически, чтобы не потерять историю поручений.
+    db.session.delete(appeal)
+    db.session.commit()
+    flash('Обращение удалено.', 'success')
+    return redirect(url_for('appeals.index'))
 
 
 @appeals_bp.route('/attachment/<int:attachment_id>')

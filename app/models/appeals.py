@@ -15,6 +15,9 @@ class Appeal(db.Model):
     subject = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     responsible_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    # Несколько ответственных храним списком ID через запятую.
+    # responsible_user_id остаётся основным ответственным для совместимости.
+    responsible_user_ids = db.Column(db.Text, nullable=True)
     creator_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     linked_task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True, index=True)
     deadline_at = db.Column(db.Date, nullable=True, index=True)
