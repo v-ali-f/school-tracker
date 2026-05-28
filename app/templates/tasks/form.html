@@ -14,7 +14,7 @@
 {% set current_controller_id = request.form.get('controller_user_id', type=int, default=(task.controller_user_id if task else None)) %}
 {% set current_coexecutors = request.form.getlist('coexecutor_user_ids') if request.form else task.participant_groups.coexecutor|map(attribute='user_id')|list if task else [] %}
 {% set current_observers = request.form.getlist('observer_user_ids') if request.form else task.participant_groups.observer|map(attribute='user_id')|list if task else [] %}
-{% set deadline_value = request.form.get('deadline_at', task.deadline_at.strftime('%Y-%m-%dT%H:%M') if task and task.deadline_at else template_defaults.get('deadline_at','')) %}
+{% set deadline_value = request.form.get('deadline_at', task.deadline_at.strftime('%Y-%m-%d') if task and task.deadline_at else template_defaults.get('deadline_at', now().strftime('%Y-%m-%d'))) %}
 
 <div class="card shadow-sm compact-task-form">
   <div class="card-body">
@@ -50,9 +50,20 @@
         <textarea class="form-control" name="description" rows="3">{{ request.form.get('description', task.description if task else template_defaults.get('description','')) }}</textarea>
       </div>
 
+      <div class="col-md-6">
+        <label class="form-label">Документы-основания</label>
+        <input class="form-control" type="file" name="basis_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+        <div class="form-text">Приказ, письмо, служебная записка и другие основания.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Рабочие файлы</label>
+        <input class="form-control" type="file" name="work_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+        <div class="form-text">До 10 файлов, не более 30 МБ каждый.</div>
+      </div>
+
       <div class="col-md-3">
         <label class="form-label">Срок</label>
-        <input class="form-control" type="datetime-local" name="deadline_at" value="{{ deadline_value }}">
+        <input class="form-control" type="date" name="deadline_at" value="{{ deadline_value }}">
       </div>
       <div class="col-md-3">
         <label class="form-label">Приоритет</label>
@@ -186,17 +197,6 @@
                       <option value="">—</option>
                       {% for ch in children %}<option value="{{ ch.id }}" {% if request.form.get('child_id', type=int, default=(selected_child_id if selected_child_id else (task.child_id if task else None))) == ch.id %}selected{% endif %}>{{ ch.fio }}</option>{% endfor %}
                     </select>
-                  </div>
-
-                  <div class="col-md-6">
-                    <label class="form-label">Документы-основания</label>
-                    <input class="form-control" type="file" name="basis_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
-                    <div class="form-text">Приказ, письмо, служебная записка и другие основания.</div>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Рабочие файлы</label>
-                    <input class="form-control" type="file" name="work_files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
-                    <div class="form-text">До 10 файлов, не более 30 МБ каждый.</div>
                   </div>
 
                   <div class="col-12">

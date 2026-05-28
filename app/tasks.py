@@ -266,11 +266,24 @@ def _parse_deadline(raw: str):
     raw = (raw or '').strip()
     if not raw:
         return None
-    for fmt in ('%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+
+    # Новая форма передаёт только дату: YYYY-MM-DD.
+    # Сохраняем как конец выбранного дня, чтобы задача не становилась
+    # просроченной утром этой даты.
+    try:
+        if len(raw) == 10 and raw.count('-') == 2:
+            dt = datetime.strptime(raw, '%Y-%m-%d')
+            return dt.replace(hour=23, minute=59, second=0, microsecond=0)
+    except Exception:
+        pass
+
+    # Оставляем поддержку старого формата с временем для совместимости.
+    for fmt in ('%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M'):
         try:
             return datetime.strptime(raw, fmt)
         except Exception:
             continue
+
     return None
 
 
@@ -601,7 +614,16 @@ def _get_notification_recipients(task, notification_type, extra_user_ids=None):
     user_ids.discard(None)
     actor_id = getattr(current_user, 'id', None)
     if actor_id and notification_type not in {'overdue', 'auto_created'}:
-        user_ids.discard(actor_id)
+        # Не присылаем уведомление автору действия, если он не является адресатом задачи.
+        # Но если человек сам себе поставил задачу или сам является ответственным/
+        # контролёром/участником, уведомление должно прийти.
+        is_actor_task_recipient = (
+            actor_id == task.responsible_user_id
+            or actor_id == task.controller_user_id
+            or any(getattr(p, 'user_id', None) == actor_id for p in (task.participants or []))
+        )
+        if not is_actor_task_recipient:
+            user_ids.discard(actor_id)
     if not user_ids:
         return []
     return User.query.filter(User.id.in_(list(user_ids))).all()
