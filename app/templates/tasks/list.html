@@ -1,3 +1,608 @@
+
+<style>
+  /* Кнопки задач по размеру как в разделе Диск */
+  .tasks-top-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .tasks-top-actions .tasks-action-btn,
+  .tasks-top-actions .btn {
+    padding: 4px 9px !important;
+    min-height: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    border-radius: 9px !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    box-shadow: none !important;
+  }
+
+  .tasks-top-actions .btn-primary {
+    font-weight: 600 !important;
+  }
+
+  .tasks-top-actions .badge {
+    min-width: 16px !important;
+    height: 16px !important;
+    padding: 2px 5px !important;
+    font-size: 9.5px !important;
+    line-height: 1 !important;
+  }
+
+  .tasks-topline {
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  .tasks-title {
+    font-size: 21px !important;
+    line-height: 1.1 !important;
+    margin: 0 !important;
+    font-weight: 700 !important;
+  }
+
+  .tasks-subtitle {
+    display: none !important;
+  }
+
+  .tasks-topbar {
+    padding: 12px 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .tasks-view-switch {
+    margin-top: 10px !important;
+    gap: 6px !important;
+  }
+
+  .tasks-view-switch a {
+    padding: 4px 10px !important;
+    min-height: 25px !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    border-radius: 999px !important;
+    font-weight: 500 !important;
+  }
+
+  .tasks-chip-row {
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+
+  .tasks-chip-row a {
+    padding: 4px 9px !important;
+    min-height: 24px !important;
+    font-size: 11.5px !important;
+    line-height: 1 !important;
+    border-radius: 999px !important;
+    font-weight: 500 !important;
+  }
+</style>
+
+
+<style>
+  /* Тонкие кнопки в верхнем блоке задач — как в разделе Диск */
+  .tasks-page .module-hero .btn,
+  .tasks-page .tasks-hero .btn,
+  .tasks-page .page-hero .btn,
+  .tasks-page .module-header .btn {
+    padding: 4px 9px !important;
+    min-height: 26px !important;
+    height: 26px !important;
+    font-size: 12.5px !important;
+    line-height: 1 !important;
+    border-radius: 10px !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    box-shadow: none !important;
+  }
+
+  .tasks-page .module-hero .btn-primary,
+  .tasks-page .tasks-hero .btn-primary,
+  .tasks-page .page-hero .btn-primary,
+  .tasks-page .module-header .btn-primary {
+    font-weight: 600 !important;
+  }
+
+  .tasks-page .module-hero,
+  .tasks-page .tasks-hero,
+  .tasks-page .page-hero,
+  .tasks-page .module-header {
+    padding: 10px 14px !important;
+    min-height: auto !important;
+  }
+
+  .tasks-page .module-hero h1,
+  .tasks-page .tasks-hero h1,
+  .tasks-page .page-hero h1,
+  .tasks-page .module-header h1,
+  .tasks-page .module-title,
+  .tasks-page .page-title {
+    font-size: 21px !important;
+    line-height: 1.1 !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Вкладки Список / Канбан / Сроки / Архив */
+  .tasks-page .module-hero .nav .btn,
+  .tasks-page .tasks-hero .nav .btn,
+  .tasks-page .page-hero .nav .btn,
+  .tasks-page .module-tabs .btn,
+  .tasks-page .view-switch .btn {
+    padding: 4px 10px !important;
+    min-height: 25px !important;
+    height: 25px !important;
+    font-size: 12.5px !important;
+    border-radius: 999px !important;
+  }
+
+  /* Красный бейдж на кнопке Уведомления */
+  .tasks-page .module-hero .badge,
+  .tasks-page .tasks-hero .badge,
+  .tasks-page .page-hero .badge,
+  .tasks-page .module-header .badge {
+    min-width: 17px !important;
+    height: 17px !important;
+    padding: 2px 5px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    border-radius: 999px !important;
+  }
+</style>
+
+
+<style>
+  /* Компактная шапка задач в стиле Диска */
+  .tasks-page .module-hero,
+  .tasks-page .tasks-hero,
+  .tasks-page .module-header,
+  .tasks-page .page-hero {
+    padding: 12px 16px !important;
+    border-radius: 16px !important;
+    background: #f8fbff !important;
+    box-shadow: none !important;
+  }
+
+  .tasks-page h1,
+  .tasks-page .h1,
+  .tasks-page .page-title,
+  .tasks-page .module-title {
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+    margin: 0 0 8px 0 !important;
+    font-weight: 700 !important;
+    color: #193b68 !important;
+  }
+
+  .tasks-page .lead,
+  .tasks-page .module-subtitle,
+  .tasks-page .page-subtitle {
+    display: none !important;
+  }
+
+  /* Верхние кнопки */
+  .tasks-page .btn,
+  .tasks-page a.btn,
+  .tasks-page button.btn {
+    padding: 5px 10px !important;
+    min-height: 28px !important;
+    font-size: 13px !important;
+    line-height: 1.1 !important;
+    border-radius: 12px !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+  }
+
+  .tasks-page .btn-primary {
+    font-weight: 600 !important;
+  }
+
+  .tasks-page .btn-outline-primary,
+  .tasks-page .btn-outline-secondary,
+  .tasks-page .btn-outline-success {
+    background: #fff !important;
+  }
+
+  /* Вкладки Список / Канбан / Сроки / Архив */
+  .tasks-page .nav-pills .nav-link,
+  .tasks-page .module-tabs .btn,
+  .tasks-page .view-switch .btn {
+    padding: 5px 11px !important;
+    min-height: 27px !important;
+    font-size: 13px !important;
+    border-radius: 999px !important;
+    font-weight: 600 !important;
+  }
+
+  /* Карточки-счётчики */
+  .tasks-page .summary-card,
+  .tasks-page .stat-card,
+  .tasks-page .task-stat-card {
+    min-height: 44px !important;
+    padding: 7px 10px !important;
+    border-radius: 11px !important;
+  }
+
+  .tasks-page .summary-card .label,
+  .tasks-page .stat-card .label,
+  .tasks-page .task-stat-card .label {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    color: #667085 !important;
+  }
+
+  .tasks-page .summary-card .value,
+  .tasks-page .stat-card .value,
+  .tasks-page .task-stat-card .value {
+    font-size: 19px !important;
+    line-height: 1 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Таблица задач */
+  .tasks-page .card-header {
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+  }
+
+  .tasks-page table th,
+  .tasks-page table td {
+    padding: 5px 7px !important;
+    font-size: 12.5px !important;
+    line-height: 1.15 !important;
+    vertical-align: middle !important;
+  }
+
+  .tasks-page table th {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #667085 !important;
+    white-space: nowrap !important;
+  }
+
+  .tasks-page table td:first-child {
+    width: 270px !important;
+    max-width: 270px !important;
+  }
+
+  .tasks-page table td:first-child a {
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+    font-weight: 600 !important;
+  }
+
+  .tasks-page .archive-note,
+  .tasks-page small,
+  .tasks-page .text-muted {
+    font-size: 10.5px !important;
+    line-height: 1.12 !important;
+  }
+
+  .tasks-page .badge {
+    padding: 3px 6px !important;
+    font-size: 10.5px !important;
+    line-height: 1 !important;
+    border-radius: 7px !important;
+    font-weight: 600 !important;
+  }
+
+  .tasks-page .table-actions {
+    display: flex !important;
+    gap: 4px !important;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .tasks-page .table-actions .btn,
+  .tasks-page .btn-sm {
+    padding: 3px 8px !important;
+    min-height: 24px !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+  }
+
+  /* Канбан-карточки тоже чуть спокойнее */
+  .tasks-page .task-card-board {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .tasks-page .task-card-title a {
+    font-size: 13.5px !important;
+    line-height: 1.15 !important;
+    font-weight: 600 !important;
+  }
+
+  .tasks-page .task-card-desc,
+  .tasks-page .task-meta-line,
+  .tasks-page .task-people {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  .tasks-page .task-tag {
+    font-size: 10.5px !important;
+    padding: 3px 7px !important;
+    border-radius: 999px !important;
+  }
+</style>
+
+
+<style>
+  /* Финальная компактность списка задач */
+  .tasks-page .card-header {
+    padding: 10px 12px !important;
+  }
+
+  .tasks-page .table-responsive table.table th,
+  .tasks-page .table-responsive table.table td {
+    padding: 5px 7px !important;
+    font-size: 12.5px !important;
+    line-height: 1.12 !important;
+    vertical-align: middle !important;
+  }
+
+  .tasks-page .table-responsive table.table th {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+  }
+
+  .tasks-page .table-responsive table.table td:first-child {
+    width: 260px !important;
+    max-width: 260px !important;
+  }
+
+  .tasks-page .table-responsive table.table td:first-child a {
+    font-size: 13.5px !important;
+    line-height: 1.12 !important;
+  }
+
+  .tasks-page .archive-note {
+    font-size: 10.5px !important;
+    line-height: 1.1 !important;
+  }
+
+  .tasks-page .task-person {
+    white-space: nowrap !important;
+    min-width: 115px !important;
+    max-width: 135px !important;
+  }
+
+  .tasks-page .table-actions {
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .tasks-page .table-actions .btn,
+  .tasks-page .btn-sm {
+    padding: 3px 8px !important;
+    font-size: 12px !important;
+    min-height: 24px !important;
+    border-radius: 10px !important;
+    line-height: 1.1 !important;
+  }
+
+  .tasks-page .badge {
+    padding: 3px 6px !important;
+    font-size: 10.5px !important;
+    border-radius: 7px !important;
+  }
+
+  .tasks-page .module-nav .btn,
+  .tasks-page .module-hero .btn,
+  .tasks-page .btn {
+    padding: 5px 10px !important;
+    font-size: 13px !important;
+    min-height: 28px !important;
+    border-radius: 11px !important;
+    line-height: 1.1 !important;
+  }
+</style>
+
+
+<style>
+  /* Более компактный вид задач — ближе к кнопкам Диска */
+  .tasks-page .btn,
+  .tasks-page a.btn,
+  .tasks-page button.btn,
+  .tasks-toolbar .btn {
+    padding: 5px 10px !important;
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+    border-radius: 11px !important;
+    min-height: 30px !important;
+  }
+
+  .tasks-page .btn-primary,
+  .tasks-page .btn-outline-primary,
+  .tasks-page .btn-outline-secondary,
+  .tasks-page .btn-outline-success {
+    box-shadow: none !important;
+  }
+
+  .tasks-page .tasks-header,
+  .tasks-page .module-header,
+  .tasks-page .module-hero {
+    padding: 14px 16px !important;
+  }
+
+  .tasks-page h1,
+  .tasks-page .h1 {
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+    margin-bottom: 4px !important;
+  }
+
+  .tasks-page .lead,
+  .tasks-page .module-subtitle {
+    font-size: 13px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .tasks-page .summary-card,
+  .tasks-page .stat-card,
+  .tasks-page .task-stat-card {
+    width: 118px !important;
+    min-height: 48px !important;
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .tasks-page .summary-card .value,
+  .tasks-page .stat-card .value,
+  .tasks-page .task-stat-card .value {
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  .tasks-page .summary-card .label,
+  .tasks-page .stat-card .label,
+  .tasks-page .task-stat-card .label {
+    font-size: 10px !important;
+    letter-spacing: .02em !important;
+  }
+
+  .tasks-page table th,
+  .tasks-page table td {
+    padding: 5px 7px !important;
+    font-size: 13px !important;
+    line-height: 1.12 !important;
+    vertical-align: middle !important;
+  }
+
+  .tasks-page table th {
+    font-size: 11px !important;
+    color: #667085 !important;
+    white-space: nowrap !important;
+  }
+
+  .tasks-page table td:first-child {
+    width: 245px !important;
+    max-width: 245px !important;
+  }
+
+  .tasks-page table td:first-child a {
+    font-size: 14px !important;
+    line-height: 1.13 !important;
+  }
+
+  .tasks-page table td:first-child .text-muted,
+  .tasks-page table td:first-child small {
+    font-size: 11px !important;
+  }
+
+  .tasks-page .badge,
+  .tasks-page .status-badge {
+    padding: 3px 6px !important;
+    font-size: 10.5px !important;
+    line-height: 1.05 !important;
+    border-radius: 7px !important;
+  }
+
+  .tasks-page .table-responsive {
+    overflow-x: auto !important;
+  }
+
+  .tasks-page .fio-short,
+  .tasks-page .task-person {
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+  }
+</style>
+
+
+<style>
+  /* Компактный список задач */
+  .tasks-page .module-shell,
+  .tasks-page .content-shell,
+  .tasks-page .tasks-shell,
+  .tasks-page .page-shell {
+    max-width: 1280px !important;
+  }
+
+  .tasks-page .btn,
+  .tasks-toolbar .btn,
+  .tasks-page .nav-pills .nav-link {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+    border-radius: 12px !important;
+  }
+
+  .tasks-page .stat-card,
+  .tasks-page .summary-card {
+    padding: 8px 12px !important;
+    min-height: 48px !important;
+  }
+
+  .tasks-page table,
+  table.tasks-compact-table {
+    font-size: 13px !important;
+  }
+
+  .tasks-page table th,
+  .tasks-page table td,
+  table.tasks-compact-table th,
+  table.tasks-compact-table td {
+    padding: 6px 8px !important;
+    line-height: 1.15 !important;
+    vertical-align: middle !important;
+  }
+
+  .tasks-page table th {
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  .tasks-page table td {
+    font-size: 13px !important;
+  }
+
+  .tasks-page table td:first-child {
+    max-width: 260px !important;
+    min-width: 220px !important;
+  }
+
+  .tasks-page table td:first-child a {
+    display: inline-block;
+    line-height: 1.15 !important;
+  }
+
+  .tasks-page .badge,
+  .tasks-page .status-badge {
+    padding: 3px 7px !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+    border-radius: 8px !important;
+  }
+
+  .tasks-page .small,
+  .tasks-page small,
+  .tasks-page .text-muted {
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  .tasks-page .table-responsive {
+    overflow-x: auto;
+  }
+</style>
+
 {% extends "layout.html" %}
 {% block content %}
 {% set current_view = request.args.get('view') or ('archive' if list_kind == 'archive' else 'kanban') %}
@@ -97,6 +702,340 @@
   .tasks-filters-grid{padding:0 14px 14px;grid-template-columns:repeat(4,minmax(140px,1fr));}
   .tasks-view-toggle{padding:0 14px;margin:0 0 10px 0!important;}
 
+
+
+/* =========================================================
+   ЕДИНЫЙ АККУРАТНЫЙ СТИЛЬ ЗАДАЧ — ближе к разделу Диск
+   ========================================================= */
+
+.tasks-shell {
+  max-width: 1280px !important;
+  margin: 0 auto !important;
+  display: grid !important;
+  grid-template-columns: 230px minmax(0, 1fr) !important;
+  gap: 14px !important;
+}
+
+/* Левая навигация — компактнее и спокойнее */
+.tasks-side {
+  border-radius: 14px !important;
+  background: #fff !important;
+  border: 1px solid #d9e3f1 !important;
+  padding: 12px !important;
+  box-shadow: none !important;
+}
+
+.tasks-side-title {
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  text-transform: uppercase !important;
+  color: #667085 !important;
+  letter-spacing: .03em !important;
+  margin: 0 0 8px 0 !important;
+}
+
+.tasks-nav {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.tasks-nav a {
+  min-height: 34px !important;
+  padding: 8px 10px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  background: #f8fafc !important;
+  border: 1px solid #dbe7f5 !important;
+  text-decoration: none !important;
+}
+
+.tasks-nav a.active {
+  color: #0066ff !important;
+  background: #eaf3ff !important;
+  border-color: #a9cdfd !important;
+}
+
+/* Верх страницы — не тяжёлая карточка, а лёгкая шапка как в Диске */
+.tasks-topbar {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 0 10px 0 !important;
+  border-radius: 0 !important;
+}
+
+.tasks-topline {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin-bottom: 8px !important;
+}
+
+.tasks-title {
+  font-size: 24px !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+  margin: 0 !important;
+}
+
+.tasks-subtitle {
+  display: none !important;
+}
+
+/* Кнопки справа — размер и лёгкость как в Диске */
+.tasks-top-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+
+.tasks-top-actions .btn,
+.tasks-top-actions a.btn,
+.tasks-top-actions button.btn {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 4px 10px !important;
+  border-radius: 10px !important;
+  font-size: 12.5px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: none !important;
+}
+
+.tasks-top-actions .btn-primary {
+  font-weight: 600 !important;
+}
+
+/* Переключатели вида — как вкладки, а не большие кнопки */
+.tasks-view-switch {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 0 !important;
+}
+
+.tasks-view-switch a {
+  min-height: 28px !important;
+  padding: 5px 13px !important;
+  border-radius: 999px !important;
+  border: 1px solid #cfe0f5 !important;
+  background: #fff !important;
+  color: #26415f !important;
+  font-size: 12.5px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+
+.tasks-view-switch a.active {
+  background: #0d6efd !important;
+  border-color: #0d6efd !important;
+  color: #fff !important;
+}
+
+/* Быстрые фильтры лучше не показывать как отдельную строку, если они пустые/лишние */
+.tasks-chip-row {
+  display: none !important;
+}
+
+/* Метрики — компактные карточки */
+.tasks-metrics {
+  display: flex !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  margin: 4px 0 10px 0 !important;
+}
+
+.metric-card {
+  width: 116px !important;
+  min-height: 48px !important;
+  padding: 8px 10px !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  border: 1px solid #e0e7f0 !important;
+  box-shadow: none !important;
+}
+
+.metric-card .label {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  text-transform: uppercase !important;
+  color: #667085 !important;
+  font-weight: 500 !important;
+  margin-bottom: 4px !important;
+}
+
+.metric-card .value {
+  font-size: 20px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  color: #101828 !important;
+}
+
+/* Фильтр — тонкая строка */
+.tasks-filters-card {
+  border-radius: 12px !important;
+  border: 1px solid #d9e6f7 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  margin-bottom: 10px !important;
+}
+
+.tasks-filters-card summary {
+  min-height: 36px !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+
+/* Таблица — ближе к Диску */
+.tasks-page .card,
+.tasks-main .card {
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+.tasks-page .card-header,
+.tasks-main .card-header {
+  background: #fff !important;
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+  line-height: 1.1 !important;
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  border-bottom: 1px solid #eef2f6 !important;
+}
+
+.tasks-page table,
+.tasks-main table {
+  margin-bottom: 0 !important;
+  font-size: 13px !important;
+}
+
+.tasks-page table th,
+.tasks-main table th {
+  padding: 8px 8px !important;
+  font-size: 11.5px !important;
+  line-height: 1.1 !important;
+  font-weight: 600 !important;
+  color: #667085 !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #d7e0ec !important;
+  white-space: nowrap !important;
+}
+
+.tasks-page table td,
+.tasks-main table td {
+  padding: 7px 8px !important;
+  font-size: 13px !important;
+  line-height: 1.15 !important;
+  vertical-align: middle !important;
+  border-bottom: 1px solid #eef2f6 !important;
+}
+
+.tasks-page table td:first-child,
+.tasks-main table td:first-child {
+  width: 270px !important;
+  max-width: 270px !important;
+}
+
+.tasks-page table td:first-child a,
+.tasks-main table td:first-child a {
+  font-size: 13.5px !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+  color: #0066ff !important;
+}
+
+.tasks-page .archive-note,
+.tasks-main .archive-note,
+.tasks-page small,
+.tasks-main small {
+  font-size: 10.5px !important;
+  line-height: 1.1 !important;
+  color: #667085 !important;
+}
+
+.tasks-page .badge,
+.tasks-main .badge {
+  padding: 3px 6px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  border-radius: 7px !important;
+  font-weight: 600 !important;
+}
+
+.tasks-page .table-actions,
+.tasks-main .table-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 4px !important;
+  flex-wrap: nowrap !important;
+}
+
+.tasks-page .table-actions .btn,
+.tasks-main .table-actions .btn,
+.tasks-page .btn-sm,
+.tasks-main .btn-sm {
+  min-height: 24px !important;
+  height: 24px !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  border-radius: 9px !important;
+}
+
+/* Канбан тоже делаем спокойнее */
+.tasks-kanban {
+  gap: 10px !important;
+}
+
+.tasks-kanban-column {
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.task-card-board {
+  padding: 10px 12px !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+}
+
+.task-card-title a {
+  font-size: 13.5px !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+}
+
+/* Чтобы общий масштаб страницы был ближе к Диску */
+.tasks-main {
+  min-width: 0 !important;
+}
+
+/* На маленьком экране боковое меню не ломает страницу */
+@media (max-width: 1100px) {
+  .tasks-shell {
+    grid-template-columns: 1fr !important;
+  }
+
+  .tasks-side {
+    display: none !important;
+  }
+}
+
 </style>
 
 <div class="tasks-shell">
@@ -121,13 +1060,13 @@
       <div class="tasks-topline">
         <div>
           <h1 class="tasks-title">Задачи и поручения</h1>
-          <div class="tasks-subtitle">Современная рабочая доска: канбан, сроки, список и архив в едином стиле school-tracker.</div>
+          <div class="tasks-subtitle"></div>
         </div>
         <div class="tasks-top-actions">
-          <a class="btn btn-primary" href="{{ url_for('tasks.new_task') }}">Создать задачу</a>
-          <a class="btn btn-outline-secondary" href="{{ url_for('tasks.batch_new') }}">Массово</a>
-          <a class="btn btn-outline-success" href="{{ url_for('tasks.export_tasks_xlsx', scope='all' if list_kind == 'all' else list_kind, **request.args.to_dict()) }}">Excel</a>
-          <a class="btn btn-outline-secondary position-relative" href="{{ url_for('tasks.notifications') }}">Уведомления{% if counts.unread_notifications %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ counts.unread_notifications }}</span>{% endif %}</a>
+          <a class="btn btn-primary btn-sm tasks-action-btn" href="{{ url_for('tasks.new_task') }}">Создать задачу</a>
+          <a class="btn btn-outline-secondary btn-sm tasks-action-btn" href="{{ url_for('tasks.batch_new') }}">Массово</a>
+          <a class="btn btn-outline-success btn-sm tasks-action-btn" href="{{ url_for('tasks.export_tasks_xlsx', scope='all' if list_kind == 'all' else list_kind, **request.args.to_dict()) }}">Excel</a>
+          <a class="btn btn-outline-secondary btn-sm position-relative tasks-action-btn" href="{{ url_for('tasks.notifications') }}">Уведомления{% if counts.unread_notifications %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ counts.unread_notifications }}</span>{% endif %}</a>
         </div>
       </div>
 
@@ -188,7 +1127,24 @@
       </form>
     </details>
 
-    {% macro render_task_card(task) -%}
+    
+{% macro short_fio(person) -%}
+  {%- if not person -%}
+    —
+  {%- else -%}
+    {%- set raw = person.fio or person.username -%}
+    {%- set parts = raw.split() -%}
+    {%- if parts|length >= 3 -%}
+      {{ parts[0] }} {{ parts[1][0] }}.{{ parts[2][0] }}.
+    {%- elif parts|length == 2 -%}
+      {{ parts[0] }} {{ parts[1][0] }}.
+    {%- else -%}
+      {{ raw }}
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro render_task_card(task) -%}
       <article class="task-card-board">
         <div class="task-card-title"><a href="{{ url_for('tasks.task_card', task_id=task.id) }}">{{ task.title }}</a></div>
         <div class="task-card-desc">{{ (task.description or 'Без подробного описания')[:120] }}{% if task.description and task.description|length > 120 %}...{% endif %}</div>
@@ -206,8 +1162,8 @@
           <div class="archive-note">Чек-лист: {{ task.checklist_done }}/{{ task.checklist_total }}</div>
         {% endif %}
         <div class="task-bottom">
-          <div class="task-people">{{ task.responsible.fio or task.responsible.username if task.responsible else '—' }}{% if task.controller %}<br><span class="archive-note">контроль: {{ task.controller.fio or task.controller.username }}</span>{% endif %}</div>
-          <div class="task-deadline {% if task.is_overdue %}overdue{% endif %}">{% if task.deadline_at %}{{ task.deadline_at.strftime('%d.%m.%Y %H:%M') }}{% else %}Без срока{% endif %}</div>
+          <div class="task-people">{{ short_fio(task.responsible) }}{% if task.controller %}<br><span class="archive-note">контроль: {{ short_fio(task.controller) }}</span>{% endif %}</div>
+          <div class="task-deadline {% if task.is_overdue %}overdue{% endif %}">{% if task.deadline_at %}{{ task.deadline_at.strftime('%d.%m.%Y') }}{% else %}Без срока{% endif %}</div>
         </div>
         <div class="task-actions-inline">
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.task_card', task_id=task.id) }}">Открыть</a>
@@ -230,13 +1186,10 @@
                 <th>Название</th>
                 <th>Статус</th>
                 <th>Приоритет</th>
-                <th>Обучающийся</th>
-                <th>Класс</th>
-                <th>Исполнитель</th>
+<th>Исполнитель</th>
                 <th>Контроль</th>
                 <th>Срок</th>
-                <th>Чек-лист</th>
-                <th>Создана</th>
+<th>Создана</th>
                 <th class="text-end">Действия</th>
               </tr>
             </thead>
@@ -246,12 +1199,9 @@
                 <td><a class="fw-semibold text-decoration-none" href="{{ url_for('tasks.task_card', task_id=task.id) }}">{{ task.title }}</a><div class="archive-note">{{ task.task_type.name if task.task_type else 'Без типа' }}</div></td>
                 <td><span class="badge text-bg-{{ task_status_badge_class(task.display_status) }}">{{ task.display_status }}</span></td>
                 <td>{{ task.priority }}</td>
-                <td>{{ task.child.fio if task.child else '—' }}</td>
-                <td>{{ task.school_class.name if task.school_class else '—' }}</td>
-                <td>{{ task.responsible.fio or task.responsible.username if task.responsible else '—' }}</td>
-                <td>{{ task.controller.fio or task.controller.username if task.controller else '—' }}</td>
-                <td>{% if task.deadline_at %}{{ task.deadline_at.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}</td>
-                <td>{% if task.checklist_total %}{{ task.checklist_done }}/{{ task.checklist_total }} ({{ task.checklist_percent }}%){% else %}—{% endif %}</td>
+<td class="task-person">{{ short_fio(task.responsible) }}</td>
+                <td class="task-person">{{ short_fio(task.controller) }}</td>
+                <td>{% if task.deadline_at %}{{ task.deadline_at.strftime('%d.%m.%Y') }}{% else %}—{% endif %}</td>
                 <td>{{ task.created_at.strftime('%d.%m.%Y') if task.created_at else '—' }}</td>
                 <td class="text-end">
                   <div class="table-actions">
@@ -265,7 +1215,7 @@
                 </td>
               </tr>
               {% else %}
-              <tr><td colspan="11" class="text-center text-muted py-5">Задачи не найдены.</td></tr>
+              <tr><td colspan="8" class="text-center text-muted py-5">Задачи не найдены.</td></tr>
               {% endfor %}
             </tbody>
           </table>
