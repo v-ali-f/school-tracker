@@ -2645,8 +2645,13 @@ body {
     border-radius: 10px;
   }
   .app-navbar #navSearchDropdown {
-    width: 100% !important;
-    max-width: 100% !important;
+    position: fixed !important;
+    top: auto !important;
+    left: .75rem !important;
+    right: .75rem !important;
+    width: auto !important;
+    max-width: none !important;
+    z-index: 1100;
   }
   .app-navbar .app-bell-btn {
     width: 100%;
