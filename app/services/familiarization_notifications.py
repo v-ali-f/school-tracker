@@ -6,6 +6,7 @@ from app.models import MaxBinding
 from app.services.bot_client import get_client as get_bot_client
 from app.services.mail_settings_service import get_mail_config
 from pathlib import Path
+from sqlalchemy import text
 
 def _portal_link(path: str) -> str:
     cfg = get_mail_config()
@@ -17,6 +18,90 @@ def _fmt_date(value) -> str:
     if isinstance(value, datetime): return value.strftime('%d.%m.%Y %H:%M') if (value.hour or value.minute) else value.strftime('%d.%m.%Y')
     if isinstance(value, date): return value.strftime('%d.%m.%Y')
     return str(value)
+
+
+def _get_familiarization_attachments(item):
+    """Возвращает список файлов ознакомления: новые множественные + старый одиночный fallback."""
+    attachments = []
+    item_id = getattr(item, 'id', None)
+
+    if item_id:
+        try:
+            rows = db.session.execute(
+                text('''
+                    SELECT id, original_filename, stored_filename, content_type, file_size
+                    FROM familiarization_attachment
+                    WHERE familiarization_id = :item_id
+                    ORDER BY id ASC
+                '''),
+                {'item_id': item_id}
+            ).mappings().all()
+
+            for row in rows:
+                stored = row.get('stored_filename')
+                if stored:
+                    attachments.append({
+                        'id': row.get('id'),
+                        'original_filename': row.get('original_filename') or stored,
+                        'stored_filename': stored,
+                        'content_type': row.get('content_type'),
+                        'file_size': row.get('file_size'),
+                    })
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception(
+                'Familiarization attachments lookup failed: familiarization_id=%s',
+                item_id,
+            )
+
+    # Совместимость со старыми ознакомлениями, где был один файл в familiarization.stored_filename
+    legacy_stored = getattr(item, 'stored_filename', None)
+    if legacy_stored and not any(a.get('stored_filename') == legacy_stored for a in attachments):
+        attachments.insert(0, {
+            'id': None,
+            'original_filename': getattr(item, 'original_filename', None) or legacy_stored,
+            'stored_filename': legacy_stored,
+            'content_type': getattr(item, 'content_type', None),
+            'file_size': getattr(item, 'file_size', None),
+        })
+
+    return attachments
+
+
+def _display_filename_for_max(item, attachment, file_path):
+    stored = attachment.get('stored_filename')
+    display_filename = attachment.get('original_filename') or stored or 'document'
+
+    try:
+        raw_name = (display_filename or '').strip()
+        raw_lower = raw_name.lower()
+        title_name = (getattr(item, 'title', None) or 'document').strip() or 'document'
+
+        bad_names = {'pdf', 'doc', 'docx', 'file', 'document', 'документ'}
+        ext = Path(raw_name).suffix or Path(stored or '').suffix
+
+        if not ext:
+            try:
+                head = file_path.read_bytes()[:8]
+                if head.startswith(b'%PDF'):
+                    ext = '.pdf'
+                elif head.startswith(b'PK'):
+                    ext = '.docx'
+            except Exception:
+                ext = ''
+
+        if (not raw_name) or (raw_lower in bad_names) or (Path(raw_name).suffix == ''):
+            safe_title = ''.join(ch for ch in title_name if ch not in '\\/:"*?<>|').strip()
+            display_filename = safe_title or 'document'
+            if ext and not display_filename.lower().endswith(ext.lower()):
+                display_filename += ext
+        elif ext and not raw_name.lower().endswith(ext.lower()):
+            display_filename = raw_name + ext
+
+    except Exception:
+        pass
+
+    return display_filename
 
 def build_familiarization_max_message(item, notification_type: str = 'new_familiarization') -> str:
     icon = {
@@ -71,81 +156,68 @@ def build_familiarization_max_message(item, notification_type: str = 'new_famili
         lines.extend(['', f'Открыть в портале: {link}'])
 
         if getattr(item, 'id', None):
-            download_link = _portal_link(f'/familiarizations/{getattr(item, "id")}/download')
-            if download_link:
-                lines.extend(['', f'Скачать документ: {download_link}'])
+            attachments = _get_familiarization_attachments(item)
+            if len(attachments) <= 1:
+                download_link = _portal_link(f'/familiarizations/{getattr(item, "id")}/download')
+                if download_link:
+                    lines.extend(['', 'Откройте карточку ознакомления в портале или скачайте файл ниже.'])
+                    lines.extend(['', 'После ознакомления нажмите кнопку «Ознакомлен».'])
+                    lines.extend(['', f'Карточка: {download_link}'])
+            else:
+                lines.extend(['', f'Файлов: {len(attachments)}'])
+                lines.extend(['', 'После ознакомления нажмите кнопку «Ознакомлен».'])
 
     return '\n'.join(lines).strip()
 
 
 def _send_familiarization_file_to_max(client, chat_id, item):
-    """Отправляет файл ознакомления в MAX после текстового уведомления."""
-    stored = getattr(item, 'stored_filename', None)
-    if not stored:
+    """Отправляет все файлы ознакомления в MAX после текстового уведомления."""
+    attachments = _get_familiarization_attachments(item)
+    if not attachments:
         return False
 
-    try:
-        upload_root = Path(current_app.config.get('UPLOAD_FOLDER') or 'uploads') / 'familiarizations'
-        file_path = upload_root / stored
+    upload_root = Path(current_app.config.get('UPLOAD_FOLDER') or 'uploads') / 'familiarizations'
+    sent_any = False
 
-        if not file_path.exists() or not file_path.is_file():
-            current_app.logger.warning(
-                'Familiarization file missing for MAX send: familiarization_id=%s path=%s',
-                getattr(item, 'id', None),
-                file_path,
-            )
-            return False
+    for index, attachment in enumerate(attachments, start=1):
+        stored = attachment.get('stored_filename')
+        if not stored:
+            continue
 
-        display_filename = getattr(item, 'original_filename', None) or stored
-
-        # Нормализуем имя файла для MAX.
-        # Иногда браузер/форма сохраняет имя как просто "pdf" без точки и без нормального названия.
-        # Тогда MAX показывает вложение некрасиво. Берём название ознакомления и добавляем расширение.
         try:
-            raw_name = (display_filename or '').strip()
-            raw_lower = raw_name.lower()
-            title_name = (getattr(item, 'title', None) or 'document').strip() or 'document'
+            file_path = upload_root / stored
 
-            bad_names = {'pdf', 'doc', 'docx', 'file', 'document', 'документ'}
-            ext = Path(raw_name).suffix or Path(stored).suffix
+            if not file_path.exists() or not file_path.is_file():
+                current_app.logger.warning(
+                    'Familiarization file missing for MAX send: familiarization_id=%s path=%s',
+                    getattr(item, 'id', None),
+                    file_path,
+                )
+                continue
 
-            # Если расширение не удалось взять из имени/пути — определяем по содержимому.
-            if not ext:
-                try:
-                    head = file_path.read_bytes()[:8]
-                    if head.startswith(b'%PDF'):
-                        ext = '.pdf'
-                    elif head.startswith(b'PK'):
-                        ext = '.docx'
-                except Exception:
-                    ext = ''
+            display_filename = _display_filename_for_max(item, attachment, file_path)
 
-            # Если имя совсем техническое или без расширения — используем название ознакомления.
-            if (not raw_name) or (raw_lower in bad_names) or (Path(raw_name).suffix == ''):
-                safe_title = ''.join(ch for ch in title_name if ch not in '\\/:"*?<>|').strip()
-                display_filename = safe_title or 'document'
-                if ext and not display_filename.lower().endswith(ext.lower()):
-                    display_filename += ext
-            elif ext and not raw_name.lower().endswith(ext.lower()):
-                display_filename = raw_name + ext
+            caption = f'Документ для ознакомления: {getattr(item, "title", "") or "без названия"}'
+            if len(attachments) > 1:
+                caption += f' ({index} из {len(attachments)})'
+
+            client.notify_file(
+                chat_id=chat_id,
+                file_path=str(file_path),
+                filename=display_filename,
+                caption=caption
+            )
+            sent_any = True
 
         except Exception:
-            pass
+            current_app.logger.exception(
+                'Familiarization MAX file send failed: familiarization_id=%s chat_id=%s stored=%s',
+                getattr(item, 'id', None),
+                chat_id,
+                stored,
+            )
 
-        client.notify_file(
-            chat_id=chat_id,
-            file_path=str(file_path),
-            filename=display_filename,
-            caption=f'Документ для ознакомления: {getattr(item, "title", "") or "без названия"}'
-        )
-        return True
-    except Exception:
-        current_app.logger.exception(
-            'Familiarization MAX file send failed: familiarization_id=%s chat_id=%s',
-            getattr(item, 'id', None),
-            chat_id,
-        )
-        return False
+    return sent_any
 
 def send_familiarization_max_notification(item, user, notification_type: str = 'new_familiarization', recipient_names=None) -> bool:
     client = get_bot_client()

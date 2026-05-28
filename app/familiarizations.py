@@ -6,6 +6,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from app.core.extensions import db
+from sqlalchemy import text
 from app.models import Familiarization, FamiliarizationRecipient, User
 from app.services.familiarization_notifications import send_familiarization_max_notification
 
@@ -50,6 +51,67 @@ def _save_file(file_storage):
     path=_upload_root()/stored; file_storage.save(path)
     return original, stored, file_storage.mimetype, path.stat().st_size
 
+
+def _ensure_attachment_table():
+    engine_name = db.engine.dialect.name
+    if engine_name == 'postgresql':
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS familiarization_attachment (
+                id SERIAL PRIMARY KEY,
+                familiarization_id INTEGER NOT NULL REFERENCES familiarization(id) ON DELETE CASCADE,
+                original_filename VARCHAR(255),
+                stored_filename VARCHAR(255) NOT NULL,
+                content_type VARCHAR(255),
+                file_size INTEGER,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+    else:
+        db.session.execute(text('''
+            CREATE TABLE IF NOT EXISTS familiarization_attachment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                familiarization_id INTEGER NOT NULL,
+                original_filename VARCHAR(255),
+                stored_filename VARCHAR(255) NOT NULL,
+                content_type VARCHAR(255),
+                file_size INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+
+
+def _attachment_rows(item_id):
+    _ensure_attachment_table()
+    rows = db.session.execute(
+        text('''
+            SELECT id, familiarization_id, original_filename, stored_filename, content_type, file_size, created_at
+            FROM familiarization_attachment
+            WHERE familiarization_id = :item_id
+            ORDER BY id ASC
+        '''),
+        {'item_id': item_id}
+    ).mappings().all()
+    return list(rows)
+
+
+def _insert_attachment(item_id, original, stored, content_type, file_size):
+    _ensure_attachment_table()
+    db.session.execute(
+        text('''
+            INSERT INTO familiarization_attachment
+                (familiarization_id, original_filename, stored_filename, content_type, file_size)
+            VALUES
+                (:item_id, :original, :stored, :content_type, :file_size)
+        '''),
+        {
+            'item_id': item_id,
+            'original': original,
+            'stored': stored,
+            'content_type': content_type,
+            'file_size': file_size,
+        }
+    )
+
 def _recipient_for(item_id, user_id): return FamiliarizationRecipient.query.filter_by(familiarization_id=item_id, user_id=user_id).first()
 
 @familiarizations_bp.route('/')
@@ -85,9 +147,25 @@ def new():
             if uid and uid not in recipient_ids: recipient_ids.append(uid)
         if not recipient_ids:
             flash('Выберите хотя бы одного получателя.', 'danger'); return redirect(url_for('familiarizations.new'))
-        original,stored,content_type,file_size=_save_file(request.files.get('document'))
+        uploaded_files = [f for f in request.files.getlist('documents') if f and f.filename]
+        if not uploaded_files:
+            legacy_file = request.files.get('document')
+            uploaded_files = [legacy_file] if legacy_file and legacy_file.filename else []
+
+        saved_files = []
+        for file_storage in uploaded_files:
+            original, stored, content_type, file_size = _save_file(file_storage)
+            if stored:
+                saved_files.append((original, stored, content_type, file_size))
+
+        first_file = saved_files[0] if saved_files else (None, None, None, None)
+        original, stored, content_type, file_size = first_file
+
         item=Familiarization(title=title, description=request.form.get('description') or None, deadline_at=_parse_deadline(request.form.get('deadline_at')), author_user_id=current_user.id, original_filename=original, stored_filename=stored, content_type=content_type, file_size=file_size)
         db.session.add(item); db.session.flush()
+
+        for original, stored, content_type, file_size in saved_files:
+            _insert_attachment(item.id, original, stored, content_type, file_size)
         selected_users=[u for u in users if u.id in recipient_ids]
         selected_recipient_names=[_user_label(u) for u in selected_users]
         selected_recipient_ids={u.id for u in selected_users}
@@ -133,7 +211,16 @@ def detail(item_id):
             recipient.acknowledged_at=datetime.utcnow(); db.session.commit(); flash('Ознакомление подтверждено.', 'success')
         return redirect(url_for('familiarizations.detail', item_id=item.id))
     now=datetime.utcnow(); total=len(item.recipients); done=sum(1 for r in item.recipients if r.acknowledged_at); overdue=sum(1 for r in item.recipients if not r.acknowledged_at and item.deadline_at and item.deadline_at < now)
-    return render_template('familiarizations_detail.html', item=item, recipient=recipient, is_manager=_is_manager(), total=total, done=done, overdue=overdue, user_label=_user_label)
+    attachments = _attachment_rows(item.id)
+    if not attachments and item.stored_filename:
+        attachments = [{
+            'id': None,
+            'original_filename': item.original_filename,
+            'stored_filename': item.stored_filename,
+            'content_type': item.content_type,
+            'file_size': item.file_size,
+        }]
+    return render_template('familiarizations_detail.html', item=item, recipient=recipient, is_manager=_is_manager(), total=total, done=done, overdue=overdue, user_label=_user_label, attachments=attachments)
 
 @familiarizations_bp.route('/<int:item_id>/download')
 @login_required
@@ -145,13 +232,49 @@ def download(item_id):
     if not path.exists(): abort(404)
     return send_file(path, as_attachment=True, download_name=item.original_filename or item.stored_filename)
 
+
+@familiarizations_bp.route('/<int:item_id>/download/<int:attachment_id>')
+@login_required
+def download_attachment(item_id, attachment_id):
+    item=Familiarization.query.get_or_404(item_id)
+    if not _is_manager() and not _recipient_for(item.id, current_user.id): abort(403)
+
+    _ensure_attachment_table()
+    row = db.session.execute(
+        text('''
+            SELECT id, original_filename, stored_filename
+            FROM familiarization_attachment
+            WHERE id = :attachment_id AND familiarization_id = :item_id
+        '''),
+        {'attachment_id': attachment_id, 'item_id': item.id}
+    ).mappings().first()
+
+    if not row:
+        abort(404)
+
+    path = _upload_root() / row['stored_filename']
+    if not path.exists():
+        abort(404)
+
+    return send_file(path, as_attachment=True, download_name=row['original_filename'] or row['stored_filename'])
+
 @familiarizations_bp.route('/<int:item_id>/delete', methods=['POST'])
 @login_required
 def delete(item_id):
     if not _is_manager(): abort(403)
     item=Familiarization.query.get_or_404(item_id)
+    try:
+        for row in _attachment_rows(item.id):
+            stored = row.get('stored_filename') if hasattr(row, 'get') else row['stored_filename']
+            if stored:
+                (_upload_root()/stored).unlink(missing_ok=True)
+    except Exception:
+        current_app.logger.exception('Familiarization attachments delete failed')
+
     if item.stored_filename:
         try: (_upload_root()/item.stored_filename).unlink(missing_ok=True)
         except Exception: current_app.logger.exception('Familiarization file delete failed')
+
+    db.session.execute(text('DELETE FROM familiarization_attachment WHERE familiarization_id = :item_id'), {'item_id': item.id})
     db.session.delete(item); db.session.commit(); flash('Ознакомление удалено.', 'success')
     return redirect(url_for('familiarizations.index'))
