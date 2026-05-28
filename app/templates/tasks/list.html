@@ -605,6 +605,81 @@
 
 {% extends "layout.html" %}
 {% block content %}
+
+<style>
+  /* Задачи без бокового меню — основной блок на всю ширину */
+  .tasks-shell-no-side {
+    display: block !important;
+    max-width: 1280px !important;
+    margin: 0 auto !important;
+  }
+
+  .tasks-shell-no-side .tasks-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .tasks-shell-no-side .tasks-topbar {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 0 12px 0 !important;
+  }
+
+  .tasks-shell-no-side .tasks-topline {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .tasks-shell-no-side .tasks-title {
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+    font-weight: 700 !important;
+    color: #1f2937 !important;
+    margin: 0 !important;
+  }
+
+  .tasks-shell-no-side .tasks-top-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .tasks-shell-no-side .tasks-top-actions .btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 4px 10px !important;
+    border-radius: 9px !important;
+    font-size: 12.5px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+  }
+
+  .tasks-shell-no-side .tasks-view-switch {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin: 0 0 10px 0 !important;
+  }
+
+  .tasks-shell-no-side .tasks-view-switch a {
+    min-height: 28px !important;
+    padding: 5px 12px !important;
+    border-radius: 999px !important;
+    font-size: 12.5px !important;
+    line-height: 1 !important;
+  }
+
+  .tasks-shell-no-side .tasks-chip-row {
+    display: none !important;
+  }
+</style>
+
 {% set current_view = request.args.get('view') or ('archive' if list_kind == 'archive' else 'kanban') %}
 {% set board_view = request.args.get('board_view', 'compact') %}
 {% set board_statuses = [
@@ -1036,25 +1111,88 @@
   }
 }
 
+
+
+/* FINAL FIX: задачи без бокового меню, основной блок на всю ширину */
+.tasks-shell.tasks-shell-no-side {
+  display: block !important;
+  grid-template-columns: none !important;
+  max-width: 1280px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-main {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-topbar {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 0 12px 0 !important;
+  margin-bottom: 10px !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-topline {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 10px !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-title {
+  font-size: 22px !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+  margin: 0 !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-top-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-top-actions .btn {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 4px 10px !important;
+  border-radius: 9px !important;
+  font-size: 12.5px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-view-switch {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 0 0 10px 0 !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-view-switch a {
+  min-height: 28px !important;
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+  font-size: 12.5px !important;
+  line-height: 1 !important;
+}
+
+.tasks-shell.tasks-shell-no-side .tasks-chip-row,
+.tasks-shell.tasks-shell-no-side .tasks-metrics {
+  display: none !important;
+}
+
 </style>
 
-<div class="tasks-shell">
-  <aside class="tasks-side">
-    <div class="tasks-side-title">Навигация модуля</div>
-    <nav class="tasks-nav">
-      <a class="{% if list_kind == 'my' %}active{% endif %}" href="{{ url_for('tasks.my_tasks') }}">Мои задачи</a>
-      <a class="{% if list_kind == 'created' %}active{% endif %}" href="{{ url_for('tasks.created_by_me') }}">Поставленные мной</a>
-      <a href="{{ url_for('tasks.my_tasks') }}?quick=my_children">По обучающимся</a>
-      <a href="{{ url_for('tasks.my_tasks') }}?quick=my_class">По классам</a>
-      <a href="{{ url_for('tasks.my_tasks') }}?task_type_id=5">СППС</a>
-      <a href="{{ url_for('tasks.my_tasks') }}?task_type_id=4">Документы</a>
-      <a class="{% if list_kind == 'overdue' %}active{% endif %}" href="{{ url_for('tasks.overdue_tasks') }}">Просроченные</a>
-      <a class="{% if list_kind == 'archive' %}active{% endif %}" href="{{ url_for('tasks.archive_tasks') }}">Архив</a>
-      <a href="{{ url_for('tasks.analytics', scope='all' if list_kind == 'all' else list_kind) }}">Аналитика</a>
-      <a href="{{ url_for('tasks.templates_list') }}">Шаблоны</a>
-    </nav>
-  </aside>
-
+<div class="tasks-shell tasks-shell-no-side">
   <section class="tasks-main">
     <div class="tasks-topbar">
       <div class="tasks-topline">
