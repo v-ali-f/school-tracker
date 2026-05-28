@@ -1,25 +1,330 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2 class="mb-3">Ответственные за реестр приказов</h2>
-<div class="card"><div class="card-body">
-<form method="post">
-  <div class="row g-3">
-    {% for code, label in sections %}
-      <div class="col-md-6">
-        <label class="form-label">{{ label }}</label>
-        <select class="form-select" name="user_id_{{ code }}">
-          <option value="">Не назначен</option>
-          {% for u in users %}
-            <option value="{{ u.id }}" {% if mapping.get(code) == u.id %}selected{% endif %}>{{ u.fio or u.username }}</option>
-          {% endfor %}
-        </select>
+
+<style>
+.order-access-page {
+  width: 100%;
+  max-width: none;
+  max-width: none;
+  width: 100%;
+}
+
+.order-access-page * {
+  box-sizing: border-box;
+}
+
+.order-access-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.order-access-back {
+  white-space: nowrap;
+  min-width: 120px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-direction-card {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.order-direction-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.order-access-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+  height: 100%;
+}
+
+.order-access-panel-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.order-user-search {
+  margin-bottom: 10px;
+}
+
+.order-user-list {
+  border: 1px solid #e1e7f0;
+  border-radius: 12px;
+  padding: 8px;
+  max-height: 220px;
+  overflow: auto;
+  background: #fafcff;
+}
+
+.order-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border-radius: 9px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.order-user-row:hover {
+  background: #eef5ff;
+}
+
+.order-user-row input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.order-selected-box {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f7f9fc;
+  border: 1px dashed #cfd9e8;
+  min-height: 48px;
+}
+
+.order-selected-title {
+  font-size: 13px;
+  color: #5b677a;
+  margin-bottom: 6px;
+}
+
+.order-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.order-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #eef5ff;
+  border: 1px solid #cfe0ff;
+  font-size: 13px;
+}
+
+.order-empty-selected {
+  color: #7b8798;
+  font-size: 13px;
+}
+
+.order-card-actions {
+  border-top: 1px solid #edf1f6;
+  margin-top: 14px;
+  padding-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .order-access-header {
+    flex-direction: column;
+  }
+
+  .order-access-back {
+    width: 100%;
+  }
+}
+</style>
+
+<div class="order-access-page">
+<div class="order-access-header">
+  <div>
+<h2 class="mb-1">Доступ к реестру приказов</h2>
+    <div class="text-muted">
+      По каждому направлению можно отдельно назначить ответственных за ведение книги приказов и пользователей с правом просмотра.
+    </div>
+  </div>
+
+  <a class="btn btn-outline-secondary order-access-back" href="{{ url_for('orders.registry') }}">
+    К реестру
+  </a>
+</div>
+
+<div class="d-flex flex-column gap-3">
+  {% for code, label in sections %}
+    {% set editor_ids = editor_mapping.get(code, []) %}
+    {% set viewer_ids = viewer_mapping.get(code, []) %}
+
+    <form method="post" class="card order-direction-card" id="section-{{ code }}">
+      <div class="card-body">
+        <input type="hidden" name="section_code" value="{{ code }}">
+
+        <div class="mb-3">
+          <div class="order-direction-title">{{ loop.index }}. {{ label }}</div>
+          <div class="text-muted small">Настройки сохраняются отдельно для этого направления.</div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="order-access-panel">
+              <div class="order-access-panel-title">Ответственные за ведение книги приказов</div>
+
+              <input
+                type="search"
+                class="form-control order-user-search"
+                placeholder="Поиск сотрудника..."
+                data-search-target="editors-{{ code }}"
+              >
+
+              <div class="order-user-list" id="editors-{{ code }}">
+                {% for u in users %}
+                  {% set checked = u.id in editor_ids %}
+                  <label class="order-user-row" data-user-name="{{ (u.fio or u.username)|lower }}">
+                    <input
+                      type="checkbox"
+                      name="editor_ids"
+                      value="{{ u.id }}"
+                      data-person-name="{{ u.fio or u.username }}"
+                      data-selected-target="selected-editors-{{ code }}"
+                      {% if checked %}checked{% endif %}
+                    >
+                    <span>{{ u.fio or u.username }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+
+              <div class="order-selected-box">
+                <div class="order-selected-title">Уже выбраны:</div>
+                <div class="order-selected-list" id="selected-editors-{{ code }}"></div>
+              </div>
+
+              <div class="form-text mt-2">
+                Эти пользователи смогут создавать и редактировать приказы по данному направлению.
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="order-access-panel">
+              <div class="order-access-panel-title">Пользователи с правом просмотра</div>
+
+              <input
+                type="search"
+                class="form-control order-user-search"
+                placeholder="Поиск сотрудника..."
+                data-search-target="viewers-{{ code }}"
+              >
+
+              <div class="order-user-list" id="viewers-{{ code }}">
+                {% for u in users %}
+                  {% set checked = u.id in viewer_ids %}
+                  <label class="order-user-row" data-user-name="{{ (u.fio or u.username)|lower }}">
+                    <input
+                      type="checkbox"
+                      name="viewer_ids"
+                      value="{{ u.id }}"
+                      data-person-name="{{ u.fio or u.username }}"
+                      data-selected-target="selected-viewers-{{ code }}"
+                      {% if checked %}checked{% endif %}
+                    >
+                    <span>{{ u.fio or u.username }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+
+              <div class="order-selected-box">
+                <div class="order-selected-title">Уже выбраны:</div>
+                <div class="order-selected-list" id="selected-viewers-{{ code }}"></div>
+              </div>
+
+              <div class="form-text mt-2">
+                Эти пользователи смогут видеть направление и открывать приказы без редактирования.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="order-card-actions">
+        </div>
       </div>
-    {% endfor %}
-  </div>
-  <div class="mt-3 d-flex gap-2">
-    <button class="btn btn-primary">Сохранить</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('orders.registry') }}">К реестру</a>
-  </div>
-</form>
-</div></div>
+    </form>
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  function normalizeText(value) {
+    return (value || '').toString().toLowerCase().trim();
+  }
+
+  function updateSelectedBox(targetId) {
+    const box = document.getElementById(targetId);
+    if (!box) return;
+
+    const checkboxes = document.querySelectorAll('input[data-selected-target="' + targetId + '"]');
+    const selected = [];
+
+    checkboxes.forEach(function (checkbox) {
+      if (checkbox.checked) {
+        selected.push(checkbox.dataset.personName || checkbox.value);
+      }
+    });
+
+    box.innerHTML = '';
+
+    if (!selected.length) {
+      const empty = document.createElement('span');
+      empty.className = 'order-empty-selected';
+      empty.textContent = 'Пока никто не выбран';
+      box.appendChild(empty);
+      return;
+    }
+
+    selected.forEach(function (name) {
+      const chip = document.createElement('span');
+      chip.className = 'order-selected-chip';
+      chip.textContent = name;
+      box.appendChild(chip);
+    });
+  }
+
+  document.querySelectorAll('.order-user-search').forEach(function (input) {
+    input.addEventListener('input', function () {
+      const targetId = input.dataset.searchTarget;
+      const list = document.getElementById(targetId);
+      const query = normalizeText(input.value);
+
+      if (!list) return;
+
+      list.querySelectorAll('.order-user-row').forEach(function (row) {
+        const name = normalizeText(row.dataset.userName);
+        row.style.display = name.includes(query) ? '' : 'none';
+      });
+    });
+  });
+
+  document.querySelectorAll('input[data-selected-target]').forEach(function (checkbox) {
+    checkbox.addEventListener('change', function () {
+      updateSelectedBox(checkbox.dataset.selectedTarget);
+    });
+  });
+
+  const targets = new Set();
+  document.querySelectorAll('input[data-selected-target]').forEach(function (checkbox) {
+    targets.add(checkbox.dataset.selectedTarget);
+  });
+
+  targets.forEach(function (targetId) {
+    updateSelectedBox(targetId);
+  });
+})();
+</script>
+
+</div>
 {% endblock %}

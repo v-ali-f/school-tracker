@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import selectinload, joinedload
 
 from app.core.extensions import db
@@ -14,16 +14,119 @@ orders_bp = Blueprint("orders", __name__)
 orders_bp.url_map_strict_slashes = False
 
 SECTIONS = [
-    ("study", "Учебная часть"),
-    ("upbringing", "Воспитательная часть"),
-    ("extra", "Допобразование"),
-    ("contingent", "Контингент"),
+    ("main_activity", "Основная деятельность"),
+    ("procurement", "Закупки"),
+    ("finance", "Финансы"),
+    ("safety", "Безопасность"),
+    ("building_access", "Допуск в здания и на территории"),
+    ("excursions", "Экскурсионная деятельность"),
+    ("students_movement", "Движение школьников"),
+    ("preschool_movement", "Движение дошкольников"),
+    ("olympiads_gia", "Олимпиады, конкурсы, соревнования, ГИА"),
+    ("responsibles", "Назначение ответственных"),
+    ("labor_protection", "Охрана труда"),
+    ("iup", "ИУП"),
+    ("ndo", "НДО"),
+    ("family_education", "Семейная форма"),
+    ("injuries", "Травмы"),
+    ("az", "АЗ"),
+    ("additional_education", "Дополнительное образование"),
 ]
 SECTION_MAP = dict(SECTIONS)
 
 
+def _is_orders_director():
+    """Управление настройками реестра приказов: только директор/администратор портала."""
+    return has_any_role("ADMIN", "DIRECTOR")
+
+
+def _ensure_order_direction_access_table():
+    """Создаёт таблицу доступа к направлениям приказов без миграций."""
+    engine_name = db.engine.dialect.name
+    if engine_name == "postgresql":
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS order_direction_access (
+                id SERIAL PRIMARY KEY,
+                section VARCHAR(80) NOT NULL,
+                user_id INTEGER NOT NULL,
+                access_type VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+    else:
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS order_direction_access (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                section VARCHAR(80) NOT NULL,
+                user_id INTEGER NOT NULL,
+                access_type VARCHAR(20) NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+
+    db.session.execute(text("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_order_direction_access_unique
+        ON order_direction_access(section, user_id, access_type)
+    """))
+    db.session.commit()
+
+
+def _order_access_rows():
+    _ensure_order_direction_access_table()
+    return db.session.execute(text("""
+        SELECT section, user_id, access_type
+        FROM order_direction_access
+        ORDER BY section, access_type, user_id
+    """)).mappings().all()
+
+
+def _allowed_order_sections(mode="view"):
+    """
+    mode=view: пользователь видит направления, где он viewer или editor.
+    mode=edit: пользователь редактирует направления, где он editor.
+    директор видит и редактирует всё.
+    """
+    if _is_orders_director():
+        return [code for code, _label in SECTIONS]
+
+    _ensure_order_direction_access_table()
+    if mode == "edit":
+        access_types = ("editor",)
+    else:
+        access_types = ("editor", "viewer")
+
+    rows = db.session.execute(
+        text("""
+            SELECT DISTINCT section
+            FROM order_direction_access
+            WHERE user_id = :user_id
+              AND access_type IN :access_types
+        """).bindparams(bindparam("access_types", expanding=True)),
+        {
+            "user_id": getattr(current_user, "id", None),
+            "access_types": access_types,
+        }
+    ).scalars().all()
+
+    valid = {code for code, _label in SECTIONS}
+    return [section for section in rows if section in valid]
+
+
+def _can_view_orders_section(section):
+    return section in _allowed_order_sections("view")
+
+
+def _can_edit_orders_section(section):
+    return section in _allowed_order_sections("edit")
+
+
 def _orders_access_required():
-    if not has_any_role("ADMIN", "METHODIST", "SOCIAL_PEDAGOG"):
+    if not _allowed_order_sections("view"):
+        abort(403)
+
+
+def _orders_settings_required():
+    if not _is_orders_director():
         abort(403)
 
 
@@ -77,11 +180,18 @@ def _attach_responsible_display(items):
 @login_required
 def registry():
     _orders_access_required()
-    section = (request.args.get("section") or "study").strip()
+    allowed_sections = _allowed_order_sections("view")
+    visible_sections = [(code, label) for code, label in SECTIONS if code in allowed_sections]
+
+    requested_section = (request.args.get("section") or "").strip()
+    section = requested_section if requested_section in allowed_sections else (allowed_sections[0] if allowed_sections else "")
+
     query_text = (request.args.get("q") or "").strip()
     responsible_id = request.args.get("responsible_id", type=int)
 
     query = SchoolOrder.query
+    if allowed_sections:
+        query = query.filter(SchoolOrder.section.in_(allowed_sections))
     if section in SECTION_MAP:
         query = query.filter(SchoolOrder.section == section)
     if query_text:
@@ -103,7 +213,7 @@ def registry():
     return render_template(
         "orders_registry.html",
         items=items,
-        sections=SECTIONS,
+        sections=visible_sections,
         section=section,
         query_text=query_text,
         users=users,
@@ -118,15 +228,20 @@ def registry():
 def create():
     _orders_access_required()
     users = _sorted_users()
+    editable_codes = _allowed_order_sections("edit")
+    editable_sections = [(code, label) for code, label in SECTIONS if code in editable_codes]
+    if not editable_sections:
+        abort(403)
+
     if request.method == "POST":
         number = (request.form.get("number") or "").strip()
         title = (request.form.get("title") or "").strip()
         section = (request.form.get("section") or "study").strip()
         order_date = _parse_date(request.form.get("order_date"))
         responsible_user_ids = _responsible_ids_from_form()
-        if not number or not title or not order_date or section not in SECTION_MAP:
-            flash("Заполните номер, дату, название и раздел приказа.", "danger")
-            return render_template("order_form.html", item=None, sections=SECTIONS, users=users, selected_responsible_ids=responsible_user_ids)
+        if not number or not title or not order_date or section not in SECTION_MAP or section not in editable_codes:
+            flash("Заполните номер, дату, название и доступное вам направление приказа.", "danger")
+            return render_template("order_form.html", item=None, sections=editable_sections, users=users, selected_responsible_ids=responsible_user_ids)
 
         item = SchoolOrder(
             number=number,
@@ -147,7 +262,7 @@ def create():
         db.session.commit()
         flash("Приказ сохранён.", "success")
         return redirect(url_for("orders.registry", section=section))
-    return render_template("order_form.html", item=None, sections=SECTIONS, users=users, selected_responsible_ids=[])
+    return render_template("order_form.html", item=None, sections=editable_sections, users=users, selected_responsible_ids=[])
 
 
 @orders_bp.route("/orders/<int:order_id>/edit", methods=["GET", "POST"])
@@ -155,19 +270,24 @@ def create():
 def edit(order_id):
     _orders_access_required()
     item = SchoolOrder.query.get_or_404(order_id)
+    if not _can_edit_orders_section(item.section):
+        abort(403)
+
     users = _sorted_users()
+    editable_codes = _allowed_order_sections("edit")
+    editable_sections = [(code, label) for code, label in SECTIONS if code in editable_codes]
     if request.method == "POST":
         number = (request.form.get("number") or "").strip()
         title = (request.form.get("title") or "").strip()
         section = (request.form.get("section") or item.section).strip()
         order_date = _parse_date(request.form.get("order_date"))
         responsible_user_ids = _responsible_ids_from_form()
-        if not number or not title or not order_date or section not in SECTION_MAP:
-            flash("Заполните номер, дату, название и раздел приказа.", "danger")
+        if not number or not title or not order_date or section not in SECTION_MAP or section not in editable_codes:
+            flash("Заполните номер, дату, название и доступное вам направление приказа.", "danger")
             return render_template(
                 "order_form.html",
                 item=item,
-                sections=SECTIONS,
+                sections=editable_sections,
                 users=users,
                 selected_responsible_ids=responsible_user_ids,
             )
@@ -188,7 +308,7 @@ def edit(order_id):
     selected = [link.user_id for link in getattr(item, "responsible_links", [])]
     if not selected and item.responsible_user_id:
         selected = [item.responsible_user_id]
-    return render_template("order_form.html", item=item, sections=SECTIONS, users=users, selected_responsible_ids=selected)
+    return render_template("order_form.html", item=item, sections=editable_sections, users=users, selected_responsible_ids=selected)
 
 
 @orders_bp.route("/orders/<int:order_id>/delete", methods=["POST"])
@@ -196,6 +316,8 @@ def edit(order_id):
 def delete(order_id):
     _orders_access_required()
     item = SchoolOrder.query.get_or_404(order_id)
+    if not _can_edit_orders_section(item.section):
+        abort(403)
     section = item.section
     db.session.delete(item)
     db.session.commit()
@@ -206,22 +328,69 @@ def delete(order_id):
 @orders_bp.route("/orders/responsibles", methods=["GET", "POST"])
 @login_required
 def responsibles():
-    _orders_access_required()
+    _orders_settings_required()
+    _ensure_order_direction_access_table()
+
     if request.method == "POST":
-        for section, _label in SECTIONS:
-            user_id = request.form.get(f"user_id_{section}", type=int)
-            row = OrderResponsible.query.filter_by(section=section).first()
-            if user_id:
-                if row is None:
-                    row = OrderResponsible(section=section, user_id=user_id)
-                    db.session.add(row)
-                else:
-                    row.user_id = user_id
-            elif row is not None:
-                db.session.delete(row)
+        section = (request.form.get("section_code") or "").strip()
+        valid_sections = {code for code, _label in SECTIONS}
+
+        if section not in valid_sections:
+            flash("Не удалось определить направление для сохранения.", "danger")
+            return redirect(url_for("orders.responsibles"))
+
+        db.session.execute(
+            text("DELETE FROM order_direction_access WHERE section = :section"),
+            {"section": section},
+        )
+
+        editor_ids = request.form.getlist("editor_ids")
+        viewer_ids = request.form.getlist("viewer_ids")
+
+        for raw_user_id in editor_ids:
+            if not raw_user_id:
+                continue
+            db.session.execute(
+                text("""
+                    INSERT INTO order_direction_access(section, user_id, access_type)
+                    VALUES (:section, :user_id, 'editor')
+                    ON CONFLICT DO NOTHING
+                """),
+                {"section": section, "user_id": int(raw_user_id)}
+            )
+
+        for raw_user_id in viewer_ids:
+            if not raw_user_id:
+                continue
+            db.session.execute(
+                text("""
+                    INSERT INTO order_direction_access(section, user_id, access_type)
+                    VALUES (:section, :user_id, 'viewer')
+                    ON CONFLICT DO NOTHING
+                """),
+                {"section": section, "user_id": int(raw_user_id)}
+            )
+
         db.session.commit()
-        flash("Ответственные по разделам сохранены.", "success")
-        return redirect(url_for("orders.responsibles"))
+        flash("Настройки доступа по направлению сохранены.", "success")
+        return redirect(url_for("orders.responsibles") + f"#section-{section}")
+
     users = _sorted_users()
-    mapping = {r.section: r.user_id for r in OrderResponsible.query.all()}
-    return render_template("order_responsibles.html", sections=SECTIONS, users=users, mapping=mapping)
+    rows = _order_access_rows()
+    editor_mapping = {}
+    viewer_mapping = {}
+
+    for row in rows:
+        if row["access_type"] == "editor":
+            editor_mapping.setdefault(row["section"], []).append(row["user_id"])
+        elif row["access_type"] == "viewer":
+            viewer_mapping.setdefault(row["section"], []).append(row["user_id"])
+
+    return render_template(
+        "order_responsibles.html",
+        sections=SECTIONS,
+        users=users,
+        editor_mapping=editor_mapping,
+        viewer_mapping=viewer_mapping,
+    )
+

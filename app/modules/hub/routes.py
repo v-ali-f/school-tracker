@@ -586,9 +586,7 @@ def _theme_configs():
             "sections": _materialize([
                 {"title": "Журнал приказов", "description": "Список всех приказов.", "endpoint": "orders.registry"},
                 {"title": "Создание приказов", "description": "Оформление нового приказа.", "endpoint": "orders.create"},
-                {"title": "Шаблоны и ответственные", "description": "Настройка ответственных и типовых данных.", "endpoint": "orders.responsibles"},
-                {"title": "Поиск и фильтрация", "description": "Быстрый переход к нужному приказу.", "endpoint": "orders.registry"},
-                {"title": "Архив", "description": "Архивные записи приказов.", "endpoint": "orders.registry"},
+                {"title": "Ответственные", "description": "Настройка ответственных за направления приказов.", "endpoint": "orders.responsibles"},
             ]),
         },
         "classroom": {
