@@ -354,6 +354,145 @@ def _poll_bot_queue(app):
                     app.logger.info("MAX queue ack: inc_id=%s qid=%s", inc.id, qid)
                 except Exception as e:
                     app.logger.warning("ack(ok=True) failed: %s", e)
+
+            # 3) Нажатия кнопки «Ознакомлен» в MAX по документам ознакомления
+            try:
+                fam_acks = client.pending_familiarization_acks()
+            except Exception as e:
+                app.logger.warning("MAX pending_familiarization_acks failed: %s", e)
+                fam_acks = []
+
+            for ack_item in fam_acks:
+                ack_id = ack_item.get("ack_id")
+                familiarization_id = ack_item.get("familiarization_id")
+                user_id = ack_item.get("user_id")
+
+                try:
+                    # Импорт внутри функции, чтобы не ломать запуск при старых миграциях/структуре.
+                    try:
+                        from app.models.familiarizations import FamiliarizationRecipient
+                    except Exception:
+                        try:
+                            from app.models_legacy import FamiliarizationRecipient
+                        except Exception:
+                            from app.models import FamiliarizationRecipient
+
+                    if not ack_id or not familiarization_id or not user_id:
+                        raise ValueError(f"bad ack payload: {ack_item}")
+
+                    rec = FamiliarizationRecipient.query.filter_by(
+                        familiarization_id=int(familiarization_id),
+                        user_id=int(user_id),
+                    ).first()
+
+                    if not rec:
+                        raise LookupError(
+                            f"FamiliarizationRecipient not found familiarization_id={familiarization_id} user_id={user_id}"
+                        )
+
+                    if not getattr(rec, "acknowledged_at", None):
+                        rec.acknowledged_at = datetime.utcnow()
+                        db.session.commit()
+
+                    client.ack_familiarization_ack(ack_id=ack_id, ok=True)
+                    app.logger.info(
+                        "MAX familiarization ack processed: ack_id=%s familiarization_id=%s user_id=%s",
+                        ack_id,
+                        familiarization_id,
+                        user_id,
+                    )
+
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.exception("MAX familiarization ack failed: %s item=%s", e, ack_item)
+                    try:
+                        if ack_id:
+                            client.ack_familiarization_ack(ack_id=ack_id, ok=False, error=str(e))
+                    except Exception as ack_exc:
+                        app.logger.warning("MAX familiarization ack error notify failed: %s", ack_exc)
+
+
+            # 4) Нажатия кнопки «Выполнено» в MAX по задачам
+            try:
+                task_acks = client.pending_task_acks()
+            except Exception as e:
+                app.logger.warning("MAX pending_task_acks failed: %s", e)
+                task_acks = []
+
+            for ack_item in task_acks:
+                ack_id = ack_item.get("ack_id")
+                task_id = ack_item.get("task_id")
+                user_id = ack_item.get("user_id")
+
+                try:
+                    from app.models.tasks import Task
+                    try:
+                        from app.models.tasks import TaskHistory
+                    except Exception:
+                        TaskHistory = None
+
+                    if not ack_id or not task_id or not user_id:
+                        raise ValueError(f"bad task ack payload: {ack_item}")
+
+                    task = Task.query.get(int(task_id))
+                    if not task:
+                        raise LookupError(f"Task not found task_id={task_id}")
+
+                    user_id_int = int(user_id)
+
+                    # Проверяем, что кнопку нажал реальный адресат задачи:
+                    # ответственный, контролёр или участник.
+                    is_recipient = (
+                        getattr(task, "responsible_user_id", None) == user_id_int
+                        or getattr(task, "controller_user_id", None) == user_id_int
+                        or any(getattr(participant, "user_id", None) == user_id_int for participant in (getattr(task, "participants", None) or []))
+                    )
+                    if not is_recipient:
+                        raise PermissionError(f"user_id={user_id_int} is not task recipient task_id={task_id}")
+
+                    old_status = getattr(task, "status", None)
+
+                    if task.status != Task.STATUS_DONE:
+                        task.status = Task.STATUS_DONE
+                        task.completed_at = datetime.utcnow()
+                        if hasattr(task, "updated_at"):
+                            task.updated_at = datetime.utcnow()
+
+                        if TaskHistory is not None:
+                            try:
+                                hist = TaskHistory(
+                                    task_id=task.id,
+                                    user_id=user_id_int,
+                                    event_type="status",
+                                    text=f"MAX-бот: задача отмечена как выполненная. Статус: {old_status} → {Task.STATUS_DONE}",
+                                )
+                                db.session.add(hist)
+                            except TypeError:
+                                # Если в этой версии у TaskHistory другие поля — не ломаем обработку.
+                                pass
+
+                        db.session.commit()
+                    else:
+                        db.session.commit()
+
+                    client.ack_task_ack(ack_id=ack_id, ok=True)
+                    app.logger.info(
+                        "MAX task ack processed: ack_id=%s task_id=%s user_id=%s",
+                        ack_id,
+                        task_id,
+                        user_id,
+                    )
+
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.exception("MAX task ack failed: %s item=%s", e, ack_item)
+                    try:
+                        if ack_id:
+                            client.ack_task_ack(ack_id=ack_id, ok=False, error=str(e))
+                    except Exception as ack_exc:
+                        app.logger.warning("MAX task ack error notify failed: %s", ack_exc)
+
+
         except Exception as exc:  # noqa: BLE001
             app.logger.exception("poll_bot_queue FAILED: %s", exc)
 

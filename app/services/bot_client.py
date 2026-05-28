@@ -82,6 +82,93 @@ class BotClient:
         """Отправляет текстовое уведомление пользователю в MAX через endpoint бота /api/notify."""
         return self._post("/api/notify", {"chat_id": chat_id, "text": text})
 
+    def notify_file(self, *, chat_id, file_path: str, filename: str | None = None, caption: str | None = None):
+        """Отправляет файл пользователю в MAX через endpoint бота /api/notify_file.
+
+        Важно: сам портал не ходит напрямую в MAX. Он передаёт файл нашему внешнему боту,
+        а бот уже загружает файл в MAX и отправляет пользователю.
+        """
+        import base64
+        import mimetypes
+        from pathlib import Path
+
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(str(path))
+
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+
+        safe_filename = filename or path.name
+
+        # Если имя файла пришло без расширения, пробуем восстановить его.
+        # Особенно важно для PDF: иначе MAX может показать файл как безымянное вложение.
+        if safe_filename and "." not in Path(safe_filename).name:
+            guessed_type, _ = mimetypes.guess_type(str(path))
+            ext = None
+
+            if guessed_type == "application/pdf":
+                ext = ".pdf"
+            elif guessed_type:
+                ext = mimetypes.guess_extension(guessed_type)
+
+            # Если путь без расширения, определяем по первым байтам файла.
+            if not ext:
+                try:
+                    head = path.read_bytes()[:8]
+                    if head.startswith(b"%PDF"):
+                        ext = ".pdf"
+                    elif head.startswith(b"PK"):
+                        ext = ".docx"
+                except Exception:
+                    ext = None
+
+            if ext:
+                safe_filename = safe_filename + ext
+
+        # Дополнительная страховка: если сам путь заканчивается на .pdf,
+        # а отображаемое имя без .pdf — добавляем расширение.
+        if str(path).lower().endswith(".pdf") and not safe_filename.lower().endswith(".pdf"):
+            safe_filename = safe_filename + ".pdf"
+
+        return self._post("/api/notify_file", {
+            "chat_id": chat_id,
+            "filename": safe_filename,
+            "caption": caption or "",
+            "content_base64": data,
+        })
+
+    def notify_with_button(self, *, chat_id, text: str, buttons: list[dict] | None = None):
+        """Отправляет сообщение с inline-кнопками через endpoint бота /api/notify_buttons."""
+        return self._post("/api/notify_buttons", {
+            "chat_id": chat_id,
+            "text": text,
+            "buttons": buttons or [],
+        })
+
+    def pending_familiarization_acks(self):
+        """Забирает из MAX-бота нажатия кнопки «Ознакомлен»."""
+        return self._get("/api/pending_familiarization_acks").get("items", [])
+
+    def ack_familiarization_ack(self, *, ack_id: str, ok: bool = True, error: str | None = None):
+        """Подтверждает MAX-боту, что нажатие кнопки обработано порталом."""
+        return self._post("/api/ack_familiarization_ack", {
+            "ack_id": ack_id,
+            "ok": ok,
+            "error": error,
+        })
+
+    def pending_task_acks(self):
+        """Забирает из MAX-бота нажатия кнопки «Выполнено» по задачам."""
+        return self._get("/api/pending_task_acks").get("items", [])
+
+    def ack_task_ack(self, *, ack_id: str, ok: bool = True, error: str | None = None):
+        """Подтверждает MAX-боту, что нажатие кнопки задачи обработано порталом."""
+        return self._post("/api/ack_task_ack", {
+            "ack_id": ack_id,
+            "ok": ok,
+            "error": error,
+        })
+
     def fetch_attachment(self, queue_id: str, idx: int):
         """Скачивает байты вложения с бота. Возвращает (bytes, content_type)."""
         return self._get_binary(f"/api/attachment/{queue_id}/{int(idx)}", timeout=120)
