@@ -1,83 +1,310 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2 class="mb-3">{{ 'Редактирование приказа' if item else 'Новый приказ' }}</h2>
-<form method="post" class="card">
-  <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-2">
-        <label class="form-label">Номер</label>
-        <input class="form-control" name="number" value="{{ item.number if item else request.form.get('number', '') }}" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Дата</label>
-        <input class="form-control" type="date" name="order_date" value="{{ item.order_date.isoformat() if item and item.order_date else request.form.get('order_date', '') }}" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Раздел</label>
-        <select class="form-select" name="section">
-          {% set current_section = item.section if item else request.form.get('section', 'study') %}
-          {% for code, label in sections %}
-            <option value="{{ code }}" {% if current_section == code %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Срок действия</label>
-        <input class="form-control" type="date" name="valid_until" value="{{ item.valid_until.isoformat() if item and item.valid_until else request.form.get('valid_until', '') }}">
+
+<style>
+.order-form-page {
+  width: 100%;
+  max-width: none;
+  max-width: none;
+}
+
+.order-form-card {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.order-section-select {
+  min-height: 42px;
+}
+
+.order-executor-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #f8fbff;
+}
+
+.order-executor-name {
+  font-weight: 600;
+}
+
+.order-executor-panel {
+  display: none;
+  margin-top: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.order-user-search {
+  margin-bottom: 10px;
+}
+
+.order-user-list {
+  border: 1px solid #e1e7f0;
+  border-radius: 12px;
+  padding: 8px;
+  max-height: 270px;
+  overflow: auto;
+  background: #fafcff;
+}
+
+.order-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border-radius: 9px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.order-user-row:hover {
+  background: #eef5ff;
+}
+
+.order-user-row input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.order-selected-box {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f7f9fc;
+  border: 1px dashed #cfd9e8;
+  min-height: 48px;
+}
+
+.order-selected-title {
+  font-size: 13px;
+  color: #5b677a;
+  margin-bottom: 6px;
+}
+
+.order-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #eef5ff;
+  border: 1px solid #cfe0ff;
+  font-size: 13px;
+}
+
+.order-empty-selected {
+  color: #7b8798;
+  font-size: 13px;
+}
+
+.order-form-actions {
+  border-top: 1px solid #edf1f6;
+  background: #fbfcfe;
+  padding: 14px;
+  display: flex;
+  gap: 8px;
+}
+</style>
+
+{% set page_title = 'Редактирование приказа' if item else 'Новый приказ' %}
+{% set current_user_label = current_user.fio or current_user.full_name or current_user.username %}
+{% set saved_executor = item.executor if item and item.executor else current_user_label %}
+
+<div class="order-form-page">
+<h2 class="mb-3">{{ page_title }}</h2>
+
+  <form method="post" class="card order-form-card">
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label">Номер</label>
+          <input
+            class="form-control"
+            name="number"
+            value="{{ item.number if item else '' }}"
+            autocomplete="off"
+            required
+          >
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Дата</label>
+          <input
+            class="form-control"
+            type="date"
+            name="order_date"
+            id="order-date"
+            value="{% if item and item.order_date %}{{ item.order_date.strftime('%Y-%m-%d') }}{% endif %}"
+            required
+          >
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Направление</label>
+          <select class="form-select order-section-select" name="section" required>
+            {% for code, label in sections %}
+              <option value="{{ code }}" {% if item and item.section == code %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            Показываются только направления, которые доступны вам для ведения.
+          </div>
+        </div>
       </div>
 
-      <div class="col-12">
-        <label class="form-label">Название</label>
-        <input class="form-control" name="title" value="{{ item.title if item else request.form.get('title', '') }}" required>
+      <div class="mb-3">
+        <label class="form-label">Название приказа</label>
+        <input
+          class="form-control"
+          name="title"
+          value="{{ item.title if item else '' }}"
+          autocomplete="off"
+          required
+        >
       </div>
 
-      <div class="col-md-4">
+      <div class="mb-3">
         <label class="form-label">Исполнитель</label>
-        <input class="form-control" name="executor" value="{{ item.executor if item else request.form.get('executor', '') }}">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Составитель</label>
-        <input class="form-control" name="author" value="{{ item.author if item else request.form.get('author', '') }}">
+        <input type="hidden" name="executor" id="executor-value" value="{{ saved_executor }}">
+
+        <div class="order-executor-current">
+          <div>
+            <div class="text-muted small">Выбран исполнитель</div>
+            <div class="order-executor-name" id="selected-executor-name">{{ saved_executor }}</div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="toggle-executor-panel">
+            Выбрать другого
+          </button>
+        </div>
+
+        <div class="order-executor-panel" id="executor-panel">
+          <input
+            type="search"
+            class="form-control order-user-search"
+            id="executor-search"
+            placeholder="Поиск сотрудника..."
+          >
+
+          <div class="order-user-list" id="executor-list">
+            {% for u in users %}
+              {% set user_label = u.fio or u.full_name or u.username %}
+              <label class="order-user-row" data-user-name="{{ user_label|lower }}">
+                <input
+                  type="checkbox"
+                  class="executor-checkbox"
+                  value="{{ user_label }}"
+                  data-person-name="{{ user_label }}"
+                  {% if user_label == saved_executor %}checked{% endif %}
+                >
+                <span>{{ user_label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div class="form-text mt-2">
+            Найдите сотрудника и отметьте его галочкой. После выбора список можно снова свернуть.
+          </div>
+        </div>
       </div>
 
-      <div class="col-md-4">
-        <label class="form-label">Ответственные</label>
-        <div class="border rounded p-2 bg-light" style="max-height: 260px; overflow:auto;">
-          {% for u in users %}
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="responsible_user_ids" value="{{ u.id }}" id="resp_{{ u.id }}"
-                     {% if u.id in selected_responsible_ids %}checked{% endif %}>
-              <label class="form-check-label" for="resp_{{ u.id }}">{{ u.fio or u.username }}</label>
-            </div>
-          {% else %}
-            <div class="text-muted">Список сотрудников пуст.</div>
-          {% endfor %}
-        </div>
-        <div class="form-text">Можно выбрать нескольких ответственных галочками.</div>
-      </div>
-
-      <div class="col-md-3">
-        <div class="form-check mt-4">
-          <input class="form-check-input" type="checkbox" name="approved_by_deputy" id="approved_by_deputy" {% if (item and item.approved_by_deputy) or request.form.get('approved_by_deputy') %}checked{% endif %}>
-          <label class="form-check-label" for="approved_by_deputy">Согласовано с замом</label>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="form-check mt-4">
-          <input class="form-check-input" type="checkbox" name="original_submitted" id="original_submitted" {% if (item and item.original_submitted) or request.form.get('original_submitted') %}checked{% endif %}>
-          <label class="form-check-label" for="original_submitted">Оригинал сдан</label>
-        </div>
-      </div>
-
-      <div class="col-12">
+      <div class="mb-0">
         <label class="form-label">Примечание</label>
-        <textarea class="form-control" rows="3" name="notes">{{ item.notes if item else request.form.get('notes', '') }}</textarea>
+        <textarea class="form-control" name="note" rows="4">{{ item.note if item and item.note else '' }}</textarea>
       </div>
     </div>
-  </div>
-  <div class="card-footer d-flex gap-2">
-    <button class="btn btn-primary">Сохранить</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('orders.registry') }}">Назад</a>
-  </div>
-</form>
+
+    <div class="order-form-actions">
+      <button class="btn btn-primary">Сохранить</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('orders.registry') }}">Назад</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const dateInput = document.getElementById('order-date');
+  if (dateInput && !dateInput.value) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    dateInput.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  const search = document.getElementById('executor-search');
+  const list = document.getElementById('executor-list');
+  const hidden = document.getElementById('executor-value');
+  const selectedName = document.getElementById('selected-executor-name');
+  const panel = document.getElementById('executor-panel');
+  const toggle = document.getElementById('toggle-executor-panel');
+
+  function normalize(value) {
+    return (value || '').toString().toLowerCase().trim();
+  }
+
+  function renderSelected() {
+    if (selectedName && hidden) {
+      selectedName.textContent = hidden.value || 'Исполнитель не выбран';
+    }
+  }
+
+  function selectExecutor(checkbox) {
+    document.querySelectorAll('.executor-checkbox').forEach(function (item) {
+      if (item !== checkbox) item.checked = false;
+    });
+
+    if (checkbox.checked) {
+      hidden.value = checkbox.dataset.personName || checkbox.value;
+    } else {
+      hidden.value = '';
+    }
+
+    renderSelected();
+
+    if (panel) {
+      panel.style.display = 'none';
+    }
+  }
+
+  if (toggle && panel) {
+    toggle.addEventListener('click', function () {
+      const isOpen = panel.style.display === 'block';
+      panel.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? 'Выбрать другого' : 'Свернуть выбор';
+      if (!isOpen && search) {
+        setTimeout(function () { search.focus(); }, 50);
+      }
+    });
+  }
+
+  if (search && list) {
+    search.addEventListener('input', function () {
+      const query = normalize(search.value);
+
+      list.querySelectorAll('.order-user-row').forEach(function (row) {
+        const name = normalize(row.dataset.userName);
+        row.style.display = name.includes(query) ? '' : 'none';
+      });
+    });
+  }
+
+  document.querySelectorAll('.executor-checkbox').forEach(function (checkbox) {
+    checkbox.addEventListener('change', function () {
+      selectExecutor(checkbox);
+    });
+  });
+
+  renderSelected();
+})();
+</script>
+
 {% endblock %}
