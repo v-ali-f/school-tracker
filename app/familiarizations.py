@@ -23,11 +23,20 @@ def _active_users():
 
 def _parse_deadline(value):
     value=(value or '').strip()
-    if not value: return None
-    for fmt in ('%Y-%m-%dT%H:%M','%Y-%m-%d'):
-        try: return datetime.strptime(value, fmt)
-        except ValueError: pass
-    return None
+    if not value:
+        return None
+
+    # В интерфейсе оставляем только дату. В базе храним конец выбранного дня,
+    # чтобы просрочка считалась после завершения этой даты.
+    try:
+        if 'T' in value:
+            dt = datetime.strptime(value, '%Y-%m-%dT%H:%M')
+        else:
+            dt = datetime.strptime(value, '%Y-%m-%d')
+            dt = dt.replace(hour=23, minute=59, second=59)
+        return dt
+    except ValueError:
+        return None
 
 def _upload_root():
     base=Path(current_app.config.get('UPLOAD_FOLDER') or 'uploads')/'familiarizations'
@@ -80,11 +89,35 @@ def new():
         item=Familiarization(title=title, description=request.form.get('description') or None, deadline_at=_parse_deadline(request.form.get('deadline_at')), author_user_id=current_user.id, original_filename=original, stored_filename=stored, content_type=content_type, file_size=file_size)
         db.session.add(item); db.session.flush()
         selected_users=[u for u in users if u.id in recipient_ids]
+        selected_recipient_names=[_user_label(u) for u in selected_users]
+        selected_recipient_ids={u.id for u in selected_users}
+
         for user in selected_users: db.session.add(FamiliarizationRecipient(familiarization_id=item.id, user_id=user.id))
         db.session.commit()
+
+        # Обычные уведомления получателям: с кнопкой «Ознакомлен».
         for user in selected_users:
-            try: send_familiarization_max_notification(item, user, notification_type='new_familiarization')
-            except Exception as exc: current_app.logger.warning('Familiarization MAX notification failed: %s', exc)
+            try:
+                send_familiarization_max_notification(item, user, notification_type='new_familiarization')
+            except Exception as exc:
+                current_app.logger.warning('Familiarization MAX notification failed: %s', exc)
+
+        # Служебное уведомление директору: только если директор НЕ является получателем,
+        # чтобы не приходил дубль. В тексте показываем ФИО адресатов.
+        try:
+            directors = User.query.filter_by(role='DIRECTOR', is_active_user=True).all()
+            for director in directors:
+                if director.id in selected_recipient_ids:
+                    continue
+                send_familiarization_max_notification(
+                    item,
+                    director,
+                    notification_type='director_new_familiarization',
+                    recipient_names=selected_recipient_names,
+                )
+        except Exception as exc:
+            current_app.logger.warning('Director familiarization MAX notification failed: %s', exc)
+
         flash(f'Ознакомление создано. Получателей: {len(selected_users)}.', 'success')
         return redirect(url_for('familiarizations.detail', item_id=item.id))
     return render_template('familiarizations_form.html', users=users)

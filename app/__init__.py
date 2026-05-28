@@ -37,6 +37,7 @@ def create_app():
 
     register_context_processors(app, has_permission, build_menu_flags)
     register_blueprints(app)
+
     register_cli(app)
 
     with app.app_context():

@@ -1,6 +1,224 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2"><div><h4 class="mb-0"><i class="bi bi-file-earmark-plus"></i> Новое ознакомление</h4><div class="text-muted small">Направьте приказ, письмо или документ сотрудникам с фиксацией ознакомления.</div></div><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.index') }}">Назад</a></div>
-<form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="row g-3"><div class="col-md-8"><label class="form-label">Тема документа</label><input class="form-control" name="title" required></div><div class="col-md-4"><label class="form-label">Срок ознакомления</label><input type="datetime-local" class="form-control" name="deadline_at"></div><div class="col-12"><label class="form-label">Описание / комментарий</label><textarea class="form-control" name="description" rows="3"></textarea></div><div class="col-12"><label class="form-label">Файл приказа/письма</label><input type="file" class="form-control" name="document"></div><div class="col-12"><label class="form-label">Получатели</label><div class="border rounded-4 p-3 bg-light"><input type="text" class="form-control form-control-sm mb-2 js-user-search" placeholder="Поиск по ФИО, логину или роли"><div class="small text-muted mb-2">Отметьте сотрудников, которым нужно направить документ.</div><div style="max-height:320px;overflow:auto;">{% for u in users %}<label class="d-flex align-items-center gap-2 py-1 user-check-item" data-search="{{ ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or ''))|lower }}"><input type="checkbox" class="form-check-input m-0" name="recipient_user_ids" value="{{ u.id }}"><span>{{ u.fio or u.full_name or u.username }}</span>{% if u.role %}<span class="text-muted small">({{ u.role }})</span>{% endif %}</label>{% endfor %}</div></div></div></div></div><div class="card-footer bg-white d-flex justify-content-end gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('familiarizations.index') }}">Отмена</a><button class="btn btn-primary">Направить на ознакомление</button></div></form>
-<script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.js-user-search').forEach(function(input){const box=input.closest('.border');if(!box)return;const items=box.querySelectorAll('.user-check-item');input.addEventListener('input',function(){const q=input.value.trim().toLowerCase();items.forEach(function(item){const t=item.dataset.search||item.textContent.toLowerCase();item.style.display=t.includes(q)?'':'none';});});});});</script>
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0">
+      <i class="bi bi-file-earmark-plus"></i> Новое ознакомление
+    </h4>
+    <div class="text-muted small">
+      Направьте приказ, письмо или документ сотрудникам с фиксацией ознакомления.
+    </div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.index') }}">Назад</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4" id="familiarizationForm">
+  <div class="card-body">
+    <div class="row g-3">
+
+      <div class="col-md-8">
+        <label class="form-label">Тема документа</label>
+        <input
+          class="form-control"
+          name="title"
+          required
+          value="{{ request.form.get('title', '') }}"
+          placeholder="Например: Приказ о назначении ответственных"
+        >
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Срок ознакомления</label>
+        <input
+          type="date"
+          class="form-control"
+          name="deadline_at"
+          value="{{ request.form.get('deadline_at', '')[:10] }}"
+        >
+        <div class="form-text">Укажите только дату. Время не требуется.</div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Описание / комментарий</label>
+        <textarea
+          class="form-control"
+          name="description"
+          rows="3"
+          placeholder="Краткий комментарий для сотрудников"
+        >{{ request.form.get('description', '') }}</textarea>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Файл приказа/письма</label>
+        <input type="file" class="form-control" name="document">
+        <div class="form-text">
+          Файл будет доступен в портале и будет отправлен в MAX как вложение, если сотрудник привязан к боту.
+        </div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Получатели</label>
+
+        <div class="border rounded-4 p-3 bg-light">
+          <input
+            type="text"
+            class="form-control form-control-sm mb-2 js-user-search"
+            placeholder="Поиск по ФИО, логину или роли"
+            autocomplete="off"
+          >
+
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <div class="small text-muted">
+              Отметьте сотрудников, которым нужно направить документ.
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm js-select-visible">
+                Выбрать найденных
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm js-clear-visible">
+                Снять найденных
+              </button>
+            </div>
+          </div>
+
+          {% set selected_ids = request.form.getlist('recipient_user_ids') %}
+          <div style="max-height:320px;overflow:auto;" class="js-users-list">
+            {% for u in users %}
+              {% set label = u.fio or u.full_name or u.username %}
+              {% set search_text = ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or '')) %}
+              <label
+                class="d-flex align-items-center gap-2 py-1 user-check-item"
+                data-search="{{ search_text|lower }}"
+              >
+                <input
+                  type="checkbox"
+                  class="form-check-input m-0"
+                  name="recipient_user_ids"
+                  value="{{ u.id }}"
+                  {% if (u.id|string) in selected_ids %}checked{% endif %}
+                >
+                <span>{{ label }}</span>
+                {% if u.role %}
+                  <span class="text-muted small">({{ u.role }})</span>
+                {% endif %}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card-footer bg-white d-flex justify-content-end gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('familiarizations.index') }}">Отмена</a>
+    <button class="btn btn-primary">Направить на ознакомление</button>
+  </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // 1. Автоматически ставим сегодняшнюю дату, если поле пустое
+  const dateInput = document.querySelector('input[name="deadline_at"]');
+  if (dateInput && !dateInput.value) {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    dateInput.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  function normalizeText(value) {
+    return (value || '')
+      .toString()
+      .toLowerCase()
+      .replaceAll('ё', 'е')
+      .replace(/[.,;:()«»"']/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  document.querySelectorAll('.js-user-search').forEach(function (input) {
+    const box = input.closest('.border');
+    if (!box) return;
+
+    const items = Array.from(box.querySelectorAll('.user-check-item'));
+    const selectVisibleBtn = box.querySelector('.js-select-visible');
+    const clearVisibleBtn = box.querySelector('.js-clear-visible');
+
+    let counter = box.querySelector('.js-search-counter');
+    if (!counter) {
+      counter = document.createElement('div');
+      counter.className = 'small text-muted mt-2 js-search-counter';
+      input.insertAdjacentElement('afterend', counter);
+    }
+
+    function applyFilter() {
+      const q = normalizeText(input.value);
+      let visibleCount = 0;
+
+      items.forEach(function (item) {
+        const raw = item.dataset.search || item.textContent || '';
+        const text = normalizeText(raw);
+
+        const matched = !q || text.includes(q);
+
+        if (matched) {
+          item.style.setProperty('display', 'flex', 'important');
+        } else {
+          item.style.setProperty('display', 'none', 'important');
+        }
+
+        if (matched) visibleCount += 1;
+      });
+
+      if (!q) {
+        counter.textContent = '';
+      } else if (visibleCount > 0) {
+        counter.textContent = 'Найдено совпадений: ' + visibleCount;
+      } else {
+        counter.textContent = 'Совпадений не найдено';
+      }
+    }
+
+    input.addEventListener('input', applyFilter);
+    input.addEventListener('keyup', applyFilter);
+    input.addEventListener('change', applyFilter);
+
+    // Enter в поле поиска не должен отправлять всю форму
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        applyFilter();
+      }
+    });
+
+    if (selectVisibleBtn) {
+      selectVisibleBtn.addEventListener('click', function () {
+        items.forEach(function (item) {
+          if (item.style.display !== 'none') {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) cb.checked = true;
+          }
+        });
+      });
+    }
+
+    if (clearVisibleBtn) {
+      clearVisibleBtn.addEventListener('click', function () {
+        items.forEach(function (item) {
+          if (item.style.display !== 'none') {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) cb.checked = false;
+          }
+        });
+      });
+    }
+
+    applyFilter();
+  });
+});
+</script>
+
 {% endblock %}

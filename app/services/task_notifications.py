@@ -98,6 +98,43 @@ def build_task_max_message(task, user, notification_type: str, title: str, messa
     return '\n'.join(lines).strip()
 
 
+
+def _send_task_attachments_to_max(client, chat_id, task):
+    """Отправляет вложения задачи в MAX после основного текстового уведомления.
+
+    Ошибки по отдельному файлу не должны ломать уведомление по задаче.
+    """
+    attachments = getattr(task, 'attachments', None) or []
+    sent_count = 0
+
+    for attachment in attachments:
+        if getattr(attachment, 'is_deleted', False):
+            continue
+
+        file_path = getattr(attachment, 'file_path', None)
+        filename = getattr(attachment, 'filename', None) or getattr(attachment, 'stored_filename', None)
+
+        if not file_path:
+            continue
+
+        try:
+            client.notify_file(
+                chat_id=chat_id,
+                file_path=file_path,
+                filename=filename,
+                caption=f'Вложение к задаче №{getattr(task, "id", "")}: {getattr(task, "title", "") or "Без названия"}'
+            )
+            sent_count += 1
+        except Exception:
+            current_app.logger.exception(
+                'Task MAX attachment send failed: task_id=%s attachment_id=%s path=%s',
+                getattr(task, 'id', None),
+                getattr(attachment, 'id', None),
+                file_path,
+            )
+
+    return sent_count
+
 def send_task_max_notification(task, user, notification_type: str, title: str, message: str):
     """Отправляет уведомление по задаче в MAX, если пользователь привязал бот.
 
@@ -126,13 +163,22 @@ def send_task_max_notification(task, user, notification_type: str, title: str, m
 
     text = build_task_max_message(task, user, notification_type, title, message)
     try:
-        client.notify(chat_id=binding.max_chat_id, text=text)
+        client.notify_with_button(
+            chat_id=binding.max_chat_id,
+            text=text,
+            buttons=[{
+                "text": "✅ Выполнено",
+                "payload": f"task_done:{getattr(task, 'id', '')}:{getattr(user, 'id', '')}"
+            }]
+        )
+        attachments_sent = _send_task_attachments_to_max(client, binding.max_chat_id, task)
         current_app.logger.info(
-            'Task MAX notification sent: task_id=%s user_id=%s chat_id=%s type=%s',
+            'Task MAX notification sent: task_id=%s user_id=%s chat_id=%s type=%s attachments_sent=%s',
             getattr(task, 'id', None),
             getattr(user, 'id', None),
             binding.max_chat_id,
             notification_type,
+            attachments_sent,
         )
         return True
     except Exception:
