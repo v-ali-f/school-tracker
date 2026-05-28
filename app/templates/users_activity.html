@@ -34,25 +34,27 @@
   <a class="paths-tab" href="{{ url_for('users.users_paths') }}">Маршруты и переходы</a>
 </div>
 
+{% set _t = totals.total or 0 %}
+{% macro _pct(n) %}{% if _t > 0 %}{{ ((n or 0) * 100 / _t)|round(0, 'floor')|int }}%{% else %}—{% endif %}{% endmacro %}
 <div class="row g-2 mb-3">
   <div class="col-6 col-md"><a class="activity-bucket-card {% if bucket == 'all' %}active{% endif %}" href="?bucket=all&sort={{ sort }}">
     <div class="count">{{ totals.total }}</div>
     <div class="label">Всего активных сотрудников</div>
   </a></div>
   <div class="col-6 col-md"><a class="activity-bucket-card {% if bucket == 'active' %}active{% endif %}" href="?bucket=active&sort={{ sort }}">
-    <div class="count text-success">{{ totals.active }}</div>
+    <div class="count text-success">{{ totals.active }} <span class="text-muted fw-normal" style="font-size:.85rem;">· {{ _pct(totals.active) }}</span></div>
     <div class="label"><span class="activity-dot dot-active"></span>Заходили за 7 дней</div>
   </a></div>
   <div class="col-6 col-md"><a class="activity-bucket-card {% if bucket == 'sleepy' %}active{% endif %}" href="?bucket=sleepy&sort={{ sort }}">
-    <div class="count text-warning">{{ totals.sleepy }}</div>
+    <div class="count text-warning">{{ totals.sleepy }} <span class="text-muted fw-normal" style="font-size:.85rem;">· {{ _pct(totals.sleepy) }}</span></div>
     <div class="label"><span class="activity-dot dot-sleepy"></span>8–30 дней назад</div>
   </a></div>
   <div class="col-6 col-md"><a class="activity-bucket-card {% if bucket == 'lost' %}active{% endif %}" href="?bucket=lost&sort={{ sort }}">
-    <div class="count text-danger">{{ totals.lost }}</div>
+    <div class="count text-danger">{{ totals.lost }} <span class="text-muted fw-normal" style="font-size:.85rem;">· {{ _pct(totals.lost) }}</span></div>
     <div class="label"><span class="activity-dot dot-lost"></span>Больше 30 дней</div>
   </a></div>
   <div class="col-6 col-md"><a class="activity-bucket-card {% if bucket == 'never' %}active{% endif %}" href="?bucket=never&sort={{ sort }}">
-    <div class="count text-secondary">{{ totals.never }}</div>
+    <div class="count text-secondary">{{ totals.never }} <span class="text-muted fw-normal" style="font-size:.85rem;">· {{ _pct(totals.never) }}</span></div>
     <div class="label"><span class="activity-dot dot-never"></span>Ни разу не заходили</div>
   </a></div>
 </div>
