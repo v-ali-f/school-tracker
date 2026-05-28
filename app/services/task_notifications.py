@@ -58,6 +58,32 @@ def _fmt_due_for_max(value) -> str:
     return str(value)
 
 
+def _fmt_user_for_max(user) -> str:
+    if not user:
+        return '—'
+
+    full_name = (
+        getattr(user, 'full_name', None)
+        or getattr(user, 'name', None)
+        or getattr(user, 'fio', None)
+        or ''
+    )
+
+    if full_name:
+        return str(full_name).strip()
+
+    last_name = getattr(user, 'last_name', None) or getattr(user, 'surname', None) or ''
+    first_name = getattr(user, 'first_name', None) or ''
+    middle_name = getattr(user, 'middle_name', None) or getattr(user, 'patronymic', None) or ''
+
+    short_name = ' '.join(x for x in [last_name, first_name, middle_name] if x).strip()
+    if short_name:
+        return short_name
+
+    username = getattr(user, 'username', None) or getattr(user, 'email', None)
+    return str(username).strip() if username else '—'
+
+
 def build_task_max_message(task, user, notification_type: str, title: str, message: str) -> str:
     icon_map = {
         'new_task': '📌',
@@ -78,23 +104,50 @@ def build_task_max_message(task, user, notification_type: str, title: str, messa
     status = getattr(task, 'status', None) or '—'
     priority = getattr(task, 'priority', None) or '—'
     due = _fmt_due_for_max(getattr(task, 'deadline_at', None))
+    author = (
+        getattr(task, 'creator', None)
+        or getattr(task, 'created_by_user', None)
+        or getattr(task, 'author', None)
+        or getattr(task, 'owner', None)
+    )
+    assigned_to = (
+        getattr(task, 'assignee', None)
+        or getattr(task, 'assigned_to', None)
+        or getattr(task, 'responsible', None)
+        or user
+    )
     link = _task_link(task)
+    attachments = getattr(task, 'attachments', None)
+    try:
+        files_count = len(list(attachments)) if attachments is not None else 0
+    except Exception:
+        files_count = 0
 
     lines = [
         f'{icon} {title or "Уведомление по задаче"}',
         '',
         f'Задача: {task_title}',
         f'№: {task_id or "—"}',
+        f'Назначил: {_fmt_user_for_max(author)}',
+        f'Кому: {_fmt_user_for_max(assigned_to)}',
         f'Статус: {status}',
         f'Приоритет: {priority}',
         f'Срок: {due}',
     ]
+
+    if files_count:
+        lines.extend(['', f'Файлов: {files_count}'])
+
+    lines.extend([
+        '',
+        'Откройте карточку задачи в портале или скачайте файлы ниже.',
+    ])
     if message and not is_sensitive:
         lines.extend(['', str(message).strip()[:500]])
     if link:
         lines.extend(['', f'Открыть в портале: {link}'])
     else:
-        lines.extend(['', 'Откройте задачу в портале.'])
+        lines.extend(['', 'Карточка задачи в портале:'])
     return '\n'.join(lines).strip()
 
 
