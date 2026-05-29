@@ -1,5 +1,218 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2"><div><h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> Ознакомления</h4><div class="text-muted small">Контроль ознакомления сотрудников с приказами, письмами и документами.</div></div><div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.my') }}">Мой банк документов</a><a class="btn btn-primary btn-sm" href="{{ url_for('familiarizations.new') }}"><i class="bi bi-plus-lg"></i> Создать ознакомление</a><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a></div></div>
-<div class="card border-0 shadow-sm rounded-4"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th>Документ</th><th>Срок</th><th>Получатели</th><th>Ознакомились</th><th>Не ознакомились</th><th>Просрочили</th><th></th></tr></thead><tbody>{% for item in items %}{% set st = stats[item.id] %}<tr><td><a class="fw-semibold" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">{{ item.title }}</a><div class="text-muted small">{{ item.created_at.strftime('%d.%m.%Y %H:%M') if item.created_at else '' }}</div></td><td>{{ item.deadline_at.strftime('%d.%m.%Y %H:%M') if item.deadline_at else 'не указан' }}</td><td>{{ st.total }}</td><td><span class="badge bg-success">{{ st.done }}</span></td><td><span class="badge bg-secondary">{{ st.pending }}</span></td><td>{% if st.overdue %}<span class="badge bg-danger">{{ st.overdue }}</span>{% else %}—{% endif %}</td><td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">Открыть</a></td></tr>{% else %}<tr><td colspan="7" class="text-muted text-center py-4">Ознакомлений пока нет.</td></tr>{% endfor %}</tbody></table></div></div>
+
+<style>
+.fam-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.fam-doc-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid #d7e2f1;
+  background: #f8fbff;
+  color: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.fam-doc-icon-btn:hover {
+  background: #eef5ff;
+  color: #174ea6;
+}
+
+.fam-table th:not(:first-child),
+.fam-table td:not(:first-child) {
+  text-align: center;
+}
+
+.fam-table th:first-child,
+.fam-table td:first-child {
+  text-align: left;
+}
+
+.fam-table td {
+  vertical-align: middle;
+}
+
+.fam-preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .58);
+  z-index: 2000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.fam-preview-window {
+  width: min(1100px, 96vw);
+  height: min(820px, 92vh);
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .35);
+  display: flex;
+  flex-direction: column;
+}
+
+.fam-preview-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5edf7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fam-preview-title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fam-preview-frame {
+  border: 0;
+  width: 100%;
+  height: 100%;
+  background: #f8fafc;
+}
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> Ознакомления</h4>
+    <div class="text-muted small">Контроль ознакомления сотрудников с приказами, письмами и документами.</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.my') }}">Мой банк документов</a>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('familiarizations.new') }}"><i class="bi bi-plus-lg"></i> Создать ознакомление</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 fam-table">
+      <thead class="table-light">
+        <tr>
+          <th>Документ</th>
+          <th style="width: 125px;">Срок</th>
+          <th style="width: 105px;">Получатели</th>
+          <th style="width: 120px;">Ознакомились</th>
+          <th style="width: 130px;">Не ознакомились</th>
+          <th style="width: 115px;">Просрочили</th>
+          <th style="width: 150px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+          {% set st = stats[item.id] %}
+          <tr>
+            <td>
+              <a class="fw-semibold" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">{{ item.title }}</a>
+              <div class="text-muted small">{{ item.created_at.strftime('%d.%m.%Y') if item.created_at else '' }}</div>
+            </td>
+
+            <td>{{ item.deadline_at.strftime('%d.%m.%Y') if item.deadline_at else 'не указан' }}</td>
+            <td>{{ st.total }}</td>
+            <td><span class="badge bg-success">{{ st.done }}</span></td>
+            <td><span class="badge bg-secondary">{{ st.pending }}</span></td>
+            <td>{% if st.overdue %}<span class="badge bg-danger">{{ st.overdue }}</span>{% else %}—{% endif %}</td>
+
+            <td>
+              <div class="fam-actions">
+                {% if item.stored_filename %}
+                  <button
+                    type="button"
+                    class="fam-doc-icon-btn js-fam-preview"
+                    title="Просмотреть документ"
+                    data-title="{{ item.title }}"
+                    data-url="{{ url_for('familiarizations.download', item_id=item.id, inline=1) }}"
+                  >
+                    <i class="bi bi-eye"></i>
+                  </button>
+
+                  <a
+                    class="fam-doc-icon-btn"
+                    title="Скачать документ"
+                    href="{{ url_for('familiarizations.download', item_id=item.id) }}"
+                  >
+                    <i class="bi bi-download"></i>
+                  </a>
+                {% endif %}
+
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">Открыть</a>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="7" class="text-muted text-center py-4">Ознакомлений пока нет.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="fam-preview-modal" id="fam-preview-modal">
+  <div class="fam-preview-window">
+    <div class="fam-preview-head">
+      <div class="fam-preview-title" id="fam-preview-title">Просмотр документа</div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fam-preview-close">Закрыть</button>
+    </div>
+    <iframe class="fam-preview-frame" id="fam-preview-frame"></iframe>
+  </div>
+</div>
+
+<script>
+(function () {
+  const modal = document.getElementById('fam-preview-modal');
+  const frame = document.getElementById('fam-preview-frame');
+  const title = document.getElementById('fam-preview-title');
+  const close = document.getElementById('fam-preview-close');
+
+  function closeModal() {
+    modal.style.display = 'none';
+    frame.src = 'about:blank';
+  }
+
+  document.querySelectorAll('.js-fam-preview').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      title.textContent = btn.dataset.title || 'Просмотр документа';
+      frame.src = btn.dataset.url;
+      modal.style.display = 'flex';
+    });
+  });
+
+  if (close) {
+    close.addEventListener('click', closeModal);
+  }
+
+  if (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) {
+        closeModal();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  });
+})();
+</script>
+
 {% endblock %}
