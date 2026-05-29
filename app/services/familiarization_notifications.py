@@ -128,7 +128,7 @@ def build_familiarization_max_message(item, notification_type: str = 'new_famili
         ) if author else 'не указан'
 
         lines = [
-            f'{icon} Новое ознакомление сотрудников',
+            f'{icon} Документ для ознакомления',
             '',
             f'Документ: {title}',
             f'Кто направил: {author_name}',
@@ -139,7 +139,7 @@ def build_familiarization_max_message(item, notification_type: str = 'new_famili
         ]
     else:
         lines = [
-            f'{icon} Новое ознакомление',
+            f'{icon} Документ для ознакомления',
             '',
             f'Документ: {title}',
             f'Срок ознакомления: {deadline}',

@@ -230,7 +230,8 @@ def download(item_id):
     if not item.stored_filename: abort(404)
     path=_upload_root()/item.stored_filename
     if not path.exists(): abort(404)
-    return send_file(path, as_attachment=True, download_name=item.original_filename or item.stored_filename)
+    inline = request.args.get('inline') == '1'
+    return send_file(path, as_attachment=not inline, download_name=item.original_filename or item.stored_filename)
 
 
 @familiarizations_bp.route('/<int:item_id>/download/<int:attachment_id>')
