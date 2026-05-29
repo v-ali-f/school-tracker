@@ -353,7 +353,7 @@ def profile_max():
         pending=pending,
         pending_msk=pending_msk,
         bound_msk=bound_msk,
-        bot_url="https://max.ru/reguestsbot",
+        bot_url="https://max.ru/sch1324_sapp_bot",
     )
 
 
