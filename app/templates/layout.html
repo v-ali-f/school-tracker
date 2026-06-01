@@ -45,6 +45,13 @@
   <link rel="shortcut icon" type="image/png" href="{{ org_logo_url }}">
   <link rel="apple-touch-icon" href="{{ org_logo_url }}">
 
+
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Портал 1324">
+
 </head>
 
 <body>
@@ -484,6 +491,18 @@
 </script>
 {% block scripts %}{% endblock %}
 <script src="{{ url_for('static', filename='js/tasks_light_ui.js') }}?v=20260430v183"></script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register("{{ url_for('static', filename='service-worker.js') }}")
+      .catch(function (error) {
+        console.log('Service worker registration failed:', error);
+      });
+  });
+}
+</script>
+
 </body>
 </html>
 
