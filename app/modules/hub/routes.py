@@ -22,6 +22,7 @@ ICON_MAP = {
     "Диагностики МЦКО": ("bi-clipboard-data", "accent-orange"),
     "Пропуска и аналитика посещаемости": ("bi-calendar-check", "accent-green"),
     "Основные реестры": ("bi-table", "accent-dark"),
+    "Дошкольное отделение": ("bi-house-heart", "accent-green"),
     "Контрольные работы": ("bi-ui-checks-grid", "accent-orange"),
     "Олимпиады": ("bi-trophy", "accent-orange"),
     "Реестр приказов": ("bi-file-earmark-text", "accent-dark"),
@@ -79,6 +80,7 @@ TITLE_ZONE_MAP = {
     "Добавить инцидент": "orange",
     "Дашборд инцидентов": "orange",
     "Сводный контингент": "green",
+    "Дошкольное отделение": "green",
     "Создать пропуск": "green",
     "Управленческий контур": "blue",
     "Академический контур": "rose",
@@ -365,6 +367,11 @@ def _main_page_config():
                 "permission_any": ["children_registry_view", "registry_ovz_view", "registry_vshu_view", "registry_kdn_view", "registry_az_view"],
             },
             {
+                "title": "Дошкольное отделение",
+                "description": "Контингент ДОУ, группы, представители и детодни.",
+                "endpoint": "preschool.index",
+            },
+            {
                 "title": "Контрольные работы",
                 "description": "Список работ, результаты, отчеты и сводные показатели.",
                 "endpoint": "hub.control_works",
@@ -476,11 +483,13 @@ def _theme_configs():
             "permission_any": ["contingent_view"],
             "quick_actions": _materialize([
                 {"title": "Сводный контингент", "endpoint": "children.contingent", "permission_any": ["contingent_view"]},
+                {"title": "Дошкольное отделение", "endpoint": "preschool.index", "permission_any": ["contingent_view"]},
                 {"title": "Ученики", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
             ]),
             "sections": _materialize([
                 {"title": "Сводный контингент", "description": "Основная аналитика по составу обучающихся.", "endpoint": "children.contingent"},
+                {"title": "Дошкольное отделение", "description": "Контингент ДОУ, группы, представители и детодни.", "endpoint": "preschool.index"},
                 {"title": "Реестр контингента", "description": "Общий список детей по школе.", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "description": "Карточка зачисления нового ученика.", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
                 {"title": "Зачисленные", "description": "Отдельный реестр прибывших детей.", "endpoint": "children.registry_enrolled", "permission_any": ["registry_enrolled_view"]},
