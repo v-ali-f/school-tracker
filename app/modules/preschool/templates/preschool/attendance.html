@@ -1,0 +1,293 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .attendance-page {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 24px 32px 42px;
+  }
+
+  .attendance-breadcrumbs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .attendance-breadcrumbs a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .attendance-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    margin-bottom: 18px;
+  }
+
+  .attendance-title {
+    margin: 0;
+    color: #25324a;
+    font-size: 30px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .attendance-subtitle {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .attendance-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .attendance-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid #d4deec;
+    background: #ffffff;
+    color: #64748b;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .attendance-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .attendance-panel {
+    padding: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+    margin-bottom: 18px;
+  }
+
+  .attendance-panel h2 {
+    margin: 0 0 14px;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .attendance-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.5fr auto;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .attendance-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .attendance-field input,
+  .attendance-field select {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1f2937;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .attendance-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .attendance-table th {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid #cbd5e1;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .attendance-table td {
+    padding: 12px;
+    border-bottom: 1px solid #eef2f7;
+    color: #25324a;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .attendance-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .attendance-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: #eef6ff;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .attendance-delete {
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #ffffff;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .attendance-empty {
+    padding: 18px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  @media (max-width: 900px) {
+    .attendance-header {
+      flex-direction: column;
+    }
+
+    .attendance-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .attendance-actions {
+      justify-content: flex-start;
+    }
+  }
+</style>
+
+<div class="attendance-page">
+  <div class="attendance-breadcrumbs">
+    <a href="{{ url_for('main.dashboard') }}">Главная</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
+    <span>/</span>
+    <span>Детодни</span>
+  </div>
+
+  <div class="attendance-header">
+    <div>
+      <h1 class="attendance-title">Детодни ДОУ</h1>
+      <div class="attendance-subtitle">
+        Загрузка ZIP-архивов с табелями, журнал загрузок и последующий автоматический расчёт детодней.
+      </div>
+    </div>
+
+    <div class="attendance-actions">
+      <a class="attendance-btn" href="{{ url_for('preschool.index') }}">ДОУ</a>
+      <a class="attendance-btn" href="{{ url_for('preschool.children') }}">Сводный контингент</a>
+    </div>
+  </div>
+
+  <form class="attendance-panel" method="post" enctype="multipart/form-data">
+    <h2>Загрузить табели</h2>
+
+    <div class="attendance-form-grid">
+      <div class="attendance-field">
+        <label>Учебный год</label>
+        <select name="academic_year_id">
+          {% for item in all_years %}
+            <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
+              {{ item.name }}{% if item.is_current %} • текущий{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="attendance-field">
+        <label>Месяц</label>
+        <input name="month" value="{{ month }}" placeholder="Например: 2026-05">
+      </div>
+
+      <div class="attendance-field">
+        <label>ZIP-архив с табелями</label>
+        <input type="file" name="file" accept=".zip" required>
+      </div>
+
+      <button class="attendance-btn attendance-btn-primary" type="submit">Загрузить</button>
+    </div>
+  </form>
+
+  <div class="attendance-panel">
+    <h2>Журнал загрузок</h2>
+
+    {% if uploads %}
+      <table class="attendance-table">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Учебный год</th>
+            <th>Месяц</th>
+            <th>Файл</th>
+            <th>Статус</th>
+            <th>Комментарий</th>
+            <th style="text-align:right;">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in uploads %}
+            <tr>
+              <td>{{ item.created_at.strftime("%d.%m.%Y %H:%M") if item.created_at else "—" }}</td>
+              <td>{{ item.academic_year.name if item.academic_year else "—" }}</td>
+              <td>{{ item.month or "—" }}</td>
+              <td>{{ item.original_filename or "—" }}</td>
+              <td><span class="attendance-status">{{ item.status }}</span></td>
+              <td>{{ item.comment or "—" }}</td>
+              <td style="text-align:right;">
+                <form method="post"
+                      action="{{ url_for('preschool.delete_attendance_upload', upload_id=item.id) }}"
+                      onsubmit="return confirm('Удалить загрузку табелей?');">
+                  <button class="attendance-delete" type="submit">Удалить</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="attendance-empty">
+        Загрузок табелей пока нет.
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
