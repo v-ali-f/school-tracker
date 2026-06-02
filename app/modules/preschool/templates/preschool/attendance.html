@@ -282,6 +282,8 @@
               <td>{{ item.comment or "—" }}</td>
               <td style="text-align:right;">
                 <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+                  <a class="attendance-btn" href="{{ url_for('preschool.attendance_upload_detail', upload_id=item.id) }}">Открыть</a>
+
                   <form method="post"
                         action="{{ url_for('preschool.process_attendance_upload', upload_id=item.id) }}">
                     <button class="attendance-btn" type="submit">Обработать</button>

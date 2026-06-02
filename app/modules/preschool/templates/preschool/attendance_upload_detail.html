@@ -1,0 +1,362 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .attendance-detail {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 24px 32px 42px;
+  }
+
+  .ad-breadcrumbs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .ad-breadcrumbs a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .ad-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    margin-bottom: 18px;
+  }
+
+  .ad-title {
+    margin: 0;
+    color: #25324a;
+    font-size: 30px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .ad-subtitle {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .ad-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid #d4deec;
+    background: #ffffff;
+    color: #64748b;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .ad-stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .ad-stat {
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+  }
+
+  .ad-stat-label {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .ad-stat-value {
+    color: #25324a;
+    font-size: 28px;
+    line-height: 1;
+    font-weight: 700;
+  }
+
+  .ad-panel {
+    padding: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+    margin-bottom: 18px;
+  }
+
+  .ad-panel h2 {
+    margin: 0 0 14px;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .ad-table-wrap {
+    overflow-x: auto;
+  }
+
+  .ad-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .ad-table th {
+    text-align: left;
+    padding: 11px 12px;
+    border-bottom: 1px solid #cbd5e1;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .ad-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #eef2f7;
+    color: #25324a;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .ad-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .ad-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .ad-link:hover {
+    text-decoration: underline;
+  }
+
+  .ad-warning {
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 14px;
+    line-height: 1.45;
+    margin-bottom: 14px;
+  }
+
+  .ad-muted {
+    color: #94a3b8;
+  }
+
+  @media (max-width: 1100px) {
+    .ad-stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
+    .attendance-detail {
+      padding: 18px 16px 32px;
+    }
+
+    .ad-header {
+      flex-direction: column;
+    }
+
+    .ad-stats {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="attendance-detail">
+  <div class="ad-breadcrumbs">
+    <a href="{{ url_for('main.dashboard') }}">Главная</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.attendance', academic_year_id=item.academic_year_id, month=item.month) }}">Детодни</a>
+    <span>/</span>
+    <span>Загрузка</span>
+  </div>
+
+  <div class="ad-header">
+    <div>
+      <h1 class="ad-title">Детализация загрузки табелей</h1>
+      <div class="ad-subtitle">
+        {{ item.original_filename or "Архив" }} · {{ item.academic_year.name if item.academic_year else "—" }}{% if item.month %} · {{ item.month }}{% endif %}
+      </div>
+    </div>
+
+    <a class="ad-btn" href="{{ url_for('preschool.attendance', academic_year_id=item.academic_year_id, month=item.month) }}">← К журналу</a>
+  </div>
+
+  <div class="ad-stats">
+    <div class="ad-stat">
+      <div class="ad-stat-label">Строк табеля</div>
+      <div class="ad-stat-value">{{ total.records }}</div>
+    </div>
+    <div class="ad-stat">
+      <div class="ad-stat-label">Сопоставлено</div>
+      <div class="ad-stat-value">{{ total.matched }}</div>
+    </div>
+    <div class="ad-stat">
+      <div class="ad-stat-label">Не найдено</div>
+      <div class="ad-stat-value">{{ total.unmatched }}</div>
+    </div>
+    <div class="ad-stat">
+      <div class="ad-stat-label">Дни к оплате</div>
+      <div class="ad-stat-value">{{ total.payment_days }}</div>
+    </div>
+    <div class="ad-stat">
+      <div class="ad-stat-label">Засчитано</div>
+      <div class="ad-stat-value">{{ total.credited_days }}</div>
+    </div>
+    <div class="ad-stat">
+      <div class="ad-stat-label">Детодни</div>
+      <div class="ad-stat-value">{{ total.child_days }}</div>
+    </div>
+  </div>
+
+  {% if unmatched_records %}
+    <div class="ad-panel">
+      <h2>Не сопоставлены с контингентом</h2>
+      <div class="ad-warning">
+        Эти строки есть в табелях, но система не нашла соответствующего воспитанника в реестре ДОУ.
+        Нужно проверить ФИО, группу или номер личного дела.
+      </div>
+
+      <div class="ad-table-wrap">
+        <table class="ad-table">
+          <thead>
+            <tr>
+              <th>ФИО из табеля</th>
+              <th>Группа</th>
+              <th>Номер счета</th>
+              <th>Файл</th>
+              <th>Дни к оплате</th>
+              <th>Засчитано</th>
+              <th>Детодни</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in unmatched_records %}
+              <tr>
+                <td>{{ record.child_name }}</td>
+                <td>{{ record.group.name if record.group else "—" }}</td>
+                <td>{{ record.account_number or "—" }}</td>
+                <td>{{ record.source_filename or "—" }}</td>
+                <td>{{ record.payment_days }}</td>
+                <td>{{ record.credited_days }}</td>
+                <td><strong>{{ record.child_days }}</strong></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="ad-panel">
+    <h2>Свод по группам</h2>
+
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <thead>
+          <tr>
+            <th>Группа</th>
+            <th>Строк</th>
+            <th>Сопоставлено</th>
+            <th>Не найдено</th>
+            <th>Дни к оплате</th>
+            <th>Засчитано</th>
+            <th>Детодни</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in group_rows %}
+            <tr>
+              <td><strong>{{ row.group_name }}</strong></td>
+              <td>{{ row.records }}</td>
+              <td>{{ row.matched }}</td>
+              <td>{{ row.unmatched }}</td>
+              <td>{{ row.payment_days }}</td>
+              <td>{{ row.credited_days }}</td>
+              <td><strong>{{ row.child_days }}</strong></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="ad-muted">Нет строк табеля.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ad-panel">
+    <h2>Все строки табеля</h2>
+
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <thead>
+          <tr>
+            <th>ФИО</th>
+            <th>Группа</th>
+            <th>Сопоставление</th>
+            <th>Номер счета</th>
+            <th>Пропущено всего</th>
+            <th>Засчитано</th>
+            <th>Дни к оплате</th>
+            <th>Детодни</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+            <tr>
+              <td>{{ record.child_name }}</td>
+              <td>{{ record.group.name if record.group else "—" }}</td>
+              <td>
+                {% if record.child %}
+                  <a class="ad-link" href="{{ url_for('preschool.child_card', child_id=record.child.id) }}">
+                    {{ record.child.full_name }}
+                  </a>
+                {% else %}
+                  <span class="ad-muted">не найден</span>
+                {% endif %}
+              </td>
+              <td>{{ record.account_number or "—" }}</td>
+              <td>{{ record.missed_total }}</td>
+              <td>{{ record.credited_days }}</td>
+              <td>{{ record.payment_days }}</td>
+              <td><strong>{{ record.child_days }}</strong></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8" class="ad-muted">Нет строк табеля.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

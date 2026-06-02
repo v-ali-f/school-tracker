@@ -1097,6 +1097,51 @@ def _split_attendance_name(full_name):
     return last_name, first_name, middle_name
 
 
+def _is_attendance_service_row(value):
+    """Пропускаем даты, итоги и технические строки внутри табеля."""
+    if value is None:
+        return True
+
+    raw = str(value).strip()
+    if not raw:
+        return True
+
+    lowered = raw.lower().replace("ё", "е")
+
+    service_words = (
+        "итого",
+        "всего",
+        "дата",
+        "дни",
+        "месяц",
+        "табель",
+        "группа",
+        "воспитатель",
+    )
+
+    if any(lowered.startswith(word) for word in service_words):
+        return True
+
+    # Примеры из табеля: "31 мая 2026 г.", "1 май 2026 г."
+    month_words = (
+        "январ", "феврал", "март", "апрел", "мая", "май",
+        "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр",
+    )
+
+    if any(month in lowered for month in month_words) and any(ch.isdigit() for ch in lowered):
+        return True
+
+    # Даты вида 31.05.2026 или 2026-05-31
+    import re
+    if re.fullmatch(r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}", lowered):
+        return True
+
+    if re.fullmatch(r"\d{4}[./-]\d{1,2}[./-]\d{1,2}", lowered):
+        return True
+
+    return False
+
+
 def _find_or_create_preschool_group(year, group_name):
     if not group_name:
         return None
@@ -1190,8 +1235,13 @@ def _parse_attendance_workbook(year, upload, filename, file_bytes):
 
         child_name = str(child_name).strip()
 
-        # Пропускаем итоговые/служебные строки.
-        if not child_name or child_name.lower().startswith(("итого", "всего")):
+        # Пропускаем даты, итоги и технические строки.
+        if _is_attendance_service_row(child_name):
+            continue
+
+        # ФИО ребёнка должно состоять минимум из фамилии и имени.
+        last_name_check, first_name_check, _ = _split_attendance_name(child_name)
+        if not last_name_check or not first_name_check:
             continue
 
         account_number = sheet.cell(row=row, column=28).value
@@ -1375,6 +1425,73 @@ def attendance():
         month=month,
         uploads=uploads,
         upload_stats=upload_stats,
+    )
+
+
+@bp.route("/attendance/uploads/<int:upload_id>")
+def attendance_upload_detail(upload_id):
+    item = PreschoolAttendanceUpload.query.get_or_404(upload_id)
+
+    records_query = (
+        PreschoolAttendanceRecord.query
+        .filter(PreschoolAttendanceRecord.upload_id == item.id)
+        .outerjoin(PreschoolGroup, PreschoolAttendanceRecord.group_id == PreschoolGroup.id)
+        .order_by(
+            PreschoolGroup.name.asc(),
+            PreschoolAttendanceRecord.child_name.asc(),
+        )
+    )
+
+    records = records_query.all()
+
+    group_rows = []
+    group_map = {}
+
+    for record in records:
+        key = record.group.name if record.group else "Без группы"
+
+        if key not in group_map:
+            group_map[key] = {
+                "group_name": key,
+                "records": 0,
+                "matched": 0,
+                "unmatched": 0,
+                "payment_days": 0,
+                "credited_days": 0,
+                "child_days": 0,
+            }
+
+        row = group_map[key]
+        row["records"] += 1
+        row["payment_days"] += record.payment_days or 0
+        row["credited_days"] += record.credited_days or 0
+        row["child_days"] += record.child_days or 0
+
+        if record.child_id:
+            row["matched"] += 1
+        else:
+            row["unmatched"] += 1
+
+    group_rows = sorted(group_map.values(), key=lambda x: x["group_name"])
+
+    total = {
+        "records": len(records),
+        "matched": sum(1 for record in records if record.child_id),
+        "unmatched": sum(1 for record in records if not record.child_id),
+        "payment_days": sum(record.payment_days or 0 for record in records),
+        "credited_days": sum(record.credited_days or 0 for record in records),
+        "child_days": sum(record.child_days or 0 for record in records),
+    }
+
+    unmatched_records = [record for record in records if not record.child_id]
+
+    return render_template(
+        "preschool/attendance_upload_detail.html",
+        item=item,
+        records=records,
+        group_rows=group_rows,
+        total=total,
+        unmatched_records=unmatched_records,
     )
 
 
