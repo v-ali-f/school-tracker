@@ -1,0 +1,166 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+.forward-page {
+  max-width: 1100px;
+}
+
+.forward-card {
+  border-radius: 18px;
+}
+
+.forward-user-list {
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #fff;
+  max-height: 520px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.forward-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  margin: 0;
+}
+
+.forward-user-row:hover {
+  background: #eef5ff;
+}
+
+.forward-user-row input {
+  width: 17px;
+  height: 17px;
+}
+
+.forward-selected {
+  border: 1px dashed #cfd9e8;
+  background: #f8fafc;
+  border-radius: 14px;
+  padding: 10px;
+  min-height: 46px;
+}
+
+.forward-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #eef5ff;
+  border: 1px solid #cfe0ff;
+  font-size: 12px;
+  margin: 2px;
+}
+</style>
+
+<div class="forward-page">
+  <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+    <div>
+      <h2 class="mb-1">Перенаправить ознакомление</h2>
+      <div class="text-muted">{{ item.title }}</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">
+      Назад
+    </a>
+  </div>
+
+  <form method="post" class="card border-0 shadow-sm forward-card">
+    <div class="card-body">
+      {% if csrf_token is defined %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% endif %}
+
+      <div class="alert alert-info">
+        Выберите сотрудников, которым нужно направить это же ознакомление. Уже назначенные получатели в список не включены.
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Поиск сотрудника</label>
+        <input class="form-control" id="forwardUserSearch" placeholder="Введите фамилию, имя или логин">
+      </div>
+
+      <div class="forward-user-list mb-3" id="forwardUserList">
+        {% for u in users %}
+          {% set label = user_label(u) %}
+          <label class="forward-user-row" data-name="{{ label|lower }}">
+            <input type="checkbox" name="recipient_user_ids" value="{{ u.id }}" data-person-name="{{ label }}">
+            <span>{{ label }}</span>
+          </label>
+        {% else %}
+          <div class="text-muted p-2">Нет доступных сотрудников для перенаправления.</div>
+        {% endfor %}
+      </div>
+
+      <div class="forward-selected">
+        <div class="text-muted small mb-1">Выбраны:</div>
+        <div id="forwardSelectedBox">
+          <span class="text-muted small">Пока никто не выбран</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-footer bg-white d-flex gap-2">
+      <button class="btn btn-primary">
+        <i class="bi bi-send"></i> Направить
+      </button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">
+        Отмена
+      </a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const search = document.getElementById('forwardUserSearch');
+  const rows = Array.from(document.querySelectorAll('.forward-user-row'));
+  const selectedBox = document.getElementById('forwardSelectedBox');
+
+  function normalize(value) {
+    return (value || '').toString().toLowerCase().trim();
+  }
+
+  function updateSelected() {
+    const checked = Array.from(document.querySelectorAll('input[name="recipient_user_ids"]:checked'));
+    selectedBox.innerHTML = '';
+
+    if (!checked.length) {
+      const empty = document.createElement('span');
+      empty.className = 'text-muted small';
+      empty.textContent = 'Пока никто не выбран';
+      selectedBox.appendChild(empty);
+      return;
+    }
+
+    checked.forEach(function (input) {
+      const chip = document.createElement('span');
+      chip.className = 'forward-chip';
+      chip.textContent = input.dataset.personName || input.value;
+      selectedBox.appendChild(chip);
+    });
+  }
+
+  if (search) {
+    search.addEventListener('input', function () {
+      const q = normalize(search.value);
+      rows.forEach(function (row) {
+        row.style.display = normalize(row.dataset.name).includes(q) ? '' : 'none';
+      });
+    });
+  }
+
+  document.querySelectorAll('input[name="recipient_user_ids"]').forEach(function (input) {
+    input.addEventListener('change', updateSelected);
+  });
+
+  updateSelected();
+})();
+</script>
+
+{% endblock %}

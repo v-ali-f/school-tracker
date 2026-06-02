@@ -200,6 +200,78 @@ def new():
         return redirect(url_for('familiarizations.detail', item_id=item.id))
     return render_template('familiarizations_form.html', users=users)
 
+
+@familiarizations_bp.route('/<int:item_id>/forward', methods=['GET', 'POST'])
+@login_required
+def forward(item_id):
+    item = Familiarization.query.get_or_404(item_id)
+    recipient = _recipient_for(item.id, current_user.id)
+
+    # Перенаправить может тот, кто сам имеет доступ к ознакомлению,
+    # а также менеджер/директор/администратор.
+    if not _is_manager() and not recipient:
+        abort(403)
+
+    existing_recipient_ids = {r.user_id for r in item.recipients}
+
+    users = (
+        User.query
+        .filter(User.is_active_user.is_(True))
+        .filter(User.id != current_user.id)
+        .order_by(User.last_name.asc(), User.first_name.asc(), User.username.asc())
+        .all()
+    )
+
+    available_users = [u for u in users if u.id not in existing_recipient_ids]
+
+    if request.method == 'POST':
+        recipient_ids = []
+        for value in request.form.getlist('recipient_user_ids'):
+            try:
+                uid = int(value)
+            except (TypeError, ValueError):
+                continue
+
+            if uid and uid not in recipient_ids and uid not in existing_recipient_ids:
+                recipient_ids.append(uid)
+
+        if not recipient_ids:
+            flash('Выберите хотя бы одного нового получателя.', 'danger')
+            return redirect(url_for('familiarizations.forward', item_id=item.id))
+
+        selected_users = [u for u in available_users if u.id in recipient_ids]
+
+        for user in selected_users:
+            db.session.add(FamiliarizationRecipient(
+                familiarization_id=item.id,
+                user_id=user.id
+            ))
+
+        db.session.commit()
+
+        # Уведомляем новых получателей в MAX.
+        for user in selected_users:
+            try:
+                send_familiarization_max_notification(
+                    item,
+                    user,
+                    notification_type='new_familiarization'
+                )
+            except Exception as exc:
+                current_app.logger.warning('Forwarded familiarization MAX notification failed: %s', exc)
+
+        flash(f'Ознакомление перенаправлено. Новых получателей: {len(selected_users)}.', 'success')
+        return redirect(url_for('familiarizations.detail', item_id=item.id))
+
+    return render_template(
+        'familiarizations_forward.html',
+        item=item,
+        users=available_users,
+        user_label=_user_label,
+    )
+
+
+
 @familiarizations_bp.route('/<int:item_id>', methods=['GET','POST'])
 @login_required
 def detail(item_id):
