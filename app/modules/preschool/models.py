@@ -52,11 +52,40 @@ class PreschoolGroup(db.Model):
     )
 
 
+class PreschoolChildrenImport(db.Model):
+    __tablename__ = "preschool_children_import"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    academic_year_id = db.Column(
+        db.Integer,
+        db.ForeignKey("academic_year.id"),
+        nullable=True,
+        index=True,
+    )
+
+    filename = db.Column(db.String(500), nullable=True)
+    added_count = db.Column(db.Integer, nullable=False, default=0)
+    skipped_count = db.Column(db.Integer, nullable=False, default=0)
+    created_groups_count = db.Column(db.Integer, nullable=False, default=0)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    academic_year = db.relationship("AcademicYear")
+
+
 class PreschoolChild(db.Model):
     __tablename__ = "preschool_child"
 
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey("preschool_group.id"), nullable=True)
+
+    import_batch_id = db.Column(
+        db.Integer,
+        db.ForeignKey("preschool_children_import.id"),
+        nullable=True,
+        index=True,
+    )
 
     last_name = db.Column(db.String(150), nullable=False)
     first_name = db.Column(db.String(150), nullable=False)
@@ -71,6 +100,7 @@ class PreschoolChild(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     group = db.relationship("PreschoolGroup", backref=db.backref("children", lazy=True))
+    import_batch = db.relationship("PreschoolChildrenImport", backref=db.backref("children", lazy=True))
 
     @property
     def full_name(self):
