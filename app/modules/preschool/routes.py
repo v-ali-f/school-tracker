@@ -99,6 +99,35 @@ def ensure_preschool_tables():
                 "import_batch_id",
                 "ALTER TABLE preschool_child ADD COLUMN import_batch_id INTEGER",
             )
+            _add_column_if_missing(
+                inspector,
+                "preschool_child",
+                "reg_address",
+                "ALTER TABLE preschool_child ADD COLUMN reg_address VARCHAR(700)",
+            )
+            _add_column_if_missing(
+                inspector,
+                "preschool_child",
+                "living_address",
+                "ALTER TABLE preschool_child ADD COLUMN living_address VARCHAR(700)",
+            )
+            _add_column_if_missing(
+                inspector,
+                "preschool_child",
+                "actual_address",
+                "ALTER TABLE preschool_child ADD COLUMN actual_address VARCHAR(700)",
+            )
+        except Exception:
+            db.session.rollback()
+
+    if "preschool_representative" in existing_tables:
+        try:
+            _add_column_if_missing(
+                inspector,
+                "preschool_representative",
+                "address",
+                "ALTER TABLE preschool_representative ADD COLUMN address VARCHAR(700)",
+            )
         except Exception:
             db.session.rollback()
 

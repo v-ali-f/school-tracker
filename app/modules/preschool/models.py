@@ -94,6 +94,10 @@ class PreschoolChild(db.Model):
     birth_date = db.Column(db.Date, nullable=True)
     personal_account = db.Column(db.String(100), nullable=True)
 
+    reg_address = db.Column(db.String(700), nullable=True)
+    living_address = db.Column(db.String(700), nullable=True)
+    actual_address = db.Column(db.String(700), nullable=True)
+
     status = db.Column(db.String(50), nullable=False, default="active")
     note = db.Column(db.Text, nullable=True)
 
