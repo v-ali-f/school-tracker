@@ -33,19 +33,43 @@
   </div>
 
   <div class="preschool-grid">
+    <a class="preschool-card" href="{{ url_for('preschool.children') }}">
+      <div class="preschool-card-icon">📋</div>
+      <h2 class="preschool-card-title">Сводный контингент ДОУ</h2>
+      <p class="preschool-card-text">
+        Сводка по группам, зданиям, возрастным категориям и количеству воспитанников.
+      </p>
+    </a>
+
+    <a class="preschool-card" href="{{ url_for('preschool.children_registry') }}">
+      <div class="preschool-card-icon">👶</div>
+      <h2 class="preschool-card-title">Реестр воспитанников ДОУ</h2>
+      <p class="preschool-card-text">
+        Полный список воспитанников, поиск, карточки детей, редактирование и удаление.
+      </p>
+    </a>
+
     <a class="preschool-card" href="{{ url_for('preschool.groups') }}">
       <div class="preschool-card-icon">👥</div>
       <h2 class="preschool-card-title">Группы ДОУ учебного года</h2>
       <p class="preschool-card-text">
-        Создание групп по учебному году с привязкой к зданию из общего реестра зданий.
+        Группы по учебному году с привязкой к зданию и ответственному воспитателю.
       </p>
     </a>
 
-    <a class="preschool-card" href="{{ url_for('preschool.children') }}">
-      <div class="preschool-card-icon">👶</div>
-      <h2 class="preschool-card-title">Контингент ДОУ</h2>
+    <a class="preschool-card" href="{{ url_for('preschool.import_children') }}">
+      <div class="preschool-card-icon">⬆️</div>
+      <h2 class="preschool-card-title">Импорт детей</h2>
       <p class="preschool-card-text">
-        Список воспитанников, распределение по группам, статусы и карточки детей.
+        Загрузка контингента ДОУ из Excel с автоматическим созданием групп.
+      </p>
+    </a>
+
+    <a class="preschool-card" href="{{ url_for('preschool.import_representatives') }}">
+      <div class="preschool-card-icon">👪</div>
+      <h2 class="preschool-card-title">Импорт представителей</h2>
+      <p class="preschool-card-text">
+        Загрузка родителей и законных представителей с привязкой к карточкам детей.
       </p>
     </a>
 

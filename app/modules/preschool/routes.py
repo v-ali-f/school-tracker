@@ -628,6 +628,9 @@ def import_children():
             "fio": {"фио", "фиоребенка", "фиовоспитанника", "фамилияимяотчество", "воспитанник", "ребенок"},
             "group": {"группа", "группадоу", "наименованиегруппы"},
             "birth_date": {"датарождения", "др", "рождение", "родился", "родилась"},
+            "reg_address": {"адресрегистрации", "регистрация", "адреспрописки", "прописка", "регистрацияпоместужительства", "адресрегистрациипоместужительства"},
+            "living_address": {"адреспроживания", "проживание", "адресместажительства", "местожительства", "регистрацияпоместупребывания", "адресрегистрациипоместупребывания"},
+            "actual_address": {"фактическийадрес", "адресфактический", "фактическоепроживание", "адресфактическогопроживания", "фактическоеместопроживания"},
             "note": {"примечание", "комментарий", "комментарии", "дополнительныесведениякод", "дополнительныесведения"},
         }
 
@@ -668,6 +671,9 @@ def import_children():
             fio = row[header_map["fio"]] if header_map.get("fio") is not None and header_map["fio"] < len(row) else None
             group_name = row[header_map["group"]] if header_map.get("group") is not None and header_map["group"] < len(row) else None
             birth_raw = row[header_map["birth_date"]] if header_map.get("birth_date") is not None and header_map["birth_date"] < len(row) else None
+            reg_address = row[header_map["reg_address"]] if header_map.get("reg_address") is not None and header_map["reg_address"] < len(row) else None
+            living_address = row[header_map["living_address"]] if header_map.get("living_address") is not None and header_map["living_address"] < len(row) else None
+            actual_address = row[header_map["actual_address"]] if header_map.get("actual_address") is not None and header_map["actual_address"] < len(row) else None
             note = row[header_map["note"]] if header_map.get("note") is not None and header_map["note"] < len(row) else None
 
             if not fio and not group_name:
@@ -737,6 +743,9 @@ def import_children():
                 middle_name=middle_name,
                 birth_date=parsed_birth_date,
                 personal_account=str(case_number).strip() if case_number else None,
+                reg_address=str(reg_address).strip() if reg_address else None,
+                living_address=str(living_address).strip() if living_address else None,
+                actual_address=str(actual_address).strip() if actual_address else None,
                 status="active",
                 note=str(note).strip() if note else None,
             )
@@ -879,6 +888,7 @@ def import_representatives():
             "full_name": {"фио", "фиопредставителя", "фиородителя", "родитель", "представительфио"},
             "phone": {"телефон", "мобильныйтелефон", "контактныйтелефон", "тел"},
             "email": {"email", "почта", "электроннаяпочта", "e-mail"},
+            "address": {"адрес", "адресрегистрации", "адреспроживания", "фактическийадрес"},
             "note": {"примечание", "комментарий", "комментарии"},
         }
 
@@ -913,6 +923,7 @@ def import_representatives():
             full_name = row[header_map["full_name"]] if header_map.get("full_name") is not None and header_map["full_name"] < len(row) else None
             phone = row[header_map["phone"]] if header_map.get("phone") is not None and header_map["phone"] < len(row) else None
             email = row[header_map["email"]] if header_map.get("email") is not None and header_map["email"] < len(row) else None
+            address = row[header_map["address"]] if header_map.get("address") is not None and header_map["address"] < len(row) else None
             note = row[header_map["note"]] if header_map.get("note") is not None and header_map["note"] < len(row) else None
 
             if not full_name:
@@ -965,6 +976,7 @@ def import_representatives():
                 full_name=str(full_name).strip(),
                 phone=_normalize_phone(phone),
                 email=str(email).strip() if email else None,
+                address=str(address).strip() if address else None,
                 note=str(note).strip() if note else None,
             )
 

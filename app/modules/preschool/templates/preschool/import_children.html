@@ -185,7 +185,10 @@
       <div class="pi-subtitle">Загрузка списка воспитанников из Excel за {{ year.name }}</div>
     </div>
 
-    <a class="pi-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">← К контингенту</a>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+      <a class="pi-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">← К контингенту</a>
+      <a class="pi-btn" href="{{ url_for('preschool.import_representatives', academic_year_id=year.id) }}">Импорт представителей</a>
+    </div>
   </div>
 
   <form class="pi-card" method="post" enctype="multipart/form-data">
@@ -214,7 +217,7 @@
     <h2>Требования к файлу</h2>
     <div class="pi-help">
       Минимально нужны колонки <code>ФИО</code> и <code>Группа</code>. Для выгрузки из реестра также поддерживаются <code>Личное дело №</code> и <code>Родился</code>.
-      Дополнительно можно указать <code>Дата рождения</code> / <code>Родился</code> и <code>Примечание</code>.
+      Дополнительно можно указать <code>Дата рождения</code> / <code>Родился</code>, <code>Регистрация по месту жительства</code>, <code>Регистрация по месту пребывания</code>, <code>Адрес фактического проживания</code> и <code>Примечание</code>.
       Если группы из файла ещё нет в справочнике, система создаст её автоматически.
       Например, для <code>ДК2-7</code> будет создана группа <code>ДК2-7</code>, а здание будет определено по <code>ДК2</code>, если оно есть в реестре зданий.
     </div>
