@@ -213,7 +213,8 @@
     <div>
       <h1 class="bulk-title">Массовое движение воспитанников</h1>
       <div class="bulk-subtitle">
-        Массовый перевод воспитанников между группами или оформление выбытия.
+        Массовый перевод внутри года, выбытие или перевод группы в новый учебный год.
+        Для годового перевода сначала выберите учебный год назначения, затем группу из этого года.
       </div>
     </div>
 
@@ -228,7 +229,7 @@
 
     <div class="bulk-grid">
       <div class="bulk-field">
-        <label>Учебный год</label>
+        <label>Исходный учебный год</label>
         <select name="academic_year_id">
           {% for item in all_years %}
             <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
@@ -250,12 +251,25 @@
         </select>
       </div>
 
+      <div class="bulk-field">
+        <label>Учебный год назначения</label>
+        <select name="target_academic_year_id">
+          <option value="">Не выбран</option>
+          {% for item in all_years %}
+            <option value="{{ item.id }}" {% if target_year and item.id == target_year.id %}selected{% endif %}>
+              {{ item.name }}{% if item.is_current %} • текущий{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
       <button class="bulk-btn bulk-btn-primary" type="submit">Показать детей</button>
     </div>
   </form>
 
   <form class="bulk-panel" method="post">
     <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+    <input type="hidden" name="target_academic_year_id" value="{{ target_year.id if target_year else '' }}">
     <input type="hidden" name="source_group_id" value="{{ source_group_id or '' }}">
 
     <h2>Операция</h2>
@@ -265,7 +279,8 @@
         <label>Тип операции</label>
         <select name="movement_type" required>
           <option value="">Выберите</option>
-          <option value="transfer_group">Перевод в другую группу</option>
+          <option value="transfer_group">Перевод в другую группу текущего года</option>
+          <option value="year_transfer">Перевод в новый учебный год</option>
           <option value="leaving">Выбытие</option>
         </select>
       </div>
@@ -279,11 +294,24 @@
         <label>Группа назначения</label>
         <select name="target_group_id">
           <option value="">Не выбрана</option>
-          {% for group in groups %}
-            <option value="{{ group.id }}">
-              {{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}
-            </option>
-          {% endfor %}
+
+          {% if target_year %}
+            <optgroup label="Группы {{ target_year.name }}">
+              {% for group in target_groups %}
+                <option value="{{ group.id }}">
+                  {{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}
+                </option>
+              {% endfor %}
+            </optgroup>
+          {% endif %}
+
+          <optgroup label="Группы {{ year.name }}">
+            {% for group in groups %}
+              <option value="{{ group.id }}">
+                {{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}
+              </option>
+            {% endfor %}
+          </optgroup>
         </select>
       </div>
 

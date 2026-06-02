@@ -133,6 +133,23 @@ def ensure_preschool_tables():
         except Exception:
             db.session.rollback()
 
+    if "preschool_child_movement" in existing_tables:
+        try:
+            _add_column_if_missing(
+                inspector,
+                "preschool_child_movement",
+                "from_academic_year_id",
+                "ALTER TABLE preschool_child_movement ADD COLUMN from_academic_year_id INTEGER",
+            )
+            _add_column_if_missing(
+                inspector,
+                "preschool_child_movement",
+                "to_academic_year_id",
+                "ALTER TABLE preschool_child_movement ADD COLUMN to_academic_year_id INTEGER",
+            )
+        except Exception:
+            db.session.rollback()
+
     _preschool_schema_checked = True
 
 
@@ -1897,6 +1914,7 @@ def movements():
         "transfer_group": sum(1 for item in items if item.movement_type == "transfer_group"),
         "leaving": sum(1 for item in items if item.movement_type == "leaving"),
         "transfer_school": sum(1 for item in items if item.movement_type == "transfer_school"),
+        "year_transfer": sum(1 for item in items if item.movement_type == "year_transfer"),
     }
 
     return render_template(
@@ -1913,9 +1931,11 @@ def movements():
 @bp.route("/movements/bulk", methods=["GET", "POST"])
 def bulk_movements():
     year_id = request.args.get("academic_year_id", type=int) or request.form.get("academic_year_id", type=int)
+    target_year_id = request.args.get("target_academic_year_id", type=int) or request.form.get("target_academic_year_id", type=int)
     source_group_id = request.args.get("source_group_id", type=int) or request.form.get("source_group_id", type=int)
 
     year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+    target_year = AcademicYear.query.get(target_year_id) if target_year_id else None
 
     if not year:
         flash("Сначала создайте учебный год в служебном разделе.", "warning")
@@ -1932,6 +1952,14 @@ def bulk_movements():
         .filter(PreschoolGroup.academic_year_id == year.id)
         .order_by(PreschoolGroup.name.asc())
         .all()
+    )
+
+    target_groups = (
+        PreschoolGroup.query
+        .filter(PreschoolGroup.academic_year_id == target_year.id)
+        .order_by(PreschoolGroup.name.asc())
+        .all()
+        if target_year else []
     )
 
     children = []
@@ -1952,11 +1980,12 @@ def bulk_movements():
 
         child_ids = request.form.getlist("child_ids")
 
-        if movement_type not in ("transfer_group", "leaving"):
+        if movement_type not in ("transfer_group", "leaving", "year_transfer"):
             flash("Выберите тип массового движения.", "warning")
             return redirect(url_for(
                 "preschool.bulk_movements",
                 academic_year_id=year.id,
+                target_academic_year_id=target_year.id if target_year else None,
                 source_group_id=source_group_id,
             ))
 
@@ -1965,16 +1994,47 @@ def bulk_movements():
             return redirect(url_for(
                 "preschool.bulk_movements",
                 academic_year_id=year.id,
+                target_academic_year_id=target_year.id if target_year else None,
                 source_group_id=source_group_id,
             ))
 
-        if movement_type == "transfer_group" and not target_group_id:
-            flash("Для массового перевода выберите группу назначения.", "warning")
+        if movement_type in ("transfer_group", "year_transfer") and not target_group_id:
+            flash("Для перевода выберите группу назначения.", "warning")
             return redirect(url_for(
                 "preschool.bulk_movements",
                 academic_year_id=year.id,
+                target_academic_year_id=target_year.id if target_year else None,
                 source_group_id=source_group_id,
             ))
+
+        target_group = PreschoolGroup.query.get(target_group_id) if target_group_id else None
+
+        if movement_type == "year_transfer":
+            if not target_year:
+                flash("Для перевода в новый учебный год выберите учебный год назначения.", "warning")
+                return redirect(url_for(
+                    "preschool.bulk_movements",
+                    academic_year_id=year.id,
+                    source_group_id=source_group_id,
+                ))
+
+            if not target_group or target_group.academic_year_id != target_year.id:
+                flash("Группа назначения должна относиться к выбранному новому учебному году.", "warning")
+                return redirect(url_for(
+                    "preschool.bulk_movements",
+                    academic_year_id=year.id,
+                    target_academic_year_id=target_year.id,
+                    source_group_id=source_group_id,
+                ))
+
+        if movement_type == "transfer_group":
+            if not target_group or target_group.academic_year_id != year.id:
+                flash("Для перевода внутри года выберите группу текущего учебного года.", "warning")
+                return redirect(url_for(
+                    "preschool.bulk_movements",
+                    academic_year_id=year.id,
+                    source_group_id=source_group_id,
+                ))
 
         movement_date = None
         if movement_date_raw:
@@ -1989,20 +2049,33 @@ def bulk_movements():
         created = 0
 
         for child in selected_children:
+            from_group = child.group
             from_group_id = child.group_id
+            from_year_id = from_group.academic_year_id if from_group else year.id
 
             if movement_type == "transfer_group":
                 child.group_id = target_group_id
                 child.status = "active"
                 to_group_id = target_group_id
+                to_year_id = year.id
+
+            elif movement_type == "year_transfer":
+                child.group_id = target_group_id
+                child.status = "active"
+                to_group_id = target_group_id
+                to_year_id = target_year.id
+
             else:
                 child.status = "left"
                 to_group_id = None
+                to_year_id = from_year_id
 
             movement = PreschoolChildMovement(
                 child_id=child.id,
                 movement_date=movement_date,
                 movement_type=movement_type,
+                from_academic_year_id=from_year_id,
+                to_academic_year_id=to_year_id,
                 from_group_id=from_group_id,
                 to_group_id=to_group_id,
                 basis=basis or None,
@@ -2015,15 +2088,18 @@ def bulk_movements():
         db.session.commit()
 
         flash(f"Массовое движение сохранено. Обработано воспитанников: {created}.", "success")
-        return redirect(url_for("preschool.movements", academic_year_id=year.id, movement_type=movement_type))
+        return redirect(url_for("preschool.movements", academic_year_id=to_year_id, movement_type=movement_type))
 
     return render_template(
         "preschool/bulk_movements.html",
         year=year,
+        target_year=target_year,
         all_years=all_years,
         groups=groups,
+        target_groups=target_groups,
         children=children,
         source_group_id=source_group_id,
+        target_year_id=target_year_id,
     )
 
 
@@ -2112,6 +2188,8 @@ def add_child_movement(child_id):
         child_id=child.id,
         movement_date=movement_date,
         movement_type=movement_type,
+        from_academic_year_id=from_academic_year_id,
+        to_academic_year_id=child.group.academic_year_id if child.group else from_academic_year_id,
         from_group_id=from_group_id,
         to_group_id=child.group_id if movement_type in ("admission", "transfer_group") else to_group_id,
         basis=basis or None,

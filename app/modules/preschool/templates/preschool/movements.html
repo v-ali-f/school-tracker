@@ -238,7 +238,8 @@
   "admission": "Зачисление",
   "transfer_group": "Перевод группы",
   "leaving": "Выбытие",
-  "transfer_school": "Перевод в школу"
+  "transfer_school": "Перевод в школу",
+  "year_transfer": "Перевод в новый учебный год"
 } %}
 
 <div class="movement-page">
@@ -349,8 +350,14 @@
                 </a>
               </td>
               <td><span class="movement-badge">{{ movement_labels.get(item.movement_type, item.movement_type) }}</span></td>
-              <td>{{ item.from_group.name if item.from_group else "—" }}</td>
-              <td>{{ item.to_group.name if item.to_group else "—" }}</td>
+              <td>
+                {% if item.from_academic_year %}{{ item.from_academic_year.name }} · {% endif %}
+                {{ item.from_group.name if item.from_group else "—" }}
+              </td>
+              <td>
+                {% if item.to_academic_year %}{{ item.to_academic_year.name }} · {% endif %}
+                {{ item.to_group.name if item.to_group else "—" }}
+              </td>
               <td>{{ item.basis or "—" }}</td>
               <td>{{ item.comment or "—" }}</td>
             </tr>
