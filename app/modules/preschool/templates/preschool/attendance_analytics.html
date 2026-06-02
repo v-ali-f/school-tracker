@@ -1,0 +1,466 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .analytics-page {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 24px 32px 42px;
+  }
+
+  .analytics-breadcrumbs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .analytics-breadcrumbs a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .analytics-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    margin-bottom: 18px;
+  }
+
+  .analytics-title {
+    margin: 0;
+    color: #25324a;
+    font-size: 30px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .analytics-subtitle {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .analytics-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .analytics-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid #d4deec;
+    background: #ffffff;
+    color: #64748b;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .analytics-panel {
+    padding: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+    margin-bottom: 18px;
+  }
+
+  .analytics-panel h2 {
+    margin: 0 0 14px;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .analytics-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.5fr auto auto;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .analytics-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .analytics-field input,
+  .analytics-field select {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1f2937;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .analytics-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .analytics-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .analytics-stat {
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+  }
+
+  .analytics-stat-label {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .analytics-stat-value {
+    color: #25324a;
+    font-size: 28px;
+    line-height: 1;
+    font-weight: 700;
+  }
+
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+
+  .analytics-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .analytics-table th {
+    text-align: left;
+    padding: 11px 12px;
+    border-bottom: 1px solid #cbd5e1;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .analytics-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #eef2f7;
+    color: #25324a;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .analytics-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .bar-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 70px;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .bar-name {
+    color: #25324a;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .bar-track {
+    height: 28px;
+    border-radius: 999px;
+    background: #eef2f7;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    min-width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #60a5fa, #2563eb);
+  }
+
+  .bar-value {
+    text-align: right;
+    color: #25324a;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .analytics-empty {
+    padding: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  @media (max-width: 1100px) {
+    .analytics-stat-grid,
+    .analytics-grid,
+    .analytics-filters {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .analytics-page {
+      padding: 18px 16px 32px;
+    }
+
+    .analytics-header {
+      flex-direction: column;
+    }
+
+    .analytics-stat-grid,
+    .analytics-grid,
+    .analytics-filters {
+      grid-template-columns: 1fr;
+    }
+
+    .bar-row {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .bar-value {
+      text-align: left;
+    }
+  }
+</style>
+
+<div class="analytics-page">
+  <div class="analytics-breadcrumbs">
+    <a href="{{ url_for('main.dashboard') }}">Главная</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.attendance') }}">Детодни</a>
+    <span>/</span>
+    <span>Аналитика</span>
+  </div>
+
+  <div class="analytics-header">
+    <div>
+      <h1 class="analytics-title">Аналитика детодней ДОУ</h1>
+      <div class="analytics-subtitle">
+        Сводка по корпусам, группам и табелям за выбранный период.
+      </div>
+    </div>
+
+    <div class="analytics-actions">
+      <a class="analytics-btn" href="{{ url_for('preschool.index') }}">ДОУ</a>
+      <a class="analytics-btn" href="{{ url_for('preschool.attendance', academic_year_id=year.id, month=month) }}">Журнал табелей</a>
+    </div>
+  </div>
+
+  <form class="analytics-panel" method="get">
+    <h2>Фильтры</h2>
+
+    <div class="analytics-filters">
+      <div class="analytics-field">
+        <label>Учебный год</label>
+        <select name="academic_year_id">
+          {% for item in all_years %}
+            <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
+              {{ item.name }}{% if item.is_current %} • текущий{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="analytics-field">
+        <label>Месяц</label>
+        <input name="month" value="{{ month }}" placeholder="Например: 2026-05">
+      </div>
+
+      <div class="analytics-field">
+        <label>Загрузка</label>
+        <select name="upload_id">
+          <option value="">Все загрузки</option>
+          {% for upload in uploads %}
+            <option value="{{ upload.id }}" {% if upload_id == upload.id %}selected{% endif %}>
+              {{ upload.created_at.strftime("%d.%m.%Y %H:%M") if upload.created_at else "—" }} · {{ upload.original_filename }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button class="analytics-btn analytics-btn-primary" type="submit">Показать</button>
+      <a class="analytics-btn" href="{{ url_for('preschool.attendance_analytics', academic_year_id=year.id) }}">Сбросить</a>
+    </div>
+  </form>
+
+  <div class="analytics-stat-grid">
+    <div class="analytics-stat">
+      <div class="analytics-stat-label">Строк табеля</div>
+      <div class="analytics-stat-value">{{ total.records }}</div>
+    </div>
+    <div class="analytics-stat">
+      <div class="analytics-stat-label">Сопоставлено</div>
+      <div class="analytics-stat-value">{{ total.matched }}</div>
+    </div>
+    <div class="analytics-stat">
+      <div class="analytics-stat-label">Не найдено</div>
+      <div class="analytics-stat-value">{{ total.unmatched }}</div>
+    </div>
+    <div class="analytics-stat">
+      <div class="analytics-stat-label">Дни к оплате</div>
+      <div class="analytics-stat-value">{{ total.payment_days }}</div>
+    </div>
+    <div class="analytics-stat">
+      <div class="analytics-stat-label">Засчитано</div>
+      <div class="analytics-stat-value">{{ total.credited_days }}</div>
+    </div>
+    <div class="analytics-stat">
+      <div class="analytics-stat-label">Детодни</div>
+      <div class="analytics-stat-value">{{ total.child_days }}</div>
+    </div>
+  </div>
+
+  <div class="analytics-grid">
+    <div class="analytics-panel">
+      <h2>График по корпусам</h2>
+
+      {% if building_rows %}
+        <div class="bar-list">
+          {% for row in building_rows %}
+            <div class="bar-row">
+              <div class="bar-name">{{ row.name }}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ (row.child_days / max_building_child_days * 100) if max_building_child_days else 0 }}%;"></div>
+              </div>
+              <div class="bar-value">{{ row.child_days }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="analytics-empty">Нет данных для графика.</div>
+      {% endif %}
+    </div>
+
+    <div class="analytics-panel">
+      <h2>Свод по корпусам</h2>
+
+      <table class="analytics-table">
+        <thead>
+          <tr>
+            <th>Корпус</th>
+            <th>Групп</th>
+            <th>Строк</th>
+            <th>Не найдено</th>
+            <th>Детодни</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in building_rows %}
+            <tr>
+              <td><strong>{{ row.name }}</strong></td>
+              <td>{{ row.groups_count }}</td>
+              <td>{{ row.records }}</td>
+              <td>{{ row.unmatched }}</td>
+              <td><strong>{{ row.child_days }}</strong></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="analytics-empty">Нет данных.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="analytics-panel">
+    <h2>График по группам</h2>
+
+    {% if group_rows %}
+      <div class="bar-list">
+        {% for row in group_rows %}
+          <div class="bar-row">
+            <div class="bar-name">{{ row.name }}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {{ (row.child_days / max_group_child_days * 100) if max_group_child_days else 0 }}%;"></div>
+            </div>
+            <div class="bar-value">{{ row.child_days }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="analytics-empty">Нет данных для графика.</div>
+    {% endif %}
+  </div>
+
+  <div class="analytics-panel">
+    <h2>Свод по группам</h2>
+
+    <table class="analytics-table">
+      <thead>
+        <tr>
+          <th>Корпус</th>
+          <th>Группа</th>
+          <th>Строк</th>
+          <th>Сопоставлено</th>
+          <th>Не найдено</th>
+          <th>Дни к оплате</th>
+          <th>Засчитано</th>
+          <th>Детодни</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in group_rows %}
+          <tr>
+            <td>{{ row.building }}</td>
+            <td><strong>{{ row.name }}</strong></td>
+            <td>{{ row.records }}</td>
+            <td>{{ row.matched }}</td>
+            <td>{{ row.unmatched }}</td>
+            <td>{{ row.payment_days }}</td>
+            <td>{{ row.credited_days }}</td>
+            <td><strong>{{ row.child_days }}</strong></td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8" class="analytics-empty">Нет данных.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

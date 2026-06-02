@@ -215,6 +215,7 @@
     <div class="attendance-actions">
       <a class="attendance-btn" href="{{ url_for('preschool.index') }}">ДОУ</a>
       <a class="attendance-btn" href="{{ url_for('preschool.children') }}">Сводный контингент</a>
+      <a class="attendance-btn" href="{{ url_for('preschool.attendance_analytics', academic_year_id=year.id, month=month) }}">Аналитика</a>
     </div>
   </div>
 
