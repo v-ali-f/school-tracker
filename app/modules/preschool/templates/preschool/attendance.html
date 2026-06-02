@@ -259,6 +259,10 @@
             <th>Месяц</th>
             <th>Файл</th>
             <th>Статус</th>
+            <th>Строк</th>
+            <th>Дни к оплате</th>
+            <th>Засчитано</th>
+            <th>Детодни</th>
             <th>Комментарий</th>
             <th style="text-align:right;">Действия</th>
           </tr>
@@ -271,6 +275,10 @@
               <td>{{ item.month or "—" }}</td>
               <td>{{ item.original_filename or "—" }}</td>
               <td><span class="attendance-status">{{ item.status }}</span></td>
+              <td>{{ upload_stats[item.id].records if upload_stats and item.id in upload_stats else 0 }}</td>
+              <td>{{ upload_stats[item.id].payment_days if upload_stats and item.id in upload_stats else 0 }}</td>
+              <td>{{ upload_stats[item.id].credited_days if upload_stats and item.id in upload_stats else 0 }}</td>
+              <td><strong>{{ upload_stats[item.id].child_days if upload_stats and item.id in upload_stats else 0 }}</strong></td>
               <td>{{ item.comment or "—" }}</td>
               <td style="text-align:right;">
                 <form method="post"
