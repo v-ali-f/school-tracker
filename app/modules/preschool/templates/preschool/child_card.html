@@ -186,6 +186,115 @@
     line-height: 1.45;
   }
 
+  .movement-form {
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    margin-bottom: 14px;
+  }
+
+  .movement-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .movement-field.full {
+    grid-column: 1 / -1;
+  }
+
+  .movement-field label {
+    display: block;
+    margin-bottom: 5px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .movement-field input,
+  .movement-field select,
+  .movement-field textarea {
+    width: 100%;
+    min-height: 36px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 0 10px;
+    background: #ffffff;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .movement-field textarea {
+    min-height: 70px;
+    padding-top: 8px;
+    resize: vertical;
+  }
+
+  .movement-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .movement-item {
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+  }
+
+  .movement-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .movement-title {
+    color: #1f2937;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+
+  .movement-meta {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .movement-empty {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px dashed #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .movement-danger {
+    min-height: 28px;
+    padding: 0 9px;
+    border-radius: 9px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #dc2626;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  @media (max-width: 720px) {
+    .movement-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .movement-field.full {
+      grid-column: auto;
+    }
+  }
+
   .representatives-list {
     display: grid;
     gap: 10px;
@@ -392,10 +501,98 @@
 
     <div class="child-panel">
       <h2>Движение</h2>
-      <div class="child-placeholder">
-        Здесь будет история: зачисление в ДОУ, перевод между группами, выбытие,
-        а также перевод из ДОУ в школьный контингент.
-      </div>
+
+      <form class="movement-form" method="post" action="{{ url_for('preschool.add_child_movement', child_id=child.id) }}">
+        <div class="movement-form-grid">
+          <div class="movement-field">
+            <label>Тип движения</label>
+            <select name="movement_type" required>
+              <option value="">Выберите</option>
+              <option value="admission">Зачисление</option>
+              <option value="transfer_group">Перевод в другую группу</option>
+              <option value="leaving">Выбытие</option>
+              <option value="transfer_school">Перевод в школу</option>
+            </select>
+          </div>
+
+          <div class="movement-field">
+            <label>Дата</label>
+            <input type="date" name="movement_date">
+          </div>
+
+          <div class="movement-field full">
+            <label>Новая группа / группа зачисления</label>
+            <select name="to_group_id">
+              <option value="">Не выбрана</option>
+              {% for item in groups %}
+                <option value="{{ item.id }}">{{ item.name }}{% if item.building %} — {{ item.building.name }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="movement-field full">
+            <label>Основание</label>
+            <input name="basis" placeholder="Например: приказ, заявление, распоряжение">
+          </div>
+
+          <div class="movement-field full">
+            <label>Комментарий</label>
+            <textarea name="comment"></textarea>
+          </div>
+        </div>
+
+        <button class="child-btn child-btn-primary" type="submit" style="margin-top:12px;">Сохранить движение</button>
+      </form>
+
+      {% set movement_labels = {
+        "admission": "Зачисление",
+        "transfer_group": "Перевод в другую группу",
+        "leaving": "Выбытие",
+        "transfer_school": "Перевод в школу"
+      } %}
+
+      {% if movements %}
+        <div class="movement-list">
+          {% for movement in movements %}
+            <div class="movement-item">
+              <div class="movement-top">
+                <div>
+                  <div class="movement-title">
+                    {{ movement_labels.get(movement.movement_type, movement.movement_type) }}
+                    {% if movement.movement_date %} · {{ movement.movement_date.strftime("%d.%m.%Y") }}{% endif %}
+                  </div>
+
+                  <div class="movement-meta">
+                    {% if movement.from_group %}
+                      Откуда: {{ movement.from_group.name }}
+                    {% endif %}
+                    {% if movement.to_group %}
+                      {% if movement.from_group %}<br>{% endif %}
+                      Куда: {{ movement.to_group.name }}
+                    {% endif %}
+                    {% if movement.basis %}
+                      <br>Основание: {{ movement.basis }}
+                    {% endif %}
+                    {% if movement.comment %}
+                      <br>{{ movement.comment }}
+                    {% endif %}
+                  </div>
+                </div>
+
+                <form method="post"
+                      action="{{ url_for('preschool.delete_child_movement', movement_id=movement.id) }}"
+                      onsubmit="return confirm('Удалить запись движения?');">
+                  <button class="movement-danger" type="submit">Удалить</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="movement-empty">
+          История движения пока не заполнена.
+        </div>
+      {% endif %}
     </div>
 
     <div class="child-panel">

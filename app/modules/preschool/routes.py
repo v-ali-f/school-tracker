@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
 from app.models_legacy import AcademicYear, Building, User
-from .models import PreschoolAttendanceRecord, PreschoolAttendanceUpload, PreschoolChild, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
+from .models import PreschoolAttendanceRecord, PreschoolAttendanceUpload, PreschoolChild, PreschoolChildMovement, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
 
 
 bp = Blueprint(
@@ -61,7 +61,7 @@ def ensure_preschool_tables():
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
 
-    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolAttendanceUpload, PreschoolAttendanceRecord):
+    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolChildMovement, PreschoolAttendanceUpload, PreschoolAttendanceRecord):
         if model.__tablename__ not in existing_tables:
             model.__table__.create(db.engine, checkfirst=True)
 
@@ -1857,13 +1857,101 @@ def child_card(child_id):
         .all()
     )
 
+    groups = (
+        PreschoolGroup.query
+        .filter(PreschoolGroup.academic_year_id == year.id)
+        .order_by(PreschoolGroup.name.asc())
+        .all()
+        if year else []
+    )
+
+    movements = (
+        PreschoolChildMovement.query
+        .filter(PreschoolChildMovement.child_id == child.id)
+        .order_by(PreschoolChildMovement.movement_date.desc().nullslast(), PreschoolChildMovement.created_at.desc())
+        .all()
+    )
+
     return render_template(
         "preschool/child_card.html",
         child=child,
         group=group,
         year=year,
         representatives=representatives,
+        groups=groups,
+        movements=movements,
     )
+
+
+@bp.route("/children/<int:child_id>/movement", methods=["POST"])
+def add_child_movement(child_id):
+    child = PreschoolChild.query.get_or_404(child_id)
+
+    movement_type = (request.form.get("movement_type") or "").strip()
+    movement_date_raw = (request.form.get("movement_date") or "").strip()
+    to_group_id = request.form.get("to_group_id", type=int)
+    basis = (request.form.get("basis") or "").strip()
+    comment = (request.form.get("comment") or "").strip()
+
+    if movement_type not in ("admission", "transfer_group", "leaving", "transfer_school"):
+        flash("Выберите тип движения.", "warning")
+        return redirect(url_for("preschool.child_card", child_id=child.id))
+
+    movement_date = None
+    if movement_date_raw:
+        from datetime import datetime
+        try:
+            movement_date = datetime.strptime(movement_date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            movement_date = None
+
+    from_group_id = child.group_id
+
+    if movement_type == "transfer_group":
+        if not to_group_id:
+            flash("Для перевода выберите новую группу.", "warning")
+            return redirect(url_for("preschool.child_card", child_id=child.id))
+        child.group_id = to_group_id
+        child.status = "active"
+
+    elif movement_type == "leaving":
+        child.status = "left"
+
+    elif movement_type == "admission":
+        child.status = "active"
+        if to_group_id:
+            child.group_id = to_group_id
+
+    elif movement_type == "transfer_school":
+        child.status = "transfer_school"
+
+    movement = PreschoolChildMovement(
+        child_id=child.id,
+        movement_date=movement_date,
+        movement_type=movement_type,
+        from_group_id=from_group_id,
+        to_group_id=child.group_id if movement_type in ("admission", "transfer_group") else to_group_id,
+        basis=basis or None,
+        comment=comment or None,
+    )
+
+    db.session.add(movement)
+    db.session.commit()
+
+    flash("Движение воспитанника сохранено.", "success")
+    return redirect(url_for("preschool.child_card", child_id=child.id))
+
+
+@bp.route("/movements/<int:movement_id>/delete", methods=["POST"])
+def delete_child_movement(movement_id):
+    movement = PreschoolChildMovement.query.get_or_404(movement_id)
+    child_id = movement.child_id
+
+    db.session.delete(movement)
+    db.session.commit()
+
+    flash("Запись движения удалена.", "success")
+    return redirect(url_for("preschool.child_card", child_id=child_id))
 
 
 @bp.route("/children/<int:child_id>/edit", methods=["GET", "POST"])
