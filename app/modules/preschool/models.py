@@ -215,6 +215,20 @@ class PreschoolChildMovement(db.Model):
     movement_date = db.Column(db.Date, nullable=True, index=True)
     movement_type = db.Column(db.String(80), nullable=False)
 
+    from_academic_year_id = db.Column(
+        db.Integer,
+        db.ForeignKey("academic_year.id"),
+        nullable=True,
+        index=True,
+    )
+
+    to_academic_year_id = db.Column(
+        db.Integer,
+        db.ForeignKey("academic_year.id"),
+        nullable=True,
+        index=True,
+    )
+
     from_group_id = db.Column(db.Integer, db.ForeignKey("preschool_group.id"), nullable=True, index=True)
     to_group_id = db.Column(db.Integer, db.ForeignKey("preschool_group.id"), nullable=True, index=True)
 
@@ -223,5 +237,7 @@ class PreschoolChildMovement(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     child = db.relationship("PreschoolChild", backref=db.backref("movements", lazy=True, cascade="all, delete-orphan"))
+    from_academic_year = db.relationship("AcademicYear", foreign_keys=[from_academic_year_id])
+    to_academic_year = db.relationship("AcademicYear", foreign_keys=[to_academic_year_id])
     from_group = db.relationship("PreschoolGroup", foreign_keys=[from_group_id])
     to_group = db.relationship("PreschoolGroup", foreign_keys=[to_group_id])
