@@ -89,7 +89,7 @@
 
   .pc-filters {
     display: grid;
-    grid-template-columns: 1fr 1.3fr auto;
+    grid-template-columns: 1fr 1.1fr 1.1fr 1.2fr auto;
     gap: 10px;
     align-items: end;
   }
@@ -102,6 +102,7 @@
     font-weight: 650;
   }
 
+  .pc-field input,
   .pc-field select {
     width: 100%;
     min-height: 38px;
@@ -157,6 +158,54 @@
     font-weight: 800;
   }
 
+  .pc-collapse {
+    margin-bottom: 16px;
+  }
+
+  .pc-collapse summary {
+    cursor: pointer;
+    user-select: none;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    color: #1f2937;
+    font-weight: 750;
+    list-style: none;
+  }
+
+  .pc-collapse summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .pc-add-panel {
+    margin-top: 10px;
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+  }
+
+  .pc-add-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
+    gap: 10px;
+  }
+
+  .pc-add-grid .full {
+    grid-column: 1 / -1;
+  }
+
+  .pc-add-grid textarea {
+    width: 100%;
+    min-height: 70px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 9px 11px;
+    resize: vertical;
+    font-size: 14px;
+  }
+
   .pc-section {
     border: 1px solid #eef2f7;
     border-radius: 18px;
@@ -177,6 +226,10 @@
     color: #1f2937;
     font-size: 20px;
     font-weight: 800;
+  }
+
+  .pc-table-wrap {
+    overflow-x: auto;
   }
 
   .pc-table {
@@ -212,18 +265,15 @@
     font-weight: 750;
   }
 
-  .pc-group-link {
-    color: #1f2937;
-    text-decoration: none;
-  }
-
-  .pc-group-link:hover {
-    color: #2563eb;
-    text-decoration: underline;
-  }
-
   .pc-muted {
     color: #94a3b8;
+  }
+
+  .pc-row-actions {
+    display: flex;
+    gap: 7px;
+    justify-content: flex-end;
+    align-items: center;
   }
 
   .pc-small-link {
@@ -240,25 +290,51 @@
     font-weight: 650;
   }
 
+  .pc-delete {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
   .pc-empty {
     padding: 18px;
     color: #64748b;
     font-size: 14px;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
+    .pc-filters,
+    .pc-add-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .pc-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
     .pc-header {
       flex-direction: column;
       align-items: flex-start;
     }
 
-    .pc-filters,
-    .pc-stat-grid {
-      grid-template-columns: 1fr;
-    }
-
     .pc-actions {
       justify-content: flex-start;
+    }
+
+    .pc-filters,
+    .pc-add-grid,
+    .pc-stat-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>
@@ -267,20 +343,20 @@
   <div class="pc-breadcrumbs">
     <a href="{{ url_for('main.dashboard') }}">Главная</a>
     <span>/</span>
-    <span>Контингент ДОУ</span>
+    <span>Реестр воспитанников ДОУ</span>
   </div>
 
   <div class="pc-header">
     <div>
-      <h1 class="pc-title">Сводный контингент ДОУ</h1>
-      <div class="pc-subtitle">Статистика по группам, зданиям и возрастным категориям</div>
+      <h1 class="pc-title">Реестр воспитанников ДОУ</h1>
+      <div class="pc-subtitle">Список воспитанников, поиск, ручное добавление и редактирование</div>
     </div>
 
     <div class="pc-actions">
-      <a class="pc-btn" href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
+      <a class="pc-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сводный контингент ДОУ</a>
       <a class="pc-btn" href="{{ url_for('preschool.groups') }}">Группы ДОУ</a>
       <a class="pc-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">Импорт Excel</a>
-      <a class="pc-btn pc-btn-primary" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Реестр ДОУ</a>
+      <button class="pc-btn pc-btn-primary" type="button" onclick="document.getElementById('add-child-panel').open = true; document.getElementById('add-child-panel').scrollIntoView({behavior:'smooth', block:'start'});">+ Добавить</button>
     </div>
   </div>
 
@@ -303,6 +379,21 @@
             <option value="{{ building.id }}" {% if building.id == selected_building_id %}selected{% endif %}>{{ building.name }}</option>
           {% endfor %}
         </select>
+      </div>
+
+      <div class="pc-field">
+        <label>Группа</label>
+        <select name="group_id" onchange="this.form.submit()">
+          <option value="">— все группы —</option>
+          {% for group in groups %}
+            <option value="{{ group.id }}" {% if group.id == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="pc-field">
+        <label>Поиск</label>
+        <input name="q" value="{{ q }}" placeholder="ФИО">
       </div>
 
       <a class="pc-reset" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сбросить</a>
@@ -344,42 +435,95 @@
     </div>
   </div>
 
+  <details class="pc-collapse" id="add-child-panel">
+    <summary>+ Добавить воспитанника вручную</summary>
+
+    <form class="pc-add-panel" method="post">
+      <div class="pc-add-grid">
+        <div class="pc-field">
+          <label>Группа</label>
+          <select name="group_id">
+            <option value="">Не выбрана</option>
+            {% for group in groups %}
+              <option value="{{ group.id }}">{{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="pc-field">
+          <label>Фамилия</label>
+          <input name="last_name" required>
+        </div>
+
+        <div class="pc-field">
+          <label>Имя</label>
+          <input name="first_name" required>
+        </div>
+
+        <div class="pc-field">
+          <label>Отчество</label>
+          <input name="middle_name">
+        </div>
+
+        <div class="pc-field">
+          <label>Дата рождения</label>
+          <input type="date" name="birth_date">
+        </div>
+
+        <div class="pc-field full">
+          <label>Примечание</label>
+          <textarea name="note"></textarea>
+        </div>
+      </div>
+
+      <button class="pc-btn pc-btn-primary" type="submit">Сохранить воспитанника</button>
+    </form>
+  </details>
+
   <div class="pc-section">
     <div class="pc-section-head">
-      <h2 class="pc-section-title">По группам</h2>
-      <div class="pc-muted">Групп: {{ group_rows|length }}</div>
+      <h2 class="pc-section-title">По воспитанникам</h2>
+      <div class="pc-muted">Найдено: {{ items|length }}</div>
     </div>
 
-    {% if group_rows %}
-      <table class="pc-table">
-        <thead>
-          <tr>
-            <th>Группа</th>
-            <th>Здание</th>
-            <th>Возрастная группа</th>
-            <th>Воспитатель</th>
-            <th>Воспитанников</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in group_rows %}
+    {% if items %}
+      <div class="pc-table-wrap">
+        <table class="pc-table">
+          <thead>
             <tr>
-              <td>
-                <a class="pc-name pc-group-link"
-                   href="{{ url_for('preschool.children_registry', academic_year_id=year.id, group_id=row.id) }}">
-                  {{ row.name }}
-                </a>
-              </td>
-              <td>{{ row.building }}</td>
-              <td>{{ row.age_level }}</td>
-              <td>{{ row.teacher }}</td>
-              <td><strong>{{ row.children_count }}</strong></td>
+              <th>ФИО</th>
+              <th>Группа</th>
+              <th>Здание</th>
+              <th>Возрастная группа</th>
+              <th>Дата рождения</th>
+              <th style="text-align:right;">Действия</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for child in items %}
+              <tr>
+                <td><span class="pc-name">{{ child.full_name }}</span></td>
+                <td>{{ child.group.name if child.group else "—" }}</td>
+                <td>{{ child.group.building.name if child.group and child.group.building else "—" }}</td>
+                <td>{{ child.group.age_level if child.group else "—" }}</td>
+                <td>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</td>
+                <td>
+                  <div class="pc-row-actions">
+                    <a class="pc-small-link" href="{{ url_for('preschool.edit_child', child_id=child.id) }}">Изменить</a>
+                    <form method="post"
+                          action="{{ url_for('preschool.delete_child', child_id=child.id) }}"
+                          onsubmit="return confirm('Удалить воспитанника {{ child.full_name }}?');">
+                      <button class="pc-delete" type="submit">Удалить</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
-      <div class="pc-empty">Нет групп ДОУ по выбранным фильтрам.</div>
+      <div class="pc-empty">Нет воспитанников по выбранным фильтрам.</div>
     {% endif %}
   </div>
 </div>
