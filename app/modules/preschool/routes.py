@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
 from app.models_legacy import AcademicYear, Building, User
-from .models import PreschoolAttendanceUpload, PreschoolChild, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
+from .models import PreschoolAttendanceRecord, PreschoolAttendanceUpload, PreschoolChild, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
 
 
 bp = Blueprint(
@@ -61,7 +61,7 @@ def ensure_preschool_tables():
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
 
-    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolAttendanceUpload):
+    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolAttendanceUpload, PreschoolAttendanceRecord):
         if model.__tablename__ not in existing_tables:
             model.__table__.create(db.engine, checkfirst=True)
 
@@ -1049,6 +1049,231 @@ def delete_representative(representative_id):
     return redirect(url_for("preschool.child_card", child_id=child_id))
 
 
+def _decode_zip_name(name):
+    try:
+        return name.encode("cp437").decode("utf-8")
+    except Exception:
+        return name
+
+
+def _extract_preschool_group_name(filename):
+    import re
+
+    clean = _decode_zip_name(filename)
+    base = Path(clean).name
+    match = re.search(r"(ДК\s*\d+\s*[-–]\s*\d+)", base, re.IGNORECASE)
+    if not match:
+        return None
+
+    group_name = match.group(1)
+    group_name = group_name.replace(" ", "")
+    group_name = group_name.replace("–", "-")
+    return group_name.upper()
+
+
+def _int_from_cell(value):
+    if value is None:
+        return 0
+
+    raw = str(value).strip()
+    if not raw:
+        return 0
+
+    raw = raw.replace(",", ".")
+    try:
+        return int(float(raw))
+    except Exception:
+        return 0
+
+
+def _split_attendance_name(full_name):
+    parts = [p for p in str(full_name or "").strip().split() if p]
+    if len(parts) < 2:
+        return None, None, None
+
+    last_name = parts[0]
+    first_name = parts[1]
+    middle_name = " ".join(parts[2:]) if len(parts) > 2 else None
+    return last_name, first_name, middle_name
+
+
+def _find_or_create_preschool_group(year, group_name):
+    if not group_name:
+        return None
+
+    group = (
+        PreschoolGroup.query
+        .filter(PreschoolGroup.academic_year_id == year.id)
+        .filter(func.lower(PreschoolGroup.name) == group_name.lower())
+        .first()
+    )
+
+    if group:
+        return group
+
+    building = None
+    if "-" in group_name:
+        building_key = group_name.split("-", 1)[0].strip().lower()
+        building = (
+            Building.query
+            .filter(func.lower(Building.name) == building_key)
+            .first()
+        )
+
+    group = PreschoolGroup(
+        academic_year_id=year.id,
+        building_id=building.id if building else None,
+        name=group_name,
+        is_active=True,
+        is_archived=False,
+    )
+    db.session.add(group)
+    db.session.flush()
+
+    return group
+
+
+def _find_preschool_child(year, group, child_name, account_number):
+    if account_number:
+        child = (
+            PreschoolChild.query
+            .join(PreschoolGroup, PreschoolChild.group_id == PreschoolGroup.id)
+            .filter(PreschoolGroup.academic_year_id == year.id)
+            .filter(PreschoolChild.personal_account == str(account_number).strip())
+            .first()
+        )
+        if child:
+            return child
+
+    last_name, first_name, middle_name = _split_attendance_name(child_name)
+    if not last_name or not first_name:
+        return None
+
+    query = (
+        PreschoolChild.query
+        .join(PreschoolGroup, PreschoolChild.group_id == PreschoolGroup.id)
+        .filter(PreschoolGroup.academic_year_id == year.id)
+        .filter(func.lower(PreschoolChild.last_name) == last_name.lower())
+        .filter(func.lower(PreschoolChild.first_name) == first_name.lower())
+    )
+
+    if middle_name:
+        query = query.filter(func.lower(PreschoolChild.middle_name) == middle_name.lower())
+
+    if group:
+        query = query.filter(PreschoolChild.group_id == group.id)
+
+    return query.first()
+
+
+def _parse_attendance_workbook(year, upload, filename, file_bytes):
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(BytesIO(file_bytes), data_only=True)
+    sheet = workbook.active
+
+    group_name = _extract_preschool_group_name(filename)
+    group = _find_or_create_preschool_group(year, group_name)
+
+    created = 0
+    errors = []
+
+    # В табелях из архива реальные колонки такие:
+    # C = ФИО, AB = номер счета, DI = пропущено всего,
+    # DN = засчитываемые пропуски, DT = дни к оплате, EC = причины.
+    for row in range(14, sheet.max_row + 1):
+        child_name = sheet.cell(row=row, column=3).value
+
+        if not child_name:
+            continue
+
+        child_name = str(child_name).strip()
+
+        # Пропускаем итоговые/служебные строки.
+        if not child_name or child_name.lower().startswith(("итого", "всего")):
+            continue
+
+        account_number = sheet.cell(row=row, column=28).value
+        missed_total = _int_from_cell(sheet.cell(row=row, column=113).value)
+        credited_days = _int_from_cell(sheet.cell(row=row, column=118).value)
+        payment_days = _int_from_cell(sheet.cell(row=row, column=124).value)
+        reasons = sheet.cell(row=row, column=133).value
+
+        child_days = max(payment_days - credited_days, 0)
+
+        child = _find_preschool_child(year, group, child_name, account_number)
+
+        record = PreschoolAttendanceRecord(
+            upload_id=upload.id,
+            group_id=group.id if group else None,
+            child_id=child.id if child else None,
+            source_filename=_decode_zip_name(filename),
+            child_name=child_name,
+            account_number=str(account_number).strip() if account_number else None,
+            missed_total=missed_total,
+            credited_days=credited_days,
+            payment_days=payment_days,
+            child_days=child_days,
+            absence_reasons=str(reasons).strip() if reasons else None,
+        )
+
+        db.session.add(record)
+        created += 1
+
+        if not child:
+            errors.append(f"{child_name}: не найден в контингенте")
+
+    return {
+        "created": created,
+        "group_name": group.name if group else group_name,
+        "errors": errors,
+    }
+
+
+def _process_attendance_zip(year, upload):
+    import zipfile
+
+    processed_files = 0
+    created_records = 0
+    errors = []
+
+    with zipfile.ZipFile(upload.stored_filename, "r") as archive:
+        for member in archive.namelist():
+            decoded_name = _decode_zip_name(member)
+
+            if member.startswith("__MACOSX/") or decoded_name.startswith("__MACOSX/"):
+                continue
+
+            if not decoded_name.lower().endswith((".xlsx", ".xlsm")):
+                continue
+
+            file_bytes = archive.read(member)
+            processed_files += 1
+
+            try:
+                result = _parse_attendance_workbook(year, upload, decoded_name, file_bytes)
+                created_records += result["created"]
+                errors.extend(result["errors"][:20])
+            except Exception as exc:
+                errors.append(f"{decoded_name}: {exc}")
+
+    upload.status = "processed"
+    upload.comment = (
+        f"Обработано файлов: {processed_files}. "
+        f"Создано строк табеля: {created_records}. "
+        f"Ошибок сопоставления: {len(errors)}."
+    )
+
+    db.session.commit()
+
+    return {
+        "processed_files": processed_files,
+        "created_records": created_records,
+        "errors": errors,
+    }
+
+
 @bp.route("/attendance", methods=["GET", "POST"])
 def attendance():
     year_id = request.args.get("academic_year_id", type=int) or request.form.get("academic_year_id", type=int)
@@ -1101,7 +1326,18 @@ def attendance():
         db.session.add(item)
         db.session.commit()
 
-        flash("ZIP-архив с табелями загружен в журнал.", "success")
+        try:
+            result = _process_attendance_zip(year, item)
+            flash(
+                f"ZIP загружен и обработан: файлов {result['processed_files']}, строк {result['created_records']}.",
+                "success",
+            )
+        except Exception as exc:
+            item.status = "error"
+            item.comment = f"Ошибка обработки архива: {exc}"
+            db.session.commit()
+            flash(f"ZIP загружен, но обработка завершилась ошибкой: {exc}", "danger")
+
         return redirect(url_for("preschool.attendance", academic_year_id=year.id, month=month))
 
     query = PreschoolAttendanceUpload.query.filter(PreschoolAttendanceUpload.academic_year_id == year.id)
@@ -1114,12 +1350,31 @@ def attendance():
         PreschoolAttendanceUpload.id.desc()
     ).all()
 
+    upload_stats = {}
+    for item in uploads:
+        records = PreschoolAttendanceRecord.query.filter(
+            PreschoolAttendanceRecord.upload_id == item.id
+        )
+        upload_stats[item.id] = {
+            "records": records.count(),
+            "child_days": db.session.query(func.coalesce(func.sum(PreschoolAttendanceRecord.child_days), 0))
+                .filter(PreschoolAttendanceRecord.upload_id == item.id)
+                .scalar() or 0,
+            "payment_days": db.session.query(func.coalesce(func.sum(PreschoolAttendanceRecord.payment_days), 0))
+                .filter(PreschoolAttendanceRecord.upload_id == item.id)
+                .scalar() or 0,
+            "credited_days": db.session.query(func.coalesce(func.sum(PreschoolAttendanceRecord.credited_days), 0))
+                .filter(PreschoolAttendanceRecord.upload_id == item.id)
+                .scalar() or 0,
+        }
+
     return render_template(
         "preschool/attendance.html",
         year=year,
         all_years=all_years,
         month=month,
         uploads=uploads,
+        upload_stats=upload_stats,
     )
 
 
@@ -1136,6 +1391,10 @@ def delete_attendance_upload(upload_id):
                 path.unlink()
     except Exception:
         pass
+
+    PreschoolAttendanceRecord.query.filter(
+        PreschoolAttendanceRecord.upload_id == item.id
+    ).delete(synchronize_session=False)
 
     db.session.delete(item)
     db.session.commit()

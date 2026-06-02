@@ -158,3 +158,48 @@ class PreschoolAttendanceUpload(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     academic_year = db.relationship("AcademicYear")
+
+
+
+class PreschoolAttendanceRecord(db.Model):
+    __tablename__ = "preschool_attendance_record"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    upload_id = db.Column(
+        db.Integer,
+        db.ForeignKey("preschool_attendance_upload.id"),
+        nullable=False,
+        index=True,
+    )
+
+    group_id = db.Column(
+        db.Integer,
+        db.ForeignKey("preschool_group.id"),
+        nullable=True,
+        index=True,
+    )
+
+    child_id = db.Column(
+        db.Integer,
+        db.ForeignKey("preschool_child.id"),
+        nullable=True,
+        index=True,
+    )
+
+    source_filename = db.Column(db.String(500), nullable=True)
+    child_name = db.Column(db.String(255), nullable=False)
+    account_number = db.Column(db.String(100), nullable=True)
+
+    missed_total = db.Column(db.Integer, nullable=False, default=0)
+    credited_days = db.Column(db.Integer, nullable=False, default=0)
+    payment_days = db.Column(db.Integer, nullable=False, default=0)
+    child_days = db.Column(db.Integer, nullable=False, default=0)
+
+    absence_reasons = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    upload = db.relationship("PreschoolAttendanceUpload", backref=db.backref("records", lazy=True, cascade="all, delete-orphan"))
+    group = db.relationship("PreschoolGroup")
+    child = db.relationship("PreschoolChild")
