@@ -353,19 +353,20 @@
   <div class="pc-breadcrumbs">
     <a href="{{ url_for('main.dashboard') }}">Главная</a>
     <span>/</span>
-    <span>Реестр воспитанников ДОУ</span>
+    <span>Реестр ДОУ</span>
   </div>
 
   <div class="pc-header">
     <div>
-      <h1 class="pc-title">Реестр воспитанников ДОУ</h1>
-      <div class="pc-subtitle">Список воспитанников, поиск, ручное добавление и редактирование</div>
+      <h1 class="pc-title">Реестр ДОУ</h1>
+      <div class="pc-subtitle">Список воспитанников, импорт, поиск, карточки и редактирование</div>
     </div>
 
     <div class="pc-actions">
       <a class="pc-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сводный контингент ДОУ</a>
       <a class="pc-btn" href="{{ url_for('preschool.groups') }}">Группы ДОУ</a>
-      <a class="pc-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">Импорт Excel</a>
+      <a class="pc-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">Импорт детей</a>
+      <a class="pc-btn" href="{{ url_for('preschool.import_representatives', academic_year_id=year.id) }}">Импорт представителей</a>
       <button class="pc-btn pc-btn-primary" type="button" onclick="document.getElementById('add-child-panel').open = true; document.getElementById('add-child-panel').scrollIntoView({behavior:'smooth', block:'start'});">+ Добавить</button>
     </div>
   </div>
