@@ -5,6 +5,79 @@
 
 {% extends "layout.html" %}
 {% block content %}
+
+<style>
+  /* Компактный служебный блок администратора на главной */
+  .admin-section-classic {
+    padding: 18px 20px !important;
+  }
+
+  .admin-section-classic .section-head {
+    margin-bottom: 12px !important;
+  }
+
+  .admin-section-classic .section-overline {
+    font-size: 11px !important;
+    letter-spacing: .08em !important;
+  }
+
+  .admin-section-classic .section-title {
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+  }
+
+  .admin-links-grid-v109 {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .admin-links-grid-v109 .admin-link-chip {
+    width: auto !important;
+    min-height: 36px !important;
+    padding: 7px 13px !important;
+    border-radius: 999px !important;
+    border: 1px solid #d8e0ea !important;
+    background: #ffffff !important;
+    color: #374151 !important;
+    font-size: 13.5px !important;
+    line-height: 1.15 !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+    white-space: normal !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    vertical-align: middle !important;
+  }
+
+  .admin-links-grid-v109 .admin-link-chip:hover {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #1f2937 !important;
+  }
+
+  .admin-links-grid-v109 .admin-link-chip i {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    margin-right: 0 !important;
+    color: #64748b !important;
+  }
+
+  .admin-links-grid-v109 form {
+    width: auto !important;
+  }
+
+  .admin-links-grid-v109 form .admin-link-chip {
+    width: auto !important;
+  }
+</style>
+
 <div class="dashboard-shell dashboard-home dashboard-home-classic dashboard-home-v109">
 
   {# ── Баннер превью-режима (только для ADMIN при ?preview_role=...) ── #}
