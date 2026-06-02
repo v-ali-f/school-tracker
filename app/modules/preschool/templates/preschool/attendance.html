@@ -236,7 +236,12 @@
 
       <div class="attendance-field">
         <label>Месяц</label>
-        <input name="month" value="{{ month }}" placeholder="Например: 2026-05">
+        <select name="month">
+          <option value="">Определить автоматически из ZIP</option>
+          {% for option in month_options %}
+            <option value="{{ option.value }}" {% if month == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="attendance-field">
@@ -273,7 +278,7 @@
             <tr>
               <td>{{ item.created_at.strftime("%d.%m.%Y %H:%M") if item.created_at else "—" }}</td>
               <td>{{ item.academic_year.name if item.academic_year else "—" }}</td>
-              <td>{{ item.month or "—" }}</td>
+              <td>{{ month_label(item.month) }}</td>
               <td>{{ item.original_filename or "—" }}</td>
               <td><span class="attendance-status">{{ item.status }}</span></td>
               <td>{{ upload_stats[item.id].records if upload_stats and item.id in upload_stats else 0 }}</td>
