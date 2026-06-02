@@ -169,6 +169,8 @@ def children():
         .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
         .all()
     )
+    month_options = _academic_year_month_options(year)
+    month_options = _academic_year_month_options(year)
 
     buildings = Building.query.order_by(Building.name.asc()).all()
 
@@ -1324,6 +1326,103 @@ def _process_attendance_zip(year, upload):
     }
 
 
+MONTH_LABELS_RU = {
+    "01": "Январь",
+    "02": "Февраль",
+    "03": "Март",
+    "04": "Апрель",
+    "05": "Май",
+    "06": "Июнь",
+    "07": "Июль",
+    "08": "Август",
+    "09": "Сентябрь",
+    "10": "Октябрь",
+    "11": "Ноябрь",
+    "12": "Декабрь",
+}
+
+
+def _academic_year_month_options(year):
+    """Список месяцев для выбранного учебного года: сентябрь–август."""
+    if not year or not year.name or "/" not in year.name:
+        return []
+
+    try:
+        start_year = int(str(year.name).split("/", 1)[0])
+    except Exception:
+        return []
+
+    months = []
+    for month_num in range(9, 13):
+        value = f"{start_year}-{month_num:02d}"
+        months.append({"value": value, "label": f"{MONTH_LABELS_RU[f'{month_num:02d}']} {start_year}"})
+
+    next_year = start_year + 1
+    for month_num in range(1, 9):
+        value = f"{next_year}-{month_num:02d}"
+        months.append({"value": value, "label": f"{MONTH_LABELS_RU[f'{month_num:02d}']} {next_year}"})
+
+    return months
+
+
+def _month_label(value):
+    if not value or "-" not in str(value):
+        return "—"
+
+    year_part, month_part = str(value).split("-", 1)
+    month_part = month_part[:2]
+
+    return f"{MONTH_LABELS_RU.get(month_part, month_part)} {year_part}"
+
+
+def _detect_month_from_zip(stored_filename, year):
+    """Пытаемся определить месяц по названиям файлов внутри архива: ДК1-1 май.xlsx."""
+    import zipfile
+
+    if not stored_filename or not year:
+        return None
+
+    month_words = {
+        "январ": "01",
+        "феврал": "02",
+        "март": "03",
+        "апрел": "04",
+        "май": "05",
+        "мая": "05",
+        "июн": "06",
+        "июл": "07",
+        "август": "08",
+        "сентябр": "09",
+        "октябр": "10",
+        "ноябр": "11",
+        "декабр": "12",
+    }
+
+    try:
+        start_year = int(str(year.name).split("/", 1)[0])
+    except Exception:
+        start_year = None
+
+    try:
+        with zipfile.ZipFile(stored_filename, "r") as archive:
+            names = [_decode_zip_name(name).lower() for name in archive.namelist()]
+    except Exception:
+        return None
+
+    for name in names:
+        for word, month_num in month_words.items():
+            if word in name:
+                if not start_year:
+                    return None
+
+                # Учебный год: сентябрь-декабрь относятся к первому году,
+                # январь-август — ко второму.
+                year_num = start_year if int(month_num) >= 9 else start_year + 1
+                return f"{year_num}-{month_num}"
+
+    return None
+
+
 @bp.route("/attendance", methods=["GET", "POST"])
 def attendance():
     year_id = request.args.get("academic_year_id", type=int) or request.form.get("academic_year_id", type=int)
@@ -1340,6 +1439,7 @@ def attendance():
         .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
         .all()
     )
+    month_options = _academic_year_month_options(year)
 
     if request.method == "POST":
         uploaded = request.files.get("file")
@@ -1364,13 +1464,15 @@ def attendance():
         stored_path = folder / stored_name
         uploaded.save(stored_path)
 
+        detected_month = month or _detect_month_from_zip(str(stored_path), year)
+
         item = PreschoolAttendanceUpload(
             academic_year_id=year.id,
-            month=month or None,
+            month=detected_month or None,
             original_filename=uploaded.filename,
             stored_filename=str(stored_path),
             status="uploaded",
-            comment="Архив загружен. Распознавание табелей будет добавлено следующим этапом.",
+            comment="Архив загружен.",
         )
 
         db.session.add(item)
@@ -1382,6 +1484,7 @@ def attendance():
                 f"ZIP загружен и обработан: файлов {result['processed_files']}, строк {result['created_records']}.",
                 "success",
             )
+            month = item.month or month
         except Exception as exc:
             item.status = "error"
             item.comment = f"Ошибка обработки архива: {exc}"
@@ -1425,6 +1528,8 @@ def attendance():
         month=month,
         uploads=uploads,
         upload_stats=upload_stats,
+        month_options=month_options,
+        month_label=_month_label,
     )
 
 
@@ -1445,6 +1550,7 @@ def attendance_analytics():
         .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
         .all()
     )
+    month_options = _academic_year_month_options(year)
 
     uploads_query = PreschoolAttendanceUpload.query.filter(
         PreschoolAttendanceUpload.academic_year_id == year.id
@@ -1548,8 +1654,50 @@ def attendance_analytics():
     building_rows = sorted(building_rows, key=lambda x: x["name"])
     group_rows = sorted(group_map.values(), key=lambda x: (x["building"], x["name"]))
 
+    # Динамика по месяцам строится по всем загрузкам выбранного учебного года.
+    month_records_query = (
+        PreschoolAttendanceRecord.query
+        .join(PreschoolAttendanceUpload, PreschoolAttendanceRecord.upload_id == PreschoolAttendanceUpload.id)
+        .filter(PreschoolAttendanceUpload.academic_year_id == year.id)
+    )
+
+    if upload_id:
+        month_records_query = month_records_query.filter(PreschoolAttendanceRecord.upload_id == upload_id)
+
+    month_records = month_records_query.all()
+
+    month_map = {}
+    for record in month_records:
+        upload = record.upload
+        month_key = upload.month or "Не указан"
+
+        if month_key not in month_map:
+            month_map[month_key] = {
+                "month": month_key,
+                "month_label": _month_label(month_key) if month_key != "Не указан" else "Не указан",
+                "records": 0,
+                "payment_days": 0,
+                "credited_days": 0,
+                "child_days": 0,
+            }
+
+        row = month_map[month_key]
+        row["records"] += 1
+        row["payment_days"] += record.payment_days or 0
+        row["credited_days"] += record.credited_days or 0
+        row["child_days"] += record.child_days or 0
+
+    def _month_sort_key(row):
+        value = row["month"]
+        if value == "Не указан":
+            return "9999-99"
+        return value
+
+    month_rows = sorted(month_map.values(), key=_month_sort_key)
+
     max_building_child_days = max([row["child_days"] for row in building_rows] or [1])
     max_group_child_days = max([row["child_days"] for row in group_rows] or [1])
+    max_month_child_days = max([row["child_days"] for row in month_rows] or [1])
 
     return render_template(
         "preschool/attendance_analytics.html",
@@ -1558,11 +1706,15 @@ def attendance_analytics():
         month=month,
         upload_id=upload_id,
         uploads=uploads,
+        month_options=month_options,
         total=total,
         building_rows=building_rows,
         group_rows=group_rows,
+        month_rows=month_rows,
         max_building_child_days=max_building_child_days,
         max_group_child_days=max_group_child_days,
+        max_month_child_days=max_month_child_days,
+        month_label=_month_label,
     )
 
 
