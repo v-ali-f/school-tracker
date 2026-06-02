@@ -134,3 +134,27 @@ class PreschoolRepresentative(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     child = db.relationship("PreschoolChild", backref=db.backref("representatives", lazy=True, cascade="all, delete-orphan"))
+
+
+
+class PreschoolAttendanceUpload(db.Model):
+    __tablename__ = "preschool_attendance_upload"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    academic_year_id = db.Column(
+        db.Integer,
+        db.ForeignKey("academic_year.id"),
+        nullable=True,
+        index=True,
+    )
+
+    month = db.Column(db.String(20), nullable=True, index=True)
+    original_filename = db.Column(db.String(500), nullable=True)
+    stored_filename = db.Column(db.String(500), nullable=True)
+    status = db.Column(db.String(50), nullable=False, default="uploaded")
+    comment = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    academic_year = db.relationship("AcademicYear")

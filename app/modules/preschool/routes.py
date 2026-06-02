@@ -1,9 +1,11 @@
+from pathlib import Path
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy import func, inspect, or_, text
+from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
 from app.models_legacy import AcademicYear, Building, User
-from .models import PreschoolChild, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
+from .models import PreschoolAttendanceUpload, PreschoolChild, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
 
 
 bp = Blueprint(
@@ -59,7 +61,7 @@ def ensure_preschool_tables():
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
 
-    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative):
+    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolAttendanceUpload):
         if model.__tablename__ not in existing_tables:
             model.__table__.create(db.engine, checkfirst=True)
 
@@ -1045,6 +1047,101 @@ def delete_representative(representative_id):
 
     flash("Представитель удалён.", "success")
     return redirect(url_for("preschool.child_card", child_id=child_id))
+
+
+@bp.route("/attendance", methods=["GET", "POST"])
+def attendance():
+    year_id = request.args.get("academic_year_id", type=int) or request.form.get("academic_year_id", type=int)
+    month = (request.args.get("month") or request.form.get("month") or "").strip()
+
+    year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+
+    if not year:
+        flash("Сначала создайте учебный год в служебном разделе.", "warning")
+        return redirect(url_for("children.academic_years_registry"))
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    if request.method == "POST":
+        uploaded = request.files.get("file")
+
+        if not uploaded or not uploaded.filename:
+            flash("Выберите ZIP-архив с табелями ДОУ.", "warning")
+            return redirect(url_for("preschool.attendance", academic_year_id=year.id, month=month))
+
+        if not uploaded.filename.lower().endswith(".zip"):
+            flash("Для загрузки табелей нужен ZIP-архив.", "warning")
+            return redirect(url_for("preschool.attendance", academic_year_id=year.id, month=month))
+
+        from flask import current_app
+        import uuid
+
+        upload_root = Path(current_app.config.get("UPLOAD_FOLDER", "uploads"))
+        folder = upload_root / "preschool" / "attendance"
+        folder.mkdir(parents=True, exist_ok=True)
+
+        safe_name = secure_filename(uploaded.filename)
+        stored_name = f"{uuid.uuid4().hex}_{safe_name}"
+        stored_path = folder / stored_name
+        uploaded.save(stored_path)
+
+        item = PreschoolAttendanceUpload(
+            academic_year_id=year.id,
+            month=month or None,
+            original_filename=uploaded.filename,
+            stored_filename=str(stored_path),
+            status="uploaded",
+            comment="Архив загружен. Распознавание табелей будет добавлено следующим этапом.",
+        )
+
+        db.session.add(item)
+        db.session.commit()
+
+        flash("ZIP-архив с табелями загружен в журнал.", "success")
+        return redirect(url_for("preschool.attendance", academic_year_id=year.id, month=month))
+
+    query = PreschoolAttendanceUpload.query.filter(PreschoolAttendanceUpload.academic_year_id == year.id)
+
+    if month:
+        query = query.filter(PreschoolAttendanceUpload.month == month)
+
+    uploads = query.order_by(
+        PreschoolAttendanceUpload.created_at.desc(),
+        PreschoolAttendanceUpload.id.desc()
+    ).all()
+
+    return render_template(
+        "preschool/attendance.html",
+        year=year,
+        all_years=all_years,
+        month=month,
+        uploads=uploads,
+    )
+
+
+@bp.route("/attendance/uploads/<int:upload_id>/delete", methods=["POST"])
+def delete_attendance_upload(upload_id):
+    item = PreschoolAttendanceUpload.query.get_or_404(upload_id)
+    year_id = item.academic_year_id
+    month = item.month
+
+    try:
+        if item.stored_filename:
+            path = Path(item.stored_filename)
+            if path.exists():
+                path.unlink()
+    except Exception:
+        pass
+
+    db.session.delete(item)
+    db.session.commit()
+
+    flash("Загрузка табелей удалена.", "success")
+    return redirect(url_for("preschool.attendance", academic_year_id=year_id, month=month))
 
 
 @bp.route("/children/<int:child_id>")
