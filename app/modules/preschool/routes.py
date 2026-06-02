@@ -1378,6 +1378,40 @@ def attendance():
     )
 
 
+@bp.route("/attendance/uploads/<int:upload_id>/process", methods=["POST"])
+def process_attendance_upload(upload_id):
+    item = PreschoolAttendanceUpload.query.get_or_404(upload_id)
+    year = item.academic_year
+
+    if not year:
+        flash("У загрузки не указан учебный год.", "warning")
+        return redirect(url_for("preschool.attendance"))
+
+    # Удаляем старые строки этой загрузки, если уже пробовали обрабатывать.
+    PreschoolAttendanceRecord.query.filter(
+        PreschoolAttendanceRecord.upload_id == item.id
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+    try:
+        result = _process_attendance_zip(year, item)
+        flash(
+            f"Архив обработан: файлов {result['processed_files']}, строк {result['created_records']}.",
+            "success",
+        )
+    except Exception as exc:
+        item.status = "error"
+        item.comment = f"Ошибка обработки архива: {exc}"
+        db.session.commit()
+        flash(f"Ошибка обработки архива: {exc}", "danger")
+
+    return redirect(url_for(
+        "preschool.attendance",
+        academic_year_id=item.academic_year_id,
+        month=item.month,
+    ))
+
+
 @bp.route("/attendance/uploads/<int:upload_id>/delete", methods=["POST"])
 def delete_attendance_upload(upload_id):
     item = PreschoolAttendanceUpload.query.get_or_404(upload_id)
