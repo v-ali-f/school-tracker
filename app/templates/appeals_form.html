@@ -1,9 +1,16 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="container py-3">
-  <nav class="small mb-2"><a href="{{ url_for('main.dashboard') }}">Главная</a> / <a href="{{ url_for('appeals.index') }}">Обращения</a> / Новое</nav>
-  <h1 class="mb-3" style="color:#113b73; font-weight:750;">Новое обращение</h1>
-  <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4"><div class="card-body row g-3">
+  <div class="page-head">
+    <div>
+      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / <a href="{{ url_for('appeals.index') }}" class="text-decoration-none text-muted">Обращения</a> / Новое</nav>
+      <h1 class="page-title">Новое обращение</h1>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('appeals.index') }}"><i class="bi bi-arrow-left me-1"></i>К реестру</a>
+    </div>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="card soft-card"><div class="card-body row g-3">
     <div class="col-md-3"><label class="form-label">Номер</label><input class="form-control" name="number"></div>
     <div class="col-md-3"><label class="form-label">Дата поступления</label><input class="form-control" type="date" name="received_at"></div>
     <div class="col-md-3"><label class="form-label">Канал</label><select class="form-select" name="channel"><option value="">—</option>{% for c in channels %}<option>{{ c }}</option>{% endfor %}</select></div>

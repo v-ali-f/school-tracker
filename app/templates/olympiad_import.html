@@ -1,19 +1,19 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Импорт олимпиад</h3>
-    <div class="text-muted">v52: кафедра при импорте, защита от дублей и отмена загрузки.</div>
+    <div class="page-title">Импорт олимпиад</div>
+    <div class="page-sub">Загрузка результатов ВСОШ из Excel или ZIP-архива.</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-dark" href="{{ url_for('olympiads.registry') }}">Реестр</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.imports') }}">Импорты</a>
-    {% if can_olympiad_edit %}<a class="btn btn-success" href="{{ url_for('olympiads.teacher_binding') }}">Массовая привязка учителей</a>{% endif %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.department_registry') }}">Кафедры</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.imports') }}">Журнал импортов</a>
+    {% if can_olympiad_edit %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.teacher_binding') }}">Привязка учителей</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.department_registry') }}">Кафедры</a>
   </div>
 </div>
 
-<div class="card"><div class="card-body">
+<div class="card soft-card"><div class="card-body">
   <form method="post" enctype="multipart/form-data" class="row g-3" id="olympiad-import-form">
     <div class="col-md-4"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id" id="academic_year_id" required>{% for y in years %}<option value="{{ y.id }}" {% if (selected_academic_year_id and selected_academic_year_id == y.id) or (not selected_academic_year_id and current_year and current_year.id == y.id) %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
     <div class="col-md-4"><label class="form-label">Этап</label><select class="form-select" name="stage" required>{% for stage in stages %}<option value="{{ stage }}">{{ stage|capitalize }}</option>{% endfor %}</select></div>

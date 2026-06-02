@@ -1,16 +1,16 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Реестр импортов диагностик</h3>
-    <div class="text-muted">Удаление импортов доступно только администратору.</div>
+    <div class="page-title">Реестр импортов диагностик</div>
+    <div class="page-sub">Удаление импортов доступно только администратору.</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-primary" href="{{ url_for('diagnostics.index') }}">Список диагностик</a>
-    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('diagnostics.create') }}">Новая диагностика</a>{% endif %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('diagnostics.index') }}">Список диагностик</a>
+    {% if can_manage %}<a class="btn btn-primary btn-sm" href="{{ url_for('diagnostics.create') }}"><i class="bi bi-plus-lg me-1"></i>Новая диагностика</a>{% endif %}
   </div>
 </div>
-<div class="card"><div class="card-body p-0">
+<div class="card soft-card"><div class="card-body p-0">
   <div class="table-responsive">
     <table class="table table-hover mb-0">
       <thead><tr><th>ID</th><th>Диагностика</th><th>Файл</th><th>Тип</th><th>Загружено</th><th>Результатов</th><th></th></tr></thead>

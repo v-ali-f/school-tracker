@@ -1,16 +1,18 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Диагностики МЦКО / ЕКР / ФГ</h3>
-    <div class="text-muted">Фильтры по учебному году, предмету, параллели и статусу. В таблице сразу видны импорты, результаты и привязка к учителям.</div>
+    <div class="page-title">Диагностики МЦКО / ЕКР / ФГ</div>
+    <div class="page-sub">Фильтры по учебному году, предмету, параллели и статусу.</div>
   </div>
   {% if can_manage %}
-  <a class="btn btn-primary" href="{{ url_for('diagnostics.create') }}">Создать диагностику</a>
+  <div class="page-actions">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('diagnostics.create') }}"><i class="bi bi-plus-lg me-1"></i>Создать диагностику</a>
+  </div>
   {% endif %}
 </div>
 
-<div class="card mb-3"><div class="card-body">
+<div class="card soft-card mb-3"><div class="card-body">
   <form method="get" class="row g-3 align-items-end">
     <div class="col-md-2">
       <label class="form-label">Учебный год</label>
@@ -39,7 +41,7 @@
   </form>
 </div></div>
 
-<div class="card"><div class="card-body p-0">
+<div class="card soft-card"><div class="card-body p-0">
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
       <thead><tr><th>Название</th><th>Тип</th><th>Предмет</th><th>Параллель</th><th>Импорты</th><th>Результаты</th><th>Привязка</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>

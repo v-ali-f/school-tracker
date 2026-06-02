@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h2 class="mb-1">Список специалистов службы</h2>
-    <div class="text-muted">Реестр специалистов, фильтры, быстрый поиск и переход в карточку.</div>
+    <div class="page-title">Список специалистов службы</div>
+    <div class="page-sub">Реестр специалистов, фильтры, быстрый поиск и переход в карточку.</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">К модулю</a>
-    {% if can_edit %}<a class="btn btn-primary" href="{{ url_for('service_staff.specialist_new') }}">Добавить специалиста</a>{% endif %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.index') }}"><i class="bi bi-grid me-1"></i>К модулю</a>
+    {% if can_edit %}<a class="btn btn-primary btn-sm" href="{{ url_for('service_staff.specialist_new') }}"><i class="bi bi-plus-lg me-1"></i>Добавить специалиста</a>{% endif %}
   </div>
 </div>
 

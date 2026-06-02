@@ -1,9 +1,9 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+<div class="page-head">
   <div>
-    <h2 class="mb-1">Задача №{{ task.id }}</h2>
-    <div class="text-muted">Карточка задачи с участниками, чек-листом, историей и подзадачами.</div>
+    <h1 class="page-title">Задача №{{ task.id }}</h1>
+    <div class="page-sub">Карточка задачи с участниками, чек-листом, историей и подзадачами.</div>
     {% if linked_incident %}
     <div class="mt-2">
       <a class="d-inline-flex align-items-center gap-2 text-decoration-none px-3 py-2"
@@ -16,19 +16,19 @@
     </div>
     {% endif %}
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К списку</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-arrow-left me-1"></i>К списку</a>
     {% if can_edit %}
-    <a class="btn btn-outline-primary" href="{{ url_for('tasks.edit_task', task_id=task.id) }}">Редактировать</a>
-    <a class="btn btn-primary" href="{{ url_for('tasks.new_task', parent_task_id=task.id) }}">Создать подзадачу</a>
-    <a class="btn btn-outline-secondary" target="_blank" href="{{ url_for('tasks.print_task', task_id=task.id) }}">Печать</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tasks.edit_task', task_id=task.id) }}"><i class="bi bi-pencil me-1"></i>Редактировать</a>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('tasks.new_task', parent_task_id=task.id) }}"><i class="bi bi-plus me-1"></i>Подзадача</a>
+    <a class="btn btn-outline-secondary btn-sm" target="_blank" href="{{ url_for('tasks.print_task', task_id=task.id) }}"><i class="bi bi-printer me-1"></i>Печать</a>
     {% endif %}
   </div>
 </div>
 
 <div class="row g-3">
   <div class="col-lg-8">
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <b>{{ task.title }}</b>
         <span class="badge text-bg-{{ task_status_badge_class(task.display_status) }}">{{ task.display_status }}</span>
@@ -51,7 +51,7 @@
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header"><b>Участники задачи</b></div>
       <div class="card-body row g-3">
         {% for role_code, role_label in task_participant_role_labels.items() %}
@@ -72,7 +72,7 @@
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <b>Чек-лист</b>
         <span>{{ task.checklist_done }}/{{ task.checklist_total }} • {{ task.checklist_percent }}%</span>
@@ -102,7 +102,7 @@
     </div>
 
 
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header"><b>Документы и файлы</b></div>
       <div class="card-body">
         <div class="row g-3">
@@ -156,7 +156,7 @@
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header"><b>Подзадачи</b></div>
       <div class="card-body">
         {% if task.subtasks %}
@@ -174,7 +174,7 @@
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header"><b>Комментарии</b></div>
       <div class="card-body">
         <form method="post" action="{{ url_for('tasks.add_comment', task_id=task.id) }}" class="mb-3">
@@ -195,7 +195,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card soft-card">
       <div class="card-header"><b>История изменений</b></div>
       <div class="card-body">
         <div class="vstack gap-2">
@@ -214,7 +214,7 @@
   </div>
 
   <div class="col-lg-4">
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header"><b>Быстрые действия</b></div>
       <div class="card-body">
         {% if can_edit %}
@@ -237,7 +237,7 @@
         <a class="btn btn-outline-secondary w-100 mb-2" target="_blank" href="{{ url_for('tasks.print_task', task_id=task.id) }}">Печать</a>
         {% if can_delete_task %}
         <form method="post" action="{{ url_for('tasks.delete_task', task_id=task.id) }}" onsubmit="return confirm('Удалить задачу? Это действие нельзя отменить.');">
-          <button class="btn btn-outline-danger w-100" type="submit">Удалить задачу</button>
+          <button class="btn btn-outline-danger btn-sm w-100" type="submit"><i class="bi bi-trash me-1"></i>Удалить задачу</button>
         </form>
         {% endif %}
         {% else %}
@@ -245,7 +245,7 @@
         {% endif %}
       </div>
     </div>
-    <div class="card">
+    <div class="card soft-card">
       <div class="card-header"><b>Сводка</b></div>
       <div class="card-body">
         <div class="small text-muted">Мои задачи</div><div class="fs-5 mb-2">{{ counts.my_total }}</div>

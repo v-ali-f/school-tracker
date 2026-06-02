@@ -1,11 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Реестр комментариев</h3>
-    <div class="text-muted">Комментарии по карточкам обучающихся</div>
+    <h1 class="page-title">Реестр комментариев</h1>
+    <div class="page-sub">Комментарии по карточкам обучающихся</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house me-1"></i>На главную</a>
+  </div>
 </div>
 
 <div class="card mb-3">

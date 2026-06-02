@@ -1,8 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0">Потенциальные дубли пользователей</h4>
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}">К пользователям</a>
+<div class="page-head mb-3">
+  <div><h1 class="page-title">Потенциальные дубли пользователей</h1></div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}">К пользователям</a>
+  </div>
 </div>
 <div class="card">
   <div class="table-responsive">

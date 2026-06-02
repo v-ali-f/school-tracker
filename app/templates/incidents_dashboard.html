@@ -204,16 +204,14 @@
   .col-picker-dropdown label { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; cursor: pointer; }
 </style>
 
-<div class="incident-hero p-4 mb-4">
-  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
-    <div>
-      <h2 class="mb-0">{{ title }}</h2>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a class="btn btn-warning fw-semibold" href="{{ url_for('children.incidents_registry') }}">Реестр</a>
-      <a class="btn btn-success fw-semibold" href="{{ url_for('children.incidents_registry_export', grade=grade, class_id=class_id, category=category, q='') }}">Excel</a>
-      <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
-    </div>
+<div class="page-head mb-4">
+  <div>
+    <div class="page-title">{{ title }}</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_registry') }}"><i class="bi bi-table me-1"></i>Реестр</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_registry_export', grade=grade, class_id=class_id, category=category, q='') }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>Главная</a>
   </div>
 </div>
 
@@ -243,7 +241,7 @@
     <div class="card incident-panel">
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-          <h5 class="mb-0">Динамика за 7 дней</h5>
+          <span class="section-title">Динамика за 7 дней</span>
           <span class="text-muted small">
             {% if week_delta_pct is not none %}
               {% if week_delta_pct > 0 %}
@@ -285,7 +283,7 @@
   <div class="col-12 col-lg-4">
     <div class="card incident-panel h-100">
       <div class="card-body">
-        <h5 class="mb-3">По категориям</h5>
+        <div class="section-title mb-3">По категориям</div>
         {% for name, cnt in top_categories %}
           <div class="rank-row">
             <div class="rank-meta"><span>{{ name }}</span><strong>{{ cnt }}</strong></div>
@@ -307,7 +305,7 @@
   <div class="col-12 col-lg-4">
     <div class="card incident-panel h-100">
       <div class="card-body">
-        <h5 class="mb-3">По зданиям</h5>
+        <div class="section-title mb-3">По зданиям</div>
         {% for name, cnt in top_buildings %}
           <div class="rank-row">
             <div class="rank-meta"><span>{{ name or "Без здания" }}</span><strong>{{ cnt }}</strong></div>
@@ -329,7 +327,7 @@
   <div class="col-12 col-lg-4">
     <div class="card incident-panel h-100">
       <div class="card-body">
-        <h5 class="mb-3">По классам</h5>
+        <div class="section-title mb-3">По классам</div>
         {% for name, cnt, c_id, bld in top_classes %}
           {% if loop.index0 < 5 %}
           <div class="rank-row">
@@ -385,7 +383,7 @@
   <div class="col-12 col-lg-6">
     <div class="card incident-panel h-100">
       <div class="card-body">
-        <h5 class="mb-1">По статусу</h5>
+        <div class="section-title mb-1">По статусу</div>
         <div class="text-muted small mb-3">Распределение инцидентов по текущему статусу</div>
         {% set sb_open = status_breakdown.new %}
         {% set sb_in_work = status_breakdown.assigned + status_breakdown.in_progress %}
@@ -446,7 +444,7 @@
   <div class="col-12 col-lg-6">
     <div class="card incident-panel h-100">
       <div class="card-body">
-        <h5 class="mb-1">Активность пользователей</h5>
+        <div class="section-title mb-1">Активность пользователей</div>
         <div class="text-muted small mb-3">Кто чаще всего регистрирует инциденты — за 30 дней{% if class_id %} · по выбранному классу{% elif grade %} · {{ grade }}-е параллели{% endif %}</div>
         {% if user_activity %}
           {% for row in user_activity %}
@@ -493,7 +491,7 @@
 <div class="card incident-panel">
   <div class="card-body pb-2">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h5 class="mb-0">Последние инциденты</h5>
+      <span class="section-title">Последние инциденты</span>
       <div class="d-flex align-items-center gap-2">
         <!-- Filter popup (s74 P2) -->
         <div style="position:relative;">

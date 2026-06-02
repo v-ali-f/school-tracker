@@ -84,7 +84,9 @@
 </style>
 
 <div class="analytics-page">
-  <h2 class="mb-3">Аналитика диагностик</h2>
+  <div class="page-head">
+    <div class="page-title">Аналитика диагностик</div>
+  </div>
 
   <div class="card mb-4">
     <div class="card-body">
@@ -202,7 +204,7 @@
       <div class="col-lg-5">
         <div class="card h-100">
           <div class="card-body">
-            <h5 class="mb-3">Рейтинг классов по среднему проценту</h5>
+            <div class="section-title mb-3">Рейтинг классов по среднему проценту</div>
             <div class="chart-box chart-box-sm">
               <canvas id="classAvgChart"></canvas>
             </div>
@@ -217,7 +219,7 @@
           <div class="col-lg-7">
             <div class="card h-100">
               <div class="card-body">
-                <h5 class="mb-3">{{ distribution_title }}</h5>
+                <div class="section-title mb-3">{{ distribution_title }}</div>
                 <div class="chart-box chart-box-lg">
                   <canvas id="levelsChart"></canvas>
                 </div>
@@ -229,7 +231,7 @@
             <div class="card h-100 summary-card">
               <div class="card-body">
                 {% if result_mode == "mark" %}
-                  <h5 class="mb-2">Сводка отметок</h5>
+                  <div class="section-title mb-2">Сводка отметок</div>
                   <div class="summary-note">По выбранной диагностике или по всем диагностикам.</div>
                   {% for label in ['5', '4', '3', '2'] %}
                     <div class="level-row">
@@ -238,7 +240,7 @@
                     </div>
                   {% endfor %}
                 {% elif result_mode in ['percent', 'score'] %}
-                  <h5 class="mb-2">Сводка по % выполнения</h5>
+                  <div class="section-title mb-2">Сводка по % выполнения</div>
                   <div class="summary-note">Группы результатов по проценту выполнения работы.</div>
                   {% for label in distribution_labels %}
                     <div class="level-row">
@@ -247,7 +249,7 @@
                     </div>
                   {% endfor %}
                 {% else %}
-                  <h5 class="mb-2">Сводка уровней</h5>
+                  <div class="section-title mb-2">Сводка уровней</div>
                   <div class="summary-note">По выбранной диагностике или по всем диагностикам.</div>
 
                   <div class="level-row">
@@ -285,7 +287,7 @@
   {% if show_class_comparison %}
     <div class="card mb-4">
       <div class="card-body">
-        <h5 class="mb-3">{{ low_result_label }} по классам</h5>
+        <div class="section-title mb-3">{{ low_result_label }} по классам</div>
         <div class="chart-box chart-box-below">
           <canvas id="belowBasicChart"></canvas>
         </div>
@@ -294,7 +296,7 @@
 
     <div class="card mb-4">
       <div class="card-body p-0">
-        <div class="px-3 pt-3"><h5 class="mb-0">Рейтинг классов</h5></div>
+        <div class="px-3 pt-3"><div class="section-title">Рейтинг классов</div></div>
         <div class="table-responsive">
           <table class="table table-sm table-hover align-middle">
             <thead>
@@ -327,7 +329,7 @@
 
   <div class="card mb-4">
     <div class="card-body p-0">
-      <div class="px-3 pt-3"><h5 class="mb-0">Рейтинг учителей</h5></div>
+      <div class="px-3 pt-3"><div class="section-title">Рейтинг учителей</div></div>
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
           <thead>
@@ -354,7 +356,7 @@
   {% if show_class_comparison %}
     <div class="card mb-4">
       <div class="card-body p-0">
-        <div class="px-3 pt-3"><h5 class="mb-0">{{ low_result_label }} по классам</h5></div>
+        <div class="px-3 pt-3"><div class="section-title">{{ low_result_label }} по классам</div></div>
         <div class="table-responsive">
           <table class="table table-sm table-hover align-middle">
             <thead>
@@ -382,7 +384,7 @@
 
   <div class="card mb-4">
     <div class="card-body p-0">
-      <div class="px-3 pt-3"><h5 class="mb-0">Анализ по заданиям</h5></div>
+      <div class="px-3 pt-3"><div class="section-title">Анализ по заданиям</div></div>
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
           <thead>
@@ -407,7 +409,7 @@
 
   <div class="card mb-4">
     <div class="card-body p-0">
-      <div class="px-3 pt-3"><h5 class="mb-0">Свод по КЭС / УУД</h5>
+      <div class="px-3 pt-3"><div class="section-title">Свод по КЭС / УУД</div>
       {% if kes_chart %}<div class="px-3 pb-2 pt-2"><div class="chart-box chart-box-sm"><canvas id="kesChart"></canvas></div></div>{% endif %}</div>
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
@@ -435,7 +437,7 @@
 
   <div class="card mb-4">
     <div class="card-body p-0">
-      <div class="px-3 pt-3"><h5 class="mb-0">Список детей</h5></div>
+      <div class="px-3 pt-3"><div class="section-title">Список детей</div></div>
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
           <thead>

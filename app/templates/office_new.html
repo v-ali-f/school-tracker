@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="mb-3">
+  {% if ext == 'xlsx' %}Новая таблица{% elif ext == 'pptx' %}Новая презентация{% else %}Новый документ{% endif %}
+</h2>
+
+<form method="post" class="card" style="max-width: 720px;">
+  <div class="card-body">
+    <div class="mb-3">
+      <label class="form-label">Название файла</label>
+      <input class="form-control" name="title" value="{{ default_name }}.{{ ext }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Где сохранить</label>
+      <select class="form-select" name="scope">
+        <option value="private">Мои файлы</option>
+        <option value="public">Общедоступные</option>
+      </select>
+      <div class="form-text">Файл будет создан в модуле «Диск».</div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary">Создать и открыть</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('office.index') }}">Отмена</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

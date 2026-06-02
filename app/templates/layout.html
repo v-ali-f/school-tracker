@@ -11,7 +11,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
-  <link href="{{ url_for('static', filename='css/app.css') }}?v=20260428s95" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}?v=20260601s6" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/incidents-status.css') }}?v=20260428" rel="stylesheet">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style>
@@ -44,13 +44,6 @@
   <link rel="icon" type="image/png" href="{{ org_logo_url }}">
   <link rel="shortcut icon" type="image/png" href="{{ org_logo_url }}">
   <link rel="apple-touch-icon" href="{{ org_logo_url }}">
-
-
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
-  <meta name="theme-color" content="#2563eb">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Портал 1324">
 
 </head>
 
@@ -101,6 +94,7 @@
         <span class="app-navbar-sep d-none d-lg-inline"></span>
         <div class="position-relative" id="navSearchWrap">
           <input type="text" id="navSearch" class="form-control form-control-sm" placeholder="Поиск ученика…"
+                 aria-label="Поиск ученика по школе"
                  autocomplete="off" style="width:280px;border-radius:20px;font-size:.85rem;">
           <div id="navSearchDropdown" class="dropdown-menu show shadow-sm p-0"
                style="display:none;position:absolute;top:calc(100% + 4px);left:0;width:400px;max-width:calc(100vw - 24px);max-height:300px;overflow-y:auto;z-index:1100;border-radius:12px;">
@@ -109,7 +103,7 @@
         <span class="app-navbar-sep d-none d-lg-inline"></span>
         <div class="dropdown" id="bellDropdown">
           <button class="btn btn-app-nav btn-sm app-bell-btn dropdown-toggle-no-arrow" type="button"
-                  data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Уведомления">
+                  data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Уведомления" aria-label="Уведомления">
             <i class="bi bi-bell"></i>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger {% if not bell_unread_total %}d-none{% endif %}" id="bellCountBadge">{{ bell_unread_total }}</span>
           </button>
@@ -194,7 +188,7 @@
           <div class="app-user-name">{{ current_user.fio or current_user.username }}</div>
           <div class="app-user-role">{{ role_labels.get(current_user.role, current_user.role or '') }}</div>
         </a>
-        <a class="btn btn-app-exit btn-sm" href="{{ url_for('auth.logout') }}" title="Выйти из системы">
+        <a class="btn btn-app-exit btn-sm" href="{{ url_for('auth.logout') }}" title="Выйти из системы" aria-label="Выйти из системы">
           <i class="bi bi-box-arrow-right"></i>
         </a>
         {% endif %}
@@ -211,7 +205,7 @@
     <ol class="breadcrumb">
       {% for crumb in auto_breadcrumbs %}
       {% if loop.last %}
-      <li class="breadcrumb-item active">{{ crumb.label }}</li>
+      <li class="breadcrumb-item active" aria-current="page">{{ crumb.label }}</li>
       {% else %}
       <li class="breadcrumb-item"><a href="{{ crumb.url }}">{{ crumb.label }}</a></li>
       {% endif %}
@@ -224,7 +218,7 @@
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
+        <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
       {% endfor %}
     {% endif %}
   {% endwith %}
@@ -490,19 +484,7 @@
 })();
 </script>
 {% block scripts %}{% endblock %}
-<script src="{{ url_for('static', filename='js/tasks_light_ui.js') }}?v=20260430v183"></script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register("{{ url_for('static', filename='service-worker.js') }}")
-      .catch(function (error) {
-        console.log('Service worker registration failed:', error);
-      });
-  });
-}
-</script>
-
+<script src="{{ url_for('static', filename='js/tasks_light_ui.js') }}?v=20260529v184"></script>
 </body>
 </html>
 

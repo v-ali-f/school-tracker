@@ -1,8 +1,12 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h4 class="mb-0">Отчёт по школе: дети с АЗ</h4>
-  <a class="btn btn-outline-secondary btn-sm" href="/children">Назад</a>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Отчёт по школе: дети с АЗ</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="/children"><i class="bi bi-arrow-left me-1"></i>Назад</a>
+  </div>
 </div>
 
 <form class="row g-2 mb-3" method="get">
@@ -32,14 +36,14 @@
   </div>
 </form>
 
-<div class="card">
+<div class="card soft-card">
   <div class="table-responsive">
     <table class="table table-striped mb-0 align-middle">
       <thead>
         <tr>
           <th style="width:90px;">Класс</th>
           <th>ФИО</th>
-          <th style="width:90px;">Кол-во АЗ</th>
+          <th class="num" style="width:90px;">Кол-во АЗ</th>
           <th>Предметы</th>
           <th style="width:160px;">Ближайший срок</th>
           <th style="width:120px;"></th>
@@ -50,7 +54,7 @@
         <tr>
           <td>{{ r.class_name or "" }}</td>
           <td>{{ r.last_name }} {{ r.first_name }} {{ r.middle_name or "" }}</td>
-          <td>{{ r.debt_count }}</td>
+          <td class="num">{{ r.debt_count }}</td>
           <td>{{ r.subjects }}</td>
           <td>{{ r.nearest_due or "" }}</td>
           <td class="text-end">

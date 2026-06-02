@@ -1,7 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
-<h3 class="mb-3">Перевод класс → класс</h3>
-<div class="card mb-3"><div class="card-body">
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Перевод класс → класс</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('transfers.index') }}"><i class="bi bi-arrow-left me-1"></i>Назад</a>
+  </div>
+</div>
+<div class="card soft-card mb-3"><div class="card-body">
 <form method="get" class="row g-2 align-items-end">
   <div class="col-md-3"><label class="form-label">Год-источник</label><select class="form-select" name="from_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == from_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
   <div class="col-md-3"><label class="form-label">Год-назначение</label><select class="form-select" name="to_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == to_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
@@ -11,7 +18,7 @@
 </form></div></div>
 
 {% if rows %}
-<div class="card"><div class="card-body">
+<div class="card soft-card"><div class="card-body">
 <form method="post">
   <input type="hidden" name="action" value="execute">
   <input type="hidden" name="from_year_id" value="{{ from_year_id }}">
@@ -24,7 +31,7 @@
     <div class="col-md-3"><label class="form-label">Дата приказа</label><input type="date" class="form-control" name="order_date"></div>
   </div>
   <div class="table-responsive"><table class="table align-middle"><thead><tr><th><input type="checkbox" checked onclick="document.querySelectorAll('.enr').forEach(x=>x.checked=this.checked)"></th><th>ФИО</th><th>Текущий класс</th><th>Целевой класс</th></tr></thead><tbody>{% for row in rows %}<tr><td><input class="form-check-input enr" type="checkbox" name="enrollment_ids" value="{{ row.enrollment.id }}" checked></td><td>{{ row.child.fio }}</td><td>{{ row.enrollment.school_class.name if row.enrollment.school_class else '—' }}</td><td>{% for c in to_classes %}{% if c.id == row.target_class_id %}{{ c.name }}{% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table></div>
-  <button class="btn btn-success">Выполнить перевод</button>
+  <button class="btn btn-primary">Выполнить перевод</button>
 </form></div></div>
 {% endif %}
 {% endblock %}

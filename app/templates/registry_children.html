@@ -1,15 +1,18 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">{{ title }}</h3>
-    <div class="text-muted" style="font-size:0.95em;">Сформировано из данных контингента</div>
+    <h1 class="page-title">{{ title }}</h1>
+    <div class="page-sub">Сформировано из данных контингента</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>На главную</a>
+    {% if export_url %}<a class="btn btn-outline-secondary btn-sm" href="{{ export_url }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>{% endif %}
+  </div>
 </div>
 
-<div class="card mb-3">
+<div class="card soft-card mb-3">
   <div class="card-body">
     <form method="get" class="row g-2 align-items-end">
       <div class="col-md-2">
@@ -37,13 +40,12 @@
       <div class="col-md-3 d-flex gap-2">
         <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}"><button class="btn btn-primary" type="submit">Показать</button>
         <a class="btn btn-outline-secondary" href="?">Сброс</a>
-        {% if export_url %}<a class="btn btn-success" href="{{ export_url }}">Excel</a>{% endif %}
       </div>
     </form>
   </div>
 </div>
 
-<div class="card">
+<div class="card soft-card">
   <div class="table-responsive">
     <table class="table table-striped mb-0 align-middle">
       <thead>

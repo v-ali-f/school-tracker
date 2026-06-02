@@ -721,15 +721,18 @@
   .board-col-body {padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px;}
   .board-col-header .count {background:#fff; border:1px solid #dbe5f1; min-width:32px; text-align:center; border-radius:999px; padding:3px 8px; font-weight:700;}
   .board-col.red {background:#fff6f6;}
-  .board-col.red .board-col-header {background:#fff6f6;}
-  .board-col.amber {background:#fffaf0;}
-  .board-col.amber .board-col-header {background:#fffaf0;}
+  .board-col.red .board-col-header {background:#fff6f6; border-top:3px solid #f87171;}
+  .board-col.amber {background:#f6f9fd;}
+  .board-col.amber .board-col-header {background:#f6f9fd; border-top:3px solid #f59e0b;}
   .board-col.blue {background:#f4f9ff;}
-  .board-col.blue .board-col-header {background:#f4f9ff;}
+  .board-col.blue .board-col-header {background:#f4f9ff; border-top:3px solid #60a5fa;}
   .board-col.green {background:#f4fbf7;}
-  .board-col.green .board-col-header {background:#f4fbf7;}
+  .board-col.green .board-col-header {background:#f4fbf7; border-top:3px solid #34d399;}
   .task-card-board {background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:14px; box-shadow:0 6px 16px rgba(15,23,42,.05);}
   .task-card-board:hover {border-color:#a9c5ed; box-shadow:0 10px 24px rgba(13,110,253,.08);}
+  /* Приглушённые метки «Без типа» / «Без привязки» */
+  .task-tag-muted {color:#9ca3af; background:#f8fafc; border:1px solid #e5e7eb;}
+  .task-meta-muted {color:#9ca3af; font-size:11px;}
   .task-card-title {font-weight:700; line-height:1.3; margin-bottom:6px;}
   .task-card-title a {text-decoration:none; color:#0f172a;}
   .task-card-desc {color:#64748b; font-size:13px; line-height:1.35; min-height:34px;}
@@ -1203,7 +1206,7 @@
         <div class="tasks-top-actions">
           <a class="btn btn-primary btn-sm tasks-action-btn" href="{{ url_for('tasks.new_task') }}">Создать задачу</a>
           <a class="btn btn-outline-secondary btn-sm tasks-action-btn" href="{{ url_for('tasks.batch_new') }}">Массово</a>
-          <a class="btn btn-outline-success btn-sm tasks-action-btn" href="{{ url_for('tasks.export_tasks_xlsx', scope='all' if list_kind == 'all' else list_kind, **request.args.to_dict()) }}">Excel</a>
+          <a class="btn btn-outline-secondary btn-sm tasks-action-btn" href="{{ url_for('tasks.export_tasks_xlsx', scope='all' if list_kind == 'all' else list_kind, **request.args.to_dict()) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
           <a class="btn btn-outline-secondary btn-sm position-relative tasks-action-btn" href="{{ url_for('tasks.notifications') }}">Уведомления{% if counts.unread_notifications %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ counts.unread_notifications }}</span>{% endif %}</a>
         </div>
       </div>
@@ -1287,13 +1290,13 @@
         <div class="task-card-title"><a href="{{ url_for('tasks.task_card', task_id=task.id) }}">{{ task.title }}</a></div>
         <div class="task-card-desc">{{ (task.description or 'Без подробного описания')[:120] }}{% if task.description and task.description|length > 120 %}...{% endif %}</div>
         <div class="task-tags">
-          <span class="task-tag">{{ task.task_type.name if task.task_type else 'Без типа' }}</span>
+          {% if task.task_type %}<span class="task-tag">{{ task.task_type.name }}</span>{% else %}<span class="task-tag task-tag-muted">Без типа</span>{% endif %}
           <span class="task-tag {% if task.priority in ['высокий','срочный'] %}priority-high{% elif task.priority == 'критический' %}priority-critical{% endif %}">{{ task.priority }}</span>
           {% if task.is_private %}<span class="task-tag">Чувствительная</span>{% endif %}
           {% if task.is_overdue %}<span class="task-tag overdue">Просрочена</span>{% endif %}
         </div>
         <div class="task-meta-line">
-          {% if task.child %}{{ task.child.fio }}{% endif %}{% if task.child and task.school_class %} • {% endif %}{% if task.school_class %}{{ task.school_class.name }}{% endif %}{% if not task.child and not task.school_class %}Без привязки{% endif %}
+          {% if task.child %}{{ task.child.fio }}{% endif %}{% if task.child and task.school_class %} • {% endif %}{% if task.school_class %}{{ task.school_class.name }}{% endif %}{% if not task.child and not task.school_class %}<span class="task-meta-muted">Без привязки</span>{% endif %}
         </div>
         {% if task.checklist_total %}
           <div class="progress-thin"><span style="width: {{ task.checklist_percent }}%;"></span></div>
@@ -1307,7 +1310,7 @@
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.task_card', task_id=task.id) }}">Открыть</a>
           {% if task.creator_user_id == current_user.id or current_user.role in ADMIN_ROLES %}
           <form method="post" action="{{ url_for('tasks.delete_task', task_id=task.id, next=request.full_path) }}" onsubmit="return confirm('Удалить задачу? Это действие нельзя отменить.')">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить задачу"><i class="bi bi-trash"></i></button>
           </form>
           {% endif %}
         </div>
@@ -1334,7 +1337,7 @@
             <tbody>
               {% for task in tasks %}
               <tr>
-                <td><a class="fw-semibold text-decoration-none" href="{{ url_for('tasks.task_card', task_id=task.id) }}">{{ task.title }}</a><div class="archive-note">{{ task.task_type.name if task.task_type else 'Без типа' }}</div></td>
+                <td><a class="fw-semibold text-decoration-none" href="{{ url_for('tasks.task_card', task_id=task.id) }}">{{ task.title }}</a>{% if task.task_type %}<div class="archive-note">{{ task.task_type.name }}</div>{% else %}<div class="archive-note task-meta-muted">Без типа</div>{% endif %}</td>
                 <td><span class="badge text-bg-{{ task_status_badge_class(task.display_status) }}">{{ task.display_status }}</span></td>
                 <td>{{ task.priority }}</td>
 <td class="task-person">{{ short_fio(task.responsible) }}</td>

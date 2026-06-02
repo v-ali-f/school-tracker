@@ -1,19 +1,19 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Реестр олимпиадников</h3>
-    <div class="text-muted">Результаты ВСОШ по ученикам, этапам, статусам, учителям и кафедрам.</div>
+    <div class="page-title">Реестр олимпиадников</div>
+    <div class="page-sub">Результаты ВСОШ по ученикам, этапам, статусам, учителям и кафедрам.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    {% if can_olympiad_import %}<a class="btn btn-primary" href="{{ url_for('olympiads.import_view') }}">Импорт</a>{% endif %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.analytics') }}">Аналитика</a>
-    {% if can_olympiad_edit %}<a class="btn btn-success" href="{{ url_for('olympiads.teacher_binding') }}">Массовая привязка учителей по классу</a>{% endif %}
-    {% if can_olympiad_settings_manage %}<a class="btn btn-outline-dark" href="{{ url_for('olympiads.settings') }}">Реестр олимпиадных предметов</a>{% endif %}
-    {% if can_olympiad_edit %}<a class="btn btn-outline-warning" href="{{ url_for('olympiads.unmatched') }}">Несопоставленные результаты</a>{% endif %}
+  <div class="page-actions">
+    {% if can_olympiad_import %}<a class="btn btn-primary btn-sm" href="{{ url_for('olympiads.import_view') }}"><i class="bi bi-upload me-1"></i>Импорт</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.analytics') }}">Аналитика</a>
+    {% if can_olympiad_edit %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.teacher_binding') }}">Привязка учителей</a>{% endif %}
+    {% if can_olympiad_settings_manage %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.settings') }}">Предметы</a>{% endif %}
+    {% if can_olympiad_edit %}<a class="btn btn-outline-warning btn-sm" href="{{ url_for('olympiads.unmatched') }}">Несопоставленные</a>{% endif %}
   </div>
 </div>
-<div class="card mb-3"><div class="card-body">
+<div class="card soft-card mb-3"><div class="card-body">
   <form method="get" class="row g-2">
     <div class="col-md-2"><select class="form-select" name="academic_year_id"><option value="">Год</option>{% for y in years %}<option value="{{ y.id }}" {% if academic_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
     <div class="col-md-2"><select class="form-select" name="stage"><option value="">Этап</option>{% for s in stages %}<option value="{{ s }}" {% if stage==s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></div>
@@ -27,7 +27,7 @@
 </div></div>
 
 {% if can_olympiad_edit %}
-<div class="card mb-3"><div class="card-body">
+<div class="card soft-card mb-3"><div class="card-body">
   <form id="bulk-assign-form" method="post" action="{{ url_for('olympiads.bulk_assign_teacher') }}" class="row g-2">
     <div class="col-md-6">
       <select class="form-select" name="teacher_id" required>
@@ -41,9 +41,9 @@
 </div></div>
 {% endif %}
 
-<div class="card"><div class="table-responsive">
+<div class="card soft-card"><div class="table-responsive">
 <table class="table table-striped align-middle mb-0">
-  <thead><tr><th>{% if can_olympiad_edit %}Выбрать{% else %}# {% endif %}</th><th>Год</th><th>Этап</th><th>Предмет</th><th>Ученик</th><th>Класс</th><th>Балл</th><th>Статус</th><th>Исходный статус / причина</th><th>Учитель</th><th>Кафедра</th><th>Привязка</th><th>Дата загрузки</th><th>Изменить учителя</th></tr></thead>
+  <thead><tr><th>{% if can_olympiad_edit %}Выбрать{% else %}#{% endif %}</th><th>Год</th><th>Этап</th><th>Предмет</th><th>Ученик</th><th>Класс</th><th class="num">Балл</th><th>Статус</th><th>Исходный статус / причина</th><th>Учитель</th><th>Кафедра</th><th>Привязка</th><th>Дата загрузки</th><th>Изменить учителя</th></tr></thead>
   <tbody>
     {% for row in rows %}
     {% set row_status_group = row.status_group or '' %}
@@ -54,7 +54,7 @@
       <td>{{ row.subject.name if row.subject else (row.subject_name or '—') }}</td>
       <td>{{ row.child.fio if row.child else '—' }}</td>
       <td>{{ row.school_class.name if row.school_class else (row.class_study_text or '—') }}</td>
-      <td>{{ row.score if row.score is not none else '—' }}</td>
+      <td class="num">{{ row.score if row.score is not none else '—' }}</td>
       <td>
         {% if row_status_group == 'winner' %}<span class="badge text-bg-success">Победитель</span>
         {% elif row_status_group == 'prize' %}<span class="badge text-bg-primary">Призёр</span>

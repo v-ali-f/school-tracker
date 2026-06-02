@@ -1,11 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Отчёт по диагностике</h3>
-    <div class="text-muted">{{ session.title }} · {{ session.subject or '—' }}</div>
+    <div class="page-title">Отчёт по диагностике</div>
+    <div class="page-sub">{{ session.title }} · {{ session.subject or '—' }}</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.detail', session_id=session.id) }}">Назад</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('diagnostics.detail', session_id=session.id) }}">Назад</a>
+  </div>
 </div>
 
 {% set total_rows = report.rows|length %}
@@ -32,19 +34,19 @@
 <div class="row g-3 mb-4">
   <div class="col-lg-7">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Рейтинг классов по среднему проценту</h5>
+      <div class="section-title mb-3">Рейтинг классов по среднему проценту</div>
       <canvas id="classPercentChart" height="180"></canvas>
     </div></div>
   </div>
   <div class="col-lg-5">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Распределение результатов</h5>
+      <div class="section-title mb-3">Распределение результатов</div>
       <canvas id="resultDistributionChart" height="180"></canvas>
     </div></div>
   </div>
   <div class="col-12">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Успешность по заданиям</h5>
+      <div class="section-title mb-3">Успешность по заданиям</div>
       <canvas id="tasksChart" height="120"></canvas>
     </div></div>
   </div>
@@ -53,7 +55,7 @@
 <div class="card mb-4"><div class="card-body p-0">
   <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
-      <h5 class="mb-0">Классы</h5>
+      <div class="section-title">Классы</div>
       <div class="text-muted small">Карточки с результатом по каждому классу.</div>
     </div>
   </div>
@@ -80,7 +82,7 @@
 </div></div>
 
 <div class="card mb-4"><div class="card-body p-0">
-  <div class="px-3 pt-3"><h5 class="mb-0">Анализ по заданиям</h5></div>
+  <div class="px-3 pt-3"><div class="section-title">Анализ по заданиям</div></div>
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0 align-middle">
       <thead><tr><th>Задание</th><th>Успешность, %</th><th>Количество работ</th><th style="width: 220px;">Наглядно</th></tr></thead>
@@ -106,7 +108,7 @@
 </div></div>
 
 <div class="card"><div class="card-body p-0">
-  <div class="px-3 pt-3"><h5 class="mb-0">Итоговые результаты</h5></div>
+  <div class="px-3 pt-3"><div class="section-title">Итоговые результаты</div></div>
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0 align-middle">
       <thead><tr><th>Ученик</th><th>Класс</th><th>Балл</th><th>%</th><th>Отметка</th><th>Источник</th></tr></thead>

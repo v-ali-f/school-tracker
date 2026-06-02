@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
-<h3 class="mb-3">Управленческая аналитика</h3>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Управленческая аналитика</h1>
+  </div>
+</div>
 <div class="row g-3 mb-4">
   <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Контингент</div><div class="fs-4 fw-bold">{{ summary.students }}</div></div></div></div>
   <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Классы</div><div class="fs-4 fw-bold">{{ summary.classes }}</div></div></div></div>

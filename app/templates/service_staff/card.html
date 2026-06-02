@@ -1,20 +1,25 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h2 class="mb-1">{{ specialist.fio }}</h2>
-    <div class="text-muted">Базовая карточка специалиста службы</div>
+    <div class="page-title">{{ specialist.fio }}</div>
+    <div class="page-sub">Базовая карточка специалиста службы</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.registry') }}">К реестру</a>{% if can_edit %}<form method="post" action="{{ url_for('service_staff.specialist_toggle', specialist_id=specialist.id) }}" class="d-inline"><button class="btn {% if specialist.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">{% if specialist.is_active %}Исключить из службы{% else %}Вернуть в службу{% endif %}</button></form>{% endif %}
-    {% if can_edit %}<a class="btn btn-primary" href="{{ url_for('service_staff.specialist_edit', specialist_id=specialist.id) }}">Редактировать</a>{% endif %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.registry') }}"><i class="bi bi-list me-1"></i>К реестру</a>
+    {% if can_edit %}
+      <form method="post" action="{{ url_for('service_staff.specialist_toggle', specialist_id=specialist.id) }}" class="d-inline">
+        <button class="btn btn-sm {% if specialist.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">{% if specialist.is_active %}Исключить{% else %}Вернуть{% endif %}</button>
+      </form>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('service_staff.specialist_edit', specialist_id=specialist.id) }}"><i class="bi bi-pencil me-1"></i>Редактировать</a>
+    {% endif %}
   </div>
 </div>
 
 <div class="row g-3">
   <div class="col-lg-7">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Основные сведения</h5>
+      <div class="section-title mb-3">Основные сведения</div>
       <div class="row g-3">
         <div class="col-md-6"><div class="text-muted small">Должность</div><div>{{ specialist.position_title or '—' }}</div></div>
         <div class="col-md-6"><div class="text-muted small">Статус</div><div>{% if specialist.is_active %}Активен{% else %}Неактивен{% endif %}</div></div>
@@ -30,13 +35,13 @@
   </div>
   <div class="col-lg-5">
     <div class="card mb-3"><div class="card-body">
-      <h5 class="mb-3">Права доступа модуля</h5>
+      <div class="section-title mb-3">Права доступа модуля</div>
       <div class="mb-2">Ответственный за службу: {% if specialist.is_responsible %}<span class="badge text-bg-primary">Да</span>{% else %}<span class="badge text-bg-secondary">Нет</span>{% endif %}</div>
       <div class="mb-2">Связанный пользователь: {{ specialist.user.fio if specialist.user else 'не привязан' }}</div>
       <div class="text-muted small">Администратор системы имеет полный доступ. Ответственный получает расширенные права внутри модуля службы.</div>
     </div></div>
     <div class="card"><div class="card-body">
-      <h5 class="mb-3">Зарезервировано для следующих этапов</h5>
+      <div class="section-title mb-3">Зарезервировано для следующих этапов</div>
       <ul class="mb-0 text-muted">
         <li>дети и сопровождение</li>
         <li>циклограмма специалиста</li>

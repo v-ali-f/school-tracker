@@ -1,61 +1,60 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="hub-shell theme-hub-classic">
-  <section class="hub-header mb-4">
-    <div>
-      <div class="section-overline">Тематический раздел</div>
-      <h3 class="mb-1">Социальные данные — аналитика</h3>
-      <div class="text-muted">Сводные показатели по школе и распределение по зданиям.</div>
-    </div>
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
-  </section>
-
-  <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Всего детей</div><div class="hub-kpi-value">{{ totals.school_total }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Многодетные семьи</div><div class="hub-kpi-value">{{ totals.large_family }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Малообеспеченные семьи</div><div class="hub-kpi-value">{{ totals.low_income }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Опека / попечительство</div><div class="hub-kpi-value">{{ totals.guardianship }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Сироты / без попечения</div><div class="hub-kpi-value">{{ totals.orphan }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Родители с инвалидностью</div><div class="hub-kpi-value">{{ totals.parents_disability }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Социально опасное положение</div><div class="hub-kpi-value">{{ totals.socially_dangerous }}</div></div></div>
-    <div class="col-md-3"><div class="hub-kpi-card"><div class="hub-kpi-label">Трудная жизненная ситуация</div><div class="hub-kpi-value">{{ totals.hard_life }}</div></div></div>
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Социальные данные — аналитика</div>
+    <div class="page-sub">Сводные показатели по школе и распределение по зданиям.</div>
   </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house me-1"></i>Главная</a>
+  </div>
+</div>
 
-  <div class="card hub-list-card">
-    <div class="card-body">
-      <h5 class="mb-3">По зданиям</h5>
-      <div class="table-responsive">
-        <table class="table table-striped mb-0">
-          <thead>
+<div class="stat-strip mb-3">
+  <div class="stat-cell"><div class="stat-label">Всего детей</div><div class="stat-value">{{ totals.school_total }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Многодетные</div><div class="stat-value">{{ totals.large_family }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Малообеспеченные</div><div class="stat-value">{{ totals.low_income }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Опека</div><div class="stat-value">{{ totals.guardianship }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Сироты / без попечения</div><div class="stat-value">{{ totals.orphan }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Родители с инвалидностью</div><div class="stat-value">{{ totals.parents_disability }}</div></div>
+  <div class="stat-cell is-vshu"><div class="stat-label">СОП</div><div class="stat-value">{{ totals.socially_dangerous }}</div></div>
+  <div class="stat-cell is-kdn"><div class="stat-label">ТЖС</div><div class="stat-value">{{ totals.hard_life }}</div></div>
+</div>
+
+<div class="card soft-card">
+  <div class="card-body">
+    <div class="section-title mb-3">По зданиям</div>
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Здание</th>
+            <th class="num">Всего</th>
+            <th class="num">Многодетные</th>
+            <th class="num">Малообеспеченные</th>
+            <th class="num">Опека</th>
+            <th class="num">Сироты / без попечения</th>
+            <th class="num">Родители с инвалидностью</th>
+            <th class="num">СОП</th>
+            <th class="num">ТЖС</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bname, row in by_building.items() %}
             <tr>
-              <th>Здание</th>
-              <th>Всего</th>
-              <th>Многодетные</th>
-              <th>Малообеспеченные</th>
-              <th>Опека</th>
-              <th>Сироты / без попечения</th>
-              <th>Родители с инвалидностью</th>
-              <th>Социально опасное положение</th>
-              <th>Трудная жизненная ситуация</th>
+              <td>{{ bname }}</td>
+              <td class="num">{{ row.total }}</td>
+              <td class="num">{{ row.large_family }}</td>
+              <td class="num">{{ row.low_income }}</td>
+              <td class="num">{{ row.guardianship }}</td>
+              <td class="num">{{ row.orphan }}</td>
+              <td class="num">{{ row.parents_disability }}</td>
+              <td class="num">{{ row.socially_dangerous }}</td>
+              <td class="num">{{ row.hard_life }}</td>
             </tr>
-          </thead>
-          <tbody>
-            {% for bname, row in by_building.items() %}
-              <tr>
-                <td>{{ bname }}</td>
-                <td>{{ row.total }}</td>
-                <td>{{ row.large_family }}</td>
-                <td>{{ row.low_income }}</td>
-                <td>{{ row.guardianship }}</td>
-                <td>{{ row.orphan }}</td>
-                <td>{{ row.parents_disability }}</td>
-                <td>{{ row.socially_dangerous }}</td>
-                <td>{{ row.hard_life }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

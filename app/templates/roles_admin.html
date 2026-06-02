@@ -1,14 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="page-head mb-3">
   <div>
-    <h4 class="mb-0">Роли пользователей</h4>
-    <div class="text-muted" style="font-size:0.95em;">
-      Назначение ролей пользователям системы
-    </div>
+    <h1 class="page-title">Роли пользователей</h1>
+    <div class="page-sub">Назначение ролей пользователям системы</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}">На главную</a>
+  </div>
 </div>
 
 <div class="alert alert-info">
@@ -39,7 +39,7 @@
 <div class="row g-3">
   {% for row in rows %}
     <div class="col-12">
-      <div class="card shadow-sm">
+      <div class="card soft-card">
         <div class="card-body">
           <form method="post">
             <input type="hidden" name="user_id" value="{{ row.user.id }}">
@@ -127,7 +127,7 @@
                     Снять редактируемые роли
                   </button>
 
-                  <button class="btn btn-success">Сохранить роли</button>
+                  <button class="btn btn-primary">Сохранить роли</button>
                 </div>
               </div>
             </div>

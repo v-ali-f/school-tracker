@@ -1,15 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+<div class="page-head">
   <div>
-    <div class="section-overline">Учебный процесс</div>
-    <h3 class="mb-1">Реестр контрольных работ</h3>
-    <div class="text-muted">Единая таблица по всем работам со статусами, признаками внимания, массовыми действиями и переходами в карточку.</div>
+    <div class="page-title">Реестр контрольных работ</div>
+    <div class="page-sub">Единая таблица по всем работам со статусами, признаками внимания, массовыми действиями и переходами в карточку.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_registry_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, q=search_text, overdue=1 if overdue_only else 0, has_absent=1 if has_absent is sameas true else (0 if has_absent is sameas false else ''), attention=1 if attention_only else 0, include_archived=1 if include_archived else 0 ) }}">Экспорт Excel</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('control_works.control_works_journal', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, overdue=1 if overdue_only else 0, attention=1 if attention_only else 0) }}">Журнал работ</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade) }}">Сводная аналитика</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_registry_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, q=search_text, overdue=1 if overdue_only else 0, has_absent=1 if has_absent is sameas true else (0 if has_absent is sameas false else ''), attention=1 if attention_only else 0, include_archived=1 if include_archived else 0 ) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_journal', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, overdue=1 if overdue_only else 0, attention=1 if attention_only else 0) }}">Журнал</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade) }}">Аналитика</a>
   </div>
 </div>
 
@@ -73,7 +72,7 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
       <div>
-        <h5 class="mb-1">Требуют внимания</h5>
+        <div class="section-title mb-1">Требуют внимания</div>
         <div class="text-muted small">Работы с незаполненными результатами, просрочкой или другими признаками контроля.</div>
       </div>
       <a class="btn btn-sm btn-outline-warning" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade, work_kind=selected_work_kind, status=selected_status, q=search_text, attention=1) }}">Открыть только проблемные</a>

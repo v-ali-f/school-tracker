@@ -1,19 +1,18 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+<div class="page-head">
   <div>
-    <div class="section-overline">Учебный процесс</div>
-    <h3 class="mb-1">Свод качества контрольных работ</h3>
-    <div class="text-muted">Дашборд по контрольным работам, качеству знаний и успеваемости.</div>
+    <div class="page-title">Свод качества контрольных работ</div>
+    <div class="page-sub">Дашборд по контрольным работам, качеству знаний и успеваемости.</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_summary_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=selected_class_id) }}">Экспорт Excel</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=selected_class_id) }}">Реестр</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_summary_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=selected_class_id) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=selected_class_id) }}">Реестр</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
   </div>
 </div>
 
-<form method="get" class="card mb-4">
+<form method="get" class="card soft-card mb-4">
   <div class="card-body">
     <div class="row g-3 align-items-end">
       <div class="col-lg-2 col-md-4">
@@ -79,7 +78,7 @@
   <div class="col-xl-3 col-md-6"><div class="mini-stat-card"><div class="mini-stat-label">Качество / успеваемость</div><div class="mini-stat-value mini-stat-value-sm">{{ dataset.summary.quality if dataset.summary.quality is not none else '—' }} / {{ dataset.summary.success if dataset.summary.success is not none else '—' }}</div></div></div>
 </div>
 
-<div class="card mb-4">
+<div class="card soft-card mb-4">
   <div class="card-body">
     <div class="d-flex flex-wrap gap-4 mb-2">
       <div><strong>Оценка 5:</strong> {{ dataset.summary.mark_counts[5] }}</div>
@@ -97,19 +96,19 @@
       <div class="card-header bg-white"><strong>Свод по учителям</strong></div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead><tr><th>Учитель</th><th>Предметы</th><th>Записей</th><th>Писали</th><th>Отсутствовали</th><th>Средний %</th><th>Средний балл</th><th>Качество</th><th>Успеваемость</th></tr></thead>
+          <thead><tr><th>Учитель</th><th>Предметы</th><th class="num">Записей</th><th class="num">Писали</th><th class="num">Отсутствовали</th><th class="num">Средний %</th><th class="num">Средний балл</th><th class="num">Качество</th><th class="num">Успеваемость</th></tr></thead>
           <tbody>
             {% for row in dataset.teacher_rows %}
             <tr>
               <td><a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=row.teacher_id if row.teacher_id is defined else None, grade=selected_grade, class_id=selected_class_id) }}">{{ row.teacher_name }}</a></td>
               <td>{{ row.subjects_text }}</td>
-              <td>{{ row.results }}</td>
-              <td>{{ row.participants }}</td>
-              <td>{{ row.absent }}</td>
-              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
-              <td>{{ row.avg_mark if row.avg_mark is not none else '—' }}</td>
-              <td>{{ row.quality if row.quality is not none else '—' }}</td>
-              <td>{{ row.success if row.success is not none else '—' }}</td>
+              <td class="num">{{ row.results }}</td>
+              <td class="num">{{ row.participants }}</td>
+              <td class="num">{{ row.absent }}</td>
+              <td class="num">{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td class="num">{{ row.avg_mark if row.avg_mark is not none else '—' }}</td>
+              <td class="num">{{ row.quality if row.quality is not none else '—' }}</td>
+              <td class="num">{{ row.success if row.success is not none else '—' }}</td>
             </tr>
             {% else %}
             <tr><td colspan="9" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
@@ -125,17 +124,17 @@
       <div class="card-header bg-white"><strong>Свод по классам</strong></div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead><tr><th>Класс</th><th>Предметы</th><th>Записей</th><th>Писали</th><th>Отсутствовали</th><th>Средний %</th><th>Качество</th></tr></thead>
+          <thead><tr><th>Класс</th><th>Предметы</th><th class="num">Записей</th><th class="num">Писали</th><th class="num">Отсутствовали</th><th class="num">Средний %</th><th class="num">Качество</th></tr></thead>
           <tbody>
             {% for row in dataset.class_rows %}
             <tr>
               <td>{% if row.class_id %}<a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=row.class_id) }}">{{ row.class_name }}</a>{% else %}{{ row.class_name }}{% endif %}</td>
               <td>{{ row.subjects_text }}</td>
-              <td>{{ row.results }}</td>
-              <td>{{ row.participants }}</td>
-              <td>{{ row.absent }}</td>
-              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
-              <td>{{ row.quality if row.quality is not none else '—' }}</td>
+              <td class="num">{{ row.results }}</td>
+              <td class="num">{{ row.participants }}</td>
+              <td class="num">{{ row.absent }}</td>
+              <td class="num">{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td class="num">{{ row.quality if row.quality is not none else '—' }}</td>
             </tr>
             {% else %}
             <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>
@@ -151,17 +150,17 @@
       <div class="card-header bg-white"><strong>Свод по обучающимся</strong></div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead><tr><th>Обучающийся</th><th>Класс</th><th>Предметы</th><th>Записей</th><th>Писал</th><th>Отсутствовал</th><th>Средний %</th></tr></thead>
+          <thead><tr><th>Обучающийся</th><th>Класс</th><th>Предметы</th><th class="num">Записей</th><th class="num">Писал</th><th class="num">Отсутствовал</th><th class="num">Средний %</th></tr></thead>
           <tbody>
             {% for row in dataset.child_rows %}
             <tr>
               <td>{{ row.child_name }}</td>
               <td>{% if row.class_id %}<a class="fw-semibold text-decoration-none" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, grade=selected_grade, class_id=row.class_id) }}">{{ row.class_name }}</a>{% else %}{{ row.class_name }}{% endif %}</td>
               <td>{{ row.subjects_text }}</td>
-              <td>{{ row.results }}</td>
-              <td>{{ row.participants }}</td>
-              <td>{{ row.absent }}</td>
-              <td>{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
+              <td class="num">{{ row.results }}</td>
+              <td class="num">{{ row.participants }}</td>
+              <td class="num">{{ row.absent }}</td>
+              <td class="num">{{ row.avg_percent if row.avg_percent is not none else '—' }}</td>
             </tr>
             {% else %}
             <tr><td colspan="7" class="text-center text-muted py-4">Нет данных по выбранным фильтрам.</td></tr>

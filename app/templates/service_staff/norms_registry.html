@@ -2,9 +2,12 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="container-fluid py-3">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div><h3 class="mb-0">Нормативы ставок специалистов</h3><div class="text-muted">Справочник нормативов с историей по дате начала действия.</div></div>
-    <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.index') }}">Назад</a><a class="btn btn-primary" href="{{ url_for('service_staff.norm_new') }}">Добавить норматив</a></div>
+  <div class="page-head mb-3">
+    <div><div class="page-title">Нормативы ставок специалистов</div><div class="page-sub">Справочник нормативов с историей по дате начала действия.</div></div>
+    <div class="page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.index') }}"><i class="bi bi-arrow-left me-1"></i>Назад</a>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('service_staff.norm_new') }}"><i class="bi bi-plus-lg me-1"></i>Добавить норматив</a>
+    </div>
   </div>
   <form class="card card-body mb-3"><div class="row g-2 align-items-end">
     <div class="col-md-4"><label class="form-label">Специализация</label><select class="form-select" name="specialization_id"><option value="">Все</option>{% for row in specializations %}<option value="{{ row.id }}" {% if request.args.get('specialization_id', type=int) == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>

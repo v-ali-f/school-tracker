@@ -1,19 +1,21 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Несопоставленные результаты олимпиад</h3>
-    <div class="text-muted">Строки, которые не удалось автоматически привязать к ученику, предмету или учителю.</div>
+    <div class="page-title">Несопоставленные результаты олимпиад</div>
+    <div class="page-sub">Строки, которые не удалось автоматически привязать к ученику, предмету или учителю.</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.registry') }}">Назад в реестр</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.registry') }}">Назад в реестр</a>
+  </div>
 </div>
-<div class="card mb-3"><div class="card-body">
+<div class="card soft-card mb-3"><div class="card-body">
   <form method="get" class="row g-2">
     <div class="col-md-4"><select class="form-select" name="resolution_status"><option value="OPEN" {% if resolution_status=='OPEN' %}selected{% endif %}>Открытые</option><option value="RESOLVED" {% if resolution_status=='RESOLVED' %}selected{% endif %}>Обработанные</option></select></div>
     <div class="col-md-2 d-grid"><button class="btn btn-outline-primary">Показать</button></div>
   </form>
 </div></div>
-<div class="card"><div class="table-responsive">
+<div class="card soft-card"><div class="table-responsive">
 <table class="table table-striped align-middle mb-0">
   <thead><tr><th>ФИО из файла</th><th>Класс</th><th>Предмет</th><th>Этап</th><th>Балл</th><th>Статус</th><th>Причина</th><th>Действия</th></tr></thead>
   <tbody>

@@ -1,20 +1,27 @@
 {% extends "layout.html" %}
 {% block content %}
-<h3 class="mb-3">Выбытие / архив карточки</h3>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Выбытие / архив карточки</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('transfers.index') }}"><i class="bi bi-arrow-left me-1"></i>Назад</a>
+  </div>
+</div>
 <div class="row g-3">
   <div class="col-lg-5">
-    <div class="card"><div class="card-body">
+    <div class="card soft-card"><div class="card-body">
       <form method="post" class="row g-2">
         <div class="col-12"><label class="form-label">Ученик</label><select class="form-select" name="child_id" required><option value="">—</option>{% for c in children %}<option value="{{ c.id }}">{{ c.fio }}</option>{% endfor %}</select></div>
         <div class="col-md-6"><label class="form-label">Статус</label><select class="form-select" name="action_type"><option value="TRANSFERRED_OUT">Выбыл</option><option value="EXPELLED">Отчислен</option><option value="ARCHIVED">Архив</option></select></div>
         <div class="col-md-6"><label class="form-label">Дата</label><input type="date" class="form-control" name="transfer_date"></div>
         <div class="col-12"><label class="form-label">Комментарий</label><textarea class="form-control" name="comment" rows="3"></textarea></div>
-        <div class="col-12"><button class="btn btn-dark">Сохранить</button></div>
+        <div class="col-12"><button class="btn btn-primary">Сохранить</button></div>
       </form>
     </div></div>
   </div>
   <div class="col-lg-7">
-    <div class="card"><div class="card-header"><b>Последние операции</b></div><div class="card-body">
+    <div class="card soft-card"><div class="card-header border-0 pb-0"><span class="section-title">Последние операции</span></div><div class="card-body pt-2">
       <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата</th><th>Ученик</th><th>Тип</th><th>Комментарий</th></tr></thead><tbody>{% for h in history %}<tr><td>{{ h.transfer_date.strftime('%d.%m.%Y') if h.transfer_date else '—' }}</td><td>{{ h.child.fio if h.child else '—' }}</td><td>{{ h.transfer_type }}</td><td>{{ h.comment or '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Пока пусто.</td></tr>{% endfor %}</tbody></table></div>
     </div></div>
   </div>

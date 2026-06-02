@@ -1,16 +1,16 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h3 class="mb-1">Аналитика посещаемости и опозданий</h3>
-    <div class="text-muted">Раздел КПП / посещаемость</div>
+    <div class="page-title">Аналитика посещаемости и опозданий</div>
+    <div class="page-sub">Раздел КПП / посещаемость</div>
   </div>
-  <div class="d-flex gap-2">
+  <div class="page-actions">
     {% if current_user.role == 'ADMIN' %}
-      <a class="btn btn-outline-dark" href="{{ url_for('attendance.import_view') }}">Импорт отчёта</a>
-      <a class="btn btn-outline-dark" href="{{ url_for('attendance.schedule_rules') }}">Начало занятий</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('attendance.import_view') }}"><i class="bi bi-upload me-1"></i>Импорт отчёта</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('attendance.schedule_rules') }}"><i class="bi bi-clock me-1"></i>Начало занятий</a>
     {% endif %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('attendance.passes_registry') }}">Реестр пропусков</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('attendance.passes_registry') }}"><i class="bi bi-list-ul me-1"></i>Реестр пропусков</a>
   </div>
 </div>
 
@@ -29,21 +29,21 @@
   <div class="col-md-2 d-grid"><button class="btn btn-primary">Показать</button></div>
 </form>
 
-<div class="row g-3 mb-3">
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Строк в выгрузке</div><div class="fs-4 fw-semibold">{{ stats.entries_count }}</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Опозданий</div><div class="fs-4 fw-semibold">{{ stats.lates_month }}</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Контингент</div><div class="fs-4 fw-semibold">{{ stats.contingent_total }}</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Учебных дней</div><div class="fs-4 fw-semibold">{{ stats.school_days_count }}</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Без входа</div><div class="fs-4 fw-semibold">{{ stats.no_entry_count }}</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Без выхода</div><div class="fs-4 fw-semibold">{{ stats.no_exit_count }}</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Посещаемость</div><div class="fs-4 fw-semibold">{{ stats.attendance_percent }}%</div></div></div></div>
-  <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Среднее опоздание</div><div class="fs-4 fw-semibold">{{ stats.avg_late_minutes }} мин</div></div></div></div>
+<div class="stat-strip mb-3">
+  <div class="stat-cell"><div class="stat-label">Строк в выгрузке</div><div class="stat-value">{{ stats.entries_count }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Опозданий</div><div class="stat-value">{{ stats.lates_month }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Контингент</div><div class="stat-value">{{ stats.contingent_total }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Учебных дней</div><div class="stat-value">{{ stats.school_days_count }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Без входа</div><div class="stat-value">{{ stats.no_entry_count }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Без выхода</div><div class="stat-value">{{ stats.no_exit_count }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Посещаемость</div><div class="stat-value">{{ stats.attendance_percent }}%</div></div>
+  <div class="stat-cell"><div class="stat-label">Среднее опоздание</div><div class="stat-value">{{ stats.avg_late_minutes }} мин</div></div>
 </div>
 
 <div class="row g-3 mb-3">
   <div class="col-lg-4">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Здания с наибольшими опозданиями</h5>
+      <div class="section-title mb-3">Здания с наибольшими опозданиями</div>
       {% for item in stats.chart_top_buildings %}
         <div class="mb-3">
           <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ item.value }}</span></div>
@@ -55,7 +55,7 @@
   </div>
   <div class="col-lg-4">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Классы с наибольшими опозданиями</h5>
+      <div class="section-title mb-3">Классы с наибольшими опозданиями</div>
       {% for item in stats.chart_top_classes %}
         <div class="mb-3">
           <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ item.value }}</span></div>
@@ -67,7 +67,7 @@
   </div>
   <div class="col-lg-4">
     <div class="card h-100"><div class="card-body">
-      <h5 class="mb-3">Ученики с наибольшим числом опозданий</h5>
+      <div class="section-title mb-3">Ученики с наибольшим числом опозданий</div>
       {% for item in stats.chart_top_students %}
         <div class="mb-3">
           <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ item.value }}</span></div>
@@ -79,14 +79,14 @@
 </div>
 
 <div class="row g-3">
-  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По зданиям</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Здание</th><th>Классов</th><th>Контингент</th><th>Дней</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Средний вход</th></tr></thead><tbody>{% for row in stats.building_rows %}<tr><td>{{ row.building_name }}</td><td>{{ row.classes }}</td><td>{{ row.students }}</td><td>{{ row.days }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="10" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
-  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По классам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Здание</th><th>Класс</th><th>Контингент</th><th>Учебных дней</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Проблемные</th><th>Средний вход</th></tr></thead><tbody>{% for row in (stats.class_pagination.items if stats and stats.class_pagination else []) %}<tr><td>{{ row.building_name }}</td><td>{{ row.class_name }}</td><td>{{ row.students }}</td><td>{{ row.days }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.problem_passes }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="11" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div><div class="small text-muted">Записей: {{ (stats.class_pagination.total if stats and stats.class_pagination else 0) }}</div></div></div></div>
-  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По ученикам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Ученик</th><th>Здание</th><th>Класс</th><th>Учебных дней</th><th>С входом</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Макс. опоздание, мин</th><th>Средний вход</th></tr></thead><tbody>{% for row in (stats.student_pagination.items if stats and stats.student_pagination else []) %}<tr><td>{{ row.name }}</td><td>{{ row.building_name }}</td><td>{{ row.class_name }}</td><td>{{ row.days }}</td><td>{{ row.days_with_entry }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.max_late }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="12" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div><div class="small text-muted">Записей: {{ (stats.student_pagination.total if stats and stats.student_pagination else 0) }}</div></div></div></div>
-  <div class="col-lg-12"><div class="card"><div class="card-body"><h5 class="mb-3">По дням</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Дата</th><th>Присутствовало</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Отсутствовало</th><th>Посещаемость</th></tr></thead><tbody>{% for row in stats.daily_rows %}<tr><td>{{ row.date.strftime('%d.%m.%Y') }}</td><td>{{ row.students }}</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.absent }}</td><td>{{ row.attendance_percent }}%</td></tr>{% else %}<tr><td colspan="8" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><div class="section-title mb-3">По зданиям</div><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Здание</th><th>Классов</th><th>Контингент</th><th>Дней</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Средний вход</th></tr></thead><tbody>{% for row in stats.building_rows %}<tr><td>{{ row.building_name }}</td><td>{{ row.classes }}</td><td>{{ row.students }}</td><td>{{ row.days }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="10" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><div class="section-title mb-3">По классам</div><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Здание</th><th>Класс</th><th>Контингент</th><th>Учебных дней</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Проблемные</th><th>Средний вход</th></tr></thead><tbody>{% for row in (stats.class_pagination.items if stats and stats.class_pagination else []) %}<tr><td>{{ row.building_name }}</td><td>{{ row.class_name }}</td><td>{{ row.students }}</td><td>{{ row.days }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.problem_passes }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="11" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div><div class="small text-muted">Записей: {{ (stats.class_pagination.total if stats and stats.class_pagination else 0) }}</div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><div class="section-title mb-3">По ученикам</div><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Ученик</th><th>Здание</th><th>Класс</th><th>Учебных дней</th><th>С входом</th><th>Посещаемость</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Макс. опоздание, мин</th><th>Средний вход</th></tr></thead><tbody>{% for row in (stats.student_pagination.items if stats and stats.student_pagination else []) %}<tr><td>{{ row.name }}</td><td>{{ row.building_name }}</td><td>{{ row.class_name }}</td><td>{{ row.days }}</td><td>{{ row.days_with_entry }}</td><td>{{ row.attendance_percent }}%</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.max_late }}</td><td>{{ row.avg_first_in }}</td></tr>{% else %}<tr><td colspan="12" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div><div class="small text-muted">Записей: {{ (stats.student_pagination.total if stats and stats.student_pagination else 0) }}</div></div></div></div>
+  <div class="col-lg-12"><div class="card"><div class="card-body"><div class="section-title mb-3">По дням</div><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Дата</th><th>Присутствовало</th><th>Опоздания</th><th>Ср. опоздание, мин</th><th>Без входа</th><th>Без выхода</th><th>Отсутствовало</th><th>Посещаемость</th></tr></thead><tbody>{% for row in stats.daily_rows %}<tr><td>{{ row.date.strftime('%d.%m.%Y') }}</td><td>{{ row.students }}</td><td>{{ row.lates }}</td><td>{{ row.avg_late_minutes }}</td><td>{{ row.no_entry }}</td><td>{{ row.no_exit }}</td><td>{{ row.absent }}</td><td>{{ row.attendance_percent }}%</td></tr>{% else %}<tr><td colspan="8" class="text-muted text-center py-4">Нет данных за месяц.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
 </div>
 
 <div class="card mt-3"><div class="card-body">
-  <h5 class="mb-3">Сессии импорта за месяц</h5>
+  <div class="section-title mb-3">Сессии импорта за месяц</div>
   <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Дата</th><th>Файл</th><th>Обработано</th><th>Учеников</th><th>Классов</th><th>Опозданий</th><th>Комментарий</th></tr></thead><tbody>{% for row in (stats.sessions_pagination.items if stats and stats.sessions_pagination else []) %}<tr><td>{{ row.imported_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ row.filename }}</td><td>{{ row.rows_processed }}</td><td>{{ row.unique_children }}</td><td>{{ row.unique_classes }}</td><td>{{ row.rows_late }}</td><td>{{ row.notes or '—' }}</td></tr>{% else %}<tr><td colspan="7" class="text-muted text-center py-4">За выбранный месяц загрузок нет.</td></tr>{% endfor %}</tbody></table></div>
   <div class="small text-muted">Записей: {{ (stats.sessions_pagination.total if stats and stats.sessions_pagination else 0) }}</div>
 </div></div>

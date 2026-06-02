@@ -1,13 +1,15 @@
 {% extends "layout.html" %}
 {% block content %}
-<h3 class="mb-3">Предпросмотр импорта — {{ session.title }}</h3>
+<div class="page-head">
+  <div class="page-title">Предпросмотр импорта — {{ session.title }}</div>
+</div>
 <div class="alert alert-info">Строк: {{ preview.rows|length }}{% if preview.issues %} · Предупреждений: {{ preview.issues|length }}{% endif %}</div>
 {% if preview.issues %}
-<div class="card mb-3"><div class="card-body"><h5>Предупреждения</h5><ul class="mb-0">{% for i in preview.issues %}<li>{{ i.message }}</li>{% endfor %}</ul></div></div>
+<div class="card soft-card mb-3"><div class="card-body"><div class="section-title mb-2">Предупреждения</div><ul class="mb-0">{% for i in preview.issues %}<li>{{ i.message }}</li>{% endfor %}</ul></div></div>
 {% endif %}
 <form method="post">
   <input type="hidden" name="filename" value="{{ filename }}">
-  <div class="card"><div class="card-body p-0">
+  <div class="card soft-card"><div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm table-hover mb-0 align-middle">
         <thead><tr><th>Ученик</th><th>Класс</th><th>Код</th><th>Балл</th><th>%</th><th>Отметка/уровень</th><th>Сообщение</th><th>Действие</th></tr></thead>

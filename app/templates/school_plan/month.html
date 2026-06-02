@@ -1,15 +1,15 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы — месяц{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+<div class="page-head mb-3">
   <div>
-    <h1 class="mb-1">Месячный план</h1>
-    <div class="text-muted">{{ month_title }} {{ year }}</div>
+    <div class="page-title">Месячный план</div>
+    <div class="page-sub">{{ month_title }} {{ year }}</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.month_view', month=prev_month, year=prev_year) }}">← Предыдущий</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.month_view', month=next_month, year=next_year) }}">Следующий →</a>
-    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.month_view', month=prev_month, year=prev_year) }}"><i class="bi bi-chevron-left me-1"></i>Предыдущий</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.month_view', month=next_month, year=next_year) }}">Следующий<i class="bi bi-chevron-right ms-1"></i></a>
+    {% if can_manage %}<a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.create') }}"><i class="bi bi-plus-lg me-1"></i>Добавить</a>{% endif %}
   </div>
 </div>
 {% include 'school_plan/_nav.html' %}

@@ -1,9 +1,11 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0">Несопоставленные сотрудники</h4>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}">К пользователям</a>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Несопоставленные сотрудники</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('users.users_list') }}"><i class="bi bi-people me-1"></i>К пользователям</a>
   </div>
 </div>
 <div class="card mb-3"><div class="card-body">
@@ -55,7 +57,7 @@
                     <option value="{{ u.id }}">{{ u.fio or u.username }}{% if u.username %} ({{ u.username }}){% endif %}</option>
                   {% endfor %}
                 </select>
-                <button class="btn btn-sm btn-success">Сопоставить</button>
+                <button class="btn btn-sm btn-primary">Сопоставить</button>
               </form>
               <form method="post" action="{{ url_for('users.unmatched_staff_ignore', row_id=row.id) }}">
                 <button class="btn btn-sm btn-outline-secondary">Пропустить</button>

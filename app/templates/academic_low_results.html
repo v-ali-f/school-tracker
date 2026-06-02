@@ -1,15 +1,16 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+<div class="page-head">
   <div>
-    <div class="section-overline">Академический контур</div>
-    <h3 class="mb-1">Низкие результаты</h3>
-    <div class="text-muted">Реестр обучающихся с устойчиво низкими результатами по контрольным работам.</div>
+    <div class="page-title">Низкие результаты</div>
+    <div class="page-sub">Реестр обучающихся с устойчиво низкими результатами по контрольным работам.</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('academic.dashboard') }}">Назад в академический контур</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('academic.dashboard') }}">Назад</a>
+  </div>
 </div>
 {% include '_academic_filters.html' %}
-<div class="card">
+<div class="card soft-card">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead><tr><th>Обучающийся</th><th>Класс</th><th>Предметы</th><th>Работ</th><th>Средний %</th><th>Средняя отметка</th><th>Проблемных работ</th><th>Статус</th></tr></thead>

@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+<div class="page-head">
   <div>
-    <h2 class="mb-1">{{ title }}</h2>
-    <div class="text-muted">Компактная форма постановки задачи с единым выбором участников.</div>
+    <h1 class="page-title">{{ title }}</h1>
+    <div class="page-sub">Компактная форма постановки задачи с единым выбором участников.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К списку</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-arrow-left me-1"></i>К списку</a>
   </div>
 </div>
 
@@ -16,7 +16,7 @@
 {% set current_observers = request.form.getlist('observer_user_ids') if request.form else task.participant_groups.observer|map(attribute='user_id')|list if task else [] %}
 {% set deadline_value = request.form.get('deadline_at', task.deadline_at.strftime('%Y-%m-%d') if task and task.deadline_at else template_defaults.get('deadline_at', now().strftime('%Y-%m-%d'))) %}
 
-<div class="card shadow-sm compact-task-form">
+<div class="card soft-card compact-task-form">
   <div class="card-body">
     <form method="post" class="row g-3" enctype="multipart/form-data">
       {% if selected_template %}

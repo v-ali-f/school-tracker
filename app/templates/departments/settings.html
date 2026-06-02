@@ -1,14 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h3 class="mb-0">Настройка предметных кафедр</h3>
-    <div class="text-muted">Создание кафедр, назначение руководителей и закрепление предметов.</div>
+    <h1 class="page-title">Настройка предметных кафедр</h1>
+    <div class="page-sub">Создание кафедр, назначение руководителей и закрепление предметов.</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-success" href="{{ url_for('departments.summary') }}">Свод по кафедрам</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('departments.loads') }}">Нагрузка</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary') }}">Свод по кафедрам</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.loads') }}">Нагрузка</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
   </div>
 </div>
 
@@ -63,13 +63,13 @@
           </div>
           <div class="form-text">Теперь множественный выбор предметов сделан галочками.</div>
         </div>
-        <div class="col-12 text-end"><button class="btn btn-success">Сохранить настройки</button></div>
+        <div class="col-12 text-end"><button class="btn btn-primary">Сохранить настройки</button></div>
       </div>
     </form>
 
     <div class="row g-4">
       <div class="col-lg-6">
-        <h6>Руководители кафедры</h6>
+        <h6 class="section-title">Руководители кафедры</h6>
         <form method="post" action="{{ url_for('departments.add_leader', department_id=dep.id) }}" class="mb-3">
           <div class="row g-2">
             <div class="col-md-8">
@@ -117,7 +117,7 @@
       </div>
 
       <div class="col-lg-6">
-        <h6>Закреплённые предметы</h6>
+        <h6 class="section-title">Закреплённые предметы</h6>
         <div class="border rounded p-3 bg-light-subtle">
           {% if dep.subject_links %}
             <div class="d-flex flex-wrap gap-2">

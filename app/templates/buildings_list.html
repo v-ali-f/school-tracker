@@ -1,12 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="page-head mb-3">
   <div>
-    <h3 class="mb-0">Реестр зданий</h3>
-    <div class="text-muted" style="font-size:0.95em;">Название и адрес</div>
+    <h1 class="page-title">Реестр зданий</h1>
+    <div class="page-sub">Название и адрес</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}">На главную</a>
+  </div>
 </div>
 
 <div class="card mb-3">

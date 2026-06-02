@@ -1,18 +1,20 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h3 class="mb-1">Начало занятий</h3>
-    <div class="text-muted">Служебная настройка правил по параллели и выбранным классам</div>
+    <div class="page-title">Начало занятий</div>
+    <div class="page-sub">Служебная настройка правил по параллели и выбранным классам</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('attendance.analytics') }}">К аналитике</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('attendance.analytics') }}"><i class="bi bi-bar-chart me-1"></i>К аналитике</a>
+  </div>
 </div>
 
 <div class="row g-3">
   <div class="col-lg-4">
     <div class="card">
       <div class="card-body">
-        <h5 class="mb-3">{% if edit_rule %}Редактирование правила{% else %}Новое правило{% endif %}</h5>
+        <div class="section-title mb-3">{% if edit_rule %}Редактирование правила{% else %}Новое правило{% endif %}</div>
         <form method="post" class="row g-3">
           <input type="hidden" name="rule_id" value="{{ edit_rule.id if edit_rule else '' }}">
           <div class="col-12">

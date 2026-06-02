@@ -10,20 +10,20 @@
 {% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h4 class="mb-1">Класс {{ school_class.name }}</h4>
-    <div class="text-muted small">
+    <h1 class="page-title">Класс {{ school_class.name }}</h1>
+    <div class="page-sub">
       {% if school_class.building %}{{ school_class.building.name }} · {% endif %}
-      Классный руководитель: {% if teacher %}{{ teacher.fio }}{% if teacher.phone %} · <span class="text-muted">{{ teacher.phone }}</span>{% endif %}{% else %}—{% endif %}
+      Классный руководитель: {% if teacher %}{{ teacher.fio }}{% if teacher.phone %} · {{ teacher.phone }}{% endif %}{% else %}—{% endif %}
     </div>
   </div>
-  <div class="d-flex gap-2">
+  <div class="page-actions">
     <a href="{{ url_for('children.list_children', class_id=school_class.id) }}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-funnel"></i> В реестре учеников
+      <i class="bi bi-funnel me-1"></i>В реестре учеников
     </a>
     <a href="{{ url_for('children.classes_registry') }}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Все классы
+      <i class="bi bi-arrow-left me-1"></i>Все классы
     </a>
   </div>
 </div>
@@ -32,9 +32,9 @@
   {% set _rating = kubok_rating(school_class.name) %}
   {% if _rating %}
     {% set _max = (_rating.activities|map(attribute='points')|max) if _rating.activities else 0 %}
-    <div class="card mb-3">
+    <div class="card soft-card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <b>Кубок школы · класс {{ _rating.class_name }}</b>
+        <span class="section-title mb-0">Кубок школы · класс {{ _rating.class_name }}</span>
         <a href="{{ url_for('datalens.class_rating_page', class_id=school_class.id) }}"
            class="small text-decoration-none">Подробный дашборд &rarr;</a>
       </div>
@@ -99,10 +99,10 @@
   {% endif %}
 {% endif %}
 
-<div class="card">
+<div class="card soft-card">
   <div class="card-body p-0">
     <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-      <div class="fw-semibold">Список учеников</div>
+      <div class="section-title mb-0">Список учеников</div>
       <span class="badge text-bg-secondary">{{ students|length }}</span>
     </div>
     <div class="table-responsive">

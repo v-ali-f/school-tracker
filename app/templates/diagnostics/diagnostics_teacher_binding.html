@@ -1,11 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Привязка результатов к учителям</h3>
-    <div class="text-muted">Сначала можно назначить учителя целому классу, затем открыть класс и скорректировать отдельных учеников.</div>
+    <div class="page-title">Привязка результатов к учителям</div>
+    <div class="page-sub">Назначьте учителя целому классу, затем при необходимости скорректируйте отдельных учеников.</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
 </div>
 
 <div class="row g-3 mb-3">
@@ -29,7 +31,7 @@
 </div></div>
 
 <div class="card mb-3"><div class="card-body">
-  <h5 class="mb-3">Быстрая привязка по классам</h5>
+  <div class="section-title mb-3">Быстрая привязка по классам</div>
   <div class="table-responsive"><table class="table table-sm align-middle">
     <thead><tr><th>Класс</th><th>Предмет</th><th>Диагностика</th><th>Найденные учителя из нагрузки</th><th>Назначить</th><th>Строк</th><th></th></tr></thead>
     <tbody>
@@ -68,7 +70,7 @@
 <form method="post">
   <div class="card mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-center">
     {% if can_edit_binding %}<button class="btn btn-primary" name="action" value="auto_apply">Применить автоматическую привязку</button>{% endif %}
-    {% if can_edit_binding %}<button class="btn btn-success" name="action" value="save">Сохранить изменения</button>{% endif %}
+    {% if can_edit_binding %}<button class="btn btn-primary" name="action" value="save">Сохранить изменения</button>{% endif %}
     {% if can_edit_binding %}
     <select class="form-select" name="bulk_teacher_id" style="max-width: 320px;">
       <option value="">Назначить учителя для выбранных строк</option>

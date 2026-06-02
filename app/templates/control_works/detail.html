@@ -25,7 +25,7 @@
 </style>
 <div class="control-work-head">
   <div>
-    <h4 class="mb-1">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %}</h4>
+    <div class="page-title mb-1">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %}</div>
     <div class="text-muted">
       {% if work.work_date %}Дата проведения: {{ work.work_date.strftime("%d.%m.%Y") }}{% endif %}
       {% if work.deadline_date %} · Срок сдачи отчёта: {{ work.deadline_date.strftime("%d.%m.%Y") }}{% endif %}
@@ -33,7 +33,7 @@
   </div>
   <div class="control-topbar">
     <div class="control-topbar__group control-topbar__group--nav">
-      <a class="btn btn-dark" href="{{ url_for('control_works.control_work_report', work_id=work.id) }}">Сводный отчёт</a>
+      <a class="btn btn-primary" href="{{ url_for('control_works.control_work_report', work_id=work.id) }}">Сводный отчёт</a>
       <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_registry', academic_year_id=work.academic_year_id, subject_id=work.subject_id, **return_args) }}">Реестр</a>
       <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_archive', academic_year_id=work.academic_year_id, subject_id=work.subject_id) }}">Архив по предмету</a>
     </div>
@@ -60,7 +60,7 @@
 
 <div class="row g-3 mb-3">
   <div class="col-lg-4">
-    <div class="card h-100"><div class="card-body">
+    <div class="card soft-card h-100"><div class="card-body">
       <h6 class="mb-3">Карточка работы</h6>
       <div class="small text-muted mb-2">Полное название работы</div>
       <div class="fw-semibold mb-3">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %}</div>
@@ -99,7 +99,7 @@
 
 <div class="row g-3 mb-3">
   <div class="col-lg-4">
-    <div class="card h-100"><div class="card-body">
+    <div class="card soft-card h-100"><div class="card-body">
       <h6>Критерии оценивания</h6>
       {% if is_dictation %}
         <div class="small text-muted mb-2">Для диктанта используется отдельная логика оценки по ошибкам и дополнительным параметрам.</div>
@@ -123,7 +123,7 @@
     </div></div>
   </div>
   <div class="col-lg-8">
-    <div class="card h-100"><div class="card-body">
+    <div class="card soft-card h-100"><div class="card-body">
       <h6>Классы и учителя</h6>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">

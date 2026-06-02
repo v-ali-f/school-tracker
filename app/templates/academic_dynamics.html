@@ -1,12 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+<div class="page-head">
   <div>
-    <div class="section-overline">Академический контур</div>
-    <h3 class="mb-1">Динамика по классам и предметам</h3>
-    <div class="text-muted">Срез результатов по сочетаниям «класс + предмет» и по периодам проведения контрольных.</div>
+    <div class="page-title">Динамика по классам и предметам</div>
+    <div class="page-sub">Срез результатов по сочетаниям «класс + предмет» и по периодам проведения контрольных.</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('academic.dashboard') }}">Назад в академический контур</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('academic.dashboard') }}">Назад</a>
+  </div>
 </div>
 {% include '_academic_filters.html' %}
 <div class="row g-4">

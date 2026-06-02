@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h3 class="mb-0">Нагрузка учителей</h3>
-    <div class="text-muted">{% if teacher_view_only %}В этом разделе учитель видит только свою нагрузку.{% else %}Импорт нагрузки, распределение по кафедрам и ручная корректировка.{% endif %}</div>
+    <h1 class="page-title">Нагрузка учителей</h1>
+    <div class="page-sub">{% if teacher_view_only %}В этом разделе учитель видит только свою нагрузку.{% else %}Импорт нагрузки, распределение по кафедрам и ручная корректировка.{% endif %}</div>
   </div>
-  <div class="d-flex gap-2">
-    {% if not teacher_view_only %}<a class="btn btn-outline-success" href="{{ url_for('departments.summary') }}">Свод</a>{% endif %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="page-actions">
+    {% if not teacher_view_only %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary') }}">Свод</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
   </div>
 </div>
 
@@ -33,7 +33,7 @@
 <div class="row g-4 mb-4">
   <div class="col-lg-4">
     <div class="card h-100"><div class="card-body">
-      <h5>Часы по учителям</h5>
+      <h5 class="section-title">Часы по учителям</h5>
       <div class="table-responsive" style="max-height: 320px;">
         <table class="table table-sm align-middle mb-0"><thead><tr><th>Учитель</th><th class="text-end">Часы</th></tr></thead><tbody>{% for fio, hours in teacher_hours %}<tr><td>{{ fio }}</td><td class="text-end">{{ '%.1f'|format(hours) }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table>
       </div>
@@ -42,7 +42,7 @@
   {% if is_admin %}
   <div class="col-lg-8">
     <div class="card h-100"><div class="card-body">
-      <h5>Добавить нагрузку вручную</h5>
+      <h5 class="section-title">Добавить нагрузку вручную</h5>
       <form method="post" action="{{ url_for('departments.load_new') }}" class="row g-2">
         <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Учитель</option>{% for t in teachers %}<option value="{{ t.id }}">{{ t.fio or t.username }}</option>{% endfor %}</select></div>
         <div class="col-md-4"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
@@ -50,7 +50,7 @@
         <div class="col-md-2"><input class="form-control" name="group_name" placeholder="Группа"></div>
         <div class="col-md-3"><input class="form-control" type="number" step="0.1" name="hours" placeholder="Часы"></div>
         <div class="col-md-5"><select class="form-select" name="building_id"><option value="">Здание</option>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
-        <div class="col-md-4 d-grid"><button class="btn btn-success">Добавить</button></div>
+        <div class="col-md-4 d-grid"><button class="btn btn-primary">Добавить</button></div>
       </form>
     </div></div>
   </div>
@@ -70,7 +70,7 @@
       <td>{% if is_admin %}<input class="form-control form-control-sm" name="group_name" value="{{ row.group_name or '' }}">{% else %}{{ row.group_name or '—' }}{% endif %}</td>
       <td>{% if row.is_meta_group %}<span class="badge text-bg-warning">Мета-группа</span>{% elif row.is_whole_class %}<span class="badge text-bg-light border">Весь класс</span>{% else %}<span class="badge text-bg-secondary">Группа</span>{% endif %}</td>
       <td class="text-end">{% if is_admin %}<input class="form-control form-control-sm text-end" type="number" step="0.1" name="hours" value="{{ row.hours or 0 }}">{% else %}{{ '%.1f'|format(row.hours or 0) }}{% endif %}</td>
-      {% if is_admin %}<td class="text-end"><button class="btn btn-sm btn-success" type="submit">Сохранить</button></form><form method="post" action="{{ url_for('departments.load_delete', load_id=row.id) }}" class="d-inline" onsubmit="return confirm('Удалить строку нагрузки?');"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td>{% endif %}
+      {% if is_admin %}<td class="text-end"><button class="btn btn-sm btn-primary" type="submit">Сохранить</button></form><form method="post" action="{{ url_for('departments.load_delete', load_id=row.id) }}" class="d-inline" onsubmit="return confirm('Удалить строку нагрузки?');"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td>{% endif %}
     </tr>
     {% else %}
     <tr><td colspan="9" class="text-muted">Нагрузка пока не загружена.</td></tr>

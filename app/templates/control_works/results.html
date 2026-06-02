@@ -1,9 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<h4 class="mb-1">Заполнение результатов</h4>
-<div class="text-muted mb-3">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %} · {{ assignment.school_class.name if assignment.school_class else 'Класс не указан' }}</div>
+<div class="page-head">
+  <div>
+    <div class="page-title">Заполнение результатов</div>
+    <div class="page-sub">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %} · {{ assignment.school_class.name if assignment.school_class else 'Класс не указан' }}</div>
+  </div>
+</div>
 <div class="alert alert-info">{% if is_dictation %}Для диктанта заполняются две основные отметки: за диктант и за грамматическое задание. Пустая строка не считается результатом. Отсутствующих можно отметить отдельно.{% else %}Максимум за работу: <strong>{{ max_total }}</strong>. Можно отметить отсутствие ученика — в этом случае баллы и отметка не заполняются.{% endif %}</div>
-<form method="post" class="card">
+<form method="post" class="card soft-card">
   <div class="table-responsive">
     <table class="table table-striped mb-0 align-middle">
       <thead>
@@ -51,7 +55,7 @@
   </div>
   <div class="card-body pt-3">
     <div class="small text-muted mb-3">{% if is_dictation %}Отметка за диктант рассчитывается автоматически по настроенным критериям: {{ dictation_rules_text }}. Итоговая отметка считается как среднее между диктантом и грамматическим заданием.{% else %}Отметка рассчитывается автоматически по проценту: 85–100% = 5, 65–84% = 4, 45–64% = 3, ниже 45% = 2.{% endif %}</div>
-    <button class="btn btn-success">Сохранить результаты</button>
+    <button class="btn btn-primary">Сохранить результаты</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('control_works.view_control_work', work_id=work.id) }}">Назад</a>
   </div>
 </form>

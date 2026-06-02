@@ -1,8 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
 {% set is_edit = session_obj is not none %}
-<h3 class="mb-3">{{ 'Редактировать диагностику' if is_edit else 'Новая диагностика' }}</h3>
-<div class="card"><div class="card-body">
+<div class="page-head">
+  <div class="page-title">{{ 'Редактировать диагностику' if is_edit else 'Новая диагностика' }}</div>
+</div>
+<div class="card soft-card"><div class="card-body">
   <form method="post" class="row g-3">
     <div class="col-md-6">
       <label class="form-label">Название</label>
