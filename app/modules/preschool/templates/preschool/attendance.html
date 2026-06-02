@@ -281,11 +281,18 @@
               <td><strong>{{ upload_stats[item.id].child_days if upload_stats and item.id in upload_stats else 0 }}</strong></td>
               <td>{{ item.comment or "—" }}</td>
               <td style="text-align:right;">
-                <form method="post"
-                      action="{{ url_for('preschool.delete_attendance_upload', upload_id=item.id) }}"
-                      onsubmit="return confirm('Удалить загрузку табелей?');">
-                  <button class="attendance-delete" type="submit">Удалить</button>
-                </form>
+                <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+                  <form method="post"
+                        action="{{ url_for('preschool.process_attendance_upload', upload_id=item.id) }}">
+                    <button class="attendance-btn" type="submit">Обработать</button>
+                  </form>
+
+                  <form method="post"
+                        action="{{ url_for('preschool.delete_attendance_upload', upload_id=item.id) }}"
+                        onsubmit="return confirm('Удалить загрузку табелей?');">
+                    <button class="attendance-delete" type="submit">Удалить</button>
+                  </form>
+                </div>
               </td>
             </tr>
           {% endfor %}
