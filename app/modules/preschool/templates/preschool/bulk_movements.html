@@ -1,0 +1,341 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .bulk-page {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 24px 32px 42px;
+  }
+
+  .bulk-breadcrumbs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .bulk-breadcrumbs a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .bulk-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    margin-bottom: 18px;
+  }
+
+  .bulk-title {
+    margin: 0;
+    color: #25324a;
+    font-size: 30px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .bulk-subtitle {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .bulk-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .bulk-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid #d4deec;
+    background: #ffffff;
+    color: #64748b;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .bulk-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .bulk-panel {
+    padding: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+    margin-bottom: 18px;
+  }
+
+  .bulk-panel h2 {
+    margin: 0 0 14px;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .bulk-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .bulk-operation-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .bulk-field.full {
+    grid-column: 1 / -1;
+  }
+
+  .bulk-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .bulk-field input,
+  .bulk-field select,
+  .bulk-field textarea {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1f2937;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .bulk-field textarea {
+    min-height: 70px;
+    padding-top: 10px;
+    resize: vertical;
+  }
+
+  .bulk-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .bulk-table th {
+    text-align: left;
+    padding: 11px 12px;
+    border-bottom: 1px solid #cbd5e1;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .bulk-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #eef2f7;
+    color: #25324a;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .bulk-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .bulk-empty {
+    padding: 18px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .bulk-check {
+    width: 18px;
+    height: 18px;
+  }
+
+  @media (max-width: 900px) {
+    .bulk-header {
+      flex-direction: column;
+    }
+
+    .bulk-grid,
+    .bulk-operation-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .bulk-field.full {
+      grid-column: auto;
+    }
+
+    .bulk-actions {
+      justify-content: flex-start;
+    }
+  }
+</style>
+
+<div class="bulk-page">
+  <div class="bulk-breadcrumbs">
+    <a href="{{ url_for('main.dashboard') }}">Главная</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.movements', academic_year_id=year.id) }}">Движение</a>
+    <span>/</span>
+    <span>Массовое движение</span>
+  </div>
+
+  <div class="bulk-header">
+    <div>
+      <h1 class="bulk-title">Массовое движение воспитанников</h1>
+      <div class="bulk-subtitle">
+        Массовый перевод воспитанников между группами или оформление выбытия.
+      </div>
+    </div>
+
+    <div class="bulk-actions">
+      <a class="bulk-btn" href="{{ url_for('preschool.movements', academic_year_id=year.id) }}">Журнал движения</a>
+      <a class="bulk-btn" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Реестр ДОУ</a>
+    </div>
+  </div>
+
+  <form class="bulk-panel" method="get">
+    <h2>Выбор группы</h2>
+
+    <div class="bulk-grid">
+      <div class="bulk-field">
+        <label>Учебный год</label>
+        <select name="academic_year_id">
+          {% for item in all_years %}
+            <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
+              {{ item.name }}{% if item.is_current %} • текущий{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="bulk-field">
+        <label>Исходная группа</label>
+        <select name="source_group_id">
+          <option value="">Выберите группу</option>
+          {% for group in groups %}
+            <option value="{{ group.id }}" {% if group.id == source_group_id %}selected{% endif %}>
+              {{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button class="bulk-btn bulk-btn-primary" type="submit">Показать детей</button>
+    </div>
+  </form>
+
+  <form class="bulk-panel" method="post">
+    <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+    <input type="hidden" name="source_group_id" value="{{ source_group_id or '' }}">
+
+    <h2>Операция</h2>
+
+    <div class="bulk-operation-grid">
+      <div class="bulk-field">
+        <label>Тип операции</label>
+        <select name="movement_type" required>
+          <option value="">Выберите</option>
+          <option value="transfer_group">Перевод в другую группу</option>
+          <option value="leaving">Выбытие</option>
+        </select>
+      </div>
+
+      <div class="bulk-field">
+        <label>Дата</label>
+        <input type="date" name="movement_date">
+      </div>
+
+      <div class="bulk-field">
+        <label>Группа назначения</label>
+        <select name="target_group_id">
+          <option value="">Не выбрана</option>
+          {% for group in groups %}
+            <option value="{{ group.id }}">
+              {{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="bulk-field full">
+        <label>Основание</label>
+        <input name="basis" placeholder="Например: приказ, заявление, распоряжение">
+      </div>
+
+      <div class="bulk-field full">
+        <label>Комментарий</label>
+        <textarea name="comment"></textarea>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <h2>Воспитанники</h2>
+
+      {% if children %}
+        <table class="bulk-table">
+          <thead>
+            <tr>
+              <th style="width:44px;">
+                <input class="bulk-check" type="checkbox" onclick="document.querySelectorAll('.child-check').forEach(cb => cb.checked = this.checked)">
+              </th>
+              <th>ФИО</th>
+              <th>Дата рождения</th>
+              <th>Текущая группа</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for child in children %}
+              <tr>
+                <td>
+                  <input class="bulk-check child-check" type="checkbox" name="child_ids" value="{{ child.id }}">
+                </td>
+                <td>{{ child.full_name }}</td>
+                <td>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</td>
+                <td>{{ child.group.name if child.group else "—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <button class="bulk-btn bulk-btn-primary" type="submit" style="margin-top:16px;">
+          Выполнить массовое движение
+        </button>
+      {% else %}
+        <div class="bulk-empty">
+          Выберите исходную группу, чтобы увидеть список воспитанников.
+        </div>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
