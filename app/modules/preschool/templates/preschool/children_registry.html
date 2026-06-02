@@ -265,6 +265,16 @@
     font-weight: 750;
   }
 
+  .pc-child-link {
+    color: #1f2937;
+    text-decoration: none;
+  }
+
+  .pc-child-link:hover {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
   .pc-muted {
     color: #94a3b8;
   }
@@ -502,7 +512,11 @@
           <tbody>
             {% for child in items %}
               <tr>
-                <td><span class="pc-name">{{ child.full_name }}</span></td>
+                <td>
+                    <a class="pc-name pc-child-link" href="{{ url_for('preschool.child_card', child_id=child.id) }}">
+                      {{ child.full_name }}
+                    </a>
+                  </td>
                 <td>{{ child.group.name if child.group else "—" }}</td>
                 <td>{{ child.group.building.name if child.group and child.group.building else "—" }}</td>
                 <td>{{ child.group.age_level if child.group else "—" }}</td>
