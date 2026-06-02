@@ -1844,6 +1844,72 @@ def delete_attendance_upload(upload_id):
     return redirect(url_for("preschool.attendance", academic_year_id=year_id, month=month))
 
 
+@bp.route("/movements")
+def movements():
+    year_id = request.args.get("academic_year_id", type=int)
+    movement_type = (request.args.get("movement_type") or "").strip()
+    q = (request.args.get("q") or "").strip()
+
+    year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+
+    if not year:
+        flash("Сначала создайте учебный год в служебном разделе.", "warning")
+        return redirect(url_for("children.academic_years_registry"))
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    query = (
+        PreschoolChildMovement.query
+        .join(PreschoolChild, PreschoolChildMovement.child_id == PreschoolChild.id)
+        .outerjoin(PreschoolGroup, PreschoolChild.group_id == PreschoolGroup.id)
+        .filter(PreschoolGroup.academic_year_id == year.id)
+    )
+
+    if movement_type:
+        query = query.filter(PreschoolChildMovement.movement_type == movement_type)
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            or_(
+                PreschoolChild.last_name.ilike(like),
+                PreschoolChild.first_name.ilike(like),
+                PreschoolChild.middle_name.ilike(like),
+            )
+        )
+
+    items = (
+        query
+        .order_by(
+            PreschoolChildMovement.movement_date.desc().nullslast(),
+            PreschoolChildMovement.created_at.desc(),
+        )
+        .all()
+    )
+
+    movement_counts = {
+        "total": len(items),
+        "admission": sum(1 for item in items if item.movement_type == "admission"),
+        "transfer_group": sum(1 for item in items if item.movement_type == "transfer_group"),
+        "leaving": sum(1 for item in items if item.movement_type == "leaving"),
+        "transfer_school": sum(1 for item in items if item.movement_type == "transfer_school"),
+    }
+
+    return render_template(
+        "preschool/movements.html",
+        year=year,
+        all_years=all_years,
+        items=items,
+        movement_type=movement_type,
+        q=q,
+        movement_counts=movement_counts,
+    )
+
+
 @bp.route("/children/<int:child_id>")
 def child_card(child_id):
     child = PreschoolChild.query.get_or_404(child_id)
