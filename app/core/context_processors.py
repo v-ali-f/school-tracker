@@ -57,7 +57,7 @@ def register_context_processors(app, has_permission, build_menu_flags):
             org_name=org_name,
             org_short_name=getattr(settings, 'short_name', None) or org_name,
             org_full_name=org_full_name,
-            org_logo_url=media_url(getattr(settings, 'logo_path', None), 'images/logo547.png'),
+            org_logo_url=media_url(getattr(settings, 'logo_path', None), None),
             org_emblem_url=media_url(getattr(settings, 'emblem_path', None)),
             app_system_name=default_system_name,
             app_display_title=f"{default_system_name} — {org_name}",

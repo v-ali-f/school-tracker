@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .preschool-shell {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 32px 24px 48px;
+  }
+
+  .preschool-page-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+
+  .preschool-title {
+    margin: 0;
+    font-size: 38px;
+    line-height: 1.12;
+    font-weight: 800;
+    color: #1f2937;
+    letter-spacing: -0.03em;
+  }
+
+  .preschool-subtitle {
+    margin-top: 10px;
+    max-width: 780px;
+    font-size: 17px;
+    line-height: 1.5;
+    color: #6b7280;
+  }
+
+  .preschool-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 14px;
+    border: 1px solid #dbe3ef;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .preschool-panel {
+    padding: 24px;
+    border: 1px solid #e5e7eb;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+  }
+
+  .preschool-panel-title {
+    margin: 0 0 10px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .preschool-panel-text {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.55;
+    color: #6b7280;
+  }
+</style>
+
+<div class="preschool-shell">
+  <div class="preschool-page-top">
+    <div>
+      <h1 class="preschool-title">Контингент ДОУ</h1>
+      <div class="preschool-subtitle">
+        Здесь будет реестр воспитанников дошкольного отделения с фильтрами по корпусу,
+        группе, статусу и ФИО.
+      </div>
+    </div>
+
+    <a class="preschool-back" href="{{ url_for('preschool.index') }}">← Назад</a>
+  </div>
+
+  <div class="preschool-panel">
+    <h2 class="preschool-panel-title">Раздел подготовлен</h2>
+    <p class="preschool-panel-text">
+      На следующем этапе добавим таблицу воспитанников, справочники корпусов и групп,
+      ручное добавление ребёнка и основу для импорта контингента из Excel.
+    </p>
+  </div>
+</div>
+{% endblock %}
