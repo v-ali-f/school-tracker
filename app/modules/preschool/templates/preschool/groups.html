@@ -1,0 +1,387 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .preschool-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 22px 24px 40px;
+  }
+
+  .preschool-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .preschool-kicker {
+    margin-bottom: 7px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .preschool-title {
+    margin: 0;
+    font-size: 30px;
+    line-height: 1.12;
+    font-weight: 800;
+    color: #1f2937;
+    letter-spacing: -0.025em;
+  }
+
+  .preschool-subtitle {
+    margin-top: 7px;
+    max-width: 820px;
+    font-size: 14.5px;
+    line-height: 1.45;
+    color: #64748b;
+  }
+
+  .preschool-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .preschool-btn-link,
+  .preschool-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 13px;
+    border-radius: 12px;
+    border: 1px solid #dbe3ef;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+
+  .preschool-year-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 14px 0 0;
+  }
+
+  .preschool-year-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 11px;
+    border-radius: 999px;
+    border: 1px solid #dbe3ef;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 750;
+  }
+
+  .preschool-year-tab.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+  }
+
+  .preschool-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .preschool-panel {
+    padding: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+  }
+
+  .preschool-panel h2 {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .preschool-field {
+    margin-bottom: 11px;
+  }
+
+  .preschool-field label {
+    display: block;
+    margin-bottom: 5px;
+    color: #475569;
+    font-weight: 750;
+    font-size: 13px;
+  }
+
+  .preschool-field input,
+  .preschool-field select {
+    width: 100%;
+    min-height: 38px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 0 11px;
+    font-size: 14px;
+    background: #fff;
+  }
+
+  .preschool-primary {
+    width: 100%;
+    border: 0;
+    border-radius: 12px;
+    min-height: 39px;
+    padding: 0 15px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .preschool-table-wrap {
+    overflow-x: auto;
+  }
+
+  .preschool-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .preschool-table th {
+    text-align: left;
+    font-size: 12px;
+    color: #64748b;
+    padding: 9px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+  }
+
+  .preschool-table td {
+    padding: 10px;
+    border-bottom: 1px solid #eef2f7;
+    color: #334155;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+
+  .preschool-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .preschool-name {
+    color: #111827;
+    font-weight: 800;
+  }
+
+  .preschool-muted {
+    color: #94a3b8;
+  }
+
+  .preschool-row-actions {
+    display: flex;
+    gap: 7px;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .preschool-small-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid #dbe3ef;
+    background: #fff;
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  .preschool-delete {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .preschool-empty {
+    color: #64748b;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  @media (max-width: 980px) {
+    .preschool-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .preschool-title {
+      font-size: 26px;
+    }
+
+    .preschool-top {
+      flex-direction: column;
+    }
+
+    .preschool-actions {
+      justify-content: flex-start;
+    }
+  }
+</style>
+
+<div class="preschool-shell">
+  <div class="preschool-top">
+    <div>
+      <div class="preschool-kicker">Справочник ДОУ</div>
+      <h1 class="preschool-title">Группы ДОУ учебного года</h1>
+      <div class="preschool-subtitle">
+        Группы создаются внутри выбранного учебного года и привязываются к зданию из общего реестра.
+      </div>
+
+      <div class="preschool-year-tabs">
+        {% for item in all_years %}
+          <a class="preschool-year-tab {% if item.id == year.id %}active{% endif %}"
+             href="{{ url_for('preschool.groups', academic_year_id=item.id) }}">
+            {{ item.name }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="preschool-actions">
+      <a class="preschool-back" href="{{ url_for('preschool.index') }}">← Назад</a>
+    </div>
+  </div>
+
+  <div class="preschool-layout">
+    <form class="preschool-panel" method="post">
+      <h2>Добавить группу</h2>
+
+      <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+
+      <div class="preschool-field">
+        <label>Учебный год</label>
+        <input value="{{ year.name }}" disabled>
+      </div>
+
+      <div class="preschool-field">
+        <label>Здание</label>
+        <select name="building_id">
+          <option value="">Не выбрано</option>
+          {% for building in buildings %}
+            <option value="{{ building.id }}">{{ building.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="preschool-field">
+        <label>Название группы</label>
+        <input name="name" placeholder="Например: ДК1-1" required>
+      </div>
+
+      <div class="preschool-field">
+        <label>Возрастная группа</label>
+        <select name="age_level">
+          <option value="">Не выбрана</option>
+          {% for age_level in age_levels %}
+            <option value="{{ age_level }}">{{ age_level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="preschool-field">
+        <label>Воспитатель из пользователей</label>
+        <select name="teacher_user_id">
+          <option value="">Не выбран</option>
+          {% for teacher in teachers %}
+            <option value="{{ teacher.id }}">
+              {{ teacher.last_name or "" }} {{ teacher.first_name or "" }} {{ teacher.middle_name or "" }}
+              {% if teacher.username %}({{ teacher.username }}){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="preschool-field">
+        <label>Воспитатель вручную</label>
+        <input name="teacher_name" placeholder="Если нет в пользователях">
+      </div>
+
+      <button class="preschool-primary" type="submit">Сохранить</button>
+    </form>
+
+    <div class="preschool-panel">
+      <h2>Список групп за {{ year.name }}</h2>
+
+      {% if items %}
+        <div class="preschool-table-wrap">
+          <table class="preschool-table">
+            <thead>
+              <tr>
+                <th>Группа</th>
+                <th>Здание</th>
+                <th>Возраст</th>
+                <th>Воспитатель</th>
+                <th style="text-align:right;">Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in items %}
+                <tr>
+                  <td><span class="preschool-name">{{ item.name }}</span></td>
+                  <td>{{ item.building.name if item.building else "—" }}</td>
+                  <td>{{ item.age_level or "—" }}</td>
+                  <td>
+                    {% if item.teacher %}
+                      {{ item.teacher.last_name or "" }} {{ item.teacher.first_name or "" }} {{ item.teacher.middle_name or "" }}
+                    {% else %}
+                      {{ item.teacher_name or "—" }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="preschool-row-actions">
+                      <a class="preschool-small-link" href="{{ url_for('preschool.edit_group', group_id=item.id) }}">Изменить</a>
+
+                      <form method="post"
+                            action="{{ url_for('preschool.delete_group', group_id=item.id) }}"
+                            onsubmit="return confirm('Удалить группу {{ item.name }}?');">
+                        <button class="preschool-delete" type="submit">Удалить</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="preschool-empty">
+          За выбранный учебный год группы ДОУ пока не добавлены.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

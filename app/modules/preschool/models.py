@@ -1,30 +1,55 @@
-from app import db
 from datetime import datetime
 
-
-class PreschoolBuilding(db.Model):
-    __tablename__ = "preschool_building"
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    short_name = db.Column(db.String(100), nullable=True)
-    address = db.Column(db.String(500), nullable=True)
-    is_active = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+from app.core.extensions import db
 
 
 class PreschoolGroup(db.Model):
     __tablename__ = "preschool_group"
 
     id = db.Column(db.Integer, primary_key=True)
-    building_id = db.Column(db.Integer, db.ForeignKey("preschool_building.id"), nullable=True)
+
+    academic_year_id = db.Column(
+        db.Integer,
+        db.ForeignKey("academic_year.id"),
+        nullable=True,
+        index=True,
+    )
+
+    building_id = db.Column(
+        db.Integer,
+        db.ForeignKey("buildings.id"),
+        nullable=True,
+        index=True,
+    )
+
     name = db.Column(db.String(255), nullable=False)
     age_level = db.Column(db.String(100), nullable=True)
+    teacher_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
     teacher_name = db.Column(db.String(255), nullable=True)
+
+    teacher = db.relationship("User", foreign_keys=[teacher_user_id])
+
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    is_archived = db.Column(db.Boolean, nullable=False, default=False)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    building = db.relationship("PreschoolBuilding", backref=db.backref("groups", lazy=True))
+    academic_year = db.relationship("AcademicYear", backref=db.backref("preschool_groups", lazy=True))
+    building = db.relationship("Building", backref=db.backref("preschool_groups", lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "academic_year_id",
+            "building_id",
+            "name",
+            name="uq_preschool_group_year_building_name",
+        ),
+    )
 
 
 class PreschoolChild(db.Model):
