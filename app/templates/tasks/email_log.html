@@ -1,10 +1,15 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Журнал отправки email-уведомлений по задачам.</div></div>
-  <div><a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a></div>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    <div class="page-sub">Журнал отправки email-уведомлений по задачам.</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-arrow-left me-1"></i>К задачам</a>
+  </div>
 </div>
-<div class="card">
+<div class="card soft-card">
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead><tr><th>Дата</th><th>Статус</th><th>Получатель</th><th>Тип</th><th>Тема</th><th>Ошибка</th></tr></thead>

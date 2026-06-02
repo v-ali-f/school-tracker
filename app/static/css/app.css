@@ -2,6 +2,13 @@
   --brand-orange: #e58a32;
   --brand-dark: #283149;
   --brand-bg: #f5f6f8;
+  /* Единые конвенции полировки (цвета не меняем) */
+  --page-title-size: 1.5rem;
+  --section-title-size: 1.05rem;
+  --card-radius: 16px;
+  --card-shadow: 0 10px 25px rgba(26, 39, 68, 0.07);
+  --card-border: 1px solid #eef1f6;
+  --space-section: 1rem;
 }
 
 body {
@@ -122,7 +129,84 @@ body {
 .section-title {
   font-weight: 700;
   color: var(--brand-dark);
+  font-size: var(--section-title-size);
 }
+
+/* ── Полировка: единые хелперы (цвета не трогаем) ───────────────── */
+
+/* Шапка страницы: крупный заголовок + подзаголовок + действия справа */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-section);
+}
+.page-head .page-title {
+  font-size: var(--page-title-size);
+  font-weight: 600;
+  color: var(--brand-dark);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.page-head .page-sub {
+  color: #6c757d;
+  font-size: 0.92rem;
+  margin-top: 2px;
+}
+.page-head .page-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Мягкая карточка (как metric-card, но без жёсткого размера значения) */
+.soft-card {
+  border: 0;
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  background: #fff;
+}
+
+/* Компактный strip из KPI — не разваливается в столбец на телефоне */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.stat-cell {
+  background: #fff;
+  border: var(--card-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.stat-cell .stat-label {
+  color: #6c757d;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+.stat-cell .stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+.stat-cell.is-ovz { border-left: 3px solid #0d6efd; }
+.stat-cell.is-vshu { border-left: 3px solid #f0ad4e; }
+.stat-cell.is-kdn { border-left: 3px solid #dc3545; }
+
+/* Лёгкий подзаголовок-разделитель внутри таблиц (вместо table-dark) */
+.table tr.section-row td {
+  background: #f1f4f9;
+  color: var(--brand-dark);
+  font-weight: 600;
+  border-top: 0;
+  letter-spacing: .01em;
+}
+/* Числовые колонки выравниваем единообразно */
+.table td.num, .table th.num { text-align: end; font-variant-numeric: tabular-nums; }
+.table td.center, .table th.center { text-align: center; }
 
 .compact-passport-block {
   border: 1px solid #e9ecef;
@@ -2862,10 +2946,18 @@ body {
 .quick-search-v109 .quick-search-input {
   height: 46px;
   border-radius: 12px;
-  border: 1px solid var(--v109-border-strong);
+  border: 1px solid var(--border-soft);
   background: #fff;
   font-size: .98rem;
   padding-left: 42px;
+}
+
+/* Главная: внутренняя строка поиска сама раскладывается во всю ширину
+   (input flex-grow + кнопка). Старый 2-колоночный grid резервировал
+   пустую колонку справа под скрытый «Полный список» → кнопка «Найти»
+   не доходила до края. Снимаем grid с обёртки. */
+#homeSearchWrap {
+  display: block;
 }
 
 .quick-search-v109 .quick-search-btn-classic {
@@ -3394,6 +3486,13 @@ h1, h2, h3, h4, h5, h6, .dashboard-title, .section-title {
   font-weight: var(--font-weight-semibold);
 }
 
+/* Инлайн-подписи (<b>/<strong>: «ФИО:», «Класс:» и т.п.) — semibold вместо
+   жёсткого 700. Убирает ощущение «слишком жирно всё подписано», подпись больше
+   не кричит над значением. Где реально нужен 700 — используется утилита .fw-bold. */
+b, strong {
+  font-weight: var(--font-weight-semibold);
+}
+
 .brand-title .sub,
 .text-muted,
 .section-note,
@@ -3673,7 +3772,7 @@ a.sidebar-stat-card:hover {
 
 .sidebar-stat-sub {
   font-size: .75rem;
-  color: #94a3b8;
+  color: #65748b;
   margin-top: 2px;
 }
 
@@ -3730,7 +3829,7 @@ a.dash-stat-item:hover {
 
 .dash-stat-sub {
   font-size: .72rem;
-  color: #94a3b8;
+  color: #65748b;
 }
 
 @media (max-width: 575.98px) {

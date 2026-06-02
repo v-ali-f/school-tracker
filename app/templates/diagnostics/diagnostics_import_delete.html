@@ -1,7 +1,9 @@
 {% extends "layout.html" %}
 {% block content %}
-<h3 class="mb-3">Удалить импорт</h3>
-<div class="card"><div class="card-body">
+<div class="page-head">
+  <div class="page-title">Удалить импорт</div>
+</div>
+<div class="card soft-card"><div class="card-body">
   <p class="mb-3">Подтвердите удаление импорта диагностики.</p>
   <div class="mb-2"><strong>Диагностика:</strong> {{ batch.session.title if batch.session else '—' }}</div>
   <div class="mb-2"><strong>Файл:</strong> {{ batch.filename or '—' }}</div>
@@ -9,7 +11,7 @@
   <div class="mb-2"><strong>Тип импорта:</strong> {{ batch.import_kind }}</div>
   <div class="mb-3 text-danger">Будут удалены связанные строки этого импорта: {{ rows_count }}.</div>
   <form method="post" class="d-flex gap-2">
-    <button class="btn btn-danger">Удалить импорт</button>
+    <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Удалить импорт</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('diagnostics.imports_registry') }}">Отмена</a>
   </form>
 </div></div>

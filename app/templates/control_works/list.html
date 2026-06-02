@@ -1,24 +1,24 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h4 class="mb-1">{% if my_only %}Мои контрольные{% else %}Контрольные работы{% endif %}</h4>
-    <div class="text-muted">{% if my_only %}Показаны только назначенные вам контрольные работы{% else %}Все контрольные работы по школе{% endif %}</div>
+    <div class="page-title">{% if my_only %}Мои контрольные{% else %}Контрольные работы{% endif %}</div>
+    <div class="page-sub">{% if my_only %}Показаны только назначенные вам контрольные работы{% else %}Все контрольные работы по школе{% endif %}</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    {% if can("control_works_edit") %}<a class="btn btn-success" href="{{ url_for('control_works.new_control_work') }}">Добавить контрольную</a>{% endif %}
-    <a class="btn btn-outline-primary" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id) }}">Реестр</a>
-    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id) }}">Аналитика</a>
-    <a class="btn btn-outline-dark" href="{{ url_for('control_works.control_works_archive') }}">Архив и выгрузки</a>
+  <div class="page-actions">
+    {% if can("control_works_edit") %}<a class="btn btn-primary btn-sm" href="{{ url_for('control_works.new_control_work') }}"><i class="bi bi-plus-lg me-1"></i>Добавить контрольную</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_registry', academic_year_id=selected_year_id) }}">Реестр</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id) }}">Аналитика</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_archive') }}">Архив</a>
   </div>
 </div>
-<div class="card mb-3"><div class="card-body">
+<div class="card soft-card mb-3"><div class="card-body">
   <form method="get" class="row g-2 align-items-end">
     <div class="col-md-4"><label class="form-label mb-1">Учебный год</label><select class="form-select" name="academic_year_id" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
     <div class="col-md-8"><div class="small text-muted">Список и показатели отображаются по выбранному учебному году. Для детального контроля используйте реестр и сводную аналитику.</div></div>
   </form>
 </div></div>
-<div class="card">
+<div class="card soft-card">
   <div class="table-responsive">
     <table class="table table-striped mb-0 align-middle">
       <thead><tr><th class="table-number-col">№</th><th>Дата</th><th>Год</th><th>Предмет</th><th>Вид работы</th><th>Тема</th><th>Статус</th><th>Заполнение</th><th></th></tr></thead>

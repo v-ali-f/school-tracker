@@ -1,7 +1,11 @@
 {% extends "layout.html" %}
 {% block content %}
-<h4 class="mb-3">{{ 'Изменить настройки контрольной' if work else 'Новая контрольная работа' }}</h4>
-<form method="post" class="card">
+<div class="page-head">
+  <div>
+    <div class="page-title">{{ 'Изменить настройки контрольной' if work else 'Новая контрольная работа' }}</div>
+  </div>
+</div>
+<form method="post" class="card soft-card">
   <div class="card-body">
     <div class="row g-3">
       <div class="col-md-4">
@@ -38,7 +42,7 @@
     </div>
 
     <hr>
-    <h6>Критерии оценивания</h6>
+    <div class="section-title mb-2">Критерии оценивания</div>
     <div class="row g-3">
       <div class="col-md-4"><label class="form-label">Оценка 5, от %</label><input class="form-control" type="number" min="0" max="100" name="grade5_percent" value="{{ request.form.get('grade5_percent', work.grade5_percent if work else 85) }}"></div>
       <div class="col-md-4"><label class="form-label">Оценка 4, от %</label><input class="form-control" type="number" min="0" max="100" name="grade4_percent" value="{{ request.form.get('grade4_percent', work.grade4_percent if work else 65) }}"></div>
@@ -48,7 +52,7 @@
 
     <div id="dictation-criteria-block">
     <hr>
-    <h6>Критерии диктанта</h6>
+    <div class="section-title mb-2">Критерии диктанта</div>
     <div class="small text-muted mb-2">Укажите, какое максимальное количество орфографических и пунктуационных ошибок допускается для каждой отметки. Если ошибок больше, чем допустимо для отметки «3», система выставит отметку «2». Грамматическое задание оценивается отдельно.</div>
     <div class="small text-muted mb-3">Рекомендуемые значения по умолчанию: «5» — 0/0, «4» — до 2 орфографических и до 2 пунктуационных, «3» — до 4 орфографических и до 4 пунктуационных ошибок.</div>
     <div class="row g-3 mb-2">
@@ -94,7 +98,7 @@
 
     <div id="tasks-section">
     <hr>
-    <h6>Задания</h6>
+    <div class="section-title mb-2">Задания</div>
     <div class="small text-muted mb-2">Для каждого задания можно задать максимальный балл, краткое описание и тему для аналитики.</div>
     <div id="tasks-grid">
       {% for i in range(1, (task_count or 5) + 1) %}
@@ -112,7 +116,7 @@
     </div>
 
     <hr>
-    <h6>Классы и учителя</h6>
+    <div class="section-title mb-2">Классы и учителя</div>
     <div class="small text-muted mb-2">Сначала выберите параллель и предмет. Если по классу уже есть нагрузка, учитель подставится автоматически. При необходимости назначение можно изменить вручную.</div>
     <div class="table-responsive">
       <table class="table table-sm align-middle">
@@ -147,7 +151,7 @@
       </table>
     </div>
     <div class="d-flex gap-2 mt-3">
-      <button class="btn btn-success" type="submit">{{ 'Сохранить изменения' if work else 'Создать контрольную' }}</button>
+      <button class="btn btn-primary" type="submit">{{ 'Сохранить изменения' if work else 'Создать контрольную' }}</button>
       <a class="btn btn-outline-secondary" href="{{ url_for('control_works.view_control_work', work_id=work.id) if work else url_for('control_works.list_control_works') }}">Отмена</a>
     </div>
   </div>

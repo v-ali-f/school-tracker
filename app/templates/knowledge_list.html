@@ -9,15 +9,17 @@
 {% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="page-head mb-4">
   <div>
-    <h3 class="mb-0">База знаний</h3>
-    <div class="text-muted" style="font-size:.95em;">Инструкции и материалы для работы в системе</div>
+    <h1 class="page-title">База знаний</h1>
+    <div class="page-sub">Инструкции и материалы для работы в системе</div>
   </div>
   {% if is_admin %}
-  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('knowledge.knowledge_admin') }}">
-    <i class="bi bi-gear me-1"></i>Управление
-  </a>
+  <div class="page-actions">
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('knowledge.knowledge_admin') }}">
+      <i class="bi bi-gear me-1"></i>Управление
+    </a>
+  </div>
   {% endif %}
 </div>
 
@@ -32,7 +34,7 @@
 <div class="mb-4">
   <div class="d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-bookmark-fill text-primary" style="font-size:1rem;"></i>
-    <h5 class="mb-0">{{ section.label }}</h5>
+    <h5 class="section-title mb-0">{{ section.label }}</h5>
     <span class="badge bg-light text-secondary border" style="font-size:.8rem;">{{ section.articles|length }}</span>
   </div>
   <div class="row g-3">
@@ -82,13 +84,15 @@
 
 <style>
 .knowledge-card {
-  border: 1px solid #e9ecef;
-  border-radius: 14px;
-  transition: box-shadow .15s, border-color .15s;
+  border: 0;
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  background: #fff;
+  transition: box-shadow .15s, transform .15s;
 }
 .knowledge-card:hover {
-  box-shadow: 0 6px 20px rgba(0,0,0,.09);
-  border-color: #c5d8f8;
+  box-shadow: 0 14px 28px rgba(26,39,68,.09);
+  transform: translateY(-1px);
 }
 </style>
 {% endblock %}

@@ -6,7 +6,9 @@
   }
   function addToggle() {
     if (document.querySelector('.v183-task-ui-toggle')) return;
-    var target = document.querySelector('.task-toolbar,.tasks-toolbar,.page-actions,.d-flex.justify-content-between,.d-flex.align-items-center');
+    // Целимся в тулбар самой страницы задач. НЕ используем generic .d-flex-фоллбэки —
+    // иначе кнопка улетает в первый .d-flex на странице (это блок действий в шапке-навбаре).
+    var target = document.querySelector('.tasks-top-actions,.task-toolbar,.tasks-toolbar');
     if (!target) return;
     var btn = document.createElement('button');
     btn.type = 'button';

@@ -1,11 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Свод по кафедрам</h3>
-    <div class="text-muted">Общий итог по результатам кафедры и детализация по работам, предметам и учителям без лишнего дублирования.</div>
+    <div class="page-title">Свод по кафедрам</div>
+    <div class="page-sub">Общий итог по результатам кафедры и детализация по работам, предметам и учителям.</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
+  </div>
 </div>
 
 {% macro mode_label(mode) -%}
@@ -26,7 +28,7 @@
     <div class="card-body">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-          <h4 class="mb-1">{{ block.department.name }}</h4>
+          <div class="section-title mb-1">{{ block.department.name }}</div>
           <div class="text-muted small">Общий итог по кафедре · режим: {{ mode_label(block.result_mode) }}</div>
           <div class="small text-muted mt-1">В свод включено работ: <strong>{{ block.sessions_count }}</strong></div>
         </div>

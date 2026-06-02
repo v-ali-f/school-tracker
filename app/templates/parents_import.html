@@ -1,12 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Импорт родителей</h3>
-    <div class="text-muted">Загрузка представителей и привязка к уже существующим детям</div>
+    <h1 class="page-title">Импорт родителей</h1>
+    <div class="page-sub">Загрузка представителей и привязка к уже существующим детям</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('children.list_children') }}">Назад</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.list_children') }}"><i class="bi bi-arrow-left me-1"></i>Назад</a>
+  </div>
 </div>
 
 <div class="card">

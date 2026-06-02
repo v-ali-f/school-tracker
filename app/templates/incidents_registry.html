@@ -128,16 +128,14 @@
 </style>
 
 <!-- Hero -->
-<div class="incident-hero p-4 mb-4">
-  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
-    <div>
-      <h2 class="mb-0">{{ title }}</h2>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a class="btn btn-warning fw-semibold" href="{{ url_for('children.incidents_dashboard') }}">Дашборд</a>
-      <a class="btn btn-success fw-semibold" id="excelExportBtn" href="{{ export_url }}">Excel</a>
-      <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
-    </div>
+<div class="page-head mb-4">
+  <div>
+    <div class="page-title">{{ title }}</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_dashboard') }}"><i class="bi bi-speedometer2 me-1"></i>Дашборд</a>
+    <a class="btn btn-outline-secondary btn-sm" id="excelExportBtn" href="{{ export_url }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>Главная</a>
   </div>
 </div>
 
@@ -157,7 +155,7 @@
 <div class="card incident-panel">
   <div class="card-body pb-2">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h5 class="mb-0">Записи реестра</h5>
+      <span class="section-title">Записи реестра</span>
       <div class="d-flex align-items-center gap-2">
         {# Group by #}
         {% set _gb_opts = [

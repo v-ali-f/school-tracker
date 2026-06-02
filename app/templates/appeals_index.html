@@ -1,29 +1,33 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="container-fluid py-3">
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div class="page-head">
     <div>
-      <nav class="small mb-2"><a href="{{ url_for('main.dashboard') }}">Главная</a> / Обращения</nav>
-      <h1 class="mb-1" style="color:#113b73; font-weight:750;">Реестр обращений</h1>
-      <div class="text-muted">Фиксация входящих обращений, ответственных, сроков и результата исполнения.</div>
+      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / Обращения</nav>
+      <h1 class="page-title">Реестр обращений</h1>
+      <div class="page-sub">Фиксация входящих обращений, ответственных, сроков и результата исполнения.</div>
     </div>
-    {% if can_create %}<a class="btn btn-primary" href="{{ url_for('appeals.new') }}"><i class="bi bi-plus-lg me-1"></i>Новое обращение</a>{% endif %}
+    {% if can_create %}
+    <div class="page-actions">
+      <a class="btn btn-primary btn-sm" href="{{ url_for('appeals.new') }}"><i class="bi bi-plus-lg me-1"></i>Новое обращение</a>
+    </div>
+    {% endif %}
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-4"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="text-muted small text-uppercase">Всего в выборке</div><div class="fs-2 fw-bold">{{ counts.total }}</div></div></div></div>
-    <div class="col-md-4"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="text-muted small text-uppercase">Новые</div><div class="fs-2 fw-bold">{{ counts.new }}</div></div></div></div>
-    <div class="col-md-4"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><div class="text-muted small text-uppercase">Просроченные</div><div class="fs-2 fw-bold text-danger">{{ counts.overdue }}</div></div></div></div>
+  <div class="stat-strip mb-3">
+    <div class="stat-cell"><div class="stat-label">Всего в выборке</div><div class="stat-value">{{ counts.total }}</div></div>
+    <div class="stat-cell"><div class="stat-label">Новые</div><div class="stat-value">{{ counts.new }}</div></div>
+    <div class="stat-cell is-kdn"><div class="stat-label">Просроченные</div><div class="stat-value text-danger">{{ counts.overdue }}</div></div>
   </div>
 
-  <form method="get" class="card border-0 shadow-sm rounded-4 mb-3"><div class="card-body row g-2 align-items-end">
+  <form method="get" class="card soft-card mb-3"><div class="card-body row g-2 align-items-end">
     <div class="col-md-5"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="Номер, заявитель, тема"></div>
     <div class="col-md-3"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option>{% for s in statuses %}<option value="{{ s }}" {% if request.args.get('status') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
     <div class="col-md-2"><button class="btn btn-primary w-100">Показать</button></div>
     <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('appeals.index') }}">Сброс</a></div>
   </div></form>
 
-  <div class="card border-0 shadow-sm rounded-4">
+  <div class="card soft-card">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light"><tr><th>№</th><th>Дата</th><th>Заявитель</th><th>Тема</th><th>Ответственный</th><th>Срок</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>

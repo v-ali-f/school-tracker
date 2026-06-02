@@ -12,19 +12,14 @@
 
 {% set pct = ((used_bytes / quota_bytes) * 100) if quota_bytes else 0 %}
 
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h4 class="mb-0"><i class="bi bi-hdd-network"></i> Диск</h4>
-    <div class="text-muted small">Личное и общее файловое хранилище школы.</div>
+    <div class="page-title"><i class="bi bi-hdd-network me-1"></i>Диск</div>
+    <div class="page-sub">Личное и общее файловое хранилище школы.{% if tab == 'mine' %} · Занято: {{ fmt_size(used_bytes) }} / {{ fmt_size(quota_bytes) }} ({{ pct | round(0) | int }}%){% endif %}</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap align-items-center">
-    {% if tab == 'mine' %}
-    <span class="badge bg-light text-muted border" title="Использовано из квоты">
-      {{ fmt_size(used_bytes) }} / {{ fmt_size(quota_bytes) }} · {{ pct | round(0) | int }}%
-    </span>
-    {% endif %}
+  <div class="page-actions">
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('drive.collections_list') }}">
-      <i class="bi bi-collection"></i> Сборы файлов
+      <i class="bi bi-collection me-1"></i>Сборы файлов
       {% if pending_count %}<span class="badge bg-danger ms-1">{{ pending_count }}</span>{% endif %}
     </a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
@@ -128,6 +123,52 @@
 
 <style>
   #itemsCard.is-drop { outline: 2px dashed #0d6efd; outline-offset: -4px; background: #f0f7ff; }
+
+.drive-file-name-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drive-file-type-icon {
+  width: 21px;
+  height: 21px;
+  border-radius: 7px;
+  border: 1px solid #dbe3ef;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: #f8fbff;
+  color: #64748b;
+}
+
+.drive-file-icon-docx {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.drive-file-icon-xlsx {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.drive-file-icon-pptx {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.drive-file-icon-pdf {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+
+.drive-file-icon-folder {
+  background: #eef5ff;
+  color: #2563eb;
+}
+
 </style>
 <script>
 (function(){
@@ -229,11 +270,27 @@ document.addEventListener('DOMContentLoaded', function(){
           <td>
             {% if it.kind == 'folder' %}
               <a href="{{ url_for('drive.index', tab=tab, parent=it.id) }}" class="text-decoration-none">
-                <i class="bi bi-folder-fill text-warning"></i> {{ it.name }}
+                <span class="drive-file-name-wrap">
+                  <span class="drive-file-type-icon drive-file-icon-folder">
+                    <i class="bi bi-folder-fill"></i>
+                  </span>
+                  <span>{{ it.name }}</span>
+                </span>
               </a>
             {% else %}
-              <a href="{{ url_for('drive.file_download', item_id=it.id) }}" class="text-decoration-none">
-                <i class="bi bi-file-earmark"></i> {{ it.name }}
+              <a href="{{ url_for('drive.file_download', item_id=it.id) }}" class="text-decoration-none drive-file-name-wrap">
+                {% if it.ext == 'docx' %}
+                  <span class="drive-file-type-icon drive-file-icon-docx"><i class="bi bi-file-earmark-word"></i></span>
+                {% elif it.ext == 'xlsx' %}
+                  <span class="drive-file-type-icon drive-file-icon-xlsx"><i class="bi bi-file-earmark-spreadsheet"></i></span>
+                {% elif it.ext == 'pptx' %}
+                  <span class="drive-file-type-icon drive-file-icon-pptx"><i class="bi bi-file-earmark-slides"></i></span>
+                {% elif it.ext == 'pdf' %}
+                  <span class="drive-file-type-icon drive-file-icon-pdf"><i class="bi bi-file-earmark-pdf"></i></span>
+                {% else %}
+                  <span class="drive-file-type-icon"><i class="bi bi-file-earmark"></i></span>
+                {% endif %}
+                <span>{{ it.name }}</span>
               </a>
             {% endif %}
           </td>
@@ -252,6 +309,12 @@ document.addEventListener('DOMContentLoaded', function(){
                     onclick="driveMove({{ it.id }}, '{{ it.name|e }}', {{ it.parent_id or 'null' }})">
               <i class="bi bi-arrows-move"></i>
             </button>
+            {% if it.kind == 'file' and it.ext in ['docx', 'xlsx', 'pptx'] %}
+              <a class="btn btn-sm btn-outline-primary" title="Открыть в онлайн-офисе"
+                 href="{{ url_for('office.editor', item_id=it.id) }}">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+            {% endif %}
             <button type="button" class="btn btn-sm btn-outline-danger" title="Удалить"
                     onclick="driveDelete({{ it.id }}, '{{ it.name|e }}')">
               <i class="bi bi-trash"></i>

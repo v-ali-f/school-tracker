@@ -14,12 +14,14 @@
 {% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="page-head mb-3">
   <div>
-    <h4 class="mb-0">Новый инцидент</h4>
-    <div class="text-muted" style="font-size:0.95em;">Выбор: параллель → класс → ученик (можно несколько)</div>
+    <div class="page-title">Новый инцидент</div>
+    <div class="page-sub">Выбор: параллель → класс → ученик (можно несколько)</div>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ url_for('children.home') }}">На главную</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>Главная</a>
+  </div>
 </div>
 
 <div class="alert alert-warning d-flex align-items-start gap-2 py-2" role="alert">

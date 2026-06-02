@@ -1,5 +1,41 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2"><div><h4 class="mb-0"><i class="bi bi-archive"></i> Мои ознакомления / Банк документов</h4><div class="text-muted small">Документы, направленные вам для ознакомления, сохраняются здесь.</div></div><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a></div>
-<div class="row g-3">{% for row in rows %}{% set item = row.familiarization %}<div class="col-xl-4 col-md-6"><div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body d-flex flex-column"><div class="d-flex justify-content-between gap-2"><h5 class="mb-1">{{ item.title }}</h5>{% if row.acknowledged_at %}<span class="badge bg-success">Ознакомлен</span>{% elif item.deadline_at and item.deadline_at < now %}<span class="badge bg-danger">Просрочено</span>{% else %}<span class="badge bg-warning text-dark">Требует ознакомления</span>{% endif %}</div><div class="text-muted small mb-2">Срок: {{ item.deadline_at.strftime('%d.%m.%Y %H:%M') if item.deadline_at else 'не указан' }}</div><p class="text-muted flex-grow-1">{{ item.description or 'Без описания' }}</p><a class="btn btn-outline-primary btn-sm mt-auto" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">Открыть</a></div></div></div>{% else %}<div class="col-12"><div class="alert alert-light border">Вам пока не направляли документы для ознакомления.</div></div>{% endfor %}</div>
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><i class="bi bi-archive me-1"></i>Мои ознакомления</h1>
+    <div class="page-sub">Документы, направленные вам для ознакомления, сохраняются здесь.</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house me-1"></i>На главную</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for row in rows %}
+  {% set item = row.familiarization %}
+  <div class="col-xl-4 col-md-6">
+    <div class="card soft-card h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="d-flex justify-content-between gap-2 mb-1">
+          <h5 class="mb-0">{{ item.title }}</h5>
+          {% if row.acknowledged_at %}
+            <span class="badge bg-success">Ознакомлен</span>
+          {% elif item.deadline_at and item.deadline_at < now %}
+            <span class="badge bg-danger">Просрочено</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">Требует ознакомления</span>
+          {% endif %}
+        </div>
+        <div class="text-muted small mb-2">Срок: {{ item.deadline_at.strftime('%d.%m.%Y') if item.deadline_at else 'не указан' }}</div>
+        <p class="text-muted flex-grow-1">{{ item.description or 'Без описания' }}</p>
+        <a class="btn btn-outline-primary btn-sm mt-auto" href="{{ url_for('familiarizations.detail', item_id=item.id) }}">Открыть</a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="alert alert-light border">Вам пока не направляли документы для ознакомления.</div>
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}

@@ -1,14 +1,14 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Отчёт по классу</h3>
-    <div class="text-muted">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %} · {{ report.class_name }}</div>
+    <div class="page-title">Отчёт по классу</div>
+    <div class="page-sub">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %} · {{ report.class_name }}</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-dark" href="{{ url_for('control_works.control_work_report', work_id=work.id, **return_args) }}">К сводному отчёту</a>
-    <a class="btn btn-outline-danger" href="{{ url_for('control_works.control_work_class_report_export_pdf', work_id=work.id, assignment_id=assignment.id, **return_args) }}">Скачать PDF</a>
-    <a class="btn btn-success" href="{{ url_for('control_works.control_work_class_report_export', work_id=work.id, assignment_id=assignment.id, **return_args) }}">Скачать Excel</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_work_report', work_id=work.id, **return_args) }}">Сводный отчёт</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_work_class_report_export_pdf', work_id=work.id, assignment_id=assignment.id, **return_args) }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_work_class_report_export', work_id=work.id, assignment_id=assignment.id, **return_args) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
   </div>
 </div>
 

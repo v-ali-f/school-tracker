@@ -1,0 +1,389 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+.office-page {
+  width: 100%;
+  max-width: none;
+}
+
+.office-hero {
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  background: #fff;
+  padding: 14px 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .05);
+  margin-bottom: 14px;
+}
+
+.office-hero h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.office-hero-subtitle {
+  color: #64748b;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.office-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.office-actions .btn {
+  height: 34px;
+  padding: 5px 12px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.office-tabs {
+  border-bottom: 1px solid #dbe3ef;
+  margin-bottom: 12px;
+}
+
+.office-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #dbe3ef;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: #fff;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.office-filter-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 180px 180px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.office-filter-row .form-control,
+.office-filter-row .form-select,
+.office-filter-row .btn,
+.office-filter-row .input-group-text {
+  height: 36px;
+  font-size: 13px;
+}
+
+.office-table {
+  font-size: 13px;
+}
+
+.office-table th {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  vertical-align: middle;
+}
+
+.office-table td {
+  vertical-align: middle;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.office-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  font-weight: 400;
+}
+
+.office-file-link:hover {
+  text-decoration: underline;
+}
+
+.office-file-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid #dbe3ef;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.office-file-icon.docx {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.office-file-icon.xlsx {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.office-file-icon.pptx {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.office-actions-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.office-round-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .office-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .office-actions {
+    width: 100%;
+  }
+}
+</style>
+
+<div class="office-page">
+  <div class="office-hero d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div>
+      <h2><i class="bi bi-file-earmark-text text-primary"></i> Онлайн-офис</h2>
+      <div class="office-hero-subtitle">
+        Создание и редактирование документов, таблиц и презентаций. Все файлы сохраняются в «Диске».
+      </div>
+    </div>
+
+    <div class="office-actions">
+      <a class="btn btn-primary" href="{{ url_for('office.new_file', ext='docx') }}">
+        <i class="bi bi-file-earmark-word"></i> Документ
+      </a>
+      <a class="btn btn-outline-primary" href="{{ url_for('office.new_file', ext='xlsx') }}">
+        <i class="bi bi-file-earmark-spreadsheet"></i> Таблица
+      </a>
+      <a class="btn btn-outline-primary" href="{{ url_for('office.new_file', ext='pptx') }}">
+        <i class="bi bi-file-earmark-slides"></i> Презентация
+      </a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('drive.index') }}">
+        Перейти в Диск
+      </a>
+    </div>
+  </div>
+
+  <div class="office-tabs">
+    <span class="office-tab">
+      <i class="bi bi-globe2"></i> Документы онлайн-офиса
+    </span>
+  </div>
+
+  <div class="office-filter-row">
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input class="form-control" id="officeSearch" placeholder="Поиск по имени документа">
+    </div>
+
+    <button class="btn btn-outline-secondary" type="button" id="officeResetFilters">Найти</button>
+
+    <select class="form-select" id="officeTypeFilter">
+      <option value="">Тип: все</option>
+      <option value="docx">Документы</option>
+      <option value="xlsx">Таблицы</option>
+      <option value="pptx">Презентации</option>
+    </select>
+
+    <select class="form-select" id="officeScopeFilter">
+      <option value="">Изменено ↓</option>
+      <option value="private">Мои файлы</option>
+      <option value="public">Общие файлы</option>
+    </select>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 office-table">
+        <thead class="table-light">
+          <tr>
+            <th>Файл</th>
+            <th style="width: 150px;">Размер</th>
+            <th style="width: 150px;">Область</th>
+            <th style="width: 190px;">Изменено</th>
+            <th style="width: 140px;" class="text-end">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="officeTableBody">
+          {% for item in items %}
+            <tr data-name="{{ item.name|lower }}" data-ext="{{ item.ext }}" data-scope="{{ item.scope }}">
+              <td>
+                <a class="office-file-link" href="{{ url_for('office.editor', item_id=item.id) }}" title="ID: {{ item.id }}">
+                  <span class="office-file-icon {{ item.ext }}">
+                    {% if item.ext == 'xlsx' %}
+                      <i class="bi bi-file-earmark-spreadsheet"></i>
+                    {% elif item.ext == 'pptx' %}
+                      <i class="bi bi-file-earmark-slides"></i>
+                    {% else %}
+                      <i class="bi bi-file-earmark-word"></i>
+                    {% endif %}
+                  </span>
+                  <span>{{ item.name }}</span>
+                </a>
+              </td>
+
+              <td>
+                {% if item.size_bytes is none %}
+                  —
+                {% elif item.size_bytes >= 1048576 %}
+                  {{ "%.1f"|format(item.size_bytes / 1048576) }} МБ
+                {% elif item.size_bytes >= 1024 %}
+                  {{ "%.1f"|format(item.size_bytes / 1024) }} КБ
+                {% else %}
+                  {{ item.size_bytes }} Б
+                {% endif %}
+              </td>
+
+              <td>{% if item.scope == 'public' %}Общие файлы{% else %}Мои файлы{% endif %}</td>
+
+              <td>{{ item.updated_at.strftime('%d.%m.%Y %H:%M') if item.updated_at else '—' }}</td>
+
+              <td class="text-end">
+                <div class="office-actions-cell">
+                  <a class="btn btn-sm btn-outline-primary office-round-btn"
+                     title="Открыть в онлайн-офисе"
+                     href="{{ url_for('office.editor', item_id=item.id) }}">
+                    <i class="bi bi-pencil-square"></i>
+                  </a>
+
+                  {% if item.owner_user_id == current_user.id %}
+                    <form method="post"
+                          action="{{ url_for('office.rename_file', item_id=item.id) }}"
+                          class="d-inline js-office-rename-form">
+                      {% if csrf_token is defined %}
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      {% endif %}
+                      <input type="hidden" name="name" value="{{ item.name }}">
+                      <button type="button"
+                              class="btn btn-sm btn-outline-secondary office-round-btn js-office-rename"
+                              title="Переименовать"
+                              data-current-name="{{ item.name }}">
+                        <i class="bi bi-type"></i>
+                      </button>
+                    </form>
+                  {% endif %}
+
+                  {% if item.owner_user_id == current_user.id %}
+                    <a class="btn btn-sm btn-outline-secondary office-round-btn"
+                       title="Настроить доступ"
+                       href="{{ url_for('office.access_file', item_id=item.id) }}">
+                      <i class="bi bi-people"></i>
+                    </a>
+                  {% endif %}
+
+                  <form method="post"
+                        action="{{ url_for('office.delete_file', item_id=item.id) }}"
+                        onsubmit="return confirm('Удалить файл «{{ item.name }}»? Он будет удалён из онлайн-офиса и Диска.');"
+                        class="d-inline">
+                    {% if csrf_token is defined %}
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-danger office-round-btn" title="Удалить">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">Документов пока нет.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const search = document.getElementById('officeSearch');
+  const typeFilter = document.getElementById('officeTypeFilter');
+  const scopeFilter = document.getElementById('officeScopeFilter');
+  const reset = document.getElementById('officeResetFilters');
+  const rows = Array.from(document.querySelectorAll('#officeTableBody tr[data-name]'));
+
+  function normalize(value) {
+    return (value || '').toString().toLowerCase().trim();
+  }
+
+  function applyFilters() {
+    const q = normalize(search.value);
+    const ext = typeFilter.value;
+    const scope = scopeFilter.value;
+
+    rows.forEach(function (row) {
+      const okName = !q || normalize(row.dataset.name).includes(q);
+      const okExt = !ext || row.dataset.ext === ext;
+      const okScope = !scope || row.dataset.scope === scope;
+      row.style.display = okName && okExt && okScope ? '' : 'none';
+    });
+  }
+
+  if (search) {
+    search.addEventListener('input', applyFilters);
+  }
+
+  if (typeFilter) {
+    typeFilter.addEventListener('change', applyFilters);
+  }
+
+  if (scopeFilter) {
+    scopeFilter.addEventListener('change', applyFilters);
+  }
+
+  if (reset) {
+    reset.addEventListener('click', applyFilters);
+  }
+})();
+</script>
+
+
+<script>
+(function () {
+  document.querySelectorAll('.js-office-rename').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const form = btn.closest('form');
+      const input = form.querySelector('input[name="name"]');
+      const currentName = btn.dataset.currentName || input.value || '';
+      const nextName = prompt('Новое название файла:', currentName);
+
+      if (!nextName) {
+        return;
+      }
+
+      input.value = nextName.trim();
+      form.submit();
+    });
+  });
+})();
+</script>
+
+{% endblock %}

@@ -1,14 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+<div class="page-head">
   <div>
-    <div class="section-overline">Академический контур</div>
-    <h3 class="mb-1">Контрольные работы и результаты</h3>
-    <div class="text-muted">Свод по контрольным, качеству знаний, низким результатам и динамике по классам и предметам.</div>
+    <div class="page-title">Контрольные работы и результаты</div>
+    <div class="page-sub">Свод по контрольным, качеству знаний, низким результатам и динамике по классам и предметам.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.list_control_works') }}">Реестр контрольных</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_summary') }}">Свод качества</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.list_control_works') }}">Реестр контрольных</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_summary') }}">Свод качества</a>
   </div>
 </div>
 

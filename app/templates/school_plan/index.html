@@ -1,12 +1,16 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+<div class="page-head mb-3">
   <div>
-    <h1 class="mb-1">План работы школы</h1>
-    <div class="text-muted">Красочный реестр мероприятий с фильтрами, поиском и адресной видимостью.</div>
+    <div class="page-title">План работы школы</div>
+    <div class="page-sub">Реестр мероприятий с фильтрами, поиском и адресной видимостью.</div>
   </div>
-  {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('school_plan.create') }}">Добавить мероприятие</a>{% endif %}
+  {% if can_manage %}
+  <div class="page-actions">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.create') }}"><i class="bi bi-plus-lg me-1"></i>Добавить мероприятие</a>
+  </div>
+  {% endif %}
 </div>
 {% include 'school_plan/_nav.html' %}
 {% include 'school_plan/_filters.html' %}

@@ -14,21 +14,21 @@
 {% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="page-head mb-3">
   <div>
-    <h4 class="mb-0">Инцидент #{{ incident.id }} — {{ incident.category }}</h4>
-    <div class="text-muted small">
+    <div class="page-title">Инцидент #{{ incident.id }} — {{ incident.category }}</div>
+    <div class="page-sub">
       {{ incident.occurred_at.strftime("%d.%m.%Y %H:%M") if incident.occurred_at else "" }}
       · Автор: {{ incident.author.fio if incident.author else "—" }}
       · Исполнитель: {% if incident.assignee %}{{ incident.assignee.fio }}{% else %}<em>не назначен</em>{% endif %}
     </div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-primary" href="{{ url_for('children.incident_edit', incident_id=incident.id) }}">Открыть карточку</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incident_edit', incident_id=incident.id) }}"><i class="bi bi-pencil me-1"></i>Карточка</a>
     {% if can('incident_registry_view') %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_registry') }}">Назад в реестр</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_registry') }}"><i class="bi bi-table me-1"></i>Реестр</a>
     {% else %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('children.incidents_my') }}">Назад в Мои заявки</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_my') }}"><i class="bi bi-list-ul me-1"></i>Мои заявки</a>
     {% endif %}
   </div>
 </div>
@@ -42,7 +42,7 @@
     </div>
     {% endif %}
 
-    <h6 class="mb-3">История</h6>
+    <div class="section-title mb-3">История</div>
 
     <div class="timeline">
       {% for ev in events %}
@@ -51,10 +51,10 @@
         <div class="timeline-content">
           <div class="d-flex justify-content-between align-items-baseline">
             <strong class="small">
-              {% if ev.kind == 'created' %}📝 Создан
-              {% elif ev.kind == 'note' %}💬 Заметка
-              {% elif ev.kind == 'status' %}🔄 Статус
-              {% elif ev.kind == 'assignment' %}👤 Назначение
+              {% if ev.kind == 'created' %}<i class="bi bi-file-plus me-1"></i>Создан
+              {% elif ev.kind == 'note' %}<i class="bi bi-chat-left-text me-1"></i>Заметка
+              {% elif ev.kind == 'status' %}<i class="bi bi-arrow-left-right me-1"></i>Статус
+              {% elif ev.kind == 'assignment' %}<i class="bi bi-person-check me-1"></i>Назначение
               {% endif %}
             </strong>
             <span class="text-muted small">{{ ev.ts.strftime("%d.%m.%Y %H:%M") if ev.ts else "" }}</span>

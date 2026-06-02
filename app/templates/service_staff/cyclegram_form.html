@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head mb-3">
   <div>
-    <h2 class="mb-1">{{ form_title }}</h2>
-    <div class="text-muted">Карточка циклограммы специалиста на учебный год.</div>
+    <div class="page-title">{{ form_title }}</div>
+    <div class="page-sub">Карточка циклограммы специалиста на учебный год.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.cyclegrams_registry') }}">К реестру</a>
-    {% if cyclegram.id %}<a class="btn btn-outline-primary" href="{{ url_for('service_staff.cyclegram_card', cyclegram_id=cyclegram.id) }}">Открыть циклограмму</a>{% endif %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.cyclegrams_registry') }}"><i class="bi bi-list me-1"></i>К реестру</a>
+    {% if cyclegram.id %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.cyclegram_card', cyclegram_id=cyclegram.id) }}"><i class="bi bi-eye me-1"></i>Открыть циклограмму</a>{% endif %}
   </div>
 </div>
 <form method="post" class="card">

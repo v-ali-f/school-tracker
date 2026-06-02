@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+<div class="page-head">
   <div>
-    <h3 class="mb-1">Архив контрольных работ</h3>
-    <div class="text-muted">Отдельные сводки по учителю, предмету и учебным годам. Можно выгрузить архив в Excel и PDF.</div>
+    <div class="page-title">Архив контрольных работ</div>
+    <div class="page-sub">Сводки по учителю, предмету и учебным годам. Выгрузка в Excel и PDF.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-success" href="{{ url_for('control_works.control_works_archive_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}">Excel</a>
-    <a class="btn btn-outline-danger" href="{{ url_for('control_works.control_works_archive_pdf', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}">PDF</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_archive_xlsx', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_archive_pdf', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
   </div>
 </div>
 
@@ -60,7 +60,7 @@
 </div>
 
 <div class="card mb-3"><div class="card-body">
-  <h5 class="mb-3">Инфографика по архивным годам</h5>
+  <div class="section-title mb-3">Инфографика по архивным годам</div>
   <div class="row g-3">
     {% for year in dataset.year_groups %}
       <div class="col-lg-4 col-md-6">
@@ -86,7 +86,7 @@
 <div class="row g-3 mb-3">
   <div class="col-lg-6">
     <div class="card h-100"><div class="card-body p-0">
-      <div class="p-3 pb-0"><h5>Архив по учителям</h5></div>
+      <div class="p-3 pb-0"><div class="section-title">Архив по учителям</div></div>
       <div class="table-responsive">
         <table class="table table-striped mb-0 align-middle">
           <thead><tr><th>Учитель</th><th>Контрольных</th><th>Результатов</th><th>Средний %</th><th>Индикатор</th></tr></thead>
@@ -112,7 +112,7 @@
   </div>
   <div class="col-lg-6">
     <div class="card h-100"><div class="card-body p-0">
-      <div class="p-3 pb-0"><h5>Архив по предметам</h5></div>
+      <div class="p-3 pb-0"><div class="section-title">Архив по предметам</div></div>
       <div class="table-responsive">
         <table class="table table-striped mb-0 align-middle">
           <thead><tr><th>Предмет</th><th>Контрольных</th><th>Результатов</th><th>Средний %</th><th>Индикатор</th></tr></thead>
@@ -140,7 +140,7 @@
 
 <div class="card">
   <div class="card-body p-0">
-    <div class="p-3 pb-0"><h5>Архив контрольных</h5></div>
+    <div class="p-3 pb-0"><div class="section-title">Архив контрольных</div></div>
     <div class="table-responsive">
       <table class="table table-striped mb-0 align-middle">
         <thead><tr><th>Дата</th><th>Год</th><th>Предмет</th><th>Тема</th><th>Учителя</th><th>Результатов</th><th>Средний %</th><th>Статус</th><th></th></tr></thead>

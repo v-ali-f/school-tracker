@@ -1,0 +1,212 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+.office-access-page {
+  width: 100%;
+  max-width: none;
+}
+
+.office-access-card {
+  border-radius: 18px;
+}
+
+.office-access-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.office-access-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+}
+
+.office-access-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.office-user-list {
+  border: 1px solid #e1e7f0;
+  border-radius: 12px;
+  padding: 8px;
+  max-height: 420px;
+  overflow: auto;
+  background: #fafcff;
+}
+
+.office-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border-radius: 9px;
+  cursor: pointer;
+  margin: 0;
+  font-size: 13px;
+}
+
+.office-user-row:hover {
+  background: #eef5ff;
+}
+
+.office-user-row input {
+  width: 17px;
+  height: 17px;
+}
+
+.office-selected-box {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f7f9fc;
+  border: 1px dashed #cfd9e8;
+  min-height: 42px;
+}
+
+.office-selected-chip {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #eef5ff;
+  border: 1px solid #cfe0ff;
+  font-size: 12px;
+  margin: 2px;
+}
+
+@media (max-width: 900px) {
+  .office-access-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<div class="office-access-page">
+  <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+    <div>
+      <h2 class="mb-1">Доступ к документу</h2>
+      <div class="text-muted">{{ item.name }}</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('office.index') }}">К онлайн-офису</a>
+  </div>
+
+  <form method="post" class="card office-access-card">
+    <div class="card-body">
+      {% if csrf_token is defined %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% endif %}
+
+      <div class="office-access-grid">
+        <div class="office-access-panel">
+          <div class="office-access-title">Просмотр</div>
+          <input class="form-control form-control-sm mb-2 js-user-search" placeholder="Поиск сотрудника..." data-target="view-list">
+
+          <div class="office-user-list" id="view-list">
+            {% for u in users %}
+              {% set label = user_label(u) %}
+              <label class="office-user-row" data-name="{{ label|lower }}">
+                <input type="checkbox" name="view_user_ids" value="{{ u.id }}" data-person-name="{{ label }}" data-selected-target="selected-view" {% if u.id in view_ids %}checked{% endif %}>
+                <span>{{ label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div class="office-selected-box">
+            <div class="text-muted small mb-1">Выбраны для просмотра:</div>
+            <div id="selected-view"></div>
+          </div>
+        </div>
+
+        <div class="office-access-panel">
+          <div class="office-access-title">Редактирование</div>
+          <input class="form-control form-control-sm mb-2 js-user-search" placeholder="Поиск сотрудника..." data-target="edit-list">
+
+          <div class="office-user-list" id="edit-list">
+            {% for u in users %}
+              {% set label = user_label(u) %}
+              <label class="office-user-row" data-name="{{ label|lower }}">
+                <input type="checkbox" name="edit_user_ids" value="{{ u.id }}" data-person-name="{{ label }}" data-selected-target="selected-edit" {% if u.id in edit_ids %}checked{% endif %}>
+                <span>{{ label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div class="office-selected-box">
+            <div class="text-muted small mb-1">Выбраны для редактирования:</div>
+            <div id="selected-edit"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-info mt-3 mb-0">
+        Если сотрудник выбран в «Редактирование», он сможет совместно редактировать документ в ONLYOFFICE.
+        Если выбран только в «Просмотр», документ откроется только для чтения.
+      </div>
+    </div>
+
+    <div class="card-footer bg-white d-flex gap-2">
+      <button class="btn btn-primary">Сохранить доступ</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('office.index') }}">Отмена</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  function normalize(value) {
+    return (value || '').toString().toLowerCase().trim();
+  }
+
+  function updateSelected(targetId) {
+    const box = document.getElementById(targetId);
+    if (!box) return;
+
+    const items = document.querySelectorAll('input[data-selected-target="' + targetId + '"]');
+    box.innerHTML = '';
+
+    let count = 0;
+    items.forEach(function (input) {
+      if (input.checked) {
+        count++;
+        const chip = document.createElement('span');
+        chip.className = 'office-selected-chip';
+        chip.textContent = input.dataset.personName || input.value;
+        box.appendChild(chip);
+      }
+    });
+
+    if (!count) {
+      const empty = document.createElement('span');
+      empty.className = 'text-muted small';
+      empty.textContent = 'Пока никто не выбран';
+      box.appendChild(empty);
+    }
+  }
+
+  document.querySelectorAll('.js-user-search').forEach(function (search) {
+    search.addEventListener('input', function () {
+      const list = document.getElementById(search.dataset.target);
+      const q = normalize(search.value);
+      if (!list) return;
+
+      list.querySelectorAll('.office-user-row').forEach(function (row) {
+        row.style.display = normalize(row.dataset.name).includes(q) ? '' : 'none';
+      });
+    });
+  });
+
+  document.querySelectorAll('input[data-selected-target]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      updateSelected(input.dataset.selectedTarget);
+    });
+  });
+
+  updateSelected('selected-view');
+  updateSelected('selected-edit');
+})();
+</script>
+
+{% endblock %}

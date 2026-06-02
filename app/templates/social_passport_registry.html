@@ -76,29 +76,19 @@
   }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<div class="page-head mb-3">
   <div>
-    <h3 class="mb-0">Социальный паспорт</h3>
-    <div class="text-muted">
-      {% if is_admin or is_methodist %}
-        Данные по школе
-      {% else %}
-        Данные по вашему классу
-      {% endif %}
-    </div>
+    <div class="page-title">Социальный паспорт</div>
+    <div class="page-sub">{% if is_admin or is_methodist %}Данные по школе{% else %}Данные по вашему классу{% endif %}</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="page-actions">
     {% if selected_class_id %}
-      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('children.social_passport_class', class_id=selected_class_id) }}">
-        <i class="bi bi-table"></i> Паспорт класса
-      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.social_passport_class', class_id=selected_class_id) }}"><i class="bi bi-table me-1"></i>Паспорт класса</a>
     {% endif %}
     {% if is_admin or is_methodist or has_role_social_pedagog %}
-      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('children.social_passport_summary') }}">
-        <i class="bi bi-grid-3x3-gap"></i> Сводная
-      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.social_passport_summary') }}"><i class="bi bi-grid-3x3-gap me-1"></i>Сводная</a>
     {% endif %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house me-1"></i>Главная</a>
   </div>
 </div>
 
@@ -137,7 +127,7 @@
 
 <div class="card">
   <div class="card-body pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <h5 class="mb-0">Реестр</h5>
+    <span class="section-title">Реестр</span>
     <div class="d-flex gap-1">
       <button class="sp-view-btn" id="spBtnTable" title="Таблица"><i class="bi bi-table"></i></button>
       <button class="sp-view-btn" id="spBtnCards" title="Карточки"><i class="bi bi-card-list"></i></button>

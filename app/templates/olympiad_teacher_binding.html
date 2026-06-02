@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Привязка результатов к учителям</h3>
-    <div class="text-muted">Массовая привязка по классу и предмету после импорта.</div>
+    <div class="page-title">Привязка результатов к учителям</div>
+    <div class="page-sub">Массовая привязка по классу и предмету после импорта.</div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{{ url_for('olympiads.registry') }}">Реестр олимпиадников</a>
-    <a class="btn btn-primary" href="{{ url_for('olympiads.import_view') }}">Импорт</a>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('olympiads.import_view') }}"><i class="bi bi-upload me-1"></i>Импорт</a>
   </div>
 </div>
 
@@ -16,7 +16,7 @@
   На этой странице можно назначить <strong>одного учителя сразу на весь класс и предмет</strong>.
   В каждой строке выберите учителя в колонке <strong>«Назначить»</strong> и нажмите <strong>«Сохранить»</strong>.
 </div>
-<div class="card mb-3"><div class="card-body">
+<div class="card soft-card mb-3"><div class="card-body">
   <form method="get" class="row g-2">
     <div class="col-md-2"><select class="form-select" name="academic_year_id"><option value="">Год</option>{% for y in years %}<option value="{{ y.id }}" {% if academic_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
     <div class="col-md-2"><select class="form-select" name="stage"><option value="">Этап</option>{% for s in stages %}<option value="{{ s }}" {% if stage==s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></div>
@@ -30,9 +30,9 @@
   </form>
 </div></div>
 
-<div class="card"><div class="table-responsive">
+<div class="card soft-card"><div class="table-responsive">
 <table class="table table-striped align-middle mb-0">
-  <thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Класс</th><th>Уч-ся</th><th>Текущий учитель</th><th>Кафедра</th><th>Источник</th><th>Причина</th><th>Назначить</th><th>Действия</th></tr></thead>
+  <thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Класс</th><th class="num">Уч-ся</th><th>Текущий учитель</th><th>Кафедра</th><th>Источник</th><th>Причина</th><th>Назначить</th><th>Действия</th></tr></thead>
   <tbody>
   {% for row in groups %}
     <tr>
@@ -40,7 +40,7 @@
       <td>{{ row.stage }}</td>
       <td>{{ row.subject }}</td>
       <td>{{ row.class_name }}</td>
-      <td>{{ row.count }}</td>
+      <td class="num">{{ row.count }}</td>
       <td>{{ row.teacher.fio if row.teacher else '—' }}</td>
       <td>{{ row.department.name if row.department else '—' }}</td>
       <td>{{ row.source }}</td>

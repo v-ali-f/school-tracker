@@ -1,8 +1,12 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">История движения учеников</h2>
-  <a class="btn btn-outline-secondary" href="{{ url_for('transfers.index') }}">Массовый перевод</a>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">История движения учеников</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('transfers.index') }}"><i class="bi bi-arrow-left-right me-1"></i>Массовый перевод</a>
+  </div>
 </div>
 <form method="get" class="row g-2 mb-3">
   <div class="col-md-3">
@@ -24,7 +28,7 @@
   <div class="col-md-4"><input class="form-control" name="q" value="{{ q }}" placeholder="Поиск по ученику, причине, приказу"></div>
   <div class="col-md-2 d-grid"><button class="btn btn-primary">Показать</button></div>
 </form>
-<div class="card shadow-sm">
+<div class="card soft-card">
   <div class="table-responsive">
     <table class="table table-sm table-hover mb-0 align-middle">
       <thead class="table-light"><tr><th>Дата</th><th>Ученик</th><th>Тип</th><th>Из класса</th><th>В класс</th><th>Причина</th><th>Приказ</th><th>Кто создал</th></tr></thead>

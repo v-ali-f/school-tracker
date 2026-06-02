@@ -7,14 +7,14 @@
   .olymp-mini-stat .label { font-size: .72rem; color: #64748b; }
   .olymp-mini-stat .value { font-size: 1.05rem; font-weight: 700; }
 </style>
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-head">
   <div>
-    <h3 class="mb-0">Аналитика олимпиад</h3>
-    <div class="text-muted">ВСОШ: все этапы на одной странице, распределение статусов и динамика по годам.</div>
+    <div class="page-title">Аналитика олимпиад</div>
+    <div class="page-sub">ВСОШ: все этапы на одной странице, распределение статусов и динамика по годам.</div>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-dark" href="{{ url_for('olympiads.registry') }}">Реестр</a>
-    {% if can_olympiad_import %}<a class="btn btn-outline-primary" href="{{ url_for('olympiads.import_view') }}">Импорт</a>{% endif %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('olympiads.registry') }}">Реестр</a>
+    {% if can_olympiad_import %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('olympiads.import_view') }}">Импорт</a>{% endif %}
   </div>
 </div>
 
@@ -30,19 +30,19 @@
   </form>
 </div></div>
 
-<div class="row g-3 mb-4">
-  <div class="col-md-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Всего записей</div><div class="fs-4 fw-semibold">{{ stats.total_results or 0 }}</div></div></div>
-  <div class="col-md-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Зачтено</div><div class="fs-4 fw-semibold">{{ stats.counted_results or 0 }}</div></div></div>
-  <div class="col-md-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Участников</div><div class="fs-4 fw-semibold">{{ stats.unique_children or 0 }}</div></div></div>
-  <div class="col-md-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Победителей</div><div class="fs-4 fw-semibold text-success">{{ stats.winners or 0 }}</div></div></div>
-  <div class="col-md-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Призёров</div><div class="fs-4 fw-semibold text-primary">{{ stats.prizers or 0 }}</div></div></div>
-  <div class="col-md-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Аннулировано</div><div class="fs-4 fw-semibold text-danger">{{ stats.annulled or 0 }}</div></div></div>
+<div class="stat-strip mb-4">
+  <div class="stat-cell"><div class="stat-label">Всего записей</div><div class="stat-value">{{ stats.total_results or 0 }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Зачтено</div><div class="stat-value">{{ stats.counted_results or 0 }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Участников</div><div class="stat-value">{{ stats.unique_children or 0 }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Победителей</div><div class="stat-value text-success">{{ stats.winners or 0 }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Призёров</div><div class="stat-value text-primary">{{ stats.prizers or 0 }}</div></div>
+  <div class="stat-cell"><div class="stat-label">Аннулировано</div><div class="stat-value text-danger">{{ stats.annulled or 0 }}</div></div>
 </div>
 
 <div class="mb-4">
   <div class="d-flex justify-content-between align-items-end mb-2">
     <div>
-      <h5 class="mb-0">Этапы ВСОШ на одной странице</h5>
+      <div class="section-title mb-0">Этапы ВСОШ на одной странице</div>
       <div class="text-muted small">Круговые диаграммы сохранены, но теперь каждый этап виден отдельно и компактно.</div>
     </div>
   </div>
@@ -73,9 +73,9 @@
 </div>
 
 <div class="row g-4 mb-4">
-  <div class="col-lg-7"><div class="card"><div class="card-body"><h5>Сравнение этапов</h5><canvas id="stageCompareChart" height="230"></canvas></div></div></div>
-  <div class="col-lg-5"><div class="card h-100"><div class="card-body">
-    <h5>Сводка по этапам</h5>
+  <div class="col-lg-7"><div class="card soft-card"><div class="card-body"><div class="section-title mb-2">Сравнение этапов</div><canvas id="stageCompareChart" height="230"></canvas></div></div></div>
+  <div class="col-lg-5"><div class="card soft-card h-100"><div class="card-body">
+    <div class="section-title mb-2">Сводка по этапам</div>
     <div class="table-responsive"><table class="table table-sm align-middle">
       <thead><tr><th>Этап</th><th class="text-end">Всего</th><th class="text-end">Поб.</th><th class="text-end">Приз.</th><th class="text-end">Аннул.</th></tr></thead>
       <tbody>{% for r in stats.stage_summary %}{% if r.stage_group != 'unknown' %}<tr><td><span class="badge text-bg-light border">{{ r.stage_badge }}</span> {{ r.stage_label }}</td><td class="text-end">{{ r.total }}</td><td class="text-end text-success">{{ r.winners }}</td><td class="text-end text-primary">{{ r.prizers }}</td><td class="text-end text-danger">{{ r.annulled }}</td></tr>{% endif %}{% else %}<tr><td colspan="5" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody>
@@ -84,16 +84,16 @@
 </div>
 
 <div class="row g-4 mb-4">
-  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Динамика по учебным годам</h5><canvas id="yearsChart" height="220"></canvas></div></div></div>
-  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Статусы по выбранному срезу</h5><canvas id="statusChart" height="220"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card soft-card"><div class="card-body"><div class="section-title mb-2">Динамика по учебным годам</div><canvas id="yearsChart" height="220"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card soft-card"><div class="card-body"><div class="section-title mb-2">Статусы по выбранному срезу</div><canvas id="statusChart" height="220"></canvas></div></div></div>
 </div>
 <div class="row g-4 mb-4">
-  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Топ предметов</h5><canvas id="subjectChart" height="260"></canvas></div></div></div>
-  <div class="col-lg-6"><div class="card"><div class="card-body"><h5>Топ учителей</h5><canvas id="teacherChart" height="260"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card soft-card"><div class="card-body"><div class="section-title mb-2">Топ предметов</div><canvas id="subjectChart" height="260"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card soft-card"><div class="card-body"><div class="section-title mb-2">Топ учителей</div><canvas id="teacherChart" height="260"></canvas></div></div></div>
 </div>
 
-<div class="card mb-4"><div class="card-body">
-  <h5>Движение участников по этапам</h5>
+<div class="card soft-card mb-4"><div class="card-body">
+  <div class="section-title mb-2">Движение участников по этапам</div>
   <div class="table-responsive"><table class="table table-sm">
     <tbody>
       <tr><td>Участвовали в школьном этапе</td><td class="text-end">{{ movement.school or 0 }}</td></tr>
@@ -107,8 +107,8 @@
   </table></div>
 </div></div>
 
-<div class="card mb-4"><div class="card-body">
-  <h5>Таблица динамики по годам и этапам</h5>
+<div class="card soft-card mb-4"><div class="card-body">
+  <div class="section-title mb-2">Таблица динамики по годам и этапам</div>
   <div class="table-responsive"><table class="table table-sm align-middle">
     <thead><tr><th>Учебный год</th><th>Этап</th><th class="text-end">Участников</th><th class="text-end">Победителей</th><th class="text-end">Призёров</th><th class="text-end">Аннулировано</th><th class="text-end">Зачтено</th></tr></thead>
     <tbody>{% for r in yearly_stage_rows %}<tr><td>{{ r.year_name }}</td><td>{{ r.stage_label }}</td><td class="text-end">{{ r.unique_children }}</td><td class="text-end">{{ r.winners }}</td><td class="text-end">{{ r.prizers }}</td><td class="text-end text-danger">{{ r.annulled }}</td><td class="text-end">{{ r.counted_results }}</td></tr>{% else %}<tr><td colspan="7" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody>
@@ -116,7 +116,7 @@
 </div></div>
 
 <div class="row g-4 mb-4">
-  <div class="col-lg-12"><div class="card"><div class="card-body"><h5>По классам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Класс</th><th class="text-end">Участий</th></tr></thead><tbody>{% for name, count in (by_class or []) %}<tr><td>{{ name }}</td><td class="text-end">{{ count }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  <div class="col-lg-12"><div class="card soft-card"><div class="card-body"><div class="section-title mb-2">По классам</div><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Класс</th><th class="text-end">Участий</th></tr></thead><tbody>{% for name, count in (by_class or []) %}<tr><td>{{ name }}</td><td class="text-end">{{ count }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div></div></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>

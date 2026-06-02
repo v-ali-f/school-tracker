@@ -2,7 +2,10 @@
 {% extends "layout.html" %}
 {% block content %}
 <div class="container-fluid py-3">
-  <div class="d-flex justify-content-between align-items-center mb-3"><h3 class="mb-0">{{ 'Редактирование норматива' if norm.id else 'Новый норматив' }}</h3><a class="btn btn-outline-secondary" href="{{ url_for('service_staff.norms_registry') }}">Назад</a></div>
+  <div class="page-head mb-3">
+    <div><div class="page-title">{{ 'Редактирование норматива' if norm.id else 'Новый норматив' }}</div></div>
+    <div class="page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.norms_registry') }}"><i class="bi bi-arrow-left me-1"></i>Назад</a></div>
+  </div>
   <form method="post" class="card"><div class="card-body row g-3">
     <div class="col-md-4"><label class="form-label">Специализация</label><select class="form-select" name="specialization_id" required>{% for row in specializations %}<option value="{{ row.id }}" {% if norm.specialization_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
     <div class="col-md-4"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все здания</option>{% for row in buildings %}<option value="{{ row.id }}" {% if norm.building_id == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}</select></div>

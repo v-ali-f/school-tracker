@@ -1,17 +1,20 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-  <div><h2 class="mb-1">{{ title }}</h2><div class="text-muted">Внутренние уведомления по задачам, фильтрация и массовая отметка прочтения.</div></div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{{ url_for('tasks.my_tasks') }}">К задачам</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('tasks.task_notification_settings') }}">Настройки</a>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    <div class="page-sub">Внутренние уведомления по задачам, фильтрация и массовая отметка прочтения.</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-arrow-left me-1"></i>К задачам</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tasks.task_notification_settings') }}"><i class="bi bi-gear me-1"></i>Настройки</a>
     <form method="post" action="{{ url_for('tasks.mark_all_notifications_read') }}">
-      <button class="btn btn-primary" type="submit">Отметить все как прочитанные</button>
+      <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-check2-all me-1"></i>Все прочитаны</button>
     </form>
   </div>
 </div>
 
-<form class="card card-body mb-3">
+<form class="card soft-card card-body mb-3">
   <div class="row g-2">
     <div class="col-md-4">
       <label class="form-label">Поиск</label>
@@ -38,7 +41,7 @@
   </div>
 </form>
 
-<div class="card">
+<div class="card soft-card">
   <div class="list-group list-group-flush">
     {% for item in notifications %}
     <div class="list-group-item {% if not item.is_read %}bg-light{% endif %}">
