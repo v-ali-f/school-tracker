@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .preschool-shell { max-width: 1280px; margin: 0 auto; padding: 32px 24px 48px; }
+  .preschool-top { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin-bottom: 22px; }
+  .preschool-title { margin: 0; font-size: 38px; line-height: 1.12; font-weight: 800; color: #1f2937; letter-spacing: -0.03em; }
+  .preschool-subtitle { margin-top: 10px; max-width: 780px; font-size: 17px; line-height: 1.5; color: #6b7280; }
+  .preschool-back { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 16px; border-radius: 14px; border: 1px solid #dbe3ef; background: #fff; color: #334155; text-decoration: none; font-weight: 700; white-space: nowrap; }
+  .preschool-layout { display: grid; grid-template-columns: 390px 1fr; gap: 18px; align-items: start; }
+  .preschool-panel { padding: 22px; border: 1px solid #e5e7eb; border-radius: 22px; background: #fff; box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06); }
+  .preschool-panel h2 { margin: 0 0 16px; font-size: 22px; font-weight: 800; color: #111827; }
+  .preschool-field { margin-bottom: 14px; }
+  .preschool-field label { display: block; margin-bottom: 7px; color: #475569; font-weight: 700; font-size: 14px; }
+  .preschool-field input { width: 100%; min-height: 42px; border: 1px solid #dbe3ef; border-radius: 14px; padding: 0 12px; font-size: 15px; }
+  .preschool-btn { border: 0; border-radius: 14px; min-height: 42px; padding: 0 18px; background: #2563eb; color: #fff; font-weight: 800; cursor: pointer; }
+  .preschool-table { width: 100%; border-collapse: collapse; }
+  .preschool-table th { text-align: left; font-size: 13px; color: #64748b; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+  .preschool-table td { padding: 12px; border-bottom: 1px solid #eef2f7; color: #334155; vertical-align: top; }
+  .preschool-empty { color: #64748b; line-height: 1.5; }
+  @media (max-width: 980px) { .preschool-layout { grid-template-columns: 1fr; } .preschool-title { font-size: 32px; } }
+</style>
+
+<div class="preschool-shell">
+  <div class="preschool-top">
+    <div>
+      <h1 class="preschool-title">Корпуса ДОУ</h1>
+      <div class="preschool-subtitle">Справочник дошкольных корпусов для групп, контингента и аналитики детодней.</div>
+    </div>
+    <a class="preschool-back" href="{{ url_for('preschool.index') }}">← Назад</a>
+  </div>
+
+  <div class="preschool-layout">
+    <form class="preschool-panel" method="post">
+      <h2>Добавить корпус</h2>
+
+      <div class="preschool-field">
+        <label>Название корпуса</label>
+        <input name="name" placeholder="Например: ДК1" required>
+      </div>
+
+      <div class="preschool-field">
+        <label>Краткое название</label>
+        <input name="short_name" placeholder="Например: ДК1">
+      </div>
+
+      <div class="preschool-field">
+        <label>Адрес</label>
+        <input name="address" placeholder="Адрес корпуса">
+      </div>
+
+      <button class="preschool-btn" type="submit">Сохранить корпус</button>
+    </form>
+
+    <div class="preschool-panel">
+      <h2>Список корпусов</h2>
+
+      {% if items %}
+        <table class="preschool-table">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Кратко</th>
+              <th>Адрес</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+              <tr>
+                <td><strong>{{ item.name }}</strong></td>
+                <td>{{ item.short_name or "—" }}</td>
+                <td>{{ item.address or "—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="preschool-empty">Корпуса пока не добавлены. Добавьте первый корпус слева.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
