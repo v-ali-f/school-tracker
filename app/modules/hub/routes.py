@@ -29,6 +29,7 @@ ICON_MAP = {
     "Социально-психологическая служба": ("bi-people-fill", "accent-blue"),
     "Учебные годы": ("bi-calendar3", "accent-dark"),
     "Классы учебного года": ("bi-grid-3x3-gap", "accent-dark"),
+    "Группы ДОУ учебного года": ("bi-people", "accent-dark"),
     "Реестр предметов": ("bi-book", "accent-orange"),
     "Реестр олимпиадных предметов": ("bi-award", "accent-orange"),
     "Несопоставленные результаты олимпиад": ("bi-link-45deg", "accent-orange"),
@@ -92,6 +93,7 @@ TITLE_ZONE_MAP = {
     "Классное руководство": "green",
     "Учебные годы": "slate",
     "Классы учебного года": "green",
+    "Группы ДОУ учебного года": "green",
     "Реестр предметов": "green",
     "Реестр олимпиадных предметов": "rose",
     "Несопоставленные результаты олимпиад": "rose",
@@ -412,6 +414,7 @@ def _main_page_config():
         "admin_sections": _materialize([
             {"title": "Учебные годы", "endpoint": "children.academic_years_registry", "roles_any": ["ADMIN"]},
             {"title": "Классы учебного года", "endpoint": "children.classes_registry", "roles_any": ["ADMIN"]},
+            {"title": "Группы ДОУ учебного года", "endpoint": "preschool.groups", "roles_any": ["ADMIN"]},
             {"title": "Реестр предметов", "endpoint": "children.subjects_registry", "roles_any": ["ADMIN"]},
             {"title": "Реестр олимпиадных предметов", "endpoint": "olympiads.settings", "roles_any": ["ADMIN"]},
             {"title": "Несопоставленные результаты олимпиад", "endpoint": "olympiads.unmatched", "roles_any": ["ADMIN"]},
