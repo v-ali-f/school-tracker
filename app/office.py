@@ -189,10 +189,12 @@ def _can_view_item(item: DriveItem) -> bool:
 def _can_edit_item(item: DriveItem) -> bool:
     if item.deleted_at is not None:
         return False
+
+    # Общедоступность означает просмотр для всех, но не редактирование.
+    # Редактирует владелец или пользователь, которому владелец явно дал право edit.
     if item.owner_user_id == current_user.id:
         return True
-    if item.scope == "public":
-        return True
+
     return _user_access_type(item.id, current_user.id) == "edit"
 
 
@@ -317,25 +319,7 @@ def _create_blank_file(path: Path, ext: str):
 @office_bp.route("/", methods=["GET"])
 @login_required
 def index():
-    items = (
-        DriveItem.query
-        .filter(
-            DriveItem.kind == "file",
-            DriveItem.deleted_at.is_(None),
-            DriveItem.ext.in_(list(OFFICE_EXTENSIONS)),
-        )
-        .filter(
-            db.or_(
-                DriveItem.scope == "public",
-                DriveItem.owner_user_id == current_user.id,
-                DriveItem.id.in_(_shared_item_ids(("view", "edit"))),
-            )
-        )
-        .order_by(DriveItem.updated_at.desc())
-        .limit(50)
-        .all()
-    )
-    return render_template("office_index.html", items=items)
+    return redirect(url_for("drive.index", tab="all"))
 
 
 @office_bp.route("/new/<ext>", methods=["GET", "POST"])
@@ -487,7 +471,7 @@ def rename_file(item_id):
 def access_file(item_id):
     item = DriveItem.query.get_or_404(item_id)
 
-    if item.kind != "file" or item.ext not in OFFICE_EXTENSIONS:
+    if item.kind != "file":
         abort(404)
 
     if item.owner_user_id != current_user.id:
@@ -496,6 +480,12 @@ def access_file(item_id):
     _ensure_drive_access_table()
 
     if request.method == "POST":
+        # Общедоступность файла:
+        # public — файл видят все пользователи;
+        # private — файл видит владелец и выбранные пользователи.
+        make_public = request.form.get("make_public") == "1"
+        item.scope = "public" if make_public else "private"
+
         db.session.execute(
             db.text("DELETE FROM drive_item_access WHERE item_id = :item_id"),
             {"item_id": item.id},
@@ -528,7 +518,7 @@ def access_file(item_id):
 
         db.session.commit()
         flash("Доступ к документу сохранён.", "success")
-        return redirect(url_for("office.index"))
+        return redirect(url_for("drive.index", tab="all"))
 
     rows = _access_rows(item.id)
     view_ids = [row["user_id"] for row in rows if row["access_type"] == "view"]
@@ -548,6 +538,7 @@ def access_file(item_id):
         users=users,
         view_ids=view_ids,
         edit_ids=edit_ids,
+        is_public=(item.scope == "public"),
         user_label=_user_label,
     )
 
@@ -567,7 +558,7 @@ def delete_file(item_id):
     db.session.commit()
 
     flash("Файл удалён из онлайн-офиса и Диска.", "success")
-    return redirect(url_for("office.index"))
+    return redirect(url_for("drive.index", tab="all"))
 
 
 @office_bp.route("/download/<int:item_id>", methods=["GET"])
