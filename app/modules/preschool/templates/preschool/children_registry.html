@@ -2,13 +2,11 @@
 
 {% block content %}
 <style>
-  .preschool-contingent {
-    max-width: 1320px;
-    margin: 0 auto;
-    padding: 24px 24px 42px;
+  .registry-page {
+    padding: 24px 32px 42px;
   }
 
-  .pc-breadcrumbs {
+  .registry-breadcrumbs {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -17,441 +15,429 @@
     font-size: 14px;
   }
 
-  .pc-breadcrumbs a {
+  .registry-breadcrumbs a {
     color: #2563eb;
     text-decoration: underline;
   }
 
-  .pc-header {
+  .registry-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 20px 22px;
+    gap: 18px;
+    padding: 18px 24px;
     border: 1px solid #e2e8f0;
     border-radius: 22px;
-    background: #fff;
+    background: #ffffff;
     box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
-    margin-bottom: 16px;
+    margin-bottom: 22px;
   }
 
-  .pc-title {
+  .registry-title {
     margin: 0;
-    color: #1f2937;
+    color: #25324a;
     font-size: 28px;
     line-height: 1.15;
-    font-weight: 800;
-    letter-spacing: -0.025em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
-  .pc-subtitle {
-    margin-top: 4px;
-    color: #64748b;
-    font-size: 15px;
-  }
-
-  .pc-actions {
+  .registry-actions {
     display: flex;
+    align-items: center;
+    justify-content: flex-end;
     gap: 8px;
     flex-wrap: wrap;
-    justify-content: flex-end;
   }
 
-  .pc-btn {
+  .registry-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
-    padding: 0 13px;
-    border-radius: 999px;
-    border: 1px solid #dbe3ef;
-    background: #fff;
-    color: #334155;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 1px solid #d4deec;
+    background: #ffffff;
+    color: #64748b;
     text-decoration: none;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
   }
 
-  .pc-btn-primary {
+  .registry-btn:hover {
+    background: #f8fafc;
+    color: #2563eb;
+  }
+
+  .registry-btn-primary {
     background: #2563eb;
     border-color: #2563eb;
-    color: #fff;
-  }
-
-  .pc-filter-panel {
-    padding: 14px 16px;
-    border-radius: 18px;
-    background: #fff;
-    border: 1px solid #eef2f7;
-    margin-bottom: 16px;
-  }
-
-  .pc-filters {
-    display: grid;
-    grid-template-columns: 1fr 1.1fr 1.1fr 1.2fr auto;
-    gap: 10px;
-    align-items: end;
-  }
-
-  .pc-field label {
-    display: block;
-    margin-bottom: 5px;
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 650;
-  }
-
-  .pc-field input,
-  .pc-field select {
-    width: 100%;
-    min-height: 38px;
-    border: 1px solid #dbe3ef;
-    border-radius: 12px;
-    padding: 0 11px;
-    background: #fff;
-    color: #1f2937;
-    font-size: 14px;
-  }
-
-  .pc-reset {
-    min-height: 38px;
-    padding: 0 16px;
-    border-radius: 12px;
-    border: 1px solid #cbd5e1;
-    background: #fff;
-    color: #64748b;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    color: #ffffff;
     font-weight: 600;
   }
 
-  .pc-stat-grid {
+  .registry-btn-primary:hover {
+    background: #1d4ed8;
+    color: #ffffff;
+  }
+
+  .registry-filters {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: 1fr 1.35fr 1.35fr 1.8fr 1fr auto;
     gap: 12px;
-    margin-bottom: 16px;
+    align-items: end;
+    margin-bottom: 18px;
   }
 
-  .pc-stat {
-    padding: 18px 18px;
-    min-height: 92px;
-    border: 1px solid #e2e8f0;
-    border-radius: 18px;
-    background: #fff;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
-  }
-
-  .pc-stat-label {
-    color: #64748b;
-    font-size: 14px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-
-  .pc-stat-value {
-    color: #1f2d4a;
-    font-size: 32px;
-    line-height: 1;
-    font-weight: 800;
-  }
-
-  .pc-collapse {
-    margin-bottom: 16px;
-  }
-
-  .pc-collapse summary {
-    cursor: pointer;
-    user-select: none;
-    padding: 12px 16px;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    background: #fff;
+  .registry-field label {
+    display: block;
+    margin-bottom: 7px;
     color: #1f2937;
-    font-weight: 750;
-    list-style: none;
+    font-size: 16px;
+    font-weight: 500;
   }
 
-  .pc-collapse summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .pc-add-panel {
-    margin-top: 10px;
-    padding: 16px;
-    border-radius: 18px;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-  }
-
-  .pc-add-grid {
-    display: grid;
-    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
-    gap: 10px;
-  }
-
-  .pc-add-grid .full {
-    grid-column: 1 / -1;
-  }
-
-  .pc-add-grid textarea {
+  .registry-field input,
+  .registry-field select {
     width: 100%;
-    min-height: 70px;
+    min-height: 44px;
     border: 1px solid #dbe3ef;
-    border-radius: 12px;
-    padding: 9px 11px;
-    resize: vertical;
-    font-size: 14px;
-  }
-
-  .pc-section {
-    border: 1px solid #eef2f7;
-    border-radius: 18px;
-    background: #fff;
-    overflow: hidden;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.045);
-  }
-
-  .pc-section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 18px 10px;
-  }
-
-  .pc-section-title {
-    margin: 0;
+    border-radius: 14px;
+    background: #ffffff;
     color: #1f2937;
-    font-size: 20px;
-    font-weight: 800;
+    padding: 0 14px;
+    font-size: 16px;
+    font-weight: 400;
   }
 
-  .pc-table-wrap {
-    overflow-x: auto;
+  .registry-filter-button,
+  .registry-reset-button {
+    min-height: 44px;
+    border-radius: 14px;
+    padding: 0 24px;
+    font-size: 16px;
+    font-weight: 500;
   }
 
-  .pc-table {
+  .registry-filter-button {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+    cursor: pointer;
+  }
+
+  .registry-reset-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #64748b;
+    text-decoration: none;
+  }
+
+  .registry-table-card {
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.045);
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+
+  .registry-table {
     width: 100%;
     border-collapse: collapse;
   }
 
-  .pc-table th {
+  .registry-table th {
     text-align: left;
-    padding: 11px 12px;
-    border-bottom: 1px solid #e5e7eb;
-    color: #7a8699;
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: .035em;
+    padding: 13px 16px;
+    border-bottom: 1px solid #cbd5e1;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 600;
   }
 
-  .pc-table td {
-    padding: 12px;
-    border-bottom: 1px solid #f1f5f9;
-    color: #334155;
+  .registry-table td {
+    padding: 13px 16px;
+    border-bottom: 1px solid #eef2f7;
+    color: #25324a;
     font-size: 14px;
+    font-weight: 400;
     vertical-align: middle;
   }
 
-  .pc-table tr:last-child td {
+  .registry-table tr:last-child td {
     border-bottom: 0;
   }
 
-  .pc-name {
+  .registry-name-link {
     color: #1f2937;
-    font-weight: 750;
-  }
-
-  .pc-child-link {
-    color: #1f2937;
+    font-weight: 600;
     text-decoration: none;
   }
 
-  .pc-child-link:hover {
+  .registry-name-link:hover {
     color: #2563eb;
     text-decoration: underline;
   }
 
-  .pc-muted {
-    color: #94a3b8;
-  }
-
-  .pc-row-actions {
+  .registry-row-actions {
     display: flex;
-    gap: 7px;
     justify-content: flex-end;
     align-items: center;
+    gap: 8px;
   }
 
-  .pc-small-link {
+  .registry-small-btn {
     display: inline-flex;
     align-items: center;
-    min-height: 30px;
-    padding: 0 10px;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 12px;
     border-radius: 10px;
     border: 1px solid #dbe3ef;
-    background: #fff;
+    background: #ffffff;
     color: #2563eb;
     text-decoration: none;
     font-size: 13px;
-    font-weight: 650;
-  }
-
-  .pc-delete {
-    display: inline-flex;
-    align-items: center;
-    min-height: 30px;
-    padding: 0 10px;
-    border-radius: 10px;
-    border: 1px solid #fecaca;
-    background: #fff;
-    color: #dc2626;
-    font-size: 13px;
-    font-weight: 650;
+    font-weight: 600;
     cursor: pointer;
   }
 
-  .pc-empty {
-    padding: 18px;
+  .registry-delete-btn {
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #ffffff;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .registry-empty {
+    height: 190px;
+    text-align: center;
     color: #64748b;
+    font-size: 15px;
+  }
+
+  .registry-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    color: #64748b;
+    font-size: 14px;
+    margin-top: 2px;
+  }
+
+  .registry-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .registry-page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .registry-page-size select {
+    min-height: 38px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 0 10px;
+    background: #ffffff;
+    color: #1f2937;
     font-size: 14px;
   }
 
-  @media (max-width: 1100px) {
-    .pc-filters,
-    .pc-add-grid {
-      grid-template-columns: 1fr 1fr;
-    }
+  .registry-pager {
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+  }
 
-    .pc-stat-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+  .registry-pager a,
+  .registry-pager span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-right: 1px solid #cbd5e1;
+    color: #334155;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .registry-pager a:last-child,
+  .registry-pager span:last-child {
+    border-right: 0;
+  }
+
+  .registry-pager .disabled {
+    color: #cbd5e1;
+    background: #f8fafc;
+  }
+
+  .registry-current-page {
+    min-width: 64px !important;
+    color: #1f2937 !important;
+    background: #ffffff;
+  }
+
+  .registry-add-panel {
+    margin: 0 0 18px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
+  }
+
+  .registry-add-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .registry-add-grid .full {
+    grid-column: 1 / -1;
+  }
+
+  .registry-add-grid textarea {
+    width: 100%;
+    min-height: 70px;
+    border: 1px solid #dbe3ef;
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 15px;
+    resize: vertical;
+  }
+
+  @media (max-width: 1100px) {
+    .registry-filters,
+    .registry-add-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 
-  @media (max-width: 720px) {
-    .pc-header {
+  @media (max-width: 760px) {
+    .registry-page {
+      padding: 18px 16px 32px;
+    }
+
+    .registry-header {
       flex-direction: column;
       align-items: flex-start;
     }
 
-    .pc-actions {
+    .registry-actions {
       justify-content: flex-start;
     }
 
-    .pc-filters,
-    .pc-add-grid,
-    .pc-stat-grid {
+    .registry-filters,
+    .registry-add-grid {
       grid-template-columns: 1fr;
+    }
+
+    .registry-footer {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .registry-footer-right {
+      margin-left: 0;
+      flex-wrap: wrap;
     }
   }
 </style>
 
-<div class="preschool-contingent">
-  <div class="pc-breadcrumbs">
+<div class="registry-page">
+  <div class="registry-breadcrumbs">
     <a href="{{ url_for('main.dashboard') }}">Главная</a>
     <span>/</span>
     <span>Реестр ДОУ</span>
   </div>
 
-  <div class="pc-header">
-    <div>
-      <h1 class="pc-title">Реестр ДОУ</h1>
-      <div class="pc-subtitle">Список воспитанников, импорт, поиск, карточки и редактирование</div>
-    </div>
+  <div class="registry-header">
+    <h1 class="registry-title">Реестр ДОУ</h1>
 
-    <div class="pc-actions">
-      <a class="pc-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сводный контингент ДОУ</a>
-      <a class="pc-btn" href="{{ url_for('preschool.groups') }}">Группы ДОУ</a>
-      <a class="pc-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">Импорт детей</a>
-      <a class="pc-btn" href="{{ url_for('preschool.import_representatives', academic_year_id=year.id) }}">Импорт представителей</a>
-      <button class="pc-btn pc-btn-primary" type="button" onclick="document.getElementById('add-child-panel').open = true; document.getElementById('add-child-panel').scrollIntoView({behavior:'smooth', block:'start'});">+ Добавить</button>
+    <div class="registry-actions">
+      <a class="registry-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сводный контингент</a>
+      <a class="registry-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">↥ Импорт детей</a>
+      <a class="registry-btn" href="{{ url_for('preschool.import_representatives', academic_year_id=year.id) }}">↥ Импорт представителей</a>
+      <button class="registry-btn registry-btn-primary" type="button"
+              onclick="document.getElementById('add-child-panel').toggleAttribute('hidden');">
+        + Добавить ребёнка
+      </button>
     </div>
   </div>
 
-  <form class="pc-filter-panel" method="get">
-    <div class="pc-filters">
-      <div class="pc-field">
-        <label>Учебный год</label>
-        <select name="academic_year_id" onchange="this.form.submit()">
-          {% for item in all_years %}
-            <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>{{ item.name }}{% if item.is_current %} • текущий{% endif %}</option>
-          {% endfor %}
-        </select>
-      </div>
+  <form class="registry-filters" method="get">
+    <input type="hidden" name="per_page" value="{{ per_page }}">
 
-      <div class="pc-field">
-        <label>Здание</label>
-        <select name="building_id" onchange="this.form.submit()">
-          <option value="">— все здания —</option>
-          {% for building in buildings %}
-            <option value="{{ building.id }}" {% if building.id == selected_building_id %}selected{% endif %}>{{ building.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="pc-field">
-        <label>Группа</label>
-        <select name="group_id" onchange="this.form.submit()">
-          <option value="">— все группы —</option>
-          {% for group in groups %}
-            <option value="{{ group.id }}" {% if group.id == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="pc-field">
-        <label>Поиск</label>
-        <input name="q" value="{{ q }}" placeholder="ФИО">
-      </div>
-
-      <a class="pc-reset" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сбросить</a>
+    <div class="registry-field">
+      <label>Учебный год</label>
+      <select name="academic_year_id">
+        {% for item in all_years %}
+          <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
+            {{ item.name }}{% if item.is_current %} • текущий{% endif %}
+          </option>
+        {% endfor %}
+      </select>
     </div>
+
+    <div class="registry-field">
+      <label>Здание</label>
+      <select name="building_id">
+        <option value="">Все здания</option>
+        {% for building in buildings %}
+          <option value="{{ building.id }}" {% if building.id == selected_building_id %}selected{% endif %}>
+            {{ building.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="registry-field">
+      <label>Группа</label>
+      <select name="group_id">
+        <option value="">Все группы</option>
+        {% for group in groups %}
+          <option value="{{ group.id }}" {% if group.id == selected_group_id %}selected{% endif %}>
+            {{ group.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="registry-field">
+      <label>ФИО</label>
+      <input name="q" value="{{ q }}" placeholder="Поиск по ФИО">
+    </div>
+
+    <button class="registry-filter-button" type="submit">Фильтр</button>
+    <a class="registry-reset-button" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Сброс</a>
   </form>
 
-  <div class="pc-stat-grid">
-    <div class="pc-stat">
-      <div class="pc-stat-label">Всего воспитанников</div>
-      <div class="pc-stat-value">{{ stats.total }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Групп ДОУ</div>
-      <div class="pc-stat-value">{{ stats.groups }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Зданий</div>
-      <div class="pc-stat-value">{{ stats.buildings }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Подготовительная</div>
-      <div class="pc-stat-value">{{ stats.prep }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Ранний возраст</div>
-      <div class="pc-stat-value">{{ stats.early }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Младшая группа</div>
-      <div class="pc-stat-value">{{ stats.junior }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Средняя группа</div>
-      <div class="pc-stat-value">{{ stats.middle }}</div>
-    </div>
-    <div class="pc-stat">
-      <div class="pc-stat-label">Старшая группа</div>
-      <div class="pc-stat-value">{{ stats.senior }}</div>
-    </div>
-  </div>
-
-  <details class="pc-collapse" id="add-child-panel">
-    <summary>+ Добавить воспитанника вручную</summary>
-
-    <form class="pc-add-panel" method="post">
-      <div class="pc-add-grid">
-        <div class="pc-field">
+  <div class="registry-add-panel" id="add-child-panel" hidden>
+    <form method="post">
+      <div class="registry-add-grid">
+        <div class="registry-field">
           <label>Группа</label>
           <select name="group_id">
             <option value="">Не выбрана</option>
@@ -461,85 +447,128 @@
           </select>
         </div>
 
-        <div class="pc-field">
+        <div class="registry-field">
           <label>Фамилия</label>
           <input name="last_name" required>
         </div>
 
-        <div class="pc-field">
+        <div class="registry-field">
           <label>Имя</label>
           <input name="first_name" required>
         </div>
 
-        <div class="pc-field">
+        <div class="registry-field">
           <label>Отчество</label>
           <input name="middle_name">
         </div>
 
-        <div class="pc-field">
+        <div class="registry-field">
           <label>Дата рождения</label>
           <input type="date" name="birth_date">
         </div>
 
-        <div class="pc-field full">
+        <div class="registry-field full">
           <label>Примечание</label>
           <textarea name="note"></textarea>
         </div>
       </div>
 
-      <button class="pc-btn pc-btn-primary" type="submit">Сохранить воспитанника</button>
+      <button class="registry-btn registry-btn-primary" type="submit" style="margin-top:12px;">Сохранить</button>
     </form>
-  </details>
+  </div>
 
-  <div class="pc-section">
-    <div class="pc-section-head">
-      <h2 class="pc-section-title">По воспитанникам</h2>
-      <div class="pc-muted">Найдено: {{ items|length }}</div>
+  <div class="registry-table-card">
+    <table class="registry-table">
+      <thead>
+        <tr>
+          <th>ФИО</th>
+          <th>Группа</th>
+          <th>Здание</th>
+          <th>Возрастная группа</th>
+          <th>Дата рождения</th>
+          <th style="text-align:right;">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if items %}
+          {% for child in items %}
+            <tr>
+              <td>
+                <a class="registry-name-link" href="{{ url_for('preschool.child_card', child_id=child.id) }}">
+                  {{ child.full_name }}
+                </a>
+              </td>
+              <td>{{ child.group.name if child.group else "—" }}</td>
+              <td>{{ child.group.building.name if child.group and child.group.building else "—" }}</td>
+              <td>{{ child.group.age_level if child.group and child.group.age_level else "—" }}</td>
+              <td>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</td>
+              <td>
+                <div class="registry-row-actions">
+                  <a class="registry-small-btn" href="{{ url_for('preschool.edit_child', child_id=child.id) }}">Изменить</a>
+                  <form method="post"
+                        action="{{ url_for('preschool.delete_child', child_id=child.id) }}"
+                        onsubmit="return confirm('Удалить воспитанника {{ child.full_name }}?');">
+                    <button class="registry-delete-btn" type="submit">Удалить</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="registry-empty" colspan="6">
+              Реестр ДОУ пуст. Используйте импорт для загрузки данных.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="registry-footer">
+    <div>
+      {% if pagination.total %}
+        Показано {{ pagination.first }}–{{ pagination.last }} из {{ pagination.total }} записей
+      {% else %}
+        Показано 0–0 из 0 записей
+      {% endif %}
     </div>
 
-    {% if items %}
-      <div class="pc-table-wrap">
-        <table class="pc-table">
-          <thead>
-            <tr>
-              <th>ФИО</th>
-              <th>Группа</th>
-              <th>Здание</th>
-              <th>Возрастная группа</th>
-              <th>Дата рождения</th>
-              <th style="text-align:right;">Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for child in items %}
-              <tr>
-                <td>
-                    <a class="pc-name pc-child-link" href="{{ url_for('preschool.child_card', child_id=child.id) }}">
-                      {{ child.full_name }}
-                    </a>
-                  </td>
-                <td>{{ child.group.name if child.group else "—" }}</td>
-                <td>{{ child.group.building.name if child.group and child.group.building else "—" }}</td>
-                <td>{{ child.group.age_level if child.group else "—" }}</td>
-                <td>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</td>
-                <td>
-                  <div class="pc-row-actions">
-                    <a class="pc-small-link" href="{{ url_for('preschool.edit_child', child_id=child.id) }}">Изменить</a>
-                    <form method="post"
-                          action="{{ url_for('preschool.delete_child', child_id=child.id) }}"
-                          onsubmit="return confirm('Удалить воспитанника {{ child.full_name }}?');">
-                      <button class="pc-delete" type="submit">Удалить</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <div class="registry-footer-right">
+      <form class="registry-page-size" method="get">
+        <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+        {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
+        {% if selected_group_id %}<input type="hidden" name="group_id" value="{{ selected_group_id }}">{% endif %}
+        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+
+        <span>Строк</span>
+        <select name="per_page" onchange="this.form.submit()">
+          <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+          <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+        </select>
+      </form>
+
+      <div class="registry-pager">
+        {% if pagination.has_prev %}
+          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=1) }}">«</a>
+          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.prev_num) }}">‹</a>
+        {% else %}
+          <span class="disabled">«</span>
+          <span class="disabled">‹</span>
+        {% endif %}
+
+        <span class="registry-current-page">{{ pagination.page }} / {{ pagination.pages or 1 }}</span>
+
+        {% if pagination.has_next %}
+          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.next_num) }}">›</a>
+          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.pages) }}">»</a>
+        {% else %}
+          <span class="disabled">›</span>
+          <span class="disabled">»</span>
+        {% endif %}
       </div>
-    {% else %}
-      <div class="pc-empty">Нет воспитанников по выбранным фильтрам.</div>
-    {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

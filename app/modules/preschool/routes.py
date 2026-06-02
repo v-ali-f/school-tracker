@@ -241,6 +241,11 @@ def children_registry():
     group_id = request.args.get("group_id", type=int)
     q = (request.args.get("q") or "").strip()
 
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = request.args.get("per_page", 20, type=int)
+    if per_page not in (20, 50, 100):
+        per_page = 20
+
     year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
 
     if not year:
@@ -271,7 +276,13 @@ def children_registry():
 
         if not last_name or not first_name:
             flash("Укажите фамилию и имя воспитанника.", "warning")
-            return redirect(url_for("preschool.children_registry", academic_year_id=year.id, building_id=building_id, group_id=group_id))
+            return redirect(url_for(
+                "preschool.children_registry",
+                academic_year_id=year.id,
+                building_id=building_id,
+                group_id=group_id,
+                per_page=per_page,
+            ))
 
         birth_date = None
         if birth_date_raw:
@@ -294,8 +305,14 @@ def children_registry():
         db.session.add(child)
         db.session.commit()
 
-        flash("Воспитанник добавлен в контингент ДОУ.", "success")
-        return redirect(url_for("preschool.children_registry", academic_year_id=year.id, building_id=building_id, group_id=group_id))
+        flash("Воспитанник добавлен в реестр ДОУ.", "success")
+        return redirect(url_for(
+            "preschool.children_registry",
+            academic_year_id=year.id,
+            building_id=building_id,
+            group_id=group_id,
+            per_page=per_page,
+        ))
 
     base_query = (
         PreschoolChild.query
@@ -319,11 +336,21 @@ def children_registry():
             )
         )
 
-    items = (
+    ordered_query = (
         base_query
-        .order_by(PreschoolGroup.name.asc(), PreschoolChild.last_name.asc(), PreschoolChild.first_name.asc())
-        .all()
+        .order_by(
+            PreschoolGroup.name.asc(),
+            PreschoolChild.last_name.asc(),
+            PreschoolChild.first_name.asc(),
+        )
     )
+
+    pagination = ordered_query.paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False,
+    )
+    items = pagination.items
 
     stats_query = (
         db.session.query(PreschoolGroup.age_level, func.count(PreschoolChild.id))
@@ -337,7 +364,10 @@ def children_registry():
     if group_id:
         stats_query = stats_query.filter(PreschoolGroup.id == group_id)
 
-    age_counts = {name or "Не указано": count for name, count in stats_query.group_by(PreschoolGroup.age_level).all()}
+    age_counts = {
+        name or "Не указано": count
+        for name, count in stats_query.group_by(PreschoolGroup.age_level).all()
+    }
 
     groups_total_query = PreschoolGroup.query.filter(PreschoolGroup.academic_year_id == year.id)
     if building_id:
@@ -352,7 +382,7 @@ def children_registry():
         buildings_used_query = buildings_used_query.filter(PreschoolGroup.building_id == building_id)
 
     stats = {
-        "total": len(items),
+        "total": pagination.total,
         "groups": groups_total_query.count(),
         "buildings": buildings_used_query.scalar() or 0,
         "early": age_counts.get("ранний возраст", 0),
@@ -372,6 +402,9 @@ def children_registry():
         selected_building_id=building_id,
         selected_group_id=group_id,
         q=q,
+        pagination=pagination,
+        page=page,
+        per_page=per_page,
         stats=stats,
     )
 
