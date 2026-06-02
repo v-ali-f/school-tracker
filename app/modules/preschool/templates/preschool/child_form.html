@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .preschool-shell { max-width:860px; margin:0 auto; padding:22px 24px 40px; }
+  .preschool-top { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:18px; }
+  .preschool-kicker { margin-bottom:7px; color:#64748b; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+  .preschool-title { margin:0; font-size:30px; line-height:1.12; font-weight:800; color:#1f2937; letter-spacing:-.025em; }
+  .preschool-back { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:0 13px; border-radius:12px; border:1px solid #dbe3ef; background:#fff; color:#334155; text-decoration:none; font-size:14px; font-weight:600; white-space:nowrap; }
+  .preschool-panel { padding:18px; border:1px solid #e2e8f0; border-radius:20px; background:#fff; box-shadow:0 10px 26px rgba(15,23,42,.045); }
+  .preschool-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .preschool-field { margin-bottom:11px; }
+  .preschool-field.full { grid-column:1 / -1; }
+  .preschool-field label { display:block; margin-bottom:5px; color:#475569; font-weight:650; font-size:13px; }
+  .preschool-field input, .preschool-field select, .preschool-field textarea { width:100%; min-height:38px; border:1px solid #dbe3ef; border-radius:12px; padding:0 11px; font-size:14px; background:#fff; }
+  .preschool-field textarea { min-height:86px; padding-top:9px; resize:vertical; }
+  .preschool-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+  .preschool-primary { border:0; border-radius:12px; min-height:39px; padding:0 16px; background:#2563eb; color:#fff; font-weight:800; cursor:pointer; }
+  .preschool-secondary { display:inline-flex; align-items:center; justify-content:center; min-height:39px; padding:0 16px; border-radius:12px; border:1px solid #dbe3ef; background:#fff; color:#334155; text-decoration:none; font-weight:650; }
+  @media (max-width:720px) { .preschool-grid { grid-template-columns:1fr; } .preschool-title { font-size:26px; } }
+</style>
+
+<div class="preschool-shell">
+  <div class="preschool-top">
+    <div>
+      <div class="preschool-kicker">Дошкольное отделение</div>
+      <h1 class="preschool-title">Редактирование воспитанника</h1>
+    </div>
+
+    <a class="preschool-back" href="{{ url_for('preschool.children', academic_year_id=child.group.academic_year_id if child.group else None) }}">← Назад</a>
+  </div>
+
+  <form class="preschool-panel" method="post">
+    <div class="preschool-grid">
+      <div class="preschool-field full">
+        <label>Группа</label>
+        <select name="group_id">
+          <option value="">Не выбрана</option>
+          {% for group in groups %}
+            <option value="{{ group.id }}" {% if group.id == child.group_id %}selected{% endif %}>
+              {{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="preschool-field">
+        <label>Фамилия</label>
+        <input name="last_name" value="{{ child.last_name }}" required>
+      </div>
+
+      <div class="preschool-field">
+        <label>Имя</label>
+        <input name="first_name" value="{{ child.first_name }}" required>
+      </div>
+
+      <div class="preschool-field">
+        <label>Отчество</label>
+        <input name="middle_name" value="{{ child.middle_name or '' }}">
+      </div>
+
+      <div class="preschool-field">
+        <label>Дата рождения</label>
+        <input type="date" name="birth_date" value="{{ child.birth_date.isoformat() if child.birth_date else '' }}">
+      </div>
+
+      <div class="preschool-field full">
+        <label>Примечание</label>
+        <textarea name="note">{{ child.note or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="preschool-footer">
+      <a class="preschool-secondary" href="{{ url_for('preschool.children', academic_year_id=child.group.academic_year_id if child.group else None) }}">Отмена</a>
+      <button class="preschool-primary" type="submit">Сохранить изменения</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

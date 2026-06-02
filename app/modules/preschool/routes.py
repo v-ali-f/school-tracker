@@ -1,5 +1,5 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from sqlalchemy import inspect, text
+from sqlalchemy import func, inspect, or_, text
 
 from app.core.extensions import db
 from app.models_legacy import AcademicYear, Building, User
@@ -111,9 +111,146 @@ def index():
     )
 
 
-@bp.route("/children")
+@bp.route("/children", methods=["GET", "POST"])
 def children():
-    return render_template("preschool/children.html")
+    year_id = request.args.get("academic_year_id", type=int)
+    building_id = request.args.get("building_id", type=int)
+    group_id = request.args.get("group_id", type=int)
+    q = (request.args.get("q") or "").strip()
+
+    year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+
+    if not year:
+        flash("Сначала создайте учебный год в служебном разделе.", "warning")
+        return redirect(url_for("children.academic_years_registry"))
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    buildings = Building.query.order_by(Building.name.asc()).all()
+
+    groups_query = PreschoolGroup.query.filter(PreschoolGroup.academic_year_id == year.id)
+    if building_id:
+        groups_query = groups_query.filter(PreschoolGroup.building_id == building_id)
+
+    groups = groups_query.order_by(PreschoolGroup.name.asc()).all()
+
+    if request.method == "POST":
+        last_name = (request.form.get("last_name") or "").strip()
+        first_name = (request.form.get("first_name") or "").strip()
+        middle_name = (request.form.get("middle_name") or "").strip()
+        birth_date_raw = (request.form.get("birth_date") or "").strip()
+        note = (request.form.get("note") or "").strip()
+        group_id_raw = (request.form.get("group_id") or "").strip()
+
+        if not last_name or not first_name:
+            flash("Укажите фамилию и имя воспитанника.", "warning")
+            return redirect(url_for("preschool.children", academic_year_id=year.id, building_id=building_id, group_id=group_id))
+
+        birth_date = None
+        if birth_date_raw:
+            from datetime import datetime
+            try:
+                birth_date = datetime.strptime(birth_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                birth_date = None
+
+        child = PreschoolChild(
+            group_id=int(group_id_raw) if group_id_raw.isdigit() else None,
+            last_name=last_name,
+            first_name=first_name,
+            middle_name=middle_name or None,
+            birth_date=birth_date,
+            status="active",
+            note=note or None,
+        )
+
+        db.session.add(child)
+        db.session.commit()
+
+        flash("Воспитанник добавлен в контингент ДОУ.", "success")
+        return redirect(url_for("preschool.children", academic_year_id=year.id, building_id=building_id, group_id=group_id))
+
+    base_query = (
+        PreschoolChild.query
+        .join(PreschoolGroup, PreschoolChild.group_id == PreschoolGroup.id)
+        .filter(PreschoolGroup.academic_year_id == year.id)
+    )
+
+    if building_id:
+        base_query = base_query.filter(PreschoolGroup.building_id == building_id)
+
+    if group_id:
+        base_query = base_query.filter(PreschoolChild.group_id == group_id)
+
+    if q:
+        like = f"%{q}%"
+        base_query = base_query.filter(
+            or_(
+                PreschoolChild.last_name.ilike(like),
+                PreschoolChild.first_name.ilike(like),
+                PreschoolChild.middle_name.ilike(like),
+            )
+        )
+
+    items = (
+        base_query
+        .order_by(PreschoolGroup.name.asc(), PreschoolChild.last_name.asc(), PreschoolChild.first_name.asc())
+        .all()
+    )
+
+    stats_query = (
+        db.session.query(PreschoolGroup.age_level, func.count(PreschoolChild.id))
+        .join(PreschoolChild, PreschoolChild.group_id == PreschoolGroup.id)
+        .filter(PreschoolGroup.academic_year_id == year.id)
+    )
+
+    if building_id:
+        stats_query = stats_query.filter(PreschoolGroup.building_id == building_id)
+
+    if group_id:
+        stats_query = stats_query.filter(PreschoolGroup.id == group_id)
+
+    age_counts = {name or "Не указано": count for name, count in stats_query.group_by(PreschoolGroup.age_level).all()}
+
+    groups_total_query = PreschoolGroup.query.filter(PreschoolGroup.academic_year_id == year.id)
+    if building_id:
+        groups_total_query = groups_total_query.filter(PreschoolGroup.building_id == building_id)
+
+    buildings_used_query = (
+        db.session.query(func.count(func.distinct(PreschoolGroup.building_id)))
+        .filter(PreschoolGroup.academic_year_id == year.id)
+        .filter(PreschoolGroup.building_id.isnot(None))
+    )
+    if building_id:
+        buildings_used_query = buildings_used_query.filter(PreschoolGroup.building_id == building_id)
+
+    stats = {
+        "total": len(items),
+        "groups": groups_total_query.count(),
+        "buildings": buildings_used_query.scalar() or 0,
+        "early": age_counts.get("ранний возраст", 0),
+        "junior": age_counts.get("младшая группа", 0),
+        "middle": age_counts.get("средняя группа", 0),
+        "senior": age_counts.get("старшая группа", 0),
+        "prep": age_counts.get("подготовительная группа", 0),
+    }
+
+    return render_template(
+        "preschool/children.html",
+        items=items,
+        groups=groups,
+        buildings=buildings,
+        all_years=all_years,
+        year=year,
+        selected_building_id=building_id,
+        selected_group_id=group_id,
+        q=q,
+        stats=stats,
+    )
 
 
 @bp.route("/buildings")
@@ -258,4 +395,78 @@ def delete_group(group_id):
 
     flash("Группа ДОУ удалена.", "success")
     return redirect(url_for("preschool.groups", academic_year_id=academic_year_id))
+
+@bp.route("/children/<int:child_id>/edit", methods=["GET", "POST"])
+def edit_child(child_id):
+    child = PreschoolChild.query.get_or_404(child_id)
+
+    current_group = child.group
+    year = current_group.academic_year if current_group and current_group.academic_year else _get_current_year()
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    groups = (
+        PreschoolGroup.query
+        .filter(PreschoolGroup.academic_year_id == year.id)
+        .order_by(PreschoolGroup.name.asc())
+        .all()
+        if year else []
+    )
+
+    if request.method == "POST":
+        last_name = (request.form.get("last_name") or "").strip()
+        first_name = (request.form.get("first_name") or "").strip()
+        middle_name = (request.form.get("middle_name") or "").strip()
+        birth_date_raw = (request.form.get("birth_date") or "").strip()
+        note = (request.form.get("note") or "").strip()
+        group_id_raw = (request.form.get("group_id") or "").strip()
+
+        if not last_name or not first_name:
+            flash("Укажите фамилию и имя воспитанника.", "warning")
+            return redirect(url_for("preschool.edit_child", child_id=child.id))
+
+        birth_date = None
+        if birth_date_raw:
+            from datetime import datetime
+            try:
+                birth_date = datetime.strptime(birth_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                birth_date = None
+
+        child.group_id = int(group_id_raw) if group_id_raw.isdigit() else None
+        child.last_name = last_name
+        child.first_name = first_name
+        child.middle_name = middle_name or None
+        child.birth_date = birth_date
+        child.note = note or None
+
+        db.session.commit()
+
+        year_id = child.group.academic_year_id if child.group else None
+        flash("Карточка воспитанника обновлена.", "success")
+        return redirect(url_for("preschool.children", academic_year_id=year_id))
+
+    return render_template(
+        "preschool/child_form.html",
+        child=child,
+        groups=groups,
+        all_years=all_years,
+        year=year,
+    )
+
+
+@bp.route("/children/<int:child_id>/delete", methods=["POST"])
+def delete_child(child_id):
+    child = PreschoolChild.query.get_or_404(child_id)
+    year_id = child.group.academic_year_id if child.group else None
+
+    db.session.delete(child)
+    db.session.commit()
+
+    flash("Воспитанник удалён из тестового контингента ДОУ.", "success")
+    return redirect(url_for("preschool.children", academic_year_id=year_id))
 
