@@ -1,31 +1,228 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2"><div><h4 class="mb-0"><i class="bi bi-file-earmark-check"></i> {{ item.title }}</h4><div class="text-muted small">Создано: {{ item.created_at.strftime('%d.%m.%Y %H:%M') if item.created_at else '' }}</div></div><div class="d-flex gap-2 flex-wrap">{% if is_manager %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.index') }}">Реестр</a>{% else %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.my') }}">Мой банк документов</a>{% endif %}{% if item.stored_filename %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('familiarizations.download', item_id=item.id) }}">Скачать документ</a>{% endif %}{% if is_manager %}
+
+<style>
+.fam-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.fam-detail-title h4 {
+  margin: 0;
+  font-weight: 800;
+}
+
+.fam-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fam-detail-actions .btn {
+  height: 34px;
+  padding: 5px 12px;
+  font-size: 13px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.fam-attachments-card {
+  min-width: 270px;
+  max-width: 360px;
+}
+
+.fam-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #e1e7f0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.fam-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .fam-detail-header {
+    flex-direction: column;
+  }
+
+  .fam-detail-actions {
+    justify-content: flex-start;
+  }
+
+  .fam-attachments-card {
+    max-width: none;
+    width: 100%;
+  }
+}
+</style>
+
+<div class="fam-detail-header">
+  <div class="fam-detail-title">
+    <h4><i class="bi bi-file-earmark-check"></i> {{ item.title }}</h4>
+    <div class="text-muted small">
+      Создано: {{ item.created_at.strftime('%d.%m.%Y %H:%M') if item.created_at else '' }}
+    </div>
+  </div>
+
+  <div class="fam-detail-actions">
+    {% if is_manager %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.index') }}">
+        Реестр
+      </a>
+    {% else %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('familiarizations.my') }}">
+        Мой банк документов
+      </a>
+    {% endif %}
+
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('familiarizations.forward', item_id=item.id) }}">
+      <i class="bi bi-send"></i> Перенаправить
+    </a>
+
+    {% if item.stored_filename %}
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('familiarizations.download', item_id=item.id) }}">
+        <i class="bi bi-download"></i> Скачать основной файл
+      </a>
+    {% endif %}
+
+    {% if is_manager %}
+      <form method="post"
+            action="{{ url_for('familiarizations.delete', item_id=item.id) }}"
+            onsubmit="return confirm('Удалить ознакомление?');"
+            class="d-inline">
+        {% if csrf_token is defined %}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% endif %}
+        <button class="btn btn-outline-danger btn-sm">
+          <i class="bi bi-trash"></i> Удалить
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
 {% if attachments %}
-  <div class="card mt-3">
+  <div class="card border-0 shadow-sm rounded-4 mb-3 fam-attachments-card">
     <div class="card-body">
-      <h5 class="card-title mb-3">Прикрепленные файлы</h5>
-      <div class="list-group">
-        {% for attachment in attachments %}
-          {% if attachment.id %}
-            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-               href="{{ url_for('familiarizations.download_attachment', item_id=item.id, attachment_id=attachment.id) }}">
-              <span>{{ attachment.original_filename or attachment.stored_filename }}</span>
-              <span class="badge bg-light text-dark">Скачать</span>
-            </a>
-          {% else %}
-            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-               href="{{ url_for('familiarizations.download', item_id=item.id) }}">
-              <span>{{ attachment.original_filename or attachment.stored_filename }}</span>
-              <span class="badge bg-light text-dark">Скачать</span>
-            </a>
-          {% endif %}
-        {% endfor %}
-      </div>
+      <h5 class="mb-3">Прикрепленные файлы</h5>
+
+      {% for attachment in attachments %}
+        <div class="fam-file-row">
+          <span class="fam-file-name">
+            <i class="bi bi-file-earmark"></i>
+            {{ attachment.original_filename or attachment.stored_filename }}
+          </span>
+          <a class="btn btn-sm btn-outline-primary"
+             href="{{ url_for('familiarizations.download_attachment', item_id=item.id, attachment_id=attachment.id) }}">
+            Скачать
+          </a>
+        </div>
+      {% endfor %}
     </div>
   </div>
 {% endif %}
 
-<form method="post" action="{{ url_for('familiarizations.delete', item_id=item.id) }}" onsubmit="return confirm('Удалить ознакомление?');"><button class="btn btn-outline-danger btn-sm">Удалить</button></form>{% endif %}</div></div>
-<div class="row g-3"><div class="col-lg-5"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><h5>Информация</h5><p>{{ item.description or 'Без описания' }}</p><div><strong>Срок:</strong> {{ item.deadline_at.strftime('%d.%m.%Y %H:%M') if item.deadline_at else 'не указан' }}</div><div><strong>Файл:</strong> {{ item.original_filename or 'не прикреплён' }}</div>{% if recipient %}<hr>{% if recipient.acknowledged_at %}<div class="alert alert-success mb-0">Вы ознакомились: {{ recipient.acknowledged_at.strftime('%d.%m.%Y %H:%M') }}</div>{% else %}<form method="post"><button class="btn btn-success w-100">Ознакомлен(а)</button></form>{% endif %}{% endif %}</div></div></div><div class="col-lg-7"><div class="card border-0 shadow-sm rounded-4"><div class="card-body"><h5>Контроль ознакомления</h5><div class="d-flex gap-2 flex-wrap mb-3"><span class="badge bg-secondary">Всего: {{ total }}</span><span class="badge bg-success">Ознакомились: {{ done }}</span><span class="badge bg-warning text-dark">Не ознакомились: {{ total - done }}</span>{% if overdue %}<span class="badge bg-danger">Просрочили: {{ overdue }}</span>{% endif %}</div>{% if is_manager %}<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Сотрудник</th><th>Статус</th><th>Дата</th></tr></thead><tbody>{% for r in item.recipients %}<tr><td>{{ user_label(r.user) }}</td><td>{% if r.acknowledged_at %}<span class="badge bg-success">Ознакомлен</span>{% else %}<span class="badge bg-secondary">Не ознакомлен</span>{% endif %}</td><td>{{ r.acknowledged_at.strftime('%d.%m.%Y %H:%M') if r.acknowledged_at else '—' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="text-muted">Подробный контроль доступен секретарю, директору и администратору.</div>{% endif %}</div></div></div></div>
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body">
+        <h5>Информация</h5>
+        <p>{{ item.description or 'Без описания' }}</p>
+
+        <div><strong>Срок:</strong> {{ item.deadline_at.strftime('%d.%m.%Y %H:%M') if item.deadline_at else 'не указан' }}</div>
+
+        {% if attachments %}
+          <div><strong>Файлов:</strong> {{ attachments|length }}</div>
+        {% else %}
+          <div><strong>Файл:</strong> {{ item.original_filename or 'не прикреплён' }}</div>
+        {% endif %}
+
+        {% if recipient %}
+          <hr>
+          {% if recipient.acknowledged_at %}
+            <div class="alert alert-success mb-0">
+              Вы ознакомились: {{ recipient.acknowledged_at.strftime('%d.%m.%Y %H:%M') }}
+            </div>
+          {% else %}
+            <form method="post">
+              {% if csrf_token is defined %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              {% endif %}
+              <button class="btn btn-success w-100">Ознакомлен(а)</button>
+            </form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body">
+        <h5>Контроль ознакомления</h5>
+
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          <span class="badge bg-secondary">Всего: {{ total }}</span>
+          <span class="badge bg-success">Ознакомились: {{ done }}</span>
+          <span class="badge bg-warning text-dark">Не ознакомились: {{ total - done }}</span>
+          {% if overdue %}
+            <span class="badge bg-danger">Просрочили: {{ overdue }}</span>
+          {% endif %}
+        </div>
+
+        {% if is_manager %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>Сотрудник</th>
+                  <th>Статус</th>
+                  <th>Дата</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in item.recipients %}
+                  <tr>
+                    <td>{{ user_label(r.user) }}</td>
+                    <td>
+                      {% if r.acknowledged_at %}
+                        <span class="badge bg-success">Ознакомлен</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Не ознакомлен</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ r.acknowledged_at.strftime('%d.%m.%Y %H:%M') if r.acknowledged_at else '—' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-muted">
+            Подробный контроль доступен секретарю, директору и администратору.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

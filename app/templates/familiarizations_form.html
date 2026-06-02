@@ -51,7 +51,19 @@
 
       <div class="col-12">
         <label class="form-label">Файл приказа/письма</label>
-        <input type="file" class="form-control" name="documents" multiple>
+        <div id="familiarization-documents-list">
+          <div class="input-group mb-2 familiarization-document-row">
+            <input type="file" class="form-control" name="documents">
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-sm btn-outline-primary" id="add-familiarization-document">
+          <i class="bi bi-plus-circle"></i> Добавить ещё документ
+        </button>
+
+        <div class="form-text mt-2">
+          Можно прикрепить несколько документов. Каждый файл выберите отдельной строкой.
+        </div>
         <div class="form-text">
           Файл будет доступен в портале и будет отправлен в MAX как вложение, если сотрудник привязан к боту.
         </div>
@@ -219,6 +231,40 @@ document.addEventListener('DOMContentLoaded', function () {
     applyFilter();
   });
 });
+</script>
+
+
+<script>
+(function () {
+  const list = document.getElementById('familiarization-documents-list');
+  const addBtn = document.getElementById('add-familiarization-document');
+
+  if (!list || !addBtn) return;
+
+  addBtn.addEventListener('click', function () {
+    const row = document.createElement('div');
+    row.className = 'input-group mb-2 familiarization-document-row';
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.className = 'form-control';
+    input.name = 'documents';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-outline-danger';
+    removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+    removeBtn.title = 'Убрать файл';
+
+    removeBtn.addEventListener('click', function () {
+      row.remove();
+    });
+
+    row.appendChild(input);
+    row.appendChild(removeBtn);
+    list.appendChild(row);
+  });
+})();
 </script>
 
 {% endblock %}
