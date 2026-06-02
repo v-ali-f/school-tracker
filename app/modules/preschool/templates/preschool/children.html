@@ -2,94 +2,528 @@
 
 {% block content %}
 <style>
-  .preschool-shell {
-    max-width: 1280px;
+  .preschool-contingent {
+    max-width: 1320px;
     margin: 0 auto;
-    padding: 32px 24px 48px;
+    padding: 24px 24px 42px;
   }
 
-  .preschool-page-top {
+  .pc-breadcrumbs {
     display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .pc-breadcrumbs a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .pc-header {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 18px;
-    margin-bottom: 24px;
+    gap: 16px;
+    padding: 20px 22px;
+    border: 1px solid #e2e8f0;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    margin-bottom: 16px;
   }
 
-  .preschool-title {
+  .pc-title {
     margin: 0;
-    font-size: 38px;
-    line-height: 1.12;
-    font-weight: 800;
     color: #1f2937;
-    letter-spacing: -0.03em;
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.025em;
   }
 
-  .preschool-subtitle {
-    margin-top: 10px;
-    max-width: 780px;
-    font-size: 17px;
-    line-height: 1.5;
-    color: #6b7280;
+  .pc-subtitle {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 15px;
   }
 
-  .preschool-back {
+  .pc-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .pc-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 14px;
+    min-height: 36px;
+    padding: 0 13px;
+    border-radius: 999px;
     border: 1px solid #dbe3ef;
     background: #fff;
     color: #334155;
     text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .pc-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+  }
+
+  .pc-filter-panel {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: #fff;
+    border: 1px solid #eef2f7;
+    margin-bottom: 16px;
+  }
+
+  .pc-filters {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr 1.1fr 1.2fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .pc-field label {
+    display: block;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .pc-field input,
+  .pc-field select {
+    width: 100%;
+    min-height: 38px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 0 11px;
+    background: #fff;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .pc-reset {
+    min-height: 38px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #64748b;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+
+  .pc-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .pc-stat {
+    padding: 18px 18px;
+    min-height: 92px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  }
+
+  .pc-stat-label {
+    color: #64748b;
+    font-size: 14px;
     font-weight: 700;
-    white-space: nowrap;
+    margin-bottom: 6px;
   }
 
-  .preschool-panel {
-    padding: 24px;
-    border: 1px solid #e5e7eb;
-    border-radius: 22px;
-    background: #ffffff;
-    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
-  }
-
-  .preschool-panel-title {
-    margin: 0 0 10px;
-    font-size: 22px;
+  .pc-stat-value {
+    color: #1f2d4a;
+    font-size: 32px;
+    line-height: 1;
     font-weight: 800;
-    color: #111827;
   }
 
-  .preschool-panel-text {
+  .pc-collapse {
+    margin-bottom: 16px;
+  }
+
+  .pc-collapse summary {
+    cursor: pointer;
+    user-select: none;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    color: #1f2937;
+    font-weight: 750;
+    list-style: none;
+  }
+
+  .pc-collapse summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .pc-add-panel {
+    margin-top: 10px;
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+  }
+
+  .pc-add-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
+    gap: 10px;
+  }
+
+  .pc-add-grid .full {
+    grid-column: 1 / -1;
+  }
+
+  .pc-add-grid textarea {
+    width: 100%;
+    min-height: 70px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 9px 11px;
+    resize: vertical;
+    font-size: 14px;
+  }
+
+  .pc-section {
+    border: 1px solid #eef2f7;
+    border-radius: 18px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.045);
+  }
+
+  .pc-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 18px 10px;
+  }
+
+  .pc-section-title {
     margin: 0;
-    font-size: 16px;
-    line-height: 1.55;
-    color: #6b7280;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .pc-table-wrap {
+    overflow-x: auto;
+  }
+
+  .pc-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .pc-table th {
+    text-align: left;
+    padding: 11px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    color: #7a8699;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+  }
+
+  .pc-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .pc-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .pc-name {
+    color: #1f2937;
+    font-weight: 750;
+  }
+
+  .pc-muted {
+    color: #94a3b8;
+  }
+
+  .pc-row-actions {
+    display: flex;
+    gap: 7px;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .pc-small-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid #dbe3ef;
+    background: #fff;
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .pc-delete {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .pc-empty {
+    padding: 18px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  @media (max-width: 1100px) {
+    .pc-filters,
+    .pc-add-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .pc-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .pc-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .pc-actions {
+      justify-content: flex-start;
+    }
+
+    .pc-filters,
+    .pc-add-grid,
+    .pc-stat-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 
-<div class="preschool-shell">
-  <div class="preschool-page-top">
-    <div>
-      <h1 class="preschool-title">Контингент ДОУ</h1>
-      <div class="preschool-subtitle">
-        Здесь будет реестр воспитанников дошкольного отделения с фильтрами по корпусу,
-        группе, статусу и ФИО.
-      </div>
-    </div>
-
-    <a class="preschool-back" href="{{ url_for('preschool.index') }}">← Назад</a>
+<div class="preschool-contingent">
+  <div class="pc-breadcrumbs">
+    <a href="{{ url_for('main.dashboard') }}">Главная</a>
+    <span>/</span>
+    <span>Контингент ДОУ</span>
   </div>
 
-  <div class="preschool-panel">
-    <h2 class="preschool-panel-title">Раздел подготовлен</h2>
-    <p class="preschool-panel-text">
-      На следующем этапе добавим таблицу воспитанников, справочники корпусов и групп,
-      ручное добавление ребёнка и основу для импорта контингента из Excel.
-    </p>
+  <div class="pc-header">
+    <div>
+      <h1 class="pc-title">Сводный контингент ДОУ</h1>
+      <div class="pc-subtitle">Статистика по группам, зданиям и возрастным категориям</div>
+    </div>
+
+    <div class="pc-actions">
+      <a class="pc-btn" href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
+      <a class="pc-btn" href="{{ url_for('preschool.groups') }}">Группы ДОУ</a>
+      <button class="pc-btn pc-btn-primary" type="button" onclick="document.getElementById('add-child-panel').open = true; document.getElementById('add-child-panel').scrollIntoView({behavior:'smooth', block:'start'});">+ Добавить</button>
+    </div>
+  </div>
+
+  <form class="pc-filter-panel" method="get">
+    <div class="pc-filters">
+      <div class="pc-field">
+        <label>Учебный год</label>
+        <select name="academic_year_id" onchange="this.form.submit()">
+          {% for item in all_years %}
+            <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>{{ item.name }}{% if item.is_current %} • текущий{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="pc-field">
+        <label>Здание</label>
+        <select name="building_id" onchange="this.form.submit()">
+          <option value="">— все здания —</option>
+          {% for building in buildings %}
+            <option value="{{ building.id }}" {% if building.id == selected_building_id %}selected{% endif %}>{{ building.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="pc-field">
+        <label>Группа</label>
+        <select name="group_id" onchange="this.form.submit()">
+          <option value="">— все группы —</option>
+          {% for group in groups %}
+            <option value="{{ group.id }}" {% if group.id == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="pc-field">
+        <label>Поиск</label>
+        <input name="q" value="{{ q }}" placeholder="ФИО">
+      </div>
+
+      <a class="pc-reset" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сбросить</a>
+    </div>
+  </form>
+
+  <div class="pc-stat-grid">
+    <div class="pc-stat">
+      <div class="pc-stat-label">Всего воспитанников</div>
+      <div class="pc-stat-value">{{ stats.total }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Групп ДОУ</div>
+      <div class="pc-stat-value">{{ stats.groups }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Зданий</div>
+      <div class="pc-stat-value">{{ stats.buildings }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Подготовительная</div>
+      <div class="pc-stat-value">{{ stats.prep }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Ранний возраст</div>
+      <div class="pc-stat-value">{{ stats.early }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Младшая группа</div>
+      <div class="pc-stat-value">{{ stats.junior }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Средняя группа</div>
+      <div class="pc-stat-value">{{ stats.middle }}</div>
+    </div>
+    <div class="pc-stat">
+      <div class="pc-stat-label">Старшая группа</div>
+      <div class="pc-stat-value">{{ stats.senior }}</div>
+    </div>
+  </div>
+
+  <details class="pc-collapse" id="add-child-panel">
+    <summary>+ Добавить воспитанника вручную</summary>
+
+    <form class="pc-add-panel" method="post">
+      <div class="pc-add-grid">
+        <div class="pc-field">
+          <label>Группа</label>
+          <select name="group_id">
+            <option value="">Не выбрана</option>
+            {% for group in groups %}
+              <option value="{{ group.id }}">{{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="pc-field">
+          <label>Фамилия</label>
+          <input name="last_name" required>
+        </div>
+
+        <div class="pc-field">
+          <label>Имя</label>
+          <input name="first_name" required>
+        </div>
+
+        <div class="pc-field">
+          <label>Отчество</label>
+          <input name="middle_name">
+        </div>
+
+        <div class="pc-field">
+          <label>Дата рождения</label>
+          <input type="date" name="birth_date">
+        </div>
+
+        <div class="pc-field full">
+          <label>Примечание</label>
+          <textarea name="note"></textarea>
+        </div>
+      </div>
+
+      <button class="pc-btn pc-btn-primary" type="submit">Сохранить воспитанника</button>
+    </form>
+  </details>
+
+  <div class="pc-section">
+    <div class="pc-section-head">
+      <h2 class="pc-section-title">По воспитанникам</h2>
+      <div class="pc-muted">Найдено: {{ items|length }}</div>
+    </div>
+
+    {% if items %}
+      <div class="pc-table-wrap">
+        <table class="pc-table">
+          <thead>
+            <tr>
+              <th>ФИО</th>
+              <th>Группа</th>
+              <th>Здание</th>
+              <th>Возрастная группа</th>
+              <th>Дата рождения</th>
+              <th style="text-align:right;">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for child in items %}
+              <tr>
+                <td><span class="pc-name">{{ child.full_name }}</span></td>
+                <td>{{ child.group.name if child.group else "—" }}</td>
+                <td>{{ child.group.building.name if child.group and child.group.building else "—" }}</td>
+                <td>{{ child.group.age_level if child.group else "—" }}</td>
+                <td>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</td>
+                <td>
+                  <div class="pc-row-actions">
+                    <a class="pc-small-link" href="{{ url_for('preschool.edit_child', child_id=child.id) }}">Изменить</a>
+                    <form method="post"
+                          action="{{ url_for('preschool.delete_child', child_id=child.id) }}"
+                          onsubmit="return confirm('Удалить воспитанника {{ child.full_name }}?');">
+                      <button class="pc-delete" type="submit">Удалить</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="pc-empty">Нет воспитанников по выбранным фильтрам.</div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
