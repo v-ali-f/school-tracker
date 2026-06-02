@@ -15,7 +15,7 @@ from flask import (
     flash, abort, send_file, current_app, jsonify,
 )
 from flask_login import login_required, current_user
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_, and_, text, bindparam
 from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
@@ -53,6 +53,14 @@ ROLE_LABELS = {
     "METHODIST": "Методист",
     "SPECIALIST": "Специалист",
 }
+
+
+
+def _clean_display_filename(filename: str) -> str:
+    name = (filename or "").strip()
+    name = name.replace("\\", "_").replace("/", "_")
+    name = name.replace("\x00", "")
+    return name or "Без названия"
 
 
 def _upload_root() -> Path:
@@ -108,6 +116,119 @@ def _can_delete_item(item: DriveItem) -> bool:
     return item.owner_user_id == current_user.id
 
 
+def _ensure_drive_access_table():
+    engine_name = db.engine.dialect.name
+    if engine_name == "postgresql":
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS drive_item_access (
+                id SERIAL PRIMARY KEY,
+                item_id INTEGER NOT NULL REFERENCES drive_item(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                access_type VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+    else:
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS drive_item_access (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                access_type VARCHAR(20) NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+
+    db.session.execute(text("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_drive_item_access_unique
+        ON drive_item_access(item_id, user_id)
+    """))
+    db.session.commit()
+
+
+def _shared_drive_item_ids(access_types=("view", "edit")) -> list[int]:
+    _ensure_drive_access_table()
+    return list(db.session.execute(
+        text("""
+            SELECT item_id
+            FROM drive_item_access
+            WHERE user_id = :user_id
+              AND access_type IN :access_types
+        """).bindparams(bindparam("access_types", expanding=True)),
+        {
+            "user_id": current_user.id,
+            "access_types": tuple(access_types),
+        },
+    ).scalars().all())
+
+
+def _drive_access_type(item_id: int, user_id: int) -> str | None:
+    _ensure_drive_access_table()
+    return db.session.execute(
+        text("""
+            SELECT access_type
+            FROM drive_item_access
+            WHERE item_id = :item_id AND user_id = :user_id
+            LIMIT 1
+        """),
+        {"item_id": item_id, "user_id": user_id},
+    ).scalar()
+
+
+
+def _short_user_label(user) -> str:
+    if not user:
+        return "—"
+
+    # Если есть отдельные поля ФИО
+    last = (getattr(user, "last_name", "") or "").strip()
+    first = (getattr(user, "first_name", "") or "").strip()
+    middle = (getattr(user, "middle_name", "") or "").strip()
+
+    if last:
+        initials = ""
+        if first:
+            initials += first[0].upper() + "."
+        if middle:
+            initials += middle[0].upper() + "."
+        return f"{last} {initials}".strip()
+
+    # Если ФИО хранится одной строкой
+    fio = (getattr(user, "fio", "") or "").strip()
+    if fio:
+        parts = fio.split()
+        if len(parts) >= 2:
+            last = parts[0]
+            initials = parts[1][0].upper() + "."
+            if len(parts) >= 3:
+                initials += parts[2][0].upper() + "."
+            return f"{last} {initials}"
+        return fio
+
+    return getattr(user, "username", "") or f"ID {user.id}"
+
+
+def _drive_owner_access_label(item: DriveItem) -> str:
+    owner = getattr(item, "owner", None)
+    owner_label = _short_user_label(owner) if owner else "—"
+
+    if item.owner_user_id == current_user.id:
+        return f"{owner_label} · владелец"
+
+    if item.scope == "public":
+        return f"{owner_label} · общедоступный"
+
+    access_type = _drive_access_type(item.id, current_user.id)
+    if access_type == "edit":
+        return f"{owner_label} · редактирование"
+    if access_type == "view":
+        return f"{owner_label} · просмотр"
+
+    return owner_label
+
+
+
+
 def _ensure_parent_ok(parent_id, scope: str) -> DriveItem | None:
     if not parent_id:
         return None
@@ -139,13 +260,20 @@ def _breadcrumb(item: DriveItem | None) -> list[DriveItem]:
 @drive_bp.route("/", methods=["GET"])
 @login_required
 def index():
-    tab = (request.args.get("tab") or "mine").strip()
-    if tab not in ("mine", "public"):
-        tab = "mine"
-    scope = "private" if tab == "mine" else "public"
+    tab = (request.args.get("tab") or "all").strip()
+    if tab not in ("all", "mine", "shared", "public"):
+        tab = "all"
+
+    scope = "private" if tab in ("all", "mine", "shared") else "public"
 
     parent_id = request.args.get("parent", type=int)
     parent = None
+
+    # Папки используем только для вкладок «Мои файлы» и «Общедоступные».
+    # Во «Все файлы» и «Доступные мне» показываем плоский список.
+    if tab in ("all", "shared"):
+        parent_id = None
+
     if parent_id:
         parent = DriveItem.query.get_or_404(parent_id)
         if parent.deleted_at is not None or parent.scope != scope:
@@ -163,17 +291,35 @@ def index():
                       "updated_desc", "updated_asc"):
         sort_f = "name_asc"
 
-    # При активном поиске показываем плоский список по всему scope (не ограничивая
-    # текущей папкой), иначе — содержимое текущей папки.
-    base_q = DriveItem.query.filter(
-        DriveItem.scope == scope,
-        DriveItem.deleted_at.is_(None),
-    )
-    if scope == "private":
-        base_q = base_q.filter(DriveItem.owner_user_id == current_user.id)
+    shared_ids = _shared_drive_item_ids(("view", "edit"))
 
-    if search_q:
-        base_q = base_q.filter(DriveItem.name.ilike(f"%{search_q}%"))
+    # При активном поиске показываем плоский список, иначе — содержимое текущей папки.
+    base_q = DriveItem.query.filter(DriveItem.deleted_at.is_(None))
+
+    if tab == "mine":
+        base_q = base_q.filter(
+            DriveItem.scope == "private",
+            DriveItem.owner_user_id == current_user.id,
+        )
+    elif tab == "public":
+        base_q = base_q.filter(DriveItem.scope == "public")
+    elif tab == "shared":
+        if shared_ids:
+            base_q = base_q.filter(DriveItem.id.in_(shared_ids))
+        else:
+            base_q = base_q.filter(DriveItem.id == -1)
+    else:
+        # Все файлы: свои + общедоступные + выданные лично текущему пользователю.
+        access_conditions = [
+            db.and_(DriveItem.scope == "private", DriveItem.owner_user_id == current_user.id),
+            DriveItem.scope == "public",
+        ]
+        if shared_ids:
+            access_conditions.append(DriveItem.id.in_(shared_ids))
+        base_q = base_q.filter(db.or_(*access_conditions))
+
+    if search_q or tab in ("all", "shared"):
+        base_q = base_q.filter(DriveItem.name.ilike(f"%{search_q}%")) if search_q else base_q
     else:
         base_q = base_q.filter(DriveItem.parent_id == (parent.id if parent else None))
 
@@ -182,7 +328,7 @@ def index():
     if owner_f and scope == "public":
         base_q = base_q.filter(DriveItem.owner_user_id == owner_f)
 
-    if scope == "public":
+    if tab in ("all", "shared", "public"):
         base_q = base_q.options(joinedload(DriveItem.owner))
 
     sort_map = {
@@ -245,6 +391,7 @@ def index():
         owner_f=owner_f,
         sort_f=sort_f,
         public_owners=public_owners,
+        drive_owner_access_label=_drive_owner_access_label,
     )
 
 
@@ -261,7 +408,7 @@ def folder_new():
 
     if not name:
         flash("Введите название папки.", "warning")
-        return redirect(url_for("drive.index", tab=tab, parent=parent_id))
+        return redirect(url_for("drive.index", tab=target_tab, parent=parent_id))
 
     _ensure_parent_ok(parent_id, scope)
 
@@ -276,7 +423,7 @@ def folder_new():
     db.session.add(item)
     db.session.commit()
     flash(f"Папка «{name}» создана.", "success")
-    return redirect(url_for("drive.index", tab=tab, parent=parent_id))
+    return redirect(url_for("drive.index", tab=target_tab, parent=parent_id))
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -285,9 +432,22 @@ def folder_new():
 @drive_bp.route("/upload", methods=["POST"])
 @login_required
 def upload():
-    tab = request.form.get("tab", "mine")
-    scope = "private" if tab == "mine" else "public"
+    tab = request.form.get("tab", "all")
+
+    # Куда загружать файл выбираем отдельно от текущей вкладки.
+    # По умолчанию всегда «Мои файлы», чтобы случайно не отправлять документы в общий доступ.
+    upload_scope = (request.form.get("upload_scope") or "private").strip()
+    scope = "public" if upload_scope == "public" else "private"
+
+    # После загрузки переходим в соответствующую вкладку.
+    target_tab = "public" if scope == "public" else "mine"
+
     parent_id = request.form.get("parent_id", type=int)
+
+    # Во вкладках «Все файлы» и «Доступные мне» не работаем с текущей папкой.
+    if tab in ("all", "shared"):
+        parent_id = None
+
     _ensure_parent_ok(parent_id, scope)
 
     files = request.files.getlist("files")
@@ -339,7 +499,7 @@ def upload():
             parent_id=parent_id or None,
             kind="file",
             scope=scope,
-            name=secure_filename(original) or original,
+            name=_clean_display_filename(original),
             mime=mime,
             size_bytes=size,
             storage_path=rel_path,
@@ -358,6 +518,30 @@ def upload():
 # ──────────────────────────────────────────────────────────────────────
 # Скачивание / удаление / переименование
 # ──────────────────────────────────────────────────────────────────────
+
+@drive_bp.route("/file/<int:item_id>/preview", methods=["GET"])
+@login_required
+def file_preview(item_id):
+    item = DriveItem.query.get_or_404(item_id)
+
+    if item.kind != "file":
+        abort(404)
+
+    if not _can_view_item(item):
+        abort(403)
+
+    full = Path(current_app.config["UPLOAD_FOLDER"]) / item.storage_path
+    if not full.exists():
+        abort(404)
+
+    return send_file(
+        full,
+        as_attachment=False,
+        download_name=item.name,
+        mimetype=item.mime or "application/pdf",
+    )
+
+
 @drive_bp.route("/file/<int:item_id>/download", methods=["GET"])
 @login_required
 def file_download(item_id):
@@ -378,7 +562,7 @@ def item_delete(item_id):
     item = DriveItem.query.get_or_404(item_id)
     if not _can_delete_item(item):
         abort(403)
-    tab = "mine" if item.scope == "private" else "public"
+    tab = "all" if item.scope == "private" else "public"
     parent_id = item.parent_id
 
     # Soft-delete: помечаем самого и всех потомков
@@ -987,7 +1171,7 @@ def collection_submit(col_id):
         sub = FileCollectionSubmission(
             collection_id=c.id,
             user_id=current_user.id,
-            file_name=secure_filename(original) or original,
+            file_name=_clean_display_filename(original),
             storage_path=rel_path,
             mime=mime,
             size_bytes=size,

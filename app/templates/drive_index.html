@@ -26,10 +26,22 @@
   </div>
 </div>
 
-<ul class="nav nav-tabs mb-3">
+
+<div class="drive-tabs-actions">
+  <ul class="nav nav-tabs">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'all' %}active{% endif %}" href="{{ url_for('drive.index', tab='all') }}">
+      <i class="bi bi-files"></i> Все файлы
+    </a>
+  </li>
   <li class="nav-item">
     <a class="nav-link {% if tab == 'mine' %}active{% endif %}" href="{{ url_for('drive.index', tab='mine') }}">
-      <i class="bi bi-person-lock"></i> Мои файлы
+      <i class="bi bi-person-lines-fill"></i> Мои файлы
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'shared' %}active{% endif %}" href="{{ url_for('drive.index', tab='shared') }}">
+      <i class="bi bi-people"></i> Доступные мне
     </a>
   </li>
   <li class="nav-item">
@@ -38,6 +50,18 @@
     </a>
   </li>
 </ul>
+  <div class="drive-create-actions">
+    <a class="btn btn-outline-primary" href="{{ url_for('office.new_file', ext='docx') }}">
+      <i class="bi bi-file-earmark-word"></i> Документ
+    </a>
+    <a class="btn btn-outline-primary" href="{{ url_for('office.new_file', ext='xlsx') }}">
+      <i class="bi bi-file-earmark-spreadsheet"></i> Таблица
+    </a>
+    <a class="btn btn-outline-primary" href="{{ url_for('office.new_file', ext='pptx') }}">
+      <i class="bi bi-file-earmark-slides"></i> Презентация
+    </a>
+  </div>
+</div>
 
 {# хлебные крошки по папкам — показываем только когда находимся в подпапке #}
 {% if crumbs %}
@@ -106,8 +130,7 @@
     </select>
   </div>
   <div class="col-auto ms-auto">
-    <div class="btn-group btn-group-sm" role="group" aria-label="Действия с файлами">
-      <button type="button" class="btn btn-primary"
+    <div class="btn-group btn-group-sm" role="group" aria-label="Действия с файлами"><button type="button" class="btn btn-primary"
               data-bs-toggle="modal" data-bs-target="#newFolderModal"
               title="Создать папку">
         <i class="bi bi-folder-plus"></i><span class="d-none d-md-inline ms-1">Папка</span>
@@ -167,6 +190,95 @@
 .drive-file-icon-folder {
   background: #eef5ff;
   color: #2563eb;
+}
+
+
+.drive-tabs-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #dbe3ef;
+  margin-bottom: 12px;
+}
+
+.drive-tabs-actions .nav {
+  border-bottom: 0;
+  margin-bottom: 0;
+}
+
+.drive-create-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-bottom: 0;
+}
+
+.drive-create-actions .btn {
+  height: 32px;
+  padding: 4px 10px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (max-width: 900px) {
+  .drive-tabs-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .drive-create-actions {
+    justify-content: flex-start;
+  }
+}
+
+
+.drive-preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .58);
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.drive-preview-window {
+  width: min(1100px, 96vw);
+  height: min(840px, 92vh);
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .35);
+  display: flex;
+  flex-direction: column;
+}
+
+.drive-preview-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5edf7;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.drive-preview-title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-preview-frame {
+  border: 0;
+  width: 100%;
+  height: 100%;
+  background: #f8fafc;
 }
 
 </style>
@@ -254,6 +366,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <th style="width:1%"><input type="checkbox" id="bulkAll" title="Выделить все мои"></th>
           <th style="width:40%">Имя</th>
           <th>Размер</th>
+          <th>Владелец / доступ</th>
           {% if tab == 'public' %}<th>Загрузил</th>{% endif %}
           <th>Изменено</th>
           <th style="width:1%">Действия</th>
@@ -278,7 +391,19 @@ document.addEventListener('DOMContentLoaded', function(){
                 </span>
               </a>
             {% else %}
+              {% if it.ext in ['docx', 'xlsx', 'pptx'] %}
+              <a href="{{ url_for('office.editor', item_id=it.id) }}" class="text-decoration-none drive-file-name-wrap">
+              {% elif it.ext == 'pdf' %}
+              <a href="#" data-url="{{ url_for('drive.file_preview', item_id=it.id) }}" data-title="{{ it.name }}" class="text-decoration-none drive-file-name-wrap js-drive-preview">
+              {% else %}
+              {% if it.ext in ['docx', 'xlsx', 'pptx'] %}
+              <a href="{{ url_for('office.editor', item_id=it.id) }}" class="text-decoration-none drive-file-name-wrap">
+              {% elif it.ext == 'pdf' %}
+              <a href="#" data-url="{{ url_for('drive.file_preview', item_id=it.id) }}" data-title="{{ it.name }}" class="text-decoration-none drive-file-name-wrap js-drive-preview">
+              {% else %}
               <a href="{{ url_for('drive.file_download', item_id=it.id) }}" class="text-decoration-none drive-file-name-wrap">
+              {% endif %}
+              {% endif %}
                 {% if it.ext == 'docx' %}
                   <span class="drive-file-type-icon drive-file-icon-docx"><i class="bi bi-file-earmark-word"></i></span>
                 {% elif it.ext == 'xlsx' %}
@@ -295,25 +420,37 @@ document.addEventListener('DOMContentLoaded', function(){
             {% endif %}
           </td>
           <td class="text-muted small">{{ fmt_size(it.size_bytes) if it.kind == 'file' else '—' }}</td>
+          <td class="text-muted small">{{ drive_owner_access_label(it) }}</td>
           {% if tab == 'public' %}
           <td class="text-muted small">{{ user_label(it.owner) if it.owner else '—' }}</td>
           {% endif %}
           <td class="text-muted small">{{ it.updated_at.strftime('%d.%m.%Y %H:%M') }}</td>
           <td class="text-nowrap">
             {% if it.owner_user_id == current_user.id %}
+            {% if it.kind == 'file' %}
+            <a class="btn btn-sm btn-outline-secondary" title="Скачать"
+               href="{{ url_for('drive.file_download', item_id=it.id) }}">
+              <i class="bi bi-download"></i>
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="Переименовать"
+                    onclick="driveRename({{ it.id }}, '{{ it.name|e }}')">
+              <i class="bi bi-type"></i>
+            </button>
+            {% else %}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="Переименовать"
                     onclick="driveRename({{ it.id }}, '{{ it.name|e }}')">
               <i class="bi bi-pencil"></i>
             </button>
+            {% endif %}
             <button type="button" class="btn btn-sm btn-outline-secondary" title="Переместить"
                     onclick="driveMove({{ it.id }}, '{{ it.name|e }}', {{ it.parent_id or 'null' }})">
               <i class="bi bi-arrows-move"></i>
             </button>
-            {% if it.kind == 'file' and it.ext in ['docx', 'xlsx', 'pptx'] %}
-              <a class="btn btn-sm btn-outline-primary" title="Открыть в онлайн-офисе"
-                 href="{{ url_for('office.editor', item_id=it.id) }}">
-                <i class="bi bi-pencil-square"></i>
-              </a>
+            {% if it.kind == 'file' and it.owner_user_id == current_user.id %}
+              <a class="btn btn-sm btn-outline-secondary" title="Настроить доступ"
+               href="{{ url_for('office.access_file', item_id=it.id) }}">
+              <i class="bi bi-people"></i>
+            </a>
             {% endif %}
             <button type="button" class="btn btn-sm btn-outline-danger" title="Удалить"
                     onclick="driveDelete({{ it.id }}, '{{ it.name|e }}')">
@@ -323,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function(){
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="{{ 6 if tab == 'public' else 5 }}" class="text-center text-muted py-4">Пусто.</td></tr>
+        <tr><td colspan="{{ 7 if tab in ['all', 'shared', 'public'] else 6 }}" class="text-center text-muted py-4">Пусто.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -643,5 +780,61 @@ function fillIdsGlobal(containerId, ids){
     </form>
   </div>
 </div>
+
+
+<div class="drive-preview-modal" id="drive-preview-modal">
+  <div class="drive-preview-window">
+    <div class="drive-preview-head">
+      <div class="drive-preview-title" id="drive-preview-title">Просмотр файла</div>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="drive-preview-close">Закрыть</button>
+    </div>
+    <iframe class="drive-preview-frame" id="drive-preview-frame"></iframe>
+  </div>
+</div>
+
+<script>
+(function () {
+  const modal = document.getElementById('drive-preview-modal');
+  const frame = document.getElementById('drive-preview-frame');
+  const title = document.getElementById('drive-preview-title');
+  const close = document.getElementById('drive-preview-close');
+
+  function openPreview(url, name) {
+    title.textContent = name || 'Просмотр файла';
+    frame.src = url;
+    modal.style.display = 'flex';
+  }
+
+  function closePreview() {
+    modal.style.display = 'none';
+    frame.src = 'about:blank';
+  }
+
+  document.querySelectorAll('.js-drive-preview').forEach(function (link) {
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      openPreview(link.dataset.url, link.dataset.title);
+    });
+  });
+
+  if (close) {
+    close.addEventListener('click', closePreview);
+  }
+
+  if (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) {
+        closePreview();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closePreview();
+    }
+  });
+})();
+</script>
 
 {% endblock %}
