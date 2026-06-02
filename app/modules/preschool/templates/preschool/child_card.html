@@ -153,6 +153,47 @@
     line-height: 1.45;
   }
 
+  .representatives-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .representative-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+  }
+
+  .representative-name {
+    color: #1f2937;
+    font-size: 14.5px;
+    font-weight: 750;
+  }
+
+  .representative-meta {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .child-small-danger {
+    min-height: 28px;
+    padding: 0 9px;
+    border-radius: 9px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #dc2626;
+    font-size: 12.5px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
   @media (max-width: 900px) {
     .child-header,
     .child-grid {
@@ -259,9 +300,38 @@
 
     <div class="child-panel">
       <h2>Родители / представители</h2>
-      <div class="child-placeholder">
-        Следующим этапом добавим представителей из файла:
-        ФИО представителя, тип связи, телефон, email и привязку к ребёнку по номеру личного дела.
+
+      {% if representatives %}
+        <div class="representatives-list">
+          {% for representative in representatives %}
+            <div class="representative-item">
+              <div>
+                <div class="representative-name">{{ representative.full_name }}</div>
+                <div class="representative-meta">
+                  {{ representative.relation or "представитель" }}
+                  {% if representative.phone %} · {{ representative.phone }}{% endif %}
+                  {% if representative.email %} · {{ representative.email }}{% endif %}
+                </div>
+              </div>
+
+              <form method="post"
+                    action="{{ url_for('preschool.delete_representative', representative_id=representative.id) }}"
+                    onsubmit="return confirm('Удалить представителя {{ representative.full_name }}?');">
+                <button class="child-small-danger" type="submit">Удалить</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="child-placeholder">
+          Представители пока не добавлены. Их можно загрузить отдельным импортом из файла представителей.
+        </div>
+      {% endif %}
+
+      <div style="margin-top:12px;">
+        <a class="child-btn" href="{{ url_for('preschool.import_representatives', academic_year_id=year.id if year else None) }}">
+          Импорт представителей
+        </a>
       </div>
     </div>
 

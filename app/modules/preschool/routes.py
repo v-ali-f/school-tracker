@@ -3,7 +3,7 @@ from sqlalchemy import func, inspect, or_, text
 
 from app.core.extensions import db
 from app.models_legacy import AcademicYear, Building, User
-from .models import PreschoolChild, PreschoolChildrenImport, PreschoolGroup
+from .models import PreschoolChild, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
 
 
 bp = Blueprint(
@@ -59,7 +59,7 @@ def ensure_preschool_tables():
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
 
-    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild):
+    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative):
         if model.__tablename__ not in existing_tables:
             model.__table__.create(db.engine, checkfirst=True)
 
@@ -794,17 +794,204 @@ def clear_children_year():
     return redirect(url_for("preschool.import_children", academic_year_id=year.id))
 
 
+def _normalize_phone(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    return raw
+
+
+@bp.route("/representatives/import", methods=["GET", "POST"])
+def import_representatives():
+    year_id = request.args.get("academic_year_id", type=int) or request.form.get("academic_year_id", type=int)
+    year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+
+    if not year:
+        flash("Сначала создайте учебный год в служебном разделе.", "warning")
+        return redirect(url_for("children.academic_years_registry"))
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    result = None
+
+    if request.method == "POST":
+        uploaded = request.files.get("file")
+
+        if not uploaded or not uploaded.filename:
+            flash("Выберите Excel-файл с представителями.", "warning")
+            return redirect(url_for("preschool.import_representatives", academic_year_id=year.id))
+
+        if not uploaded.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
+            flash("Поддерживаются файлы .xlsx, .xlsm или выгрузки Excel с расширением .xls.", "warning")
+            return redirect(url_for("preschool.import_representatives", academic_year_id=year.id))
+
+        try:
+            from openpyxl import load_workbook
+        except Exception:
+            flash("Не установлен openpyxl. Установите зависимости из requirements.txt.", "danger")
+            return redirect(url_for("preschool.import_representatives", academic_year_id=year.id))
+
+        workbook = load_workbook(uploaded, data_only=True)
+        sheet = workbook.active
+        rows = list(sheet.iter_rows(values_only=True))
+
+        if not rows:
+            flash("Файл пустой.", "warning")
+            return redirect(url_for("preschool.import_representatives", academic_year_id=year.id))
+
+        aliases = {
+            "case_number": {"личноедело№", "личноедело", "номерличногодела", "лд"},
+            "child_fio": {"фиоребенка", "ребенок", "воспитанник", "фиовоспитанника"},
+            "relation": {"родство", "степеньродства", "типпредставителя", "представитель", "законныйпредставитель"},
+            "full_name": {"фио", "фиопредставителя", "фиородителя", "родитель", "представительфио"},
+            "phone": {"телефон", "мобильныйтелефон", "контактныйтелефон", "тел"},
+            "email": {"email", "почта", "электроннаяпочта", "e-mail"},
+            "note": {"примечание", "комментарий", "комментарии"},
+        }
+
+        header_row_index = None
+        header_map = {}
+
+        for idx, row in enumerate(rows[:20]):
+            normalized = [_normalize_header(cell) for cell in row]
+            found = {}
+            for col_index, name in enumerate(normalized):
+                for key, variants in aliases.items():
+                    if name in variants:
+                        found[key] = col_index
+
+            if ("case_number" in found or "child_fio" in found) and "full_name" in found:
+                header_row_index = idx
+                header_map = found
+                break
+
+        if header_row_index is None:
+            flash("Не удалось найти заголовки. Нужны минимум: Личное дело № или ФИО ребёнка, и ФИО представителя.", "danger")
+            return redirect(url_for("preschool.import_representatives", academic_year_id=year.id))
+
+        added = 0
+        skipped = 0
+        errors = []
+
+        for row_number, row in enumerate(rows[header_row_index + 1:], start=header_row_index + 2):
+            case_number = row[header_map["case_number"]] if header_map.get("case_number") is not None and header_map["case_number"] < len(row) else None
+            child_fio = row[header_map["child_fio"]] if header_map.get("child_fio") is not None and header_map["child_fio"] < len(row) else None
+            relation = row[header_map["relation"]] if header_map.get("relation") is not None and header_map["relation"] < len(row) else None
+            full_name = row[header_map["full_name"]] if header_map.get("full_name") is not None and header_map["full_name"] < len(row) else None
+            phone = row[header_map["phone"]] if header_map.get("phone") is not None and header_map["phone"] < len(row) else None
+            email = row[header_map["email"]] if header_map.get("email") is not None and header_map["email"] < len(row) else None
+            note = row[header_map["note"]] if header_map.get("note") is not None and header_map["note"] < len(row) else None
+
+            if not full_name:
+                continue
+
+            child = None
+
+            if case_number:
+                child = (
+                    PreschoolChild.query
+                    .join(PreschoolGroup, PreschoolChild.group_id == PreschoolGroup.id)
+                    .filter(PreschoolGroup.academic_year_id == year.id)
+                    .filter(PreschoolChild.personal_account == str(case_number).strip())
+                    .first()
+                )
+
+            if not child and child_fio:
+                last_name, first_name, middle_name = _split_full_name(child_fio)
+                if last_name and first_name:
+                    query = (
+                        PreschoolChild.query
+                        .join(PreschoolGroup, PreschoolChild.group_id == PreschoolGroup.id)
+                        .filter(PreschoolGroup.academic_year_id == year.id)
+                        .filter(func.lower(PreschoolChild.last_name) == last_name.lower())
+                        .filter(func.lower(PreschoolChild.first_name) == first_name.lower())
+                    )
+                    if middle_name:
+                        query = query.filter(func.lower(PreschoolChild.middle_name) == middle_name.lower())
+                    child = query.first()
+
+            if not child:
+                skipped += 1
+                errors.append(f"Строка {row_number}: ребёнок не найден")
+                continue
+
+            duplicate = (
+                PreschoolRepresentative.query
+                .filter(PreschoolRepresentative.child_id == child.id)
+                .filter(func.lower(PreschoolRepresentative.full_name) == str(full_name).strip().lower())
+                .first()
+            )
+
+            if duplicate:
+                skipped += 1
+                continue
+
+            representative = PreschoolRepresentative(
+                child_id=child.id,
+                relation=str(relation).strip() if relation else None,
+                full_name=str(full_name).strip(),
+                phone=_normalize_phone(phone),
+                email=str(email).strip() if email else None,
+                note=str(note).strip() if note else None,
+            )
+
+            db.session.add(representative)
+            added += 1
+
+        db.session.commit()
+
+        result = {
+            "added": added,
+            "skipped": skipped,
+            "errors": errors[:30],
+            "errors_total": len(errors),
+        }
+
+        flash(f"Импорт представителей завершён: добавлено {added}, пропущено {skipped}.", "success")
+
+    return render_template(
+        "preschool/import_representatives.html",
+        year=year,
+        all_years=all_years,
+        result=result,
+    )
+
+
+@bp.route("/representatives/<int:representative_id>/delete", methods=["POST"])
+def delete_representative(representative_id):
+    representative = PreschoolRepresentative.query.get_or_404(representative_id)
+    child_id = representative.child_id
+
+    db.session.delete(representative)
+    db.session.commit()
+
+    flash("Представитель удалён.", "success")
+    return redirect(url_for("preschool.child_card", child_id=child_id))
+
+
 @bp.route("/children/<int:child_id>")
 def child_card(child_id):
     child = PreschoolChild.query.get_or_404(child_id)
     group = child.group
     year = group.academic_year if group and group.academic_year else _get_current_year()
 
+    representatives = (
+        PreschoolRepresentative.query
+        .filter(PreschoolRepresentative.child_id == child.id)
+        .order_by(PreschoolRepresentative.relation.asc(), PreschoolRepresentative.full_name.asc())
+        .all()
+    )
+
     return render_template(
         "preschool/child_card.html",
         child=child,
         group=group,
         year=year,
+        representatives=representatives,
     )
 
 

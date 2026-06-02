@@ -106,3 +106,27 @@ class PreschoolChild(db.Model):
     def full_name(self):
         parts = [self.last_name, self.first_name, self.middle_name]
         return " ".join([p for p in parts if p])
+
+
+
+class PreschoolRepresentative(db.Model):
+    __tablename__ = "preschool_representative"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    child_id = db.Column(
+        db.Integer,
+        db.ForeignKey("preschool_child.id"),
+        nullable=False,
+        index=True,
+    )
+
+    relation = db.Column(db.String(100), nullable=True)
+    full_name = db.Column(db.String(255), nullable=False)
+    phone = db.Column(db.String(100), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    note = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    child = db.relationship("PreschoolChild", backref=db.backref("representatives", lazy=True, cascade="all, delete-orphan"))
