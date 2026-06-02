@@ -794,6 +794,20 @@ def clear_children_year():
     return redirect(url_for("preschool.import_children", academic_year_id=year.id))
 
 
+@bp.route("/children/<int:child_id>")
+def child_card(child_id):
+    child = PreschoolChild.query.get_or_404(child_id)
+    group = child.group
+    year = group.academic_year if group and group.academic_year else _get_current_year()
+
+    return render_template(
+        "preschool/child_card.html",
+        child=child,
+        group=group,
+        year=year,
+    )
+
+
 @bp.route("/children/<int:child_id>/edit", methods=["GET", "POST"])
 def edit_child(child_id):
     child = PreschoolChild.query.get_or_404(child_id)

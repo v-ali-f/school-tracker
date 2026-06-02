@@ -1,0 +1,284 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+  .child-card-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 24px 42px;
+  }
+
+  .child-breadcrumbs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .child-breadcrumbs a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  .child-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid #e2e8f0;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    margin-bottom: 16px;
+  }
+
+  .child-kicker {
+    margin-bottom: 7px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .child-title {
+    margin: 0;
+    color: #1f2937;
+    font-size: 32px;
+    line-height: 1.12;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+  }
+
+  .child-subtitle {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 15px;
+  }
+
+  .child-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .child-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 13px;
+    border-radius: 999px;
+    border: 1px solid #dbe3ef;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .child-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+  }
+
+  .child-grid {
+    display: grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .child-panel {
+    padding: 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+  }
+
+  .child-panel h2 {
+    margin: 0 0 14px;
+    color: #1f2937;
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .info-list {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 10px 14px;
+  }
+
+  .info-label {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .info-value {
+    color: #1f2937;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+
+  .info-muted {
+    color: #94a3b8;
+    font-weight: 500;
+  }
+
+  .child-note {
+    margin-top: 8px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #475569;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  .child-placeholder {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px dashed #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 900px) {
+    .child-header,
+    .child-grid {
+      grid-template-columns: 1fr;
+      flex-direction: column;
+    }
+
+    .child-actions {
+      justify-content: flex-start;
+    }
+
+    .info-list {
+      grid-template-columns: 1fr;
+    }
+
+    .child-title {
+      font-size: 28px;
+    }
+  }
+</style>
+
+<div class="child-card-shell">
+  <div class="child-breadcrumbs">
+    <a href="{{ url_for('main.dashboard') }}">Главная</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.children', academic_year_id=year.id if year else None) }}">Контингент ДОУ</a>
+    <span>/</span>
+    <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id if year else None, group_id=group.id if group else None) }}">Реестр</a>
+    <span>/</span>
+    <span>Карточка воспитанника</span>
+  </div>
+
+  <div class="child-header">
+    <div>
+      <div class="child-kicker">Карточка воспитанника ДОУ</div>
+      <h1 class="child-title">{{ child.full_name }}</h1>
+      <div class="child-subtitle">
+        {% if group %}
+          {{ group.name }}{% if group.building %} · {{ group.building.name }}{% endif %}
+        {% else %}
+          Группа не указана
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="child-actions">
+      <a class="child-btn" href="{{ url_for('preschool.children_registry', academic_year_id=year.id if year else None, group_id=group.id if group else None) }}">← В реестр</a>
+      <a class="child-btn child-btn-primary" href="{{ url_for('preschool.edit_child', child_id=child.id) }}">Изменить</a>
+    </div>
+  </div>
+
+  <div class="child-grid">
+    <div class="child-panel">
+      <h2>Основные сведения</h2>
+
+      <div class="info-list">
+        <div class="info-label">ФИО</div>
+        <div class="info-value">{{ child.full_name }}</div>
+
+        <div class="info-label">Дата рождения</div>
+        <div class="info-value">
+          {{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}
+        </div>
+
+        <div class="info-label">Учебный год</div>
+        <div class="info-value">{{ year.name if year else "—" }}</div>
+
+        <div class="info-label">Группа</div>
+        <div class="info-value">{{ group.name if group else "—" }}</div>
+
+        <div class="info-label">Здание</div>
+        <div class="info-value">{{ group.building.name if group and group.building else "—" }}</div>
+
+        <div class="info-label">Возрастная группа</div>
+        <div class="info-value">{{ group.age_level if group and group.age_level else "—" }}</div>
+
+        <div class="info-label">Воспитатель</div>
+        <div class="info-value">
+          {% if group and group.teacher %}
+            {{ group.teacher.last_name or "" }} {{ group.teacher.first_name or "" }} {{ group.teacher.middle_name or "" }}
+          {% elif group and group.teacher_name %}
+            {{ group.teacher_name }}
+          {% else %}
+            —
+          {% endif %}
+        </div>
+
+        <div class="info-label">Личное дело / тех. номер</div>
+        <div class="info-value">
+          {% if child.personal_account %}
+            {{ child.personal_account }}
+          {% else %}
+            <span class="info-muted">не указано</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if child.note %}
+        <div class="child-note">
+          {{ child.note }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="child-panel">
+      <h2>Родители / представители</h2>
+      <div class="child-placeholder">
+        Следующим этапом добавим представителей из файла:
+        ФИО представителя, тип связи, телефон, email и привязку к ребёнку по номеру личного дела.
+      </div>
+    </div>
+
+    <div class="child-panel">
+      <h2>Движение</h2>
+      <div class="child-placeholder">
+        Здесь будет история: зачисление в ДОУ, перевод между группами, выбытие,
+        а также перевод из ДОУ в школьный контингент.
+      </div>
+    </div>
+
+    <div class="child-panel">
+      <h2>Детодни</h2>
+      <div class="child-placeholder">
+        Здесь появится история табелей, дней к оплате, засчитанных дней и рассчитанных детодней.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
