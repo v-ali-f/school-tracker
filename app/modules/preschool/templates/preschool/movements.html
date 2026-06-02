@@ -260,6 +260,7 @@
 
     <div class="movement-actions">
       <a class="movement-btn" href="{{ url_for('preschool.index') }}">ДОУ</a>
+      <a class="movement-btn" href="{{ url_for('preschool.bulk_movements', academic_year_id=year.id) }}">Массовое движение</a>
       <a class="movement-btn" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Реестр ДОУ</a>
     </div>
   </div>

@@ -1910,6 +1910,123 @@ def movements():
     )
 
 
+@bp.route("/movements/bulk", methods=["GET", "POST"])
+def bulk_movements():
+    year_id = request.args.get("academic_year_id", type=int) or request.form.get("academic_year_id", type=int)
+    source_group_id = request.args.get("source_group_id", type=int) or request.form.get("source_group_id", type=int)
+
+    year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+
+    if not year:
+        flash("Сначала создайте учебный год в служебном разделе.", "warning")
+        return redirect(url_for("children.academic_years_registry"))
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    groups = (
+        PreschoolGroup.query
+        .filter(PreschoolGroup.academic_year_id == year.id)
+        .order_by(PreschoolGroup.name.asc())
+        .all()
+    )
+
+    children = []
+    if source_group_id:
+        children = (
+            PreschoolChild.query
+            .filter(PreschoolChild.group_id == source_group_id)
+            .order_by(PreschoolChild.last_name.asc(), PreschoolChild.first_name.asc())
+            .all()
+        )
+
+    if request.method == "POST":
+        movement_type = (request.form.get("movement_type") or "").strip()
+        movement_date_raw = (request.form.get("movement_date") or "").strip()
+        target_group_id = request.form.get("target_group_id", type=int)
+        basis = (request.form.get("basis") or "").strip()
+        comment = (request.form.get("comment") or "").strip()
+
+        child_ids = request.form.getlist("child_ids")
+
+        if movement_type not in ("transfer_group", "leaving"):
+            flash("Выберите тип массового движения.", "warning")
+            return redirect(url_for(
+                "preschool.bulk_movements",
+                academic_year_id=year.id,
+                source_group_id=source_group_id,
+            ))
+
+        if not child_ids:
+            flash("Выберите хотя бы одного воспитанника.", "warning")
+            return redirect(url_for(
+                "preschool.bulk_movements",
+                academic_year_id=year.id,
+                source_group_id=source_group_id,
+            ))
+
+        if movement_type == "transfer_group" and not target_group_id:
+            flash("Для массового перевода выберите группу назначения.", "warning")
+            return redirect(url_for(
+                "preschool.bulk_movements",
+                academic_year_id=year.id,
+                source_group_id=source_group_id,
+            ))
+
+        movement_date = None
+        if movement_date_raw:
+            from datetime import datetime
+            try:
+                movement_date = datetime.strptime(movement_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                movement_date = None
+
+        selected_children = PreschoolChild.query.filter(PreschoolChild.id.in_(child_ids)).all()
+
+        created = 0
+
+        for child in selected_children:
+            from_group_id = child.group_id
+
+            if movement_type == "transfer_group":
+                child.group_id = target_group_id
+                child.status = "active"
+                to_group_id = target_group_id
+            else:
+                child.status = "left"
+                to_group_id = None
+
+            movement = PreschoolChildMovement(
+                child_id=child.id,
+                movement_date=movement_date,
+                movement_type=movement_type,
+                from_group_id=from_group_id,
+                to_group_id=to_group_id,
+                basis=basis or None,
+                comment=comment or None,
+            )
+
+            db.session.add(movement)
+            created += 1
+
+        db.session.commit()
+
+        flash(f"Массовое движение сохранено. Обработано воспитанников: {created}.", "success")
+        return redirect(url_for("preschool.movements", academic_year_id=year.id, movement_type=movement_type))
+
+    return render_template(
+        "preschool/bulk_movements.html",
+        year=year,
+        all_years=all_years,
+        groups=groups,
+        children=children,
+        source_group_id=source_group_id,
+    )
+
+
 @bp.route("/children/<int:child_id>")
 def child_card(child_id):
     child = PreschoolChild.query.get_or_404(child_id)
