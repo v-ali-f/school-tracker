@@ -1428,6 +1428,144 @@ def attendance():
     )
 
 
+@bp.route("/attendance/analytics")
+def attendance_analytics():
+    year_id = request.args.get("academic_year_id", type=int)
+    month = (request.args.get("month") or "").strip()
+    upload_id = request.args.get("upload_id", type=int)
+
+    year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
+
+    if not year:
+        flash("Сначала создайте учебный год в служебном разделе.", "warning")
+        return redirect(url_for("children.academic_years_registry"))
+
+    all_years = (
+        AcademicYear.query
+        .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
+        .all()
+    )
+
+    uploads_query = PreschoolAttendanceUpload.query.filter(
+        PreschoolAttendanceUpload.academic_year_id == year.id
+    )
+
+    if month:
+        uploads_query = uploads_query.filter(PreschoolAttendanceUpload.month == month)
+
+    uploads = uploads_query.order_by(
+        PreschoolAttendanceUpload.created_at.desc(),
+        PreschoolAttendanceUpload.id.desc()
+    ).all()
+
+    records_query = (
+        PreschoolAttendanceRecord.query
+        .join(PreschoolAttendanceUpload, PreschoolAttendanceRecord.upload_id == PreschoolAttendanceUpload.id)
+        .outerjoin(PreschoolGroup, PreschoolAttendanceRecord.group_id == PreschoolGroup.id)
+        .outerjoin(Building, PreschoolGroup.building_id == Building.id)
+        .filter(PreschoolAttendanceUpload.academic_year_id == year.id)
+    )
+
+    if month:
+        records_query = records_query.filter(PreschoolAttendanceUpload.month == month)
+
+    if upload_id:
+        records_query = records_query.filter(PreschoolAttendanceRecord.upload_id == upload_id)
+
+    records = records_query.all()
+
+    total = {
+        "records": len(records),
+        "matched": sum(1 for item in records if item.child_id),
+        "unmatched": sum(1 for item in records if not item.child_id),
+        "payment_days": sum(item.payment_days or 0 for item in records),
+        "credited_days": sum(item.credited_days or 0 for item in records),
+        "child_days": sum(item.child_days or 0 for item in records),
+    }
+
+    building_map = {}
+    group_map = {}
+
+    for record in records:
+        group = record.group
+        building_name = group.building.name if group and group.building else "Без корпуса"
+        group_name = group.name if group else "Без группы"
+
+        if building_name not in building_map:
+            building_map[building_name] = {
+                "name": building_name,
+                "records": 0,
+                "matched": 0,
+                "unmatched": 0,
+                "payment_days": 0,
+                "credited_days": 0,
+                "child_days": 0,
+                "groups": set(),
+            }
+
+        building_row = building_map[building_name]
+        building_row["records"] += 1
+        building_row["payment_days"] += record.payment_days or 0
+        building_row["credited_days"] += record.credited_days or 0
+        building_row["child_days"] += record.child_days or 0
+        building_row["groups"].add(group_name)
+
+        if record.child_id:
+            building_row["matched"] += 1
+        else:
+            building_row["unmatched"] += 1
+
+        if group_name not in group_map:
+            group_map[group_name] = {
+                "name": group_name,
+                "building": building_name,
+                "records": 0,
+                "matched": 0,
+                "unmatched": 0,
+                "payment_days": 0,
+                "credited_days": 0,
+                "child_days": 0,
+            }
+
+        group_row = group_map[group_name]
+        group_row["records"] += 1
+        group_row["payment_days"] += record.payment_days or 0
+        group_row["credited_days"] += record.credited_days or 0
+        group_row["child_days"] += record.child_days or 0
+
+        if record.child_id:
+            group_row["matched"] += 1
+        else:
+            group_row["unmatched"] += 1
+
+    building_rows = []
+    for row in building_map.values():
+        row = dict(row)
+        row["groups_count"] = len(row["groups"])
+        row.pop("groups", None)
+        building_rows.append(row)
+
+    building_rows = sorted(building_rows, key=lambda x: x["name"])
+    group_rows = sorted(group_map.values(), key=lambda x: (x["building"], x["name"]))
+
+    max_building_child_days = max([row["child_days"] for row in building_rows] or [1])
+    max_group_child_days = max([row["child_days"] for row in group_rows] or [1])
+
+    return render_template(
+        "preschool/attendance_analytics.html",
+        year=year,
+        all_years=all_years,
+        month=month,
+        upload_id=upload_id,
+        uploads=uploads,
+        total=total,
+        building_rows=building_rows,
+        group_rows=group_rows,
+        max_building_child_days=max_building_child_days,
+        max_group_child_days=max_group_child_days,
+    )
+
+
 @bp.route("/attendance/uploads/<int:upload_id>")
 def attendance_upload_detail(upload_id):
     item = PreschoolAttendanceUpload.query.get_or_404(upload_id)
