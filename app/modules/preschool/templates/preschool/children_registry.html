@@ -1,531 +1,227 @@
 {% extends "layout.html" %}
-
 {% block content %}
+
 <style>
-  .registry-page {
-    padding: 24px 32px 42px;
+  /* На странице реестра ДОУ скрываем общие хлебные крошки */
+  body:has(.dou-registry-page) .breadcrumb,
+  body:has(.dou-registry-page) nav[aria-label="breadcrumb"],
+  body:has(.dou-registry-page) .breadcrumbs,
+  body:has(.dou-registry-page) .content-breadcrumbs,
+  body:has(.dou-registry-page) .page-breadcrumbs {
+    display: none !important;
   }
 
-  .registry-breadcrumbs {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 14px;
-    color: #64748b;
-    font-size: 14px;
-  }
-
-  .registry-breadcrumbs a {
-    color: #2563eb;
-    text-decoration: underline;
-  }
-
-  .registry-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    padding: 18px 24px;
-    border: 1px solid #e2e8f0;
-    border-radius: 22px;
-    background: #ffffff;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
-    margin-bottom: 22px;
-  }
-
-  .registry-title {
-    margin: 0;
-    color: #25324a;
-    font-size: 28px;
-    line-height: 1.15;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-
-  .registry-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .registry-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 38px;
-    padding: 0 14px;
-    border-radius: 14px;
-    border: 1px solid #d4deec;
-    background: #ffffff;
-    color: #64748b;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .registry-btn:hover {
-    background: #f8fafc;
-    color: #2563eb;
-  }
-
-  .registry-btn-primary {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: #ffffff;
+  .dou-registry-page h2 {
+    font-size: 1.35rem;
     font-weight: 600;
+    color: #24324b;
   }
 
-  .registry-btn-primary:hover {
-    background: #1d4ed8;
-    color: #ffffff;
-  }
-
-  .registry-filters {
-    display: grid;
-    grid-template-columns: 1fr 1.35fr 1.35fr 1.8fr 1fr auto;
-    gap: 12px;
-    align-items: end;
-    margin-bottom: 18px;
-  }
-
-  .registry-field label {
-    display: block;
-    margin-bottom: 7px;
-    color: #1f2937;
-    font-size: 16px;
-    font-weight: 500;
-  }
-
-  .registry-field input,
-  .registry-field select {
-    width: 100%;
-    min-height: 44px;
-    border: 1px solid #dbe3ef;
-    border-radius: 14px;
-    background: #ffffff;
-    color: #1f2937;
-    padding: 0 14px;
-    font-size: 16px;
-    font-weight: 400;
-  }
-
-  .registry-filter-button,
-  .registry-reset-button {
-    min-height: 44px;
-    border-radius: 14px;
-    padding: 0 24px;
-    font-size: 16px;
-    font-weight: 500;
-  }
-
-  .registry-filter-button {
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
+  .dou-registry-subtitle {
+    font-size: 0.9rem;
     color: #64748b;
-    cursor: pointer;
   }
 
-  .registry-reset-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #cbd5e1;
-    background: #ffffff;
-    color: #64748b;
-    text-decoration: none;
-  }
-
-  .registry-table-card {
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.045);
-    overflow: hidden;
-    margin-bottom: 18px;
-  }
-
-  .registry-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .registry-table th {
-    text-align: left;
-    padding: 13px 16px;
-    border-bottom: 1px solid #cbd5e1;
-    color: #64748b;
-    font-size: 14px;
+  .dou-registry-table th {
+    font-size: 0.78rem;
     font-weight: 600;
+    color: #64748b;
+    background: #f8fafc;
+    white-space: nowrap;
   }
 
-  .registry-table td {
-    padding: 13px 16px;
-    border-bottom: 1px solid #eef2f7;
-    color: #25324a;
-    font-size: 14px;
-    font-weight: 400;
+  .dou-registry-table td {
+    font-size: 0.88rem;
     vertical-align: middle;
   }
 
-  .registry-table tr:last-child td {
-    border-bottom: 0;
+  .dou-registry-table .dou-num {
+    width: 44px;
+    text-align: center;
+    color: #64748b;
   }
 
-  .registry-name-link {
-    color: #1f2937;
-    font-weight: 600;
+  .dou-child-link {
+    color: #0d6efd;
     text-decoration: none;
+    font-weight: 400;
   }
 
-  .registry-name-link:hover {
-    color: #2563eb;
+  .dou-child-link:hover {
     text-decoration: underline;
   }
 
-  .registry-row-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
+  .dou-actions {
+    white-space: nowrap;
+    text-align: right;
   }
 
-  .registry-small-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 32px;
-    padding: 0 12px;
-    border-radius: 10px;
-    border: 1px solid #dbe3ef;
-    background: #ffffff;
-    color: #2563eb;
-    text-decoration: none;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
+  .dou-actions .btn {
+    margin-left: 4px;
   }
 
-  .registry-delete-btn {
-    min-height: 32px;
-    padding: 0 12px;
-    border-radius: 10px;
-    border: 1px solid #fecaca;
-    background: #ffffff;
-    color: #dc2626;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .registry-empty {
-    height: 190px;
-    text-align: center;
+  .dou-footer {
+    font-size: 0.82rem;
     color: #64748b;
-    font-size: 15px;
-  }
-
-  .registry-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    color: #64748b;
-    font-size: 14px;
-    margin-top: 2px;
-  }
-
-  .registry-footer-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-left: auto;
-  }
-
-  .registry-page-size {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .registry-page-size select {
-    min-height: 38px;
-    border: 1px solid #dbe3ef;
-    border-radius: 12px;
-    padding: 0 10px;
-    background: #ffffff;
-    color: #1f2937;
-    font-size: 14px;
-  }
-
-  .registry-pager {
-    display: inline-flex;
-    align-items: center;
-    overflow: hidden;
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-    background: #ffffff;
-  }
-
-  .registry-pager a,
-  .registry-pager span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 36px;
-    min-height: 36px;
-    padding: 0 10px;
-    border-right: 1px solid #cbd5e1;
-    color: #334155;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .registry-pager a:last-child,
-  .registry-pager span:last-child {
-    border-right: 0;
-  }
-
-  .registry-pager .disabled {
-    color: #cbd5e1;
-    background: #f8fafc;
-  }
-
-  .registry-current-page {
-    min-width: 64px !important;
-    color: #1f2937 !important;
-    background: #ffffff;
-  }
-
-  .registry-add-panel {
-    margin: 0 0 18px;
-    padding: 16px;
-    border: 1px solid #e2e8f0;
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
-  }
-
-  .registry-add-grid {
-    display: grid;
-    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
-    gap: 12px;
-  }
-
-  .registry-add-grid .full {
-    grid-column: 1 / -1;
-  }
-
-  .registry-add-grid textarea {
-    width: 100%;
-    min-height: 70px;
-    border: 1px solid #dbe3ef;
-    border-radius: 14px;
-    padding: 10px 14px;
-    font-size: 15px;
-    resize: vertical;
-  }
-
-  @media (max-width: 1100px) {
-    .registry-filters,
-    .registry-add-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  @media (max-width: 760px) {
-    .registry-page {
-      padding: 18px 16px 32px;
-    }
-
-    .registry-header {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .registry-actions {
-      justify-content: flex-start;
-    }
-
-    .registry-filters,
-    .registry-add-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .registry-footer {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .registry-footer-right {
-      margin-left: 0;
-      flex-wrap: wrap;
-    }
   }
 </style>
 
-<div class="registry-page">
-  <div class="registry-breadcrumbs">
-    <a href="{{ url_for('main.dashboard') }}">Главная</a>
-    <span>/</span>
-    <span>Реестр ДОУ</span>
-  </div>
+<div class="dou-registry-page">
 
-  <div class="registry-header">
-    <h1 class="registry-title">Реестр ДОУ</h1>
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+      <h2 class="mb-1">Реестр ДОУ</h2>
+      <div class="dou-registry-subtitle">
+        Контингент дошкольного отделения, группы и представители.
+      </div>
+    </div>
 
-    <div class="registry-actions">
-      <a class="registry-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">Сводный контингент</a>
-      <a class="registry-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">↥ Импорт детей</a>
-      <a class="registry-btn" href="{{ url_for('preschool.import_representatives', academic_year_id=year.id) }}">↥ Импорт представителей</a>
-      <button class="registry-btn registry-btn-primary" type="button"
-              onclick="document.getElementById('add-child-panel').toggleAttribute('hidden');">
-        + Добавить ребёнка
-      </button>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Действия с реестром ДОУ">
+      <a class="btn btn-outline-primary" href="{{ url_for('preschool.index') }}">
+        <i class="bi bi-grid"></i><span class="d-none d-md-inline ms-1">ДОУ</span>
+      </a>
+      <a class="btn btn-outline-primary" href="{{ url_for('preschool.import_children') }}">
+        <i class="bi bi-cloud-upload"></i><span class="d-none d-md-inline ms-1">Импорт детей</span>
+      </a>
+      <a class="btn btn-outline-primary" href="{{ url_for('preschool.import_representatives') }}">
+        <i class="bi bi-cloud-upload"></i><span class="d-none d-md-inline ms-1">Импорт представителей</span>
+      </a>
+      <a class="btn btn-primary" href="{{ url_for('preschool.children') }}">
+        <i class="bi bi-plus-lg"></i><span class="d-none d-md-inline ms-1">Добавить</span>
+      </a>
     </div>
   </div>
 
-  <form class="registry-filters" method="get">
-    <input type="hidden" name="per_page" value="{{ per_page }}">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link active" href="{{ url_for('preschool.children_registry') }}">
+        Все дети
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('preschool.index') }}">
+        Раздел ДОУ
+      </a>
+    </li>
+  </ul>
 
-    <div class="registry-field">
-      <label>Учебный год</label>
-      <select name="academic_year_id">
+  <form method="get" class="row g-2 mb-3 align-items-end">
+    <div class="col-12 col-md-5">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text"
+               name="q"
+               class="form-control"
+               placeholder="Поиск по ФИО ребёнка"
+               value="{{ q or '' }}">
+        <button class="btn btn-outline-secondary" type="submit">Найти</button>
+        {% if q %}
+          <a class="btn btn-outline-secondary" href="{{ url_for('preschool.children_registry') }}">×</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <select name="academic_year_id" class="form-select form-select-sm" onchange="this.form.submit()">
         {% for item in all_years %}
-          <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
+          <option value="{{ item.id }}" {% if year and item.id == year.id %}selected{% endif %}>
             {{ item.name }}{% if item.is_current %} • текущий{% endif %}
           </option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="registry-field">
-      <label>Здание</label>
-      <select name="building_id">
-        <option value="">Все здания</option>
+    <div class="col-6 col-md-2">
+      <select name="building_id" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Здание: все</option>
         {% for building in buildings %}
-          <option value="{{ building.id }}" {% if building.id == selected_building_id %}selected{% endif %}>
+          <option value="{{ building.id }}" {% if selected_building_id and selected_building_id|int == building.id %}selected{% endif %}>
             {{ building.name }}
           </option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="registry-field">
-      <label>Группа</label>
-      <select name="group_id">
-        <option value="">Все группы</option>
+    <div class="col-6 col-md-2">
+      <select name="group_id" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Группа: все</option>
         {% for group in groups %}
-          <option value="{{ group.id }}" {% if group.id == selected_group_id %}selected{% endif %}>
+          <option value="{{ group.id }}" {% if selected_group_id and selected_group_id|int == group.id %}selected{% endif %}>
             {{ group.name }}
           </option>
         {% endfor %}
       </select>
     </div>
 
-    <div class="registry-field">
-      <label>ФИО</label>
-      <input name="q" value="{{ q }}" placeholder="Поиск по ФИО">
+    <div class="col-6 col-md-1">
+      <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+      </select>
     </div>
-
-    <button class="registry-filter-button" type="submit">Фильтр</button>
-    <a class="registry-reset-button" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Сброс</a>
   </form>
 
-  <div class="registry-add-panel" id="add-child-panel" hidden>
-    <form method="post">
-      <div class="registry-add-grid">
-        <div class="registry-field">
-          <label>Группа</label>
-          <select name="group_id">
-            <option value="">Не выбрана</option>
-            {% for group in groups %}
-              <option value="{{ group.id }}">{{ group.name }}{% if group.building %} — {{ group.building.name }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="registry-field">
-          <label>Фамилия</label>
-          <input name="last_name" required>
-        </div>
-
-        <div class="registry-field">
-          <label>Имя</label>
-          <input name="first_name" required>
-        </div>
-
-        <div class="registry-field">
-          <label>Отчество</label>
-          <input name="middle_name">
-        </div>
-
-        <div class="registry-field">
-          <label>Дата рождения</label>
-          <input type="date" name="birth_date">
-        </div>
-
-        <div class="registry-field full">
-          <label>Примечание</label>
-          <textarea name="note"></textarea>
-        </div>
-      </div>
-
-      <button class="registry-btn registry-btn-primary" type="submit" style="margin-top:12px;">Сохранить</button>
-    </form>
-  </div>
-
-  <div class="registry-table-card">
-    <table class="registry-table">
-      <thead>
-        <tr>
-          <th>ФИО</th>
-          <th>Группа</th>
-          <th>Здание</th>
-          <th>Возрастная группа</th>
-          <th>Дата рождения</th>
-          <th style="text-align:right;">Действия</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% if items %}
-          {% for child in items %}
-            <tr>
-              <td>
-                <a class="registry-name-link" href="{{ url_for('preschool.child_card', child_id=child.id) }}">
-                  {{ child.full_name }}
-                </a>
-              </td>
-              <td>{{ child.group.name if child.group else "—" }}</td>
-              <td>{{ child.group.building.name if child.group and child.group.building else "—" }}</td>
-              <td>{{ child.group.age_level if child.group and child.group.age_level else "—" }}</td>
-              <td>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</td>
-              <td>
-                <div class="registry-row-actions">
-                  <a class="registry-small-btn" href="{{ url_for('preschool.edit_child', child_id=child.id) }}">Изменить</a>
+  <div class="card border-0 shadow-sm" id="itemsCard">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0 dou-registry-table">
+        <thead>
+          <tr>
+            <th class="dou-num">№</th>
+            <th>ФИО</th>
+            <th>Группа</th>
+            <th>Здание</th>
+            <th>Возрастная группа</th>
+            <th>Дата рождения</th>
+            <th class="dou-actions">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if items %}
+            {% for child in items %}
+              <tr>
+                <td class="dou-num">{{ (pagination.first or 1) + loop.index0 }}</td>
+                <td>
+                  <a class="dou-child-link" href="{{ url_for('preschool.child_card', child_id=child.id) }}">
+                    {{ child.full_name }}
+                  </a>
+                </td>
+                <td>{{ child.group.name if child.group else '—' }}</td>
+                <td>{{ child.group.building.name if child.group and child.group.building else '—' }}</td>
+                <td>{{ child.group.age_level if child.group and child.group.age_level else '—' }}</td>
+                <td>{{ child.birth_date.strftime('%d.%m.%Y') if child.birth_date else '—' }}</td>
+                <td class="dou-actions">
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{{ url_for('preschool.edit_child', child_id=child.id) }}">
+                    Изменить
+                  </a>
                   <form method="post"
                         action="{{ url_for('preschool.delete_child', child_id=child.id) }}"
-                        onsubmit="return confirm('Удалить воспитанника {{ child.full_name }}?');">
-                    <button class="registry-delete-btn" type="submit">Удалить</button>
+                        class="d-inline"
+                        onsubmit="return confirm('Удалить ребёнка из реестра?');">
+                    {% if csrf_token is defined %}
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                      Удалить
+                    </button>
                   </form>
-                </div>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="7" class="text-muted py-3">
+                Реестр ДОУ пуст. Используйте импорт для загрузки данных.
               </td>
             </tr>
-          {% endfor %}
-        {% else %}
-          <tr>
-            <td class="registry-empty" colspan="6">
-              Реестр ДОУ пуст. Используйте импорт для загрузки данных.
-            </td>
-          </tr>
-        {% endif %}
-      </tbody>
-    </table>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <div class="registry-footer">
+  <div class="d-flex justify-content-between align-items-center mt-2 dou-footer">
     <div>
       {% if pagination.total %}
         Показано {{ pagination.first }}–{{ pagination.last }} из {{ pagination.total }} записей
@@ -534,41 +230,33 @@
       {% endif %}
     </div>
 
-    <div class="registry-footer-right">
-      <form class="registry-page-size" method="get">
-        <input type="hidden" name="academic_year_id" value="{{ year.id }}">
-        {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
-        {% if selected_group_id %}<input type="hidden" name="group_id" value="{{ selected_group_id }}">{% endif %}
-        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+    <div class="btn-group btn-group-sm">
+      {% if pagination.has_prev %}
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=1) }}">«</a>
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.prev_num) }}">‹</a>
+      {% else %}
+        <button class="btn btn-outline-secondary" disabled>«</button>
+        <button class="btn btn-outline-secondary" disabled>‹</button>
+      {% endif %}
 
-        <span>Строк</span>
-        <select name="per_page" onchange="this.form.submit()">
-          <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
-          <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-          <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
-        </select>
-      </form>
+      <button class="btn btn-outline-secondary" disabled>
+        {{ pagination.page }} / {{ pagination.pages or 1 }}
+      </button>
 
-      <div class="registry-pager">
-        {% if pagination.has_prev %}
-          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=1) }}">«</a>
-          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.prev_num) }}">‹</a>
-        {% else %}
-          <span class="disabled">«</span>
-          <span class="disabled">‹</span>
-        {% endif %}
-
-        <span class="registry-current-page">{{ pagination.page }} / {{ pagination.pages or 1 }}</span>
-
-        {% if pagination.has_next %}
-          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.next_num) }}">›</a>
-          <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.pages) }}">»</a>
-        {% else %}
-          <span class="disabled">›</span>
-          <span class="disabled">»</span>
-        {% endif %}
-      </div>
+      {% if pagination.has_next %}
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.next_num) }}">›</a>
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.pages) }}">»</a>
+      {% else %}
+        <button class="btn btn-outline-secondary" disabled>›</button>
+        <button class="btn btn-outline-secondary" disabled>»</button>
+      {% endif %}
     </div>
   </div>
+
 </div>
+
 {% endblock %}
