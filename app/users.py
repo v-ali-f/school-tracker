@@ -17,7 +17,7 @@ users_bp = Blueprint("users", __name__)
 
 ROLE_OPTIONS = [
     "ADMIN", "DIRECTOR", "CLASS_TEACHER", "CURATOR", "TEACHER", "VIEWER", "METHODIST", "KPP",
-    "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT",
+    "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT", "SENIOR_EDUCATOR", "EDUCATOR",
 ]
 ROLE_LABELS = {
     "ADMIN": "Администратор",
@@ -35,6 +35,8 @@ ROLE_LABELS = {
     "DEFECTOLOGIST": "Учитель-дефектолог",
     "TUTOR": "Тьютор",
     "ASSISTANT": "Ассистент",
+    "SENIOR_EDUCATOR": "Старший воспитатель",
+    "EDUCATOR": "Воспитатель",
 }
 RUSSIAN_ROLE_MAP = {
     "администратор": "ADMIN",
@@ -55,6 +57,8 @@ RUSSIAN_ROLE_MAP = {
     "учитель дефектолог": "DEFECTOLOGIST",
     "тьютор": "TUTOR",
     "ассистент": "ASSISTANT",
+    "старший воспитатель": "SENIOR_EDUCATOR",
+    "воспитатель": "EDUCATOR",
 }
 SERVICE_ROLE_CODES = {"METHODIST", "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT"}
 

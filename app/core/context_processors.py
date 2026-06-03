@@ -268,6 +268,7 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'tasks':               ('Задачи',               'tasks.my_tasks'),
             'iom':                 ('ИОМ',                  'iom.registry'),
             'school_plan':         ('План работы школы',    'school_plan.index'),
+            'preschool':           ('ДОУ',                  'preschool.index'),
             'role_access_admin':   ('Настройка ролей',      'role_access_admin.settings'),
             'organization_settings': ('Настройки организации', 'organization_settings.settings_form'),
         }
