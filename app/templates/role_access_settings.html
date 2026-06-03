@@ -63,7 +63,7 @@
   <input type="hidden" name="role" value="{{ selected_role }}">
 
   {# ─── ПОЯСНЕНИЕ КОЛОНОК ─── #}
-  <div class="alert alert-light border d-flex gap-4 flex-wrap py-2 px-3 small mb-0">
+  <div class="alert alert-light border d-flex gap-4 flex-wrap py-2 px-3 small mb-0 d-none">
     <span>
       <strong>Виден</strong> — элемент отображается в интерфейсе
       <i class="bi bi-question-circle text-muted ms-1"
@@ -93,7 +93,7 @@
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 role-access-table">
           <thead class="table-light">
             <tr>
               <th style="min-width:220px">Раздел</th>
@@ -113,7 +113,7 @@
             {% set default_vis = module_defaults.get(module_code, true) %}
             {% set is_visible = row.is_visible if row else default_vis %}
             {% set is_enabled = row.is_enabled if row else default_vis %}
-            {% set cur_level = (row.access_level if row else 'view') %}
+            {% set cur_level = ('hidden' if row and (not row.is_visible or not row.is_enabled) else (row.access_level if row else 'view')) %}
             <tr class="{% if not is_visible %}table-secondary text-muted{% endif %}">
               <td>
                 <div class="fw-semibold">{{ title }}</div>
@@ -159,7 +159,7 @@
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 role-access-table">
           <thead class="table-light">
             <tr>
               <th style="min-width:220px">Кнопка</th>
@@ -174,7 +174,7 @@
             {% set row = quick_rows.get(quick_code) %}
             {% set is_visible = not row or row.is_visible %}
             {% set is_enabled = not row or row.is_enabled %}
-            {% set cur_level = (row.access_level if row else 'view') %}
+            {% set cur_level = ('hidden' if row and (not row.is_visible or not row.is_enabled) else (row.access_level if row else 'view')) %}
             <tr class="{% if not is_visible %}table-secondary text-muted{% endif %}">
               <td>
                 <div class="fw-semibold">{{ title }}</div>
@@ -220,7 +220,7 @@
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 role-access-table">
           <thead class="table-light">
             <tr>
               <th style="min-width:220px">Блок</th>
@@ -236,7 +236,7 @@
             {% set is_visible = not row or (row.is_visible and row.is_enabled and row.access_level != "hidden") %}
             {% set is_vis_raw = not row or row.is_visible %}
             {% set is_ena_raw = not row or row.is_enabled %}
-            {% set cur_level = (row.access_level if row else 'view') %}
+            {% set cur_level = ('hidden' if row and (not row.is_visible or not row.is_enabled) else (row.access_level if row else 'view')) %}
             <tr class="{% if not is_visible %}table-secondary text-muted{% endif %}">
               <td>
                 <div class="fw-semibold">{{ block.title }}</div>
@@ -292,5 +292,626 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
+
+
+<style id="role-access-compact-final-css">
+  .role-access-table th:nth-child(2),
+  .role-access-table th:nth-child(3),
+  .role-access-table th:nth-child(5),
+  .role-access-table td:nth-child(2),
+  .role-access-table td:nth-child(3),
+  .role-access-table td:nth-child(5) {
+    display: none !important;
+  }
+
+  .role-access-table th:nth-child(4) {
+    width: 370px !important;
+  }
+
+  .role-access-table select[name*="_access_level__"] {
+    display: none !important;
+  }
+
+  .role-access-buttons {
+    display: inline-flex;
+    border: 1px solid #dbe3ef;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+    white-space: nowrap;
+  }
+
+  .role-access-btn {
+    border: 0;
+    border-right: 1px solid #dbe3ef;
+    background: #fff;
+    color: #475569;
+    padding: 6px 11px;
+    font-size: 12px;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .role-access-btn:last-child {
+    border-right: 0;
+  }
+
+  .role-access-btn:hover {
+    background: #f1f5f9;
+  }
+
+  .role-access-btn.active {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .role-access-btn[data-value="hidden"].active {
+    background: #64748b;
+  }
+
+  .role-access-btn[data-value="view"].active {
+    background: #0ea5e9;
+  }
+
+  .role-access-btn[data-value="edit"].active {
+    background: #16a34a;
+  }
+
+  .role-access-btn[data-value="full"].active {
+    background: #7c3aed;
+  }
+</style>
+
+<script id="role-access-compact-final-js">
+(function () {
+  const labels = {
+    hidden: 'Скрыт',
+    view: 'Просмотр',
+    edit: 'Редактирование',
+    full: 'Полный'
+  };
+
+  function refresh(wrap, value) {
+    wrap.querySelectorAll('.role-access-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.value === value);
+    });
+  }
+
+  function makeButtons(select) {
+    if (!select || select.dataset.buttonsReady === '1') return;
+
+    const row = select.closest('tr');
+    const visible = row ? row.querySelector('input[name*="_visible__"]') : null;
+    const enabled = row ? row.querySelector('input[name*="_enabled__"]') : null;
+
+    if ((visible && !visible.checked) || (enabled && !enabled.checked)) {
+      select.value = 'hidden';
+    }
+
+    select.dataset.buttonsReady = '1';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'role-access-buttons';
+
+    ['hidden', 'view', 'edit', 'full'].forEach(function (value) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'role-access-btn';
+      btn.dataset.value = value;
+      btn.textContent = labels[value];
+
+      btn.addEventListener('click', function () {
+        select.value = value;
+
+        if (visible) visible.checked = value !== 'hidden';
+        if (enabled) enabled.checked = value !== 'hidden';
+
+        if (row) {
+          row.classList.toggle('table-secondary', value === 'hidden');
+          row.classList.toggle('text-muted', value === 'hidden');
+        }
+
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        refresh(wrap, value);
+      });
+
+      wrap.appendChild(btn);
+    });
+
+    select.insertAdjacentElement('afterend', wrap);
+    refresh(wrap, select.value || 'view');
+  }
+
+  document.querySelectorAll('select[name*="_access_level__"]').forEach(makeButtons);
+
+  document.querySelectorAll('.role-access-table thead tr').forEach(function (tr) {
+    const th = tr.querySelectorAll('th');
+    if (th[3]) th[3].textContent = 'Доступ';
+  });
+})();
+</script>
+
+
+
+
+
+<style id="role-access-polish-css">
+  /* Верхний блок выбора роли */
+  form.soft-card.mb-4 > .card-body {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  form.soft-card.mb-4 > .card-body > div:first-child {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  form.soft-card.mb-4 label.form-label {
+    margin-bottom: 4px !important;
+    line-height: 1 !important;
+  }
+
+  form.soft-card.mb-4 select.form-select {
+    height: 38px !important;
+    border-radius: 12px !important;
+  }
+
+  form.soft-card.mb-4 .card-body > .d-flex {
+    align-self: flex-end !important;
+    height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  form.soft-card.mb-4 .badge {
+    height: 32px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 14px !important;
+    border-radius: 10px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
+
+  form.soft-card.mb-4 .text-muted.small {
+    height: 32px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
+
+  form.soft-card.mb-4 .btn {
+    height: 32px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    border-radius: 999px !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Убираем технические коды разделов под описанием */
+  .role-access-table td > div.text-muted[style*="font-size:0.7rem"] {
+    display: none !important;
+  }
+
+  /* Строки становятся компактнее */
+  .role-access-table td {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .role-access-table .fw-semibold {
+    line-height: 1.15 !important;
+  }
+
+  .role-access-table .text-muted.small {
+    line-height: 1.15 !important;
+  }
+</style>
+
+
+<style id="role-access-compact-header-css">
+  /* Верхняя карточка с названием страницы */
+  .page-header-card,
+  .soft-card:first-of-type {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .page-header-card .card-body,
+  .soft-card:first-of-type .card-body {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+  }
+
+  .page-title {
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+    margin-bottom: 4px !important;
+  }
+
+  .page-subtitle,
+  .page-header-card .text-muted {
+    font-size: 13px !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Блок выбора роли */
+  form.soft-card.mb-4 {
+    margin-bottom: 12px !important;
+  }
+
+  form.soft-card.mb-4 > .card-body {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  /* Поле "Роль" в одну строку с select */
+  form.soft-card.mb-4 > .card-body > div:first-child {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-width: 420px;
+  }
+
+  form.soft-card.mb-4 label.form-label {
+    margin: 0 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  form.soft-card.mb-4 select.form-select {
+    height: 36px !important;
+    min-width: 300px !important;
+    border-radius: 12px !important;
+  }
+
+  form.soft-card.mb-4 .card-body > .d-flex {
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  form.soft-card.mb-4 .badge {
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 12px !important;
+    border-radius: 10px !important;
+  }
+
+  form.soft-card.mb-4 .btn {
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    border-radius: 999px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  @media (max-width: 900px) {
+    form.soft-card.mb-4 > .card-body {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+
+    form.soft-card.mb-4 > .card-body > div:first-child {
+      min-width: 0;
+      width: 100%;
+    }
+
+    form.soft-card.mb-4 select.form-select {
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+  }
+</style>
+
+
+<style id="role-access-spacing-fix-css">
+  /* Заголовочная карточка "Настройка доступа по ролям" */
+  .soft-card:first-of-type {
+    margin-bottom: 10px !important;
+  }
+
+  .soft-card:first-of-type .card-body {
+    padding: 12px 18px !important;
+  }
+
+  .soft-card:first-of-type h1,
+  .soft-card:first-of-type h2,
+  .soft-card:first-of-type h3,
+  .soft-card:first-of-type .h1,
+  .soft-card:first-of-type .h2,
+  .soft-card:first-of-type .h3 {
+    margin-bottom: 3px !important;
+    line-height: 1.15 !important;
+  }
+
+  .soft-card:first-of-type p,
+  .soft-card:first-of-type .text-muted {
+    margin-bottom: 0 !important;
+    line-height: 1.25 !important;
+  }
+
+  /* Блок выбора роли */
+  form.soft-card.mb-4 {
+    margin-bottom: 10px !important;
+  }
+
+  form.soft-card.mb-4 > .card-body {
+    padding: 10px 18px !important;
+    min-height: 58px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  form.soft-card.mb-4 > .card-body > div:first-child {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: 380px !important;
+    margin: 0 !important;
+  }
+
+  form.soft-card.mb-4 label.form-label {
+    margin: 0 !important;
+    min-width: 34px !important;
+    line-height: 36px !important;
+    white-space: nowrap !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  form.soft-card.mb-4 select.form-select {
+    height: 36px !important;
+    min-height: 36px !important;
+    min-width: 300px !important;
+    border-radius: 12px !important;
+  }
+
+  form.soft-card.mb-4 .card-body > .d-flex {
+    height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-self: center !important;
+  }
+
+  form.soft-card.mb-4 .badge {
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 12px !important;
+    border-radius: 10px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
+
+  form.soft-card.mb-4 .text-muted.small {
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
+
+  form.soft-card.mb-4 .btn {
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    border-radius: 999px !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+  }
+
+  /* Заголовок таблицы "Модули и разделы" ближе к блоку */
+  .role-access-table {
+    margin-top: 0 !important;
+  }
+
+  @media (max-width: 900px) {
+    form.soft-card.mb-4 > .card-body {
+      flex-wrap: wrap !important;
+    }
+
+    form.soft-card.mb-4 > .card-body > div:first-child {
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+
+    form.soft-card.mb-4 select.form-select {
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+  }
+</style>
+
+
+<style id="role-access-force-compact-css">
+  /* Заголовочный блок */
+  .page-head.mb-3 {
+    padding: 10px 18px !important;
+    margin-bottom: 8px !important;
+    min-height: 0 !important;
+  }
+
+  .page-head.mb-3 .page-title {
+    font-size: 21px !important;
+    line-height: 1.1 !important;
+    margin: 0 0 3px 0 !important;
+    padding: 0 !important;
+  }
+
+  .page-head.mb-3 .page-sub {
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Блок выбора роли */
+  form.soft-card.mb-4 {
+    margin-bottom: 8px !important;
+  }
+
+  form.soft-card.mb-4 > .card-body {
+    padding: 7px 16px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  form.soft-card.mb-4 > .card-body > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  form.soft-card.mb-4 label.form-label {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    font-size: 13px !important;
+  }
+
+  form.soft-card.mb-4 select.form-select {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  form.soft-card.mb-4 .d-flex.align-items-center {
+    height: 34px !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  form.soft-card.mb-4 .badge {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+  }
+
+  form.soft-card.mb-4 .text-muted.small {
+    height: 28px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+  }
+
+  form.soft-card.mb-4 .btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 10px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+  }
+
+  /* Уменьшаем расстояние до таблицы */
+  form.d-flex.flex-column.gap-4 {
+    gap: 8px !important;
+  }
+</style>
+
+
+<style id="role-select-block-extra-compact-css">
+  /* Только второй блок — выбор роли */
+  form.soft-card.mb-4 {
+    padding: 0 !important;
+    min-height: 0 !important;
+    margin-bottom: 8px !important;
+    border-radius: 16px !important;
+  }
+
+  form.soft-card.mb-4 > .card-body {
+    padding: 6px 14px !important;
+    min-height: 46px !important;
+    height: 46px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  form.soft-card.mb-4 > .card-body > div:first-child {
+    height: 34px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  form.soft-card.mb-4 label.form-label {
+    height: 34px !important;
+    line-height: 34px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  form.soft-card.mb-4 select.form-select {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  form.soft-card.mb-4 .card-body > .d-flex {
+    height: 34px !important;
+    min-height: 34px !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  form.soft-card.mb-4 .badge,
+  form.soft-card.mb-4 .btn,
+  form.soft-card.mb-4 .text-muted.small {
+    height: 28px !important;
+    min-height: 28px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+</style>
 
 {% endblock %}

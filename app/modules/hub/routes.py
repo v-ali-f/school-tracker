@@ -767,6 +767,66 @@ _ROLE_LABELS = {
 }
 
 
+
+def _read_module_codes(role_code):
+    """Возвращает коды модулей, разрешённых для роли в настройке ролей."""
+    if not role_code:
+        return None
+
+    try:
+        from app.models.role_access import RoleModuleAccess
+
+        rows = RoleModuleAccess.query.filter_by(
+            role_code=role_code,
+            is_visible=True,
+            is_enabled=True,
+        ).all()
+
+        return {r.module_code for r in rows}
+    except Exception:
+        return None
+
+
+def _filter_page_sections_by_modules(page, module_codes):
+    """Фильтрует карточки тематических разделов по настройке «Модули и разделы»."""
+    if not module_codes:
+        return page
+
+    endpoint_to_module = {
+        "hub.departments": "departments",
+        "hub.diagnostics": "diagnostics",
+        "hub.attendance": "attendance",
+        "hub.registries": "registries",
+        "preschool.index": "preschool",
+        "hub.control_works": "control_works",
+        "hub.olympiads": "olympiads",
+        "hub.orders": "orders",
+        "hub.class_guidance": "class_guidance",
+        "hub.service_staff": "service_staff",
+        "tasks.my_tasks": "tasks",
+        "school_plan.index": "school_plan",
+        "knowledge_base.index": "knowledge_base",
+        "drive.index": "drive",
+        "familiarizations.index": "familiarizations",
+        "familiarizations.my": "familiarizations",
+        "appeals.index": "appeals",
+    }
+
+    def keep(item):
+        endpoint = item.get("endpoint")
+        module_key = endpoint_to_module.get(endpoint)
+        if not module_key:
+            return True
+        return module_key in module_codes
+
+    for key in ("primary_sections", "secondary_sections", "admin_sections"):
+        if key in page and page[key]:
+            page[key] = [item for item in page[key] if keep(item)]
+
+    return page
+
+
+
 def build_home_context():
     from flask import request as _request
     from app.permissions import is_admin as _is_admin, _user_role_codes
@@ -786,6 +846,7 @@ def build_home_context():
         lookup_role = next(iter(codes), None) or getattr(current_user, "role", None)
 
     role_block_codes = _read_block_codes(lookup_role) if lookup_role else None
+    role_module_codes = _read_module_codes(lookup_role) if lookup_role else None
 
     # ── Реальные флаги текущего пользователя (не подменяем на preview) ──
     is_ct = has_role("CLASS_TEACHER")
@@ -804,6 +865,8 @@ def build_home_context():
         from flask import g
         g._hub_preview_role_codes = {preview_role}
     page = _main_page_config()
+    page = _filter_page_sections_by_modules(page, role_module_codes)
+
     if preview_role:
         g._hub_preview_role_codes = None
 
@@ -833,6 +896,7 @@ def build_home_context():
         "class_teacher_class": class_teacher_class,
         "is_class_teacher": is_ct,
         "role_block_codes": role_block_codes,
+        "role_module_codes": role_module_codes,
         "preview_role": preview_role,
         "preview_role_label": _ROLE_LABELS.get(preview_role, preview_role) if preview_role else None,
     }

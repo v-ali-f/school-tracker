@@ -17,20 +17,24 @@ role_access_admin_bp = Blueprint("role_access_admin", __name__, url_prefix="/adm
 
 
 DEFAULT_MODULES = [
-    ("dashboard", "Главная"),
-    ("children", "Обучающиеся"),
-    ("attendance", "Посещаемость и пропуски"),
-    ("incidents", "Инциденты"),
-    ("control_works", "Контрольные работы"),
-    ("diagnostics", "Диагностики"),
-    ("olympiads", "Олимпиады"),
+    ("appeals", "Обращения"),
+    ("familiarizations", "Ознакомления"),
     ("departments", "Кафедры"),
-    ("service_staff", "СППС"),
-    ("iom", "ИОМ"),
-    ("orders", "Приказы"),
+    ("diagnostics", "Диагностики МЦКО"),
+    ("attendance", "Пропуски и аналитика посещаемости"),
+    ("registries", "Основные реестры"),
+    ("preschool", "Дошкольное отделение"),
+    ("control_works", "Контрольные работы"),
+    ("olympiads", "Олимпиады"),
+    ("orders", "Реестр приказов"),
+    ("class_guidance", "Классное руководство"),
+    ("service_staff", "Социально-психологическая служба"),
+    ("tasks", "Задачи и поручения"),
+    ("school_plan", "План работы школы"),
+    ("knowledge_base", "База знаний"),
+    ("drive", "Диск"),
     ("documents", "Документы"),
     ("analytics", "Аналитика"),
-    ("admin", "Администрирование"),
 ]
 
 DEFAULT_QUICK_LINKS = [
@@ -47,20 +51,24 @@ DEFAULT_QUICK_LINKS = [
 
 # Описания модулей — показываются в admin-панели под названием
 MODULE_DESCRIPTIONS = {
-    "dashboard": "Главная страница: быстрый поиск, статистика, быстрые действия",
-    "children": "Реестр учеников, карточки, социальные паспорта, инциденты",
-    "attendance": "Журнал посещаемости, оформление и просмотр пропусков",
-    "incidents": "Реестр инцидентов: создание, просмотр, дашборд событий",
-    "control_works": "Контрольные работы и результаты выполнения",
-    "diagnostics": "Диагностики МЦКО, результаты тестирований по классам",
-    "olympiads": "Олимпиады: участие, результаты, стадии",
-    "departments": "Кафедры и предметные группы педагогов",
-    "service_staff": "Сопровождение СППС: психолог, соцпедагог, ИОМ, задачи",
-    "iom": "Индивидуальные образовательные маршруты учеников",
-    "orders": "Реестр приказов и распоряжений по школе",
+    "appeals": "Реестр обращений, ответственные, сроки и контроль исполнения",
+    "familiarizations": "Рассылка приказов и писем, подтверждение ознакомления, банк документов",
+    "departments": "Предметные кафедры, сводки и нагрузка педагогов",
+    "diagnostics": "Диагностики МЦКО, импорт результатов и аналитика",
+    "attendance": "Реестр пропусков, аналитика посещаемости, импорт и начало занятий",
+    "registries": "Ученики, движение, ОВЗ, ВШУ, КДН, АЗ и другие реестры",
+    "preschool": "Дошкольное отделение: контингент, группы, представители, детодни и аналитика",
+    "control_works": "Контрольные работы, результаты выполнения и сводные показатели",
+    "olympiads": "Олимпиады: участие, результаты, стадии и аналитика",
+    "orders": "Журнал приказов, шаблоны, поиск и архив",
+    "class_guidance": "Социальный паспорт класса, список класса и аналитика класса",
+    "service_staff": "Специалисты службы, структура, задания и ответственные по модулю",
+    "tasks": "Постановка задач, сроки, комментарии и контроль исполнения",
+    "school_plan": "Школьный план мероприятий по дням, периодам, зданиям и классам",
+    "knowledge_base": "Инструкции и материалы по работе в системе для каждой роли",
+    "drive": "Файлы, папки, создание и редактирование документов",
     "documents": "Загруженные файлы и документы учеников",
     "analytics": "Аналитические отчёты и сводные данные",
-    "admin": "Администрирование: пользователи, роли, настройки системы",
 }
 
 # Описания быстрых кнопок
@@ -79,20 +87,24 @@ QUICK_LINK_DESCRIPTIONS = {
 # Ограничения видимости модулей по умолчанию (когда нет явной записи в БД).
 # None = модуль виден всем; set = только этим ролям.
 MODULE_DEFAULT_ROLES = {
-    "dashboard":    None,  # все
-    "children":     None,  # все (карточки ограничены на уровне маршрутов)
-    "attendance":   {"ADMIN", "CLASS_TEACHER", "SOCIAL_PEDAGOG"},
-    "incidents":    {"ADMIN", "TEACHER", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
-    "control_works":{"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST", "SOCIAL_PEDAGOG"},
-    "diagnostics":  None,  # все
-    "olympiads":    {"ADMIN", "TEACHER", "CLASS_TEACHER", "METHODIST", "SOCIAL_PEDAGOG"},
-    "departments":  None,  # все
-    "service_staff":{"ADMIN", "METHODIST", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
-    "iom":          {"ADMIN", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "METHODIST"},
-    "orders":       {"ADMIN", "METHODIST", "SOCIAL_PEDAGOG"},
-    "documents":    {"ADMIN", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
-    "analytics":    {"ADMIN", "METHODIST"},
-    "admin":        {"ADMIN"},
+    "appeals": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
+    "familiarizations": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "SENIOR_EDUCATOR", "EDUCATOR"},
+    "departments": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
+    "diagnostics": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
+    "attendance": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "KPP", "EDUCATOR", "SENIOR_EDUCATOR"},
+    "registries": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
+    "preschool": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "SENIOR_EDUCATOR", "EDUCATOR"},
+    "control_works": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER"},
+    "olympiads": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER"},
+    "orders": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
+    "class_guidance": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "SOCIAL_PEDAGOG"},
+    "service_staff": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "LOGOPEDIST", "DEFECTOLOGIST", "TUTOR"},
+    "tasks": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR"},
+    "school_plan": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "CLASS_TEACHER", "SENIOR_EDUCATOR"},
+    "knowledge_base": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR", "VIEWER"},
+    "drive": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR"},
+    "documents": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
+    "analytics": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
 }
 
 
@@ -113,6 +125,8 @@ ROLE_LABELS = {
     "KPP": "КПП (пост охраны)",
     "VIEWER": "Наблюдатель",
     "DEPUTY_DIRECTOR": "Заместитель директора",
+    "SENIOR_EDUCATOR": "Старший воспитатель",
+    "EDUCATOR": "Воспитатель",
 }
 
 
@@ -132,7 +146,7 @@ def _role_choices():
         values = [r[0] for r in roles if r and r[0]]
     except Exception:
         values = []
-    base_roles = ["ADMIN", "METHODIST", "TEACHER", "CLASS_TEACHER", "KPP"]
+    base_roles = ["ADMIN", "METHODIST", "TEACHER", "CLASS_TEACHER", "KPP", "DEPUTY_DIRECTOR", "SENIOR_EDUCATOR", "EDUCATOR"]
     for item in base_roles:
         if item not in values:
             values.append(item)
@@ -239,6 +253,16 @@ def _build_preview_data(selected_role, dashboard_catalog):
         "hidden_modules": hidden_modules,
     }
 
+
+def _access_flags_from_level(level):
+    level = level if level in ACCESS_LEVELS else "view"
+
+    if level == "hidden":
+        return False, False, "hidden"
+
+    return True, True, level
+
+
 def _upsert(model, role_code, code_field, code_value, visible, enabled, access_level, display_order):
     row = model.query.filter_by(role_code=role_code, **{code_field: code_value}).first()
     if not row:
@@ -264,7 +288,7 @@ def settings():
     selected_role = (request.values.get("role") or "").strip()
     roles = _role_choices()
     if not selected_role and roles:
-        selected_role = roles[0]
+        selected_role = roles[0][0] if roles and isinstance(roles[0], (tuple, list)) else roles[0]
 
     dashboard_catalog = (
         DashboardBlockCatalog.query
@@ -275,38 +299,47 @@ def settings():
 
     if request.method == "POST" and selected_role:
         for module_code, _title in DEFAULT_MODULES:
+            module_level = request.form.get(f"module_access_level__{module_code}") or "view"
+            module_visible, module_enabled, module_level = _access_flags_from_level(module_level)
+
             _upsert(
                 RoleModuleAccess,
                 selected_role,
                 "module_code",
                 module_code,
-                request.form.get(f"module_visible__{module_code}") == "1",
-                request.form.get(f"module_enabled__{module_code}") == "1",
-                request.form.get(f"module_access_level__{module_code}") or "view",
+                module_visible,
+                module_enabled,
+                module_level,
                 request.form.get(f"module_order__{module_code}") or 100,
             )
 
         for quick_link_code, _title in DEFAULT_QUICK_LINKS:
+            quick_level = request.form.get(f"quick_access_level__{quick_link_code}") or "view"
+            quick_visible, quick_enabled, quick_level = _access_flags_from_level(quick_level)
+
             _upsert(
                 RoleQuickLinkAccess,
                 selected_role,
                 "quick_link_code",
                 quick_link_code,
-                request.form.get(f"quick_visible__{quick_link_code}") == "1",
-                request.form.get(f"quick_enabled__{quick_link_code}") == "1",
-                request.form.get(f"quick_access_level__{quick_link_code}") or "view",
+                quick_visible,
+                quick_enabled,
+                quick_level,
                 request.form.get(f"quick_order__{quick_link_code}") or 100,
             )
 
         for block in dashboard_catalog:
+            block_level = request.form.get(f"block_access_level__{block.block_code}") or "view"
+            block_visible, block_enabled, block_level = _access_flags_from_level(block_level)
+
             _upsert(
                 RoleDashboardBlock,
                 selected_role,
                 "block_code",
                 block.block_code,
-                request.form.get(f"block_visible__{block.block_code}") == "1",
-                request.form.get(f"block_enabled__{block.block_code}") == "1",
-                request.form.get(f"block_access_level__{block.block_code}") or "view",
+                block_visible,
+                block_enabled,
+                block_level,
                 request.form.get(f"block_order__{block.block_code}") or block.default_order,
             )
 
