@@ -900,3 +900,294 @@ button.portal-home-admin-link {
 }
 
 /* === end unified registries and work blocks === */
+
+/* === unified theme and module blocks === */
+
+.container.my-4:has(.theme-hub-classic) {
+  width: min(100% - 64px, 1280px) !important;
+  max-width: 1280px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 18px !important;
+}
+
+.dashboard-shell.theme-hub-classic,
+.portal-theme-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 0 40px !important;
+}
+
+.classic-page-header,
+.dashboard-shell.theme-hub-classic .classic-page-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 14px !important;
+  padding: 18px 20px !important;
+  min-height: 74px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: var(--portal-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--portal-shadow) !important;
+}
+
+.classic-page-header .section-overline {
+  display: none !important;
+}
+
+.dashboard-title,
+.classic-page-header h1 {
+  margin: 0 !important;
+  color: var(--portal-text) !important;
+  font-size: var(--portal-title-size) !important;
+  line-height: 1.22 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.classic-hero-note {
+  margin-top: 5px !important;
+  color: var(--portal-muted) !important;
+  font-size: var(--portal-subtitle-size) !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.dashboard-section.dashboard-section-classic,
+.portal-theme-section {
+  border: 1px solid var(--portal-border) !important;
+  border-radius: var(--portal-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--portal-shadow) !important;
+  padding: 16px !important;
+  overflow: hidden !important;
+}
+
+.dashboard-section.dashboard-section-classic .section-head {
+  margin-bottom: 8px !important;
+}
+
+.dashboard-section.dashboard-section-classic .section-overline {
+  display: none !important;
+}
+
+.dashboard-section.dashboard-section-classic .section-title {
+  margin: 0 0 3px !important;
+  color: var(--portal-text) !important;
+  font-size: var(--portal-card-title-size) !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.theme-actions-row-classic {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.theme-action-btn,
+.zone-btn,
+.classic-page-header .btn {
+  display: inline-flex !important;
+  min-height: 32px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 999px !important;
+  padding: 0 13px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+
+.classic-nav-card,
+.summary-card.summary-card-classic {
+  border: 1px solid var(--portal-border) !important;
+  border-radius: var(--portal-radius-inner) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+.classic-nav-card {
+  position: relative !important;
+  transition: border-color .15s ease, background-color .15s ease, transform .15s ease !important;
+}
+
+.classic-nav-card:hover {
+  border-color: #cbd7e6 !important;
+  background: #fbfdff !important;
+  transform: translateY(-1px);
+}
+
+.classic-nav-card .card-body {
+  min-height: 78px !important;
+  padding: 12px 14px !important;
+}
+
+.classic-nav-icon-row {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  gap: 11px !important;
+  align-items: center !important;
+}
+
+.classic-nav-icon,
+.classic-nav-icon.classic-nav-icon-muted {
+  display: inline-flex !important;
+  width: 34px !important;
+  height: 34px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 10px !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  font-size: 16px !important;
+}
+
+.classic-nav-icon-row h5,
+.classic-nav-card h5 {
+  margin: 0 !important;
+  color: var(--portal-text) !important;
+  font-size: 15.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+}
+
+.classic-nav-text {
+  margin: 4px 0 0 45px !important;
+  color: var(--portal-muted) !important;
+  font-size: 13.25px !important;
+  line-height: 1.34 !important;
+}
+
+.classic-nav-card .zone-btn {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  color: transparent !important;
+}
+
+.zone-blue .classic-nav-icon,
+.zone-blue .classic-nav-icon.classic-nav-icon-muted,
+.portal-home-card-blue .portal-home-card-icon {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+}
+
+.zone-green .classic-nav-icon,
+.zone-green .classic-nav-icon.classic-nav-icon-muted,
+.portal-home-card-green .portal-home-card-icon {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+}
+
+.zone-orange .classic-nav-icon,
+.zone-orange .classic-nav-icon.classic-nav-icon-muted,
+.portal-home-card-orange .portal-home-card-icon {
+  background: #fff7ed !important;
+  color: #ea580c !important;
+}
+
+.zone-rose .classic-nav-icon,
+.zone-rose .classic-nav-icon.classic-nav-icon-muted,
+.portal-home-card-rose .portal-home-card-icon {
+  background: #fff1f2 !important;
+  color: #e11d48 !important;
+}
+
+.zone-purple .classic-nav-icon,
+.zone-purple .classic-nav-icon.classic-nav-icon-muted,
+.portal-home-card-purple .portal-home-card-icon {
+  background: #f5f3ff !important;
+  color: #7c3aed !important;
+}
+
+.summary-card.summary-card-classic {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas:
+    "label value"
+    "note note" !important;
+  gap: 3px 12px !important;
+  min-height: 58px !important;
+  align-items: center !important;
+  padding: 10px 14px !important;
+}
+
+.summary-card-classic .summary-card-label {
+  grid-area: label !important;
+  color: var(--portal-text) !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+}
+
+.summary-card-classic .summary-card-value {
+  grid-area: value !important;
+  color: var(--portal-primary) !important;
+  font-size: 20px !important;
+  line-height: 1.1 !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-card-classic .summary-card-subtext {
+  grid-area: note !important;
+  margin-top: 3px !important;
+  color: var(--portal-muted) !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+.container.my-4 > .card:not(.soft-card),
+.container.my-4 > .row .card:not(.classic-nav-card):not(.summary-card),
+.dashboard-shell.theme-hub-classic > .card {
+  border: 1px solid var(--portal-border) !important;
+  border-radius: var(--portal-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--portal-shadow) !important;
+  overflow: hidden !important;
+}
+
+.list-group {
+  border-radius: var(--portal-radius-inner) !important;
+}
+
+.list-group-item {
+  border-color: var(--portal-border-soft) !important;
+  color: var(--portal-text) !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  padding: 11px 14px !important;
+}
+
+.list-group-item-action:hover {
+  background: #fafbfd !important;
+}
+
+@media (max-width: 980px) {
+  .container.my-4:has(.theme-hub-classic) {
+    width: min(100% - 28px, 1280px) !important;
+  }
+
+  .classic-page-header,
+  .dashboard-shell.theme-hub-classic .classic-page-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}
+
+/* === end unified theme and module blocks === */
