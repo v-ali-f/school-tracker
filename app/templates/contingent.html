@@ -1,5 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
+<div class="contingent-page">
 
 <style>
   /* ── KPI-доска контингента: крупные читаемые карточки в 2 ряда ───────
@@ -223,8 +224,8 @@
             <th style="width:120px;">Параллель</th>
             <th class="num" style="width:120px;">Классов</th>
             <th class="num" style="width:120px;">Детей</th>
-            <th class="num" style="width:120px;">Мальчики</th>
-            <th class="num" style="width:120px;">Девочки</th>
+            <th class="num" style="width:120px;">Мал.</th>
+            <th class="num" style="width:120px;">Дев.</th>
           </tr>
         </thead>
         <tbody>
@@ -298,11 +299,11 @@
           <th style="min-width:160px;">Здание</th>
           <th style="min-width:240px;">Классный руководитель</th>
           <th style="min-width:150px;">Телефон</th>
-          <th class="num" style="width:120px;">Обучающихся</th>
-          <th class="num" style="width:110px;">Мальчики</th>
-          <th class="num" style="width:110px;">Девочки</th>
-          <th class="center" style="width:120px;">Свободно</th>
-          <th class="num" style="width:90px;">Макс.</th>
+          <th class="num" style="width:82px;">Всего</th>
+          <th class="num" style="width:76px;">Мал.</th>
+          <th class="num" style="width:76px;">Дев.</th>
+          <th class="center" style="width:92px;">Свободно</th>
+          <th class="num" style="width:76px;">Макс.</th>
         </tr>
       </thead>
       <tbody>
@@ -368,5 +369,277 @@
     </table>
   </div>
 </div>
+
+</div>
+
+<style id="contingent-clean-final-css">
+  body:has(.contingent-page) .breadcrumb,
+  body:has(.contingent-page) nav[aria-label="breadcrumb"],
+  body:has(.contingent-page) .breadcrumbs,
+  body:has(.contingent-page) .content-breadcrumbs,
+  body:has(.contingent-page) .page-breadcrumbs {
+    display: none !important;
+  }
+
+  .contingent-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .page-head,
+  .contingent-head {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .page-title,
+  .contingent-title,
+  .contingent-page h1 {
+    margin: 0 0 5px 0 !important;
+    color: #24324b !important;
+    font-size: 24px !important;
+    line-height: 1.12 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .page-sub,
+  .page-subtitle,
+  .contingent-subtitle,
+  .contingent-page .text-muted {
+    color: #5f6f86 !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+  }
+
+  .contingent-page .btn {
+    height: 30px !important;
+    min-height: 30px !important;
+    border-radius: 999px !important;
+    padding: 0 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    width: auto !important;
+  }
+
+  .contingent-page .btn-primary {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+  }
+
+  .contingent-page .btn-outline-primary,
+  .contingent-page .btn-outline-secondary {
+    background: #fff !important;
+    border: 1px solid #cbd7e8 !important;
+    color: #0d6efd !important;
+  }
+
+  .filter-card,
+  .soft-card,
+  .contingent-page .card {
+    border: 1px solid #dbe3ef !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04) !important;
+    margin-bottom: 12px !important;
+  }
+
+  .contingent-page .card-body {
+    padding: 14px !important;
+  }
+
+  .contingent-page h2,
+  .section-title,
+  .contingent-page summary {
+    color: #24324b !important;
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+  }
+
+  .contingent-page label,
+  .contingent-page .form-label {
+    display: block !important;
+    margin-bottom: 4px !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
+  .contingent-page input,
+  .contingent-page select,
+  .contingent-page .form-control,
+  .contingent-page .form-select {
+    height: 32px !important;
+    border: 1px solid #cfd9e8 !important;
+    border-radius: 9px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    padding: 4px 9px !important;
+    font-size: 13px !important;
+  }
+
+  .stat-strip,
+  .summary-grid,
+  .kpi-grid {
+    gap: 10px !important;
+  }
+
+  .stat-cell,
+  .kpi,
+  .summary-card {
+    min-height: 62px !important;
+    border: 1px solid #dbe3ef !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04) !important;
+    padding: 12px 14px !important;
+  }
+
+  .stat-label,
+  .kpi-label {
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    margin-bottom: 5px !important;
+  }
+
+  .stat-value,
+  .kpi-value {
+    color: #1f2937 !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+  }
+
+  .contingent-page table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  .contingent-page table th {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #cfd9e8 !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.15 !important;
+  }
+
+  .contingent-page table td {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #e6edf6 !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.2 !important;
+  }
+
+  .contingent-page table tr:hover td {
+    background: #f8fbff !important;
+  }
+
+  .contingent-page table b,
+  .contingent-page table strong,
+  .fw-semibold {
+    font-weight: 500 !important;
+  }
+
+  .class-link {
+    color: #006cff !important;
+    text-decoration: none !important;
+    font-weight: 400 !important;
+  }
+
+  .class-link:hover {
+    text-decoration: underline !important;
+  }
+</style>
+
+
+
+
+
+
+
+
+<style id="contingent-kpi-inline-final-css">
+  /* Сводные карточки: название слева, цифра справа */
+  .contingent-page .cont-kpi .kpi {
+    min-height: 54px !important;
+    padding: 10px 14px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    text-align: left !important;
+    gap: 12px !important;
+  }
+
+  .contingent-page .cont-kpi .kpi-label {
+    margin: 0 !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+    font-weight: 400 !important;
+    white-space: nowrap !important;
+  }
+
+  .contingent-page .cont-kpi .kpi-value {
+    margin: 0 !important;
+    color: #1f2937 !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  .contingent-page .cont-kpi .kpi-dot {
+    display: inline-block !important;
+    margin-right: 5px !important;
+    vertical-align: middle !important;
+  }
+</style>
+
+<style id="contingent-table-plus2-css">
+  /* Таблица "По классам": увеличить шрифт примерно на 2px */
+  .contingent-page table th {
+    font-size: 14px !important;
+    line-height: 1.25 !important;
+  }
+
+  .contingent-page table td {
+    font-size: 15px !important;
+    line-height: 1.3 !important;
+  }
+
+  .contingent-page table a,
+  .contingent-page table .class-link {
+    font-size: 15px !important;
+  }
+
+  .contingent-page table .section-row td {
+    font-size: 14px !important;
+  }
+</style>
 
 {% endblock %}

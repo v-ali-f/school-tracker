@@ -2,186 +2,299 @@
 
 {% block content %}
 <style>
-  .preschool-import {
-    max-width: 980px;
-    margin: 0 auto;
-    padding: 24px 24px 42px;
+  body:has(.pir-page) .breadcrumb,
+  body:has(.pir-page) nav[aria-label="breadcrumb"],
+  body:has(.pir-page) .breadcrumbs,
+  body:has(.pir-page) .content-breadcrumbs,
+  body:has(.pir-page) .page-breadcrumbs {
+    display: none !important;
   }
 
-  .pi-header {
+  .pir-page {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .pir-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    padding: 20px 22px;
-    border: 1px solid #e2e8f0;
-    border-radius: 22px;
-    background: #fff;
-    box-shadow: 0 10px 28px rgba(15,23,42,.045);
-    margin-bottom: 16px;
+    gap: 14px;
+    margin-bottom: 14px;
   }
 
-  .pi-title {
+  .pir-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     margin: 0;
-    color: #1f2937;
-    font-size: 26px;
-    line-height: 1.15;
-    font-weight: 600;
-    letter-spacing: -.025em;
+    color: #24324b;
+    font-size: 24px;
+    line-height: 1.12;
+    font-weight: 500;
   }
 
-  .pi-subtitle {
-    margin-top: 5px;
-    color: #64748b;
-    font-size: 15px;
-  }
-
-  .pi-btn {
+  .pir-title-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: #eef6ff;
+    color: #1677ff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
-    padding: 0 13px;
-    border-radius: 999px;
-    border: 1px solid #dbe3ef;
-    background: #fff;
-    color: #334155;
-    text-decoration: none;
+    font-size: 17px;
+  }
+
+  .pir-subtitle {
+    margin-top: 5px;
+    color: #5f6f86;
     font-size: 14px;
-    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .pir-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .pir-btn {
+    height: 30px;
+    border-radius: 999px;
+    border: 1px solid #cbd7e8;
+    background: #fff;
+    color: #0d6efd;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
     cursor: pointer;
   }
 
-  .pi-btn-primary {
+  .pir-btn:hover {
+    background: #f5f9ff;
+    color: #0d6efd;
+    text-decoration: none;
+  }
+
+  .pir-btn-primary {
     background: #2563eb;
     border-color: #2563eb;
     color: #fff;
   }
 
-  .pi-card {
-    padding: 18px;
-    border-radius: 20px;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-    box-shadow: 0 10px 26px rgba(15,23,42,.045);
-    margin-bottom: 16px;
+  .pir-btn-primary:hover {
+    background: #1d4ed8;
+    color: #fff;
   }
 
-  .pi-card h2 {
-    margin: 0 0 12px;
-    color: #1f2937;
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  .pi-field {
+  .pir-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+    gap: 12px;
+    align-items: start;
     margin-bottom: 12px;
   }
 
-  .pi-field label {
-    display: block;
-    margin-bottom: 6px;
-    color: #475569;
-    font-size: 13px;
+  .pir-card {
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
+    overflow: hidden;
+  }
+
+  .pir-card-head {
+    min-height: 46px;
+    padding: 0 14px;
+    border-bottom: 1px solid #e6edf6;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .pir-card-title {
+    margin: 0;
+    color: #24324b;
+    font-size: 16px;
     font-weight: 500;
   }
 
-  .pi-field input,
-  .pi-field select {
-    width: 100%;
-    min-height: 40px;
-    border: 1px solid #dbe3ef;
-    border-radius: 12px;
-    padding: 0 11px;
-    background: #fff;
-    color: #1f2937;
-    font-size: 14px;
+  .pir-card-body {
+    padding: 14px;
   }
 
-  .pi-help {
+  .pir-field {
+    margin-bottom: 12px;
+  }
+
+  .pir-field label {
+    display: block;
+    margin-bottom: 4px;
     color: #64748b;
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 12px;
+    font-weight: 500;
   }
 
-  .pi-help code {
+  .pir-field input,
+  .pir-field select {
+    width: 100%;
+    height: 34px;
+    border: 1px solid #cfd9e8;
+    border-radius: 9px;
+    background: #fff;
+    color: #1e293b;
+    padding: 4px 9px;
+    font-size: 13px;
+  }
+
+  .pir-field input[type="file"] {
+    padding-top: 5px;
+  }
+
+  .pir-help {
+    color: #40516b;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .pir-help code {
     padding: 2px 6px;
-    border-radius: 8px;
+    border-radius: 7px;
     background: #f1f5f9;
     color: #334155;
+    font-size: 12px;
   }
 
-  .pi-result {
-    padding: 14px 16px;
-    border-radius: 16px;
+  .pir-result {
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
     background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    padding: 12px 14px;
+    color: #40516b;
+    font-size: 13px;
   }
 
-  .pi-errors {
-    margin-top: 10px;
+  .pir-result strong {
+    font-weight: 500;
+  }
+
+  .pir-errors {
+    margin-top: 8px;
     color: #b45309;
-    font-size: 13.5px;
-    line-height: 1.45;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 900px) {
+    .pir-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .pir-actions {
+      justify-content: flex-start;
+    }
+
+    .pir-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 
-<div class="preschool-import">
-  <div class="pi-header">
+<div class="pir-page">
+  <div class="pir-head">
     <div>
-      <h1 class="pi-title">Импорт представителей ДОУ</h1>
-      <div class="pi-subtitle">Загрузка родителей / законных представителей за {{ year.name }}</div>
+      <h1 class="pir-title">
+        <span class="pir-title-icon"><i class="bi bi-person-vcard"></i></span>
+        <span>Импорт представителей ДОУ</span>
+      </h1>
+      <div class="pir-subtitle">
+        Загрузка родителей и законных представителей за {{ year.name }}.
+      </div>
     </div>
 
-    <a class="pi-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">← К контингенту ДОУ</a>
+    <div class="pir-actions">
+      <a class="pir-btn" href="{{ url_for('preschool.children', academic_year_id=year.id) }}">К контингенту ДОУ</a>
+      <a class="pir-btn" href="{{ url_for('preschool.import_children', academic_year_id=year.id) }}">Импорт детей</a>
+    </div>
   </div>
 
-  <form class="pi-card" method="post" enctype="multipart/form-data">
-    <h2>Загрузить Excel</h2>
+  <div class="pir-grid">
+    <form class="pir-card" method="post" enctype="multipart/form-data">
+      <div class="pir-card-head">
+        <h2 class="pir-card-title">Загрузка Excel</h2>
+      </div>
 
-    <div class="pi-field">
-      <label>Учебный год</label>
-      <select name="academic_year_id" onchange="window.location='{{ url_for('preschool.import_representatives') }}?academic_year_id=' + this.value">
-        {% for item in all_years %}
-          <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>{{ item.name }}{% if item.is_current %} • текущий{% endif %}</option>
-        {% endfor %}
-      </select>
-    </div>
+      <div class="pir-card-body">
+        <div class="pir-field">
+          <label>Учебный год</label>
+          <select name="academic_year_id" onchange="window.location='{{ url_for('preschool.import_representatives') }}?academic_year_id=' + this.value">
+            {% for item in all_years %}
+              <option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>
+                {{ item.name }}{% if item.is_current %} • текущий{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
 
-    <div class="pi-field">
-      <label>Excel-файл</label>
-      <input type="file" name="file" accept=".xlsx,.xlsm,.xls" required>
-    </div>
+        <div class="pir-field">
+          <label>Excel-файл</label>
+          <input type="file" name="file" accept=".xlsx,.xlsm,.xls" required>
+        </div>
 
-    <button class="pi-btn pi-btn-primary" type="submit">Загрузить представителей</button>
-  </form>
+        <button class="pir-btn pir-btn-primary" type="submit">Загрузить представителей</button>
+      </div>
+    </form>
 
-  <div class="pi-card">
-    <h2>Требования к файлу</h2>
-    <div class="pi-help">
-      Для точной привязки желательно наличие колонки <code>Личное дело №</code>.
-      Также поддерживаются колонки <code>ФИО ребенка</code>, <code>ФИО</code> / <code>ФИО представителя</code>,
-      <code>Родство</code>, <code>Телефон</code>, <code>Email</code>, <code>Адрес</code>, <code>Примечание</code>.
+    <div class="pir-card">
+      <div class="pir-card-head">
+        <h2 class="pir-card-title">Требования к файлу</h2>
+      </div>
+
+      <div class="pir-card-body">
+        <div class="pir-help">
+          Для точной привязки желательно наличие колонки <code>Личное дело №</code>.
+          Также поддерживаются колонки <code>ФИО ребенка</code>, <code>ФИО</code> /
+          <code>ФИО представителя</code>, <code>Родство</code>, <code>Телефон</code>,
+          <code>Email</code>, <code>Адрес</code>, <code>Примечание</code>.
+        </div>
+      </div>
     </div>
   </div>
 
   {% if result %}
-    <div class="pi-card">
-      <h2>Результат импорта</h2>
-      <div class="pi-result">
-        <div><strong>Добавлено представителей:</strong> {{ result.added }}</div>
-        <div><strong>Пропущено строк:</strong> {{ result.skipped }}</div>
-        {% if result.errors_total %}
-          <div class="pi-errors">
-            <strong>Ошибки:</strong><br>
-            {% for error in result.errors %}
-              — {{ error }}<br>
-            {% endfor %}
-            {% if result.errors_total > result.errors|length %}
-              И ещё {{ result.errors_total - result.errors|length }} ошибок.
-            {% endif %}
-          </div>
-        {% endif %}
+    <div class="pir-card">
+      <div class="pir-card-head">
+        <h2 class="pir-card-title">Результат импорта</h2>
+      </div>
+
+      <div class="pir-card-body">
+        <div class="pir-result">
+          <div><strong>Добавлено представителей:</strong> {{ result.added }}</div>
+          <div><strong>Пропущено строк:</strong> {{ result.skipped }}</div>
+
+          {% if result.errors_total %}
+            <div class="pir-errors">
+              <strong>Ошибки:</strong><br>
+              {% for error in result.errors %}
+                — {{ error }}<br>
+              {% endfor %}
+              {% if result.errors_total > result.errors|length %}
+                И ещё {{ result.errors_total - result.errors|length }} ошибок.
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
       </div>
     </div>
   {% endif %}

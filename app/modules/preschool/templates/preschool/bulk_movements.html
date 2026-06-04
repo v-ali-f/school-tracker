@@ -199,17 +199,7 @@
 </style>
 
 <div class="bulk-page">
-  <div class="bulk-breadcrumbs">
-    <a href="{{ url_for('main.dashboard') }}">Главная</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.movements', academic_year_id=year.id) }}">Движение</a>
-    <span>/</span>
-    <span>Массовое движение</span>
-  </div>
-
-  <div class="bulk-header">
+<div class="bulk-header">
     <div>
       <h1 class="bulk-title">Массовое движение воспитанников</h1>
       <div class="bulk-subtitle">
@@ -366,4 +356,231 @@
     </div>
   </form>
 </div>
+
+<style id="bulk-movement-clean-final-css">
+  body:has(.bulk-page) .breadcrumb,
+  body:has(.bulk-page) nav[aria-label="breadcrumb"],
+  body:has(.bulk-page) .breadcrumbs,
+  body:has(.bulk-page) .content-breadcrumbs,
+  body:has(.bulk-page) .page-breadcrumbs,
+  body:has(.bulk-movement-page) .breadcrumb,
+  body:has(.bulk-movement-page) nav[aria-label="breadcrumb"],
+  body:has(.bulk-movement-page) .breadcrumbs,
+  body:has(.bulk-movement-page) .content-breadcrumbs,
+  body:has(.bulk-movement-page) .page-breadcrumbs {
+    display: none !important;
+  }
+
+  .bulk-page,
+  .bulk-movement-page,
+  .bulk-movements-page,
+  .mass-movement-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .bulk-header,
+  .bulk-movement-header,
+  .movement-header,
+  .page-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .bulk-title,
+  .bulk-movement-title,
+  .movement-title,
+  h1 {
+    font-size: 24px !important;
+    line-height: 1.12 !important;
+    font-weight: 500 !important;
+    color: #24324b !important;
+    letter-spacing: 0 !important;
+    margin-bottom: 5px !important;
+  }
+
+  .bulk-subtitle,
+  .bulk-movement-subtitle,
+  .movement-subtitle,
+  .page-subtitle,
+  .text-muted {
+    color: #5f6f86 !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+  }
+
+  .bulk-actions,
+  .bulk-movement-actions,
+  .movement-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 7px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .bulk-btn,
+  .bulk-movement-btn,
+  .movement-btn,
+  .btn {
+    height: 30px !important;
+    min-height: 30px !important;
+    border-radius: 999px !important;
+    padding: 0 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    width: auto !important;
+  }
+
+  .btn-primary,
+  .bulk-btn-primary,
+  .bulk-movement-btn-primary,
+  button[type="submit"] {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+  }
+
+  .btn-outline-primary,
+  .btn-outline-secondary,
+  .bulk-btn,
+  .bulk-movement-btn,
+  .movement-btn {
+    background: #fff !important;
+    border: 1px solid #cbd7e8 !important;
+    color: #0d6efd !important;
+  }
+
+  .bulk-panel,
+  .bulk-movement-panel,
+  .movement-panel,
+  .card,
+  .soft-card {
+    border: 1px solid #dbe3ef !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04) !important;
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .bulk-panel h2,
+  .bulk-movement-panel h2,
+  .movement-panel h2,
+  .card h2,
+  h2 {
+    margin: 0 0 12px 0 !important;
+    color: #24324b !important;
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+  }
+
+  .bulk-form-grid,
+  .bulk-movement-grid,
+  .movement-form-grid,
+  .movement-filters,
+  .form-grid {
+    display: grid !important;
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.3fr) minmax(220px, 1fr) 140px !important;
+    gap: 8px !important;
+    align-items: end !important;
+  }
+
+  .bulk-field label,
+  .bulk-movement-field label,
+  .movement-field label,
+  .form-label,
+  label {
+    display: block !important;
+    margin-bottom: 4px !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
+  input,
+  select,
+  .form-control,
+  .form-select {
+    height: 32px !important;
+    border: 1px solid #cfd9e8 !important;
+    border-radius: 9px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    padding: 4px 9px !important;
+    font-size: 13px !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  table th {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #cfd9e8 !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
+  table td {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #e6edf6 !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+  }
+
+  table tr:hover td {
+    background: #f8fbff !important;
+  }
+
+  @media (max-width: 1100px) {
+    .bulk-header,
+    .bulk-movement-header,
+    .movement-header,
+    .page-header {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+    }
+
+    .bulk-form-grid,
+    .bulk-movement-grid,
+    .movement-form-grid,
+    .movement-filters,
+    .form-grid {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .bulk-form-grid,
+    .bulk-movement-grid,
+    .movement-form-grid,
+    .movement-filters,
+    .form-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+
 {% endblock %}
