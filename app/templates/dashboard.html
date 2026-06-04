@@ -6,81 +6,18 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<style>
-  /* Компактный служебный блок администратора на главной */
-  .admin-section-classic {
-    padding: 18px 20px !important;
-  }
+{% macro home_card(title, description, url, icon='bi-folder2-open', zone='slate') %}
+<a class="portal-home-card portal-home-card-{{ zone or 'slate' }}" href="{{ url }}">
+  <span class="portal-home-card-icon"><i class="bi {{ icon }}"></i></span>
+  <span class="portal-home-card-body">
+    <span class="portal-home-card-title">{{ title }}</span>
+    <span class="portal-home-card-text">{{ description }}</span>
+  </span>
+</a>
+{% endmacro %}
 
-  .admin-section-classic .section-head {
-    margin-bottom: 12px !important;
-  }
+<div class="portal-shell portal-home">
 
-  .admin-section-classic .section-overline {
-    font-size: 11px !important;
-    letter-spacing: .08em !important;
-  }
-
-  .admin-section-classic .section-title {
-    font-size: 22px !important;
-    line-height: 1.15 !important;
-  }
-
-  .admin-links-grid-v109 {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 8px !important;
-  }
-
-  .admin-links-grid-v109 .admin-link-chip {
-    width: auto !important;
-    min-height: 36px !important;
-    padding: 7px 13px !important;
-    border-radius: 999px !important;
-    border: 1px solid #d8e0ea !important;
-    background: #ffffff !important;
-    color: #374151 !important;
-    font-size: 13.5px !important;
-    line-height: 1.15 !important;
-    font-weight: 500 !important;
-    box-shadow: none !important;
-    white-space: normal !important;
-
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 7px !important;
-    vertical-align: middle !important;
-  }
-
-  .admin-links-grid-v109 .admin-link-chip:hover {
-    background: #f8fafc !important;
-    border-color: #cbd5e1 !important;
-    color: #1f2937 !important;
-  }
-
-  .admin-links-grid-v109 .admin-link-chip i {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 14px !important;
-    line-height: 1 !important;
-    margin-right: 0 !important;
-    color: #64748b !important;
-  }
-
-  .admin-links-grid-v109 form {
-    width: auto !important;
-  }
-
-  .admin-links-grid-v109 form .admin-link-chip {
-    width: auto !important;
-  }
-</style>
-
-<div class="dashboard-shell dashboard-home dashboard-home-classic dashboard-home-v109">
-
-  {# ── Баннер превью-режима (только для ADMIN при ?preview_role=...) ── #}
   {% if preview_role %}
   <div class="alert alert-warning d-flex align-items-center justify-content-between gap-2 mb-3 py-2" role="alert">
     <div>
@@ -94,241 +31,134 @@
   </div>
   {% endif %}
 
-  {# ── Горизонтальная полоса оперативных показателей ── #}
+  <div class="portal-header portal-home-header">
+    <div>
+      <h1 class="portal-title">Главная</h1>
+      <div class="portal-subtitle">
+        Рабочее пространство системы сопровождения: быстрый поиск, ежедневные действия и разделы по направлениям.
+      </div>
+    </div>
+    <div class="portal-actions">
+      <a class="portal-btn" href="{{ url_for('drive.index') }}"><i class="bi bi-hdd-network me-1"></i>Диск</a>
+      <a class="portal-btn" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-check2-square me-1"></i>Задачи</a>
+      {% if current_user.is_authenticated and current_user.role in ['ADMIN', 'DIRECTOR'] %}
+      <a class="portal-btn" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders me-1"></i>Роли</a>
+      {% endif %}
+    </div>
+  </div>
+
   {% if show_home_summary and show_quick_summary and quick_summary %}
-  <div class="dash-stats-strip mb-3">
+  <div class="portal-home-stats">
     {% for card in quick_summary %}
       {% if card.url %}
-      <a class="dash-stat-item text-decoration-none" href="{{ card.url }}">
+      <a class="portal-home-stat" href="{{ card.url }}">
       {% else %}
-      <div class="dash-stat-item">
+      <div class="portal-home-stat">
       {% endif %}
-        <div class="dash-stat-value">{{ card.value }}</div>
-        <div class="dash-stat-label">{{ card.title }}</div>
-        <div class="dash-stat-sub">{{ card.description }}</div>
+        <span class="portal-home-stat-value">{{ card.value }}</span>
+        <span class="portal-home-stat-label">{{ card.title }}</span>
+        <span class="portal-home-stat-note">{{ card.description }}</span>
       {% if card.url %}</a>{% else %}</div>{% endif %}
     {% endfor %}
   </div>
   {% endif %}
 
-  {# ── Поиск ── #}
   {% if show_home_search %}
-  <section class="dashboard-section dashboard-section-classic dashboard-section-v109 mb-3">
-    <div class="section-head mb-2">
+  <section class="portal-card portal-home-search" id="homeSearchWrap" autocomplete="off">
+    <div class="portal-card-head">
       <div>
-        <h4 class="section-title mb-0">Поиск ученика по школе</h4>
+        <h2 class="portal-card-title">Поиск ученика по школе</h2>
+        <div class="portal-muted">{{ page.quick_search.description }}</div>
       </div>
     </div>
-    <div class="quick-search-classic quick-search-v109" id="homeSearchWrap" autocomplete="off">
-      <div class="d-flex gap-2 align-items-start">
-        <div class="quick-search-input-wrap flex-grow-1" style="position:relative;">
-          <i class="bi bi-search quick-search-icon"></i>
-          <input class="form-control quick-search-input" type="text"
-                 placeholder="{{ page.quick_search.placeholder }}"
-                 id="homeSearchInput">
-          <div id="homeSearchDropdown" class="list-group shadow"
-               style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1000; max-height:340px; overflow-y:auto; border-radius:0 0 8px 8px;"></div>
-        </div>
-        <button class="btn btn-primary" type="button" id="homeSearchBtn">
-          <i class="bi bi-search me-1"></i>Найти
-        </button>
+    <div class="portal-home-search-row">
+      <div class="portal-home-search-input-wrap">
+        <i class="bi bi-search"></i>
+        <input class="form-control portal-home-search-input" type="text"
+               placeholder="{{ page.quick_search.placeholder }}"
+               id="homeSearchInput">
+        <div id="homeSearchDropdown" class="list-group shadow"></div>
       </div>
-      <a class="btn btn-outline-secondary quick-search-btn-classic mt-2" href="{{ url_for(page.quick_search.endpoint) }}" id="homeSearchFullLink" style="display:none;">
-        <i class="bi bi-list me-1"></i>Полный список
-      </a>
+      <button class="portal-btn-primary portal-home-search-btn" type="button" id="homeSearchBtn">
+        <i class="bi bi-search me-1"></i>Найти
+      </button>
     </div>
-    <div class="section-note mt-2" id="homeSearchNote">{{ page.quick_search.description }}</div>
+    <a class="portal-btn mt-2" href="{{ url_for(page.quick_search.endpoint) }}" id="homeSearchFullLink" style="display:none;">
+      <i class="bi bi-list me-1"></i>Полный список
+    </a>
   </section>
   {% endif %}
 
-  {# ── Быстрые действия ── #}
-  {# Для CLASS_TEACHER — свой блок с 4 кнопками; для остальных — общие quick_actions #}
   {% if show_home_quick_links %}
-  {% if is_class_teacher %}
-  <section class="dashboard-section dashboard-section-classic dashboard-section-v109 mb-3">
-    <div class="section-head mb-2">
+  <section class="portal-card portal-home-section">
+    <div class="portal-card-head">
       <div>
-        <div class="section-overline">Быстрые действия</div>
-        <h4 class="section-title mb-0">
-          {% if class_teacher_class %}Мой класс — {{ class_teacher_class.name }}{% else %}Классный руководитель{% endif %}
-        </h4>
+        <h2 class="portal-card-title">Ежедневная работа</h2>
+        <div class="portal-muted">
+          {% if is_class_teacher and class_teacher_class %}
+          Быстрые действия классного руководителя: {{ class_teacher_class.name }}.
+          {% else %}
+          Самые частые операции, которые нужны в течение дня.
+          {% endif %}
+        </div>
       </div>
     </div>
-    <div class="row g-3 align-items-stretch">
 
-      <div class="col-xl-3 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-quick classic-nav-card-quick-v109 zone-card zone-orange h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon"><i class="bi bi-shield-plus"></i></span>
-              <h5 class="mb-0">Добавить инцидент</h5>
-            </div>
-            <p class="text-muted classic-nav-text">Зарегистрировать новое событие по ученику.</p>
-            <a class="btn zone-btn mt-auto" href="{{ url_for('children.incident_new') }}">Открыть</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-xl-3 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-quick classic-nav-card-quick-v109 zone-card zone-green h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon"><i class="bi bi-person-vcard"></i></span>
-              <h5 class="mb-0">Добавить пропуск</h5>
-            </div>
-            <p class="text-muted classic-nav-text">Оформить пропуск для ученика класса.</p>
-            <a class="btn zone-btn mt-auto" href="{{ url_for('attendance.new_pass') }}">Открыть</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-xl-3 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-quick classic-nav-card-quick-v109 zone-card zone-blue h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon"><i class="bi bi-people-fill"></i></span>
-              <h5 class="mb-0">Мой класс</h5>
-            </div>
-            <p class="text-muted classic-nav-text">
-              {% if class_teacher_class %}Список учеников {{ class_teacher_class.name }}.{% else %}Список учеников своего класса.{% endif %}
-            </p>
-            {% if class_teacher_class %}
-              <a class="btn zone-btn mt-auto" href="{{ url_for('children.list_children', class_id=class_teacher_class.id) }}">Открыть</a>
-            {% else %}
-              <a class="btn zone-btn mt-auto" href="{{ url_for('children.list_children') }}">Открыть</a>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="col-xl-3 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-quick classic-nav-card-quick-v109 zone-card zone-slate h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon"><i class="bi bi-check2-square"></i></span>
-              <h5 class="mb-0">Мои задачи</h5>
-            </div>
-            <p class="text-muted classic-nav-text">Поручения и сроки исполнения.</p>
-            <a class="btn zone-btn mt-auto" href="{{ url_for('tasks.my_tasks') }}">Открыть</a>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  {% elif page.quick_actions %}
-  <section class="dashboard-section dashboard-section-classic dashboard-section-v109 mb-3">
-    <div class="section-head mb-2">
-      <div>
-        <h4 class="section-title mb-0">Быстрые действия</h4>
-      </div>
-    </div>
-    <div class="row g-3 align-items-stretch">
-      {% for item in page.quick_actions %}
-      <div class="col-xl-3 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-quick classic-nav-card-quick-v109 zone-card zone-{{ item.zone or 'blue' }} h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon"><i class="bi {{ item.icon or 'bi-lightning-charge' }}"></i></span>
-              <h5 class="mb-0">{{ item.title }}</h5>
-            </div>
-            <p class="text-muted classic-nav-text">{{ item.description }}</p>
-            <a class="btn zone-btn mt-auto" href="{{ item.url }}">Открыть</a>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
+    <div class="portal-home-card-grid portal-home-card-grid-quick">
+      {% if is_class_teacher %}
+        {{ home_card('Добавить инцидент', 'Зарегистрировать новое событие по ученику.', url_for('children.incident_new'), 'bi-shield-plus', 'orange') }}
+        {{ home_card('Добавить пропуск', 'Оформить пропуск для ученика класса.', url_for('attendance.new_pass'), 'bi-person-vcard', 'green') }}
+        {% if class_teacher_class %}
+          {{ home_card('Мой класс', 'Список учеников ' ~ class_teacher_class.name ~ '.', url_for('children.list_children', class_id=class_teacher_class.id), 'bi-people-fill', 'blue') }}
+        {% else %}
+          {{ home_card('Мой класс', 'Список учеников своего класса.', url_for('children.list_children'), 'bi-people-fill', 'blue') }}
+        {% endif %}
+        {{ home_card('Мои задачи', 'Поручения, сроки исполнения и комментарии.', url_for('tasks.my_tasks'), 'bi-check2-square', 'slate') }}
+      {% else %}
+        {% for item in page.quick_actions %}
+          {{ home_card(item.title, item.description, item.url, item.icon or 'bi-lightning-charge', item.zone or 'blue') }}
+        {% endfor %}
+      {% endif %}
     </div>
   </section>
   {% endif %}
-  {% endif %}{# /show_home_quick_links #}
 
-  {# ── Тематические разделы ── #}
   {% if show_home_sections and page.secondary_sections %}
-  <section class="dashboard-section dashboard-section-classic dashboard-section-v109 mb-3">
-    <div class="section-head mb-2">
+  <section class="portal-card portal-home-section">
+    <div class="portal-card-head">
       <div>
-        <h4 class="section-title mb-0">Тематические разделы</h4>
+        <h2 class="portal-card-title">Разделы и сервисы</h2>
+        <div class="portal-muted">Реестры, аналитика, документы и рабочие модули системы.</div>
       </div>
     </div>
-    <div class="row g-3 align-items-stretch">
-      <div class="col-xl-3 col-lg-4 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-simple classic-nav-card-theme-v109 zone-card zone-orange h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-inbox"></i></span>
-              <h5 class="mb-0">Обращения</h5>
-            </div>
-            <p class="text-muted classic-nav-text">Реестр обращений, ответственные, сроки и контроль исполнения.</p>
-            <a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('appeals.index') }}">Открыть</a>
-          </div>
-        </div>
-      </div>
-      <div class="col-xl-3 col-lg-4 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-simple classic-nav-card-theme-v109 zone-card zone-green h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-file-earmark-check"></i></span>
-              <h5 class="mb-0">Ознакомления</h5>
-            </div>
-            <p class="text-muted classic-nav-text">Рассылка приказов и писем, подтверждение ознакомления, банк документов.</p>
-            <a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('familiarizations.index') }}">Открыть</a>
-          </div>
-        </div>
-      </div>
+    <div class="portal-home-card-grid">
       {% for item in page.secondary_sections %}
-      <div class="col-xl-3 col-lg-4 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-simple classic-nav-card-theme-v109 zone-card zone-{{ item.zone or 'slate' }} h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon classic-nav-icon-muted"><i class="bi {{ item.icon or 'bi-folder2-open' }}"></i></span>
-              <h5 class="mb-0">{{ item.title }}</h5>
-            </div>
-            <p class="text-muted classic-nav-text">{{ item.description }}</p>
-            <a class="btn zone-btn zone-btn-soft mt-auto" href="{{ item.url }}">Открыть</a>
-          </div>
-        </div>
-      </div>
+        {{ home_card(item.title, item.description, item.url, item.icon or 'bi-folder2-open', item.zone or 'slate') }}
       {% endfor %}
-      <div class="col-xl-3 col-lg-4 col-md-6">
-        <div class="card classic-nav-card classic-nav-card-simple classic-nav-card-theme-v109 zone-card zone-blue h-100">
-          <div class="card-body d-flex flex-column">
-            <div class="classic-nav-icon-row">
-              <span class="classic-nav-icon classic-nav-icon-muted"><i class="bi bi-folder2-open"></i></span>
-              <h5 class="mb-0">Диск</h5>
-            </div>
-            <p class="text-muted classic-nav-text">Файлы, папки, создание и редактирование документов.</p>
-            <a class="btn zone-btn zone-btn-soft mt-auto" href="{{ url_for('drive.index') }}">Открыть</a>
-          </div>
-        </div>
-      </div>
-
     </div>
   </section>
   {% endif %}
 
-  {# ── Административная панель ── #}
   {% if show_admin_block and page.admin_sections %}
-  <section class="dashboard-section dashboard-section-classic dashboard-section-v109 admin-section-classic">
-    <div class="section-head mb-2">
+  <section class="portal-card portal-home-section portal-home-admin">
+    <div class="portal-card-head">
       <div>
-        <div class="section-overline">Служебные действия</div>
-        <h4 class="section-title mb-0">Для администратора</h4>
+        <h2 class="portal-card-title">Служебные действия</h2>
+        <div class="portal-muted">Настройки, справочники и техническое обслуживание системы.</div>
       </div>
     </div>
-    <div class="admin-links-grid admin-links-grid-v109">
+    <div class="portal-home-admin-grid">
       {% if current_user.is_authenticated and current_user.role in ['ADMIN', 'DIRECTOR'] %}
-      <a class="btn btn-outline-primary text-start admin-link-chip zone-btn zone-btn-soft zone-blue" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders me-2"></i>Настройка ролей</a>
-      <a class="btn btn-outline-primary text-start admin-link-chip zone-btn zone-btn-soft zone-blue" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear me-2"></i>Настройки почты</a>
+      <a class="portal-home-admin-link" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders"></i>Настройка ролей</a>
+      <a class="portal-home-admin-link" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear"></i>Настройки почты</a>
       {% endif %}
       {% for item in page.admin_sections %}
         {% if item.title == 'Обновить архив по срокам хранения' %}
         <form method="post" action="{{ item.url }}" class="m-0">
-          <button class="btn btn-outline-secondary w-100 text-start admin-link-chip zone-btn zone-btn-soft zone-slate" type="submit"><i class="bi {{ item.icon or 'bi-gear' }} me-2"></i>{{ item.title }}</button>
+          <button class="portal-home-admin-link" type="submit"><i class="bi {{ item.icon or 'bi-gear' }}"></i>{{ item.title }}</button>
         </form>
         {% else %}
-        <a class="btn btn-outline-secondary text-start admin-link-chip zone-btn zone-btn-soft zone-slate" href="{{ item.url }}"><i class="bi {{ item.icon or 'bi-gear' }} me-2"></i>{{ item.title }}</a>
+        <a class="portal-home-admin-link" href="{{ item.url }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i>{{ item.title }}</a>
         {% endif %}
       {% endfor %}
     </div>
@@ -343,7 +173,6 @@
 (function() {
   const input = document.getElementById('homeSearchInput');
   const dropdown = document.getElementById('homeSearchDropdown');
-  const note = document.getElementById('homeSearchNote');
   const fullLink = document.getElementById('homeSearchFullLink');
   const searchBtn = document.getElementById('homeSearchBtn');
   if (!input) return;
@@ -369,7 +198,6 @@
     if (q.length < 2) {
       dropdown.style.display = 'none';
       dropdown.innerHTML = '';
-      if (note) note.style.display = '';
       if (fullLink) fullLink.style.display = 'none';
       return;
     }
@@ -438,7 +266,6 @@
           </a>`;
         }
         dropdown.style.display = 'block';
-        if (note) note.style.display = 'none';
         if (fullLink) {
           fullLink.href = '/children?q=' + encodeURIComponent(q);
           fullLink.style.display = '';
@@ -448,6 +275,4 @@
   }
 })();
 </script>
-
-
 {% endblock %}
