@@ -106,7 +106,7 @@
       <span class="badge text-bg-secondary">{{ students|length }}</span>
     </div>
     <div class="table-responsive">
-      <table class="table table-striped mb-0 align-middle">
+      <table class="table class-registry-table mb-0 align-middle">
         <thead>
           <tr>
             <th style="width:50px">#</th>
@@ -139,5 +139,591 @@
     </div>
   </div>
 </div>
+
+
+
+<style id="class-detail-standard-css">
+
+  /* Страница класса: приводим к стандарту портала / ДОУ / Диска */
+
+  .page-head {
+
+    display: flex !important;
+
+    align-items: center !important;
+
+    justify-content: space-between !important;
+
+    gap: 18px !important;
+
+    margin: 0 0 14px !important;
+
+    padding: 16px 18px !important;
+
+    min-height: 72px !important;
+
+    border: 1px solid #dbe4f0 !important;
+
+    border-radius: 18px !important;
+
+    background: #ffffff !important;
+
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
+
+  }
+
+  .page-title {
+
+    margin: 0 0 4px !important;
+
+    color: #1f2937 !important;
+
+    font-size: 22px !important;
+
+    line-height: 1.22 !important;
+
+    font-weight: 500 !important;
+
+    letter-spacing: 0 !important;
+
+  }
+
+  .page-sub {
+
+    margin: 0 !important;
+
+    color: #64748b !important;
+
+    font-size: 14px !important;
+
+    line-height: 1.35 !important;
+
+    font-weight: 400 !important;
+
+  }
+
+  .page-actions {
+
+    display: flex !important;
+
+    align-items: center !important;
+
+    justify-content: flex-end !important;
+
+    gap: 8px !important;
+
+    flex-wrap: wrap !important;
+
+  }
+
+  .page-actions .btn {
+
+    min-height: 32px !important;
+
+    padding: 0 13px !important;
+
+    border-radius: 999px !important;
+
+    font-size: 13px !important;
+
+    font-weight: 500 !important;
+
+    line-height: 1 !important;
+
+    box-shadow: none !important;
+
+  }
+
+  .soft-card {
+
+    border: 1px solid #dbe4f0 !important;
+
+    border-radius: 18px !important;
+
+    background: #ffffff !important;
+
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
+
+    overflow: hidden !important;
+
+  }
+
+  .soft-card .p-3 {
+
+    padding: 14px 16px !important;
+
+  }
+
+  .section-title {
+
+    margin: 0 !important;
+
+    color: #1f2937 !important;
+
+    font-size: 16px !important;
+
+    line-height: 1.25 !important;
+
+    font-weight: 500 !important;
+
+  }
+
+  .soft-card .badge {
+
+    border-radius: 999px !important;
+
+    font-size: 12px !important;
+
+    font-weight: 500 !important;
+
+    padding: 4px 8px !important;
+
+  }
+
+  .table-responsive {
+
+    border-radius: 0 0 18px 18px !important;
+
+    overflow: hidden !important;
+
+  }
+
+  table.table {
+
+    width: 100% !important;
+
+    margin-bottom: 0 !important;
+
+    border-collapse: collapse !important;
+
+    font-size: 15px !important;
+
+  }
+
+  table.table thead th {
+
+    padding: 10px 12px !important;
+
+    color: #64748b !important;
+
+    background: #f8fafc !important;
+
+    border-top: 0 !important;
+
+    border-bottom: 1px solid #dbe4f0 !important;
+
+    font-size: 14px !important;
+
+    line-height: 1.3 !important;
+
+    font-weight: 500 !important;
+
+    text-transform: none !important;
+
+    letter-spacing: 0 !important;
+
+  }
+
+  table.table tbody td {
+
+    padding: 10px 12px !important;
+
+    color: #1f2937 !important;
+
+    background: #ffffff !important;
+
+    border-bottom: 1px solid #e2e8f0 !important;
+
+    font-size: 15px !important;
+
+    line-height: 1.35 !important;
+
+    font-weight: 400 !important;
+
+    vertical-align: middle !important;
+
+  }
+
+  table.table-striped tbody tr:nth-of-type(odd) > * {
+
+    --bs-table-accent-bg: #ffffff !important;
+
+    background-color: #ffffff !important;
+
+  }
+
+  table.table-striped tbody tr:nth-of-type(even) > * {
+
+    --bs-table-accent-bg: #fbfdff !important;
+
+    background-color: #fbfdff !important;
+
+  }
+
+  table.table tbody tr:hover > * {
+
+    --bs-table-accent-bg: #f8fafc !important;
+
+    background-color: #f8fafc !important;
+
+  }
+
+  table.table a {
+
+    color: #2563eb !important;
+
+    font-size: 15px !important;
+
+    font-weight: 500 !important;
+
+    text-decoration: none !important;
+
+  }
+
+  table.table a:hover {
+
+    color: #1d4ed8 !important;
+
+    text-decoration: underline !important;
+
+  }
+
+  table.table .btn,
+
+  .soft-card .btn {
+
+    display: inline-flex !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    min-height: 30px !important;
+
+    padding: 0 12px !important;
+
+    border-radius: 999px !important;
+
+    font-size: 13px !important;
+
+    line-height: 1 !important;
+
+    font-weight: 500 !important;
+
+    box-shadow: none !important;
+
+    text-decoration: none !important;
+
+    white-space: nowrap !important;
+
+  }
+
+  table.table .btn-outline-primary,
+
+  .soft-card .btn-outline-primary,
+
+  .page-actions .btn-outline-secondary {
+
+    background: #ffffff !important;
+
+    border-color: #dbe4f0 !important;
+
+    color: #334155 !important;
+
+  }
+
+  table.table .btn-outline-primary:hover,
+
+  .soft-card .btn-outline-primary:hover,
+
+  .page-actions .btn-outline-secondary:hover {
+
+    background: #f8fafc !important;
+
+    border-color: #cbd5e1 !important;
+
+    color: #1e293b !important;
+
+  }
+
+  @media (max-width: 980px) {
+
+    .page-head {
+
+      align-items: flex-start !important;
+
+      flex-direction: column !important;
+
+    }
+
+    .page-actions {
+
+      justify-content: flex-start !important;
+
+    }
+
+  }
+
+</style>
+
+
+
+<style id="class-detail-registry-like-css">
+
+  /* Страница класса: стиль реестра как Диск / ДОУ */
+
+  .page-head {
+
+    margin-bottom: 12px !important;
+
+    padding: 16px 18px !important;
+
+    border: 1px solid #dbe4f0 !important;
+
+    border-radius: 18px !important;
+
+    background: #fff !important;
+
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
+
+  }
+
+  .page-title {
+
+    font-size: 22px !important;
+
+    line-height: 1.22 !important;
+
+    font-weight: 500 !important;
+
+    color: #1f2937 !important;
+
+    margin: 0 0 4px !important;
+
+  }
+
+  .page-sub {
+
+    font-size: 14px !important;
+
+    line-height: 1.35 !important;
+
+    font-weight: 400 !important;
+
+    color: #64748b !important;
+
+    margin: 0 !important;
+
+  }
+
+  .soft-card {
+
+    border: 1px solid #dbe4f0 !important;
+
+    border-radius: 18px !important;
+
+    background: #fff !important;
+
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
+
+    overflow: hidden !important;
+
+  }
+
+  .section-title {
+
+    font-size: 16px !important;
+
+    line-height: 1.25 !important;
+
+    font-weight: 500 !important;
+
+    color: #1f2937 !important;
+
+  }
+
+  .class-registry-table,
+
+  table.class-registry-table {
+
+    width: 100% !important;
+
+    margin-bottom: 0 !important;
+
+    border-collapse: collapse !important;
+
+    font-size: 15px !important;
+
+  }
+
+  table.class-registry-table thead th {
+
+    padding: 10px 12px !important;
+
+    background: #f8fafc !important;
+
+    color: #64748b !important;
+
+    border-bottom: 1px solid #dbe4f0 !important;
+
+    font-size: 14px !important;
+
+    line-height: 1.3 !important;
+
+    font-weight: 500 !important;
+
+    text-transform: none !important;
+
+    letter-spacing: 0 !important;
+
+  }
+
+  table.class-registry-table tbody td {
+
+    padding: 10px 12px !important;
+
+    background: #fff !important;
+
+    color: #1f2937 !important;
+
+    border-bottom: 1px solid #e2e8f0 !important;
+
+    font-size: 15px !important;
+
+    line-height: 1.35 !important;
+
+    font-weight: 400 !important;
+
+    vertical-align: middle !important;
+
+  }
+
+  table.class-registry-table tbody tr:hover td {
+
+    background: #f8fafc !important;
+
+  }
+
+  table.class-registry-table a {
+
+    color: #2563eb !important;
+
+    font-size: 15px !important;
+
+    font-weight: 500 !important;
+
+    text-decoration: none !important;
+
+  }
+
+  table.class-registry-table a:hover {
+
+    color: #1d4ed8 !important;
+
+    text-decoration: underline !important;
+
+  }
+
+  table.class-registry-table .btn,
+
+  .page-actions .btn {
+
+    display: inline-flex !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    min-height: 30px !important;
+
+    padding: 0 12px !important;
+
+    border-radius: 999px !important;
+
+    font-size: 13px !important;
+
+    line-height: 1 !important;
+
+    font-weight: 500 !important;
+
+    box-shadow: none !important;
+
+    text-decoration: none !important;
+
+    white-space: nowrap !important;
+
+  }
+
+  table.class-registry-table .btn-outline-primary,
+
+  .page-actions .btn-outline-secondary {
+
+    background: #fff !important;
+
+    border-color: #dbe4f0 !important;
+
+    color: #334155 !important;
+
+  }
+
+  table.class-registry-table .btn-outline-primary:hover,
+
+  .page-actions .btn-outline-secondary:hover {
+
+    background: #f8fafc !important;
+
+    border-color: #cbd5e1 !important;
+
+    color: #1e293b !important;
+
+  }
+
+  .soft-card .badge {
+
+    border-radius: 999px !important;
+
+    font-size: 12px !important;
+
+    font-weight: 500 !important;
+
+    padding: 4px 8px !important;
+
+  }
+
+</style>
+
+
+<style id="class-detail-compact-rows-css">
+  table.class-registry-table thead th,
+  table.table thead th {
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+  }
+
+  table.class-registry-table tbody td,
+  table.table tbody td {
+    padding: 6px 12px !important;
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+    font-weight: 400 !important;
+  }
+
+  table.class-registry-table tbody td a,
+  table.table tbody td a {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+  }
+
+  table.class-registry-table .btn,
+  table.table .btn {
+    min-height: 25px !important;
+    padding: 0 10px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    border-radius: 999px !important;
+  }
+</style>
 
 {% endblock %}
