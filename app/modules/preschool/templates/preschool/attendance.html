@@ -196,15 +196,7 @@
 </style>
 
 <div class="attendance-page">
-  <div class="attendance-breadcrumbs">
-    <a href="{{ url_for('main.dashboard') }}">Главная</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
-    <span>/</span>
-    <span>Детодни</span>
-  </div>
-
-  <div class="attendance-header">
+<div class="attendance-header">
     <div>
       <h1 class="attendance-title">Детодни ДОУ</h1>
       <div class="attendance-subtitle">
@@ -313,4 +305,284 @@
     {% endif %}
   </div>
 </div>
+
+<style id="attendance-clean-final-css">
+  /* Детодни ДОУ — единый стиль портала */
+  body:has(.attendance-page) .breadcrumb,
+  body:has(.attendance-page) nav[aria-label="breadcrumb"],
+  body:has(.attendance-page) .breadcrumbs,
+  body:has(.attendance-page) .content-breadcrumbs,
+  body:has(.attendance-page) .page-breadcrumbs {
+    display: none !important;
+  }
+
+  .attendance-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .attendance-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .attendance-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    margin: 0 !important;
+    color: #24324b !important;
+    font-size: 24px !important;
+    line-height: 1.12 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .attendance-title::before {
+    content: "\F1F2";
+    font-family: "bootstrap-icons";
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: #eef6ff;
+    color: #1677ff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    flex: 0 0 auto;
+  }
+
+  .attendance-subtitle {
+    margin-top: 5px !important;
+    color: #5f6f86 !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+  }
+
+  .attendance-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 7px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .attendance-btn,
+  .attendance-delete {
+    height: 30px !important;
+    min-height: 30px !important;
+    border-radius: 999px !important;
+    padding: 0 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+  }
+
+  .attendance-btn {
+    border: 1px solid #cbd7e8 !important;
+    background: #fff !important;
+    color: #0d6efd !important;
+  }
+
+  .attendance-btn:hover {
+    background: #f5f9ff !important;
+    color: #0d6efd !important;
+    text-decoration: none !important;
+  }
+
+  .attendance-btn-primary {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+  }
+
+  .attendance-delete {
+    border: 1px solid #fecaca !important;
+    background: #fff !important;
+    color: #dc2626 !important;
+    cursor: pointer !important;
+  }
+
+  .attendance-panel {
+    border: 1px solid #dbe3ef !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04) !important;
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .attendance-panel h2 {
+    margin: 0 0 12px 0 !important;
+    color: #24324b !important;
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+  }
+
+  .attendance-form-grid {
+    display: grid !important;
+    grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(260px, 1.2fr) 110px !important;
+    gap: 8px !important;
+    align-items: end !important;
+  }
+
+  .attendance-field label {
+    display: block !important;
+    margin-bottom: 4px !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
+  .attendance-field input,
+  .attendance-field select {
+    width: 100% !important;
+    height: 32px !important;
+    border: 1px solid #cfd9e8 !important;
+    border-radius: 9px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    padding: 4px 9px !important;
+    font-size: 13px !important;
+  }
+
+  .attendance-field input[type="file"] {
+    padding-top: 4px !important;
+  }
+
+  .attendance-table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  .attendance-table th {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #cfd9e8 !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.15 !important;
+    vertical-align: middle !important;
+  }
+
+  .attendance-table td {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #e6edf6 !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.2 !important;
+    vertical-align: middle !important;
+  }
+
+  .attendance-table tr:hover td {
+    background: #f8fbff !important;
+  }
+
+  .attendance-table td strong {
+    font-weight: 500 !important;
+  }
+
+  .attendance-status {
+    min-height: 24px !important;
+    padding: 0 9px !important;
+    border-radius: 999px !important;
+    background: #eef6ff !important;
+    color: #2563eb !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
+  .attendance-empty {
+    padding: 14px !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+  }
+
+  @media (max-width: 1100px) {
+    .attendance-header {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+    }
+
+    .attendance-actions {
+      justify-content: flex-start !important;
+    }
+
+    .attendance-form-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+
+
+<style id="attendance-zip-field-fix-css">
+  /* Строка загрузки табелей: ZIP-поле шире, кнопка аккуратная */
+  .attendance-form-grid {
+    display: grid !important;
+    grid-template-columns: 300px 300px minmax(360px, 1fr) 110px !important;
+    gap: 8px !important;
+    align-items: end !important;
+  }
+
+  .attendance-field input,
+  .attendance-field select {
+    width: 100% !important;
+    height: 32px !important;
+    border: 1px solid #cfd9e8 !important;
+    border-radius: 9px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    padding: 4px 9px !important;
+    font-size: 13px !important;
+    box-sizing: border-box !important;
+  }
+
+  .attendance-field input[type="file"] {
+    min-width: 0 !important;
+    padding-top: 4px !important;
+    overflow: hidden !important;
+  }
+
+  .attendance-form-grid .attendance-btn-primary {
+    width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    border-radius: 999px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+  }
+
+  @media (max-width: 1100px) {
+    .attendance-form-grid {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .attendance-form-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+
 {% endblock %}

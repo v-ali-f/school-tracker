@@ -265,17 +265,7 @@
 </style>
 
 <div class="analytics-page">
-  <div class="analytics-breadcrumbs">
-    <a href="{{ url_for('main.dashboard') }}">Главная</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.attendance') }}">Детодни</a>
-    <span>/</span>
-    <span>Аналитика</span>
-  </div>
-
-  <div class="analytics-header">
+<div class="analytics-header">
     <div>
       <h1 class="analytics-title">Аналитика детодней ДОУ</h1>
       <div class="analytics-subtitle">
@@ -513,4 +503,312 @@
     </table>
   </div>
 </div>
+
+
+
+<style id="aa-final-style-css">
+  /* Аналитика детодней ДОУ — единый стиль портала */
+
+  body:has(.analytics-page) .breadcrumb,
+  body:has(.analytics-page) nav[aria-label="breadcrumb"],
+  body:has(.analytics-page) .breadcrumbs,
+  body:has(.analytics-page) .content-breadcrumbs,
+  body:has(.analytics-page) .page-breadcrumbs,
+  body:has(.attendance-analytics-page) .breadcrumb,
+  body:has(.attendance-analytics-page) nav[aria-label="breadcrumb"],
+  body:has(.attendance-analytics-page) .breadcrumbs,
+  body:has(.attendance-analytics-page) .content-breadcrumbs,
+  body:has(.attendance-analytics-page) .page-breadcrumbs,
+  body:has(.attendance-page) .breadcrumb,
+  body:has(.attendance-page) nav[aria-label="breadcrumb"],
+  body:has(.attendance-page) .breadcrumbs,
+  body:has(.attendance-page) .content-breadcrumbs,
+  body:has(.attendance-page) .page-breadcrumbs {
+    display: none !important;
+  }
+
+  .analytics-page,
+  .attendance-analytics-page,
+  .attendance-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .analytics-header,
+  .attendance-analytics-header,
+  .attendance-header,
+  .page-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .analytics-title,
+  .attendance-analytics-title,
+  .attendance-title,
+  .analytics-page h1,
+  .attendance-analytics-page h1,
+  .attendance-page h1 {
+    margin: 0 0 5px 0 !important;
+    color: #24324b !important;
+    font-size: 24px !important;
+    line-height: 1.12 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .analytics-subtitle,
+  .attendance-analytics-subtitle,
+  .attendance-subtitle,
+  .analytics-page .text-muted,
+  .attendance-analytics-page .text-muted,
+  .attendance-page .text-muted {
+    color: #5f6f86 !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+  }
+
+  .analytics-actions,
+  .attendance-analytics-actions,
+  .attendance-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 7px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .analytics-btn,
+  .attendance-analytics-btn,
+  .attendance-btn,
+  .analytics-page .btn,
+  .attendance-analytics-page .btn,
+  .attendance-page .btn {
+    width: auto !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    border-radius: 999px !important;
+    padding: 0 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+  }
+
+  .analytics-page .btn-primary,
+  .attendance-analytics-page .btn-primary,
+  .attendance-page .btn-primary,
+  .analytics-page button[type="submit"],
+  .attendance-analytics-page button[type="submit"],
+  .attendance-page button[type="submit"] {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+  }
+
+  .analytics-page .btn-outline-primary,
+  .analytics-page .btn-outline-secondary,
+  .attendance-analytics-page .btn-outline-primary,
+  .attendance-analytics-page .btn-outline-secondary,
+  .attendance-page .btn-outline-primary,
+  .attendance-page .btn-outline-secondary {
+    background: #fff !important;
+    border: 1px solid #cbd7e8 !important;
+    color: #0d6efd !important;
+  }
+
+  .analytics-panel,
+  .attendance-analytics-panel,
+  .attendance-panel,
+  .analytics-page .card,
+  .analytics-page .soft-card,
+  .attendance-analytics-page .card,
+  .attendance-analytics-page .soft-card,
+  .attendance-page .card,
+  .attendance-page .soft-card {
+    border: 1px solid #dbe3ef !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04) !important;
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .analytics-panel h2,
+  .attendance-analytics-panel h2,
+  .attendance-panel h2,
+  .analytics-page h2,
+  .attendance-analytics-page h2,
+  .attendance-page h2 {
+    margin: 0 0 12px 0 !important;
+    color: #24324b !important;
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+  }
+
+  .analytics-filters,
+  .attendance-analytics-filters,
+  .attendance-filters,
+  .filter-grid,
+  .analytics-page form,
+  .attendance-analytics-page form {
+    gap: 8px !important;
+  }
+
+  .analytics-field label,
+  .attendance-analytics-field label,
+  .attendance-field label,
+  .analytics-page label,
+  .attendance-analytics-page label,
+  .attendance-page label {
+    display: block !important;
+    margin-bottom: 4px !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
+  .analytics-page input,
+  .analytics-page select,
+  .analytics-page .form-control,
+  .analytics-page .form-select,
+  .attendance-analytics-page input,
+  .attendance-analytics-page select,
+  .attendance-analytics-page .form-control,
+  .attendance-analytics-page .form-select,
+  .attendance-page input,
+  .attendance-page select,
+  .attendance-page .form-control,
+  .attendance-page .form-select {
+    height: 32px !important;
+    border: 1px solid #cfd9e8 !important;
+    border-radius: 9px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    padding: 4px 9px !important;
+    font-size: 13px !important;
+  }
+
+  .analytics-stat-grid,
+  .attendance-analytics-stat-grid,
+  .attendance-stat-grid,
+  .stat-grid {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(130px, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .analytics-stat,
+  .attendance-analytics-stat,
+  .attendance-stat,
+  .stat-card,
+  .kpi {
+    min-height: 62px !important;
+    border: 1px solid #dbe3ef !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04) !important;
+    padding: 12px 14px !important;
+  }
+
+  .analytics-stat-label,
+  .attendance-analytics-stat-label,
+  .attendance-stat-label,
+  .stat-label,
+  .kpi-label {
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    margin-bottom: 5px !important;
+  }
+
+  .analytics-stat-value,
+  .attendance-analytics-stat-value,
+  .attendance-stat-value,
+  .stat-value,
+  .kpi-value {
+    color: #1f2937 !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+  }
+
+  .analytics-page table,
+  .attendance-analytics-page table,
+  .attendance-page table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  .analytics-page table th,
+  .attendance-analytics-page table th,
+  .attendance-page table th {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #cfd9e8 !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.15 !important;
+  }
+
+  .analytics-page table td,
+  .attendance-analytics-page table td,
+  .attendance-page table td {
+    padding: 7px 12px !important;
+    border-bottom: 1px solid #e6edf6 !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.2 !important;
+  }
+
+  .analytics-page table tr:hover td,
+  .attendance-analytics-page table tr:hover td,
+  .attendance-page table tr:hover td {
+    background: #f8fbff !important;
+  }
+
+  @media (max-width: 1100px) {
+    .analytics-header,
+    .attendance-analytics-header,
+    .attendance-header,
+    .page-header {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+    }
+
+    .analytics-stat-grid,
+    .attendance-analytics-stat-grid,
+    .attendance-stat-grid,
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(140px, 1fr)) !important;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .analytics-stat-grid,
+    .attendance-analytics-stat-grid,
+    .attendance-stat-grid,
+    .stat-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+
 {% endblock %}
