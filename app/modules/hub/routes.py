@@ -43,6 +43,11 @@ ICON_MAP = {
     "План работы школы": ("bi-calendar-week", "accent-blue"),
     "База знаний": ("bi-book-half", "accent-blue"),
     "Доп. образование": ("bi-mortarboard", "accent-blue"),
+    "Задачи и поручения": ("bi-check2-square", "accent-blue"),
+    "Обращения": ("bi-inbox", "accent-orange"),
+    "Ознакомления": ("bi-file-earmark-check", "accent-green"),
+    "Диск": ("bi-hdd-network", "accent-blue"),
+    "Социально-психологическая служба": ("bi-heart-pulse", "accent-blue"),
 }
 
 ACCENT_TO_ZONE = {
@@ -107,6 +112,11 @@ TITLE_ZONE_MAP = {
     "План работы школы": "blue",
     "База знаний": "blue",
     "Доп. образование": "blue",
+    "Задачи и поручения": "blue",
+    "Обращения": "orange",
+    "Ознакомления": "green",
+    "Диск": "blue",
+    "Социально-психологическая служба": "blue",
 }
 
 
@@ -416,6 +426,21 @@ def _main_page_config():
                 "title": "База знаний",
                 "description": "Инструкции и материалы по работе в системе для каждой роли.",
                 "endpoint": "knowledge.knowledge_list",
+            },
+            {
+                "title": "Обращения",
+                "description": "Реестр обращений, ответственные, сроки и контроль исполнения.",
+                "endpoint": "appeals.index",
+            },
+            {
+                "title": "Ознакомления",
+                "description": "Рассылка приказов и писем, подтверждение ознакомления, банк документов.",
+                "endpoint": "familiarizations.index",
+            },
+            {
+                "title": "Диск",
+                "description": "Файлы, папки, создание и редактирование документов.",
+                "endpoint": "drive.index",
             },
         ]),
         "admin_sections": _materialize([
