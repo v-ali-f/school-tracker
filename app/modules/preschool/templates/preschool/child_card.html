@@ -1,10 +1,12 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<script>document.body.classList.add("dou-child-card-route");</script>
+<div class="child-card-page disk-style-page">
 <style>
   .child-card-shell {
-    max-width: 1180px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     padding: 24px 24px 42px;
   }
 
@@ -355,20 +357,443 @@
       font-size: 26px;
     }
   }
+
+
+  /* === safe disk style patch for preschool child card === */
+
+  .child-card-shell {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0 0 40px;
+  }
+
+  .child-breadcrumbs {
+    display: none !important;
+  }
+
+  .child-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 18px 20px;
+    margin: 0 0 14px;
+    border: 1px solid #dbe4f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+  }
+
+  .child-kicker {
+    margin: 0 0 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+  }
+
+  .child-title {
+    margin: 0;
+    color: #1f2937;
+    font-size: 22px;
+    line-height: 1.2;
+    font-weight: 500;
+  }
+
+  .child-subtitle {
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.35;
+    font-weight: 400;
+  }
+
+  .child-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .child-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr);
+    gap: 14px;
+    align-items: start;
+  }
+
+  .child-panel,
+  .school-like-card {
+    box-sizing: border-box;
+    border: 1px solid #dbe4f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .child-panel h2,
+  .school-like-title {
+    margin: 0 0 14px;
+    color: #1f2937;
+    font-size: 16px;
+    line-height: 1.25;
+    font-weight: 500;
+  }
+
+  .school-like-section {
+    padding: 0 0 14px;
+    margin: 0 0 14px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .school-like-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .info-list {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 10px 16px;
+    align-items: start;
+  }
+
+  .info-label {
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.35;
+    font-weight: 500;
+  }
+
+  .info-value {
+    color: #1f2937;
+    font-size: 15px;
+    line-height: 1.35;
+    font-weight: 400;
+  }
+
+  .info-value strong,
+  .info-value b {
+    font-weight: 400;
+  }
+
+  .info-muted {
+    color: #94a3b8;
+    font-weight: 400;
+  }
+
+  .representatives-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .representative-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .representative-name {
+    color: #1f2937;
+    font-size: 15px;
+    line-height: 1.35;
+    font-weight: 500;
+  }
+
+  .representative-meta {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.35;
+    font-weight: 400;
+  }
+
+  .child-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 13px;
+    border-radius: 999px;
+    border: 1px solid #dbe4f0;
+    background: #fff;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  .child-btn:hover {
+    color: #1e293b;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    text-decoration: none;
+  }
+
+  .child-btn-primary {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+  }
+
+  .child-btn-primary:hover {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+    color: #fff;
+  }
+
+  .child-small-danger {
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #dc2626;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .child-small-danger:hover {
+    background: #fff7f7;
+    color: #b91c1c;
+  }
+
+  .child-placeholder {
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .child-note {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.4;
+    font-weight: 400;
+  }
+
+  @media (max-width: 980px) {
+    .child-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .child-actions {
+      justify-content: flex-start;
+    }
+
+    .child-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .info-list {
+      grid-template-columns: 1fr;
+      gap: 3px;
+    }
+
+    .child-title {
+      font-size: 22px;
+    }
+  }
+
+  /* === end safe disk style patch === */
+
+
+
+  /* === final disk header clean for preschool child card === */
+
+  .child-card-shell {
+    padding-top: 0 !important;
+  }
+
+  .child-breadcrumbs {
+    display: none !important;
+  }
+
+  .child-header {
+    margin-top: 0 !important;
+    margin-bottom: 14px !important;
+    padding: 18px 20px !important;
+    min-height: 82px !important;
+    align-items: center !important;
+  }
+
+  /* Убираем служебную подпись сверху, как в утверждённом стиле Диска */
+  .child-kicker {
+    display: none !important;
+  }
+
+  .child-title {
+    margin: 0 !important;
+    font-size: 21px !important;
+    line-height: 1.22 !important;
+    font-weight: 500 !important;
+    color: #1f2937 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .child-subtitle {
+    margin-top: 5px !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+    color: #64748b !important;
+  }
+
+  .child-actions {
+    gap: 8px !important;
+  }
+
+  .child-btn {
+    min-height: 32px !important;
+    padding: 0 13px !important;
+    border-radius: 999px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+  }
+
+  .child-panel h2,
+  .school-like-title {
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+    font-weight: 500 !important;
+    color: #1f2937 !important;
+  }
+
+  .info-value {
+    font-weight: 400 !important;
+  }
+
+  .info-value strong,
+  .info-value b {
+    font-weight: 400 !important;
+  }
+
+  /* === end final disk header clean === */
+
+
+
+  /* === final dou child card disk override === */
+
+  /* Любые хлебные крошки на карточке ДОУ скрываем окончательно */
+  .child-breadcrumbs,
+  .breadcrumbs,
+  .breadcrumb,
+  nav[aria-label="breadcrumb"] {
+    display: none !important;
+  }
+
+  .child-card-page {
+    padding-top: 0 !important;
+  }
+
+  .child-card-shell {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  /* Верхняя карточка — спокойный стиль как у Диска */
+  .child-header {
+    margin-top: 0 !important;
+    margin-bottom: 14px !important;
+    padding: 16px 18px !important;
+    min-height: 74px !important;
+    border-radius: 18px !important;
+    border: 1px solid #dbe4f0 !important;
+    background: #fff !important;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045) !important;
+  }
+
+  .child-kicker {
+    display: none !important;
+  }
+
+  .child-title {
+    margin: 0 !important;
+    font-size: 20px !important;
+    line-height: 1.22 !important;
+    font-weight: 500 !important;
+    color: #1f2937 !important;
+  }
+
+  .child-subtitle {
+    margin-top: 4px !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+    color: #64748b !important;
+  }
+
+  .child-btn {
+    min-height: 30px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+  }
+
+  .child-grid {
+    margin-top: 0 !important;
+  }
+
+  .child-panel,
+  .school-like-card {
+    border-radius: 18px !important;
+    border: 1px solid #dbe4f0 !important;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  .child-panel h2,
+  .school-like-title {
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+    font-weight: 500 !important;
+    color: #1f2937 !important;
+  }
+
+  .info-label {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #64748b !important;
+  }
+
+  .info-value {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+    color: #1f2937 !important;
+  }
+
+  .info-value strong,
+  .info-value b {
+    font-weight: 400 !important;
+  }
+
+  /* === end final dou child card disk override === */
+
 </style>
 
 <div class="child-card-shell">
-  <div class="child-breadcrumbs">
-    <a href="{{ url_for('main.dashboard') }}">Главная</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.children', academic_year_id=year.id if year else None) }}">Контингент ДОУ</a>
-    <span>/</span>
-    <a href="{{ url_for('preschool.children_registry', academic_year_id=year.id if year else None, group_id=group.id if group else None) }}">Реестр</a>
-    <span>/</span>
-    <span>Карточка воспитанника</span>
-  </div>
-
-  <div class="child-header">
+<div class="child-header">
     <div>
       <div class="child-kicker">Карточка воспитанника ДОУ</div>
       <h1 class="child-title">{{ child.full_name }}</h1>
@@ -603,4 +1028,226 @@
     </div>
   </div>
 </div>
+</div>
+
+
+
+
+
+
+
+
+
 {% endblock %}
+
+
+<style id="dou-child-card-layout-width-css">
+  /* Карточка воспитанника ДОУ — единый стиль портала по образцу раздела "Диск" */
+
+  body.dou-child-card-route {
+    background: #f6f8fb;
+  }
+
+  body.dou-child-card-route .container.my-4 {
+    width: min(100% - 96px, 1360px) !important;
+    max-width: 1360px !important;
+    margin: 0 auto !important;
+    padding: 22px 0 40px !important;
+  }
+
+  /* Убираем хлебные крошки "Главная / ДОУ", как на утверждённых главных страницах модулей */
+  body.dou-child-card-route .container.my-4 > .breadcrumb,
+  body.dou-child-card-route .container.my-4 > nav,
+  body.dou-child-card-route .container.my-4 > .breadcrumbs,
+  body.dou-child-card-route .container.my-4 > .page-breadcrumbs,
+  body.dou-child-card-route .child-card-page > .breadcrumb,
+  body.dou-child-card-route .child-card-page > nav,
+  body.dou-child-card-route .child-card-page > .breadcrumbs,
+  body.dou-child-card-route .child-card-page > .page-breadcrumbs {
+    display: none !important;
+  }
+
+  body.dou-child-card-route .child-card-page,
+  body.dou-child-card-route .child-card-shell {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.dou-child-card-route .child-hero {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 20px !important;
+    margin: 0 0 14px !important;
+    padding: 18px 20px !important;
+    background: #ffffff !important;
+    border: 1px solid #dbe4f0 !important;
+    border-radius: 18px !important;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045) !important;
+  }
+
+  body.dou-child-card-route .child-kicker {
+    margin: 0 0 6px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+    letter-spacing: .045em !important;
+    text-transform: uppercase !important;
+    color: #64748b !important;
+  }
+
+  body.dou-child-card-route h1,
+  body.dou-child-card-route .child-title {
+    margin: 0 !important;
+    font-size: 22px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+    color: #1f2937 !important;
+  }
+
+  body.dou-child-card-route .child-subtitle {
+    margin-top: 5px !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+    color: #64748b !important;
+  }
+
+  body.dou-child-card-route .row,
+  body.dou-child-card-route .g-3,
+  body.dou-child-card-route .g-4 {
+    --bs-gutter-x: 14px !important;
+    --bs-gutter-y: 14px !important;
+  }
+
+  body.dou-child-card-route .card,
+  body.dou-child-card-route .school-like-card {
+    background: #ffffff !important;
+    border: 1px solid #dbe4f0 !important;
+    border-radius: 18px !important;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04) !important;
+    overflow: hidden !important;
+  }
+
+  body.dou-child-card-route .card-body {
+    padding: 16px !important;
+  }
+
+  body.dou-child-card-route h2,
+  body.dou-child-card-route h3,
+  body.dou-child-card-route .card-title,
+  body.dou-child-card-route .school-like-title {
+    margin: 0 0 14px !important;
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+    font-weight: 500 !important;
+    color: #1f2937 !important;
+  }
+
+  body.dou-child-card-route hr {
+    margin: 14px 0 !important;
+    border-color: #e2e8f0 !important;
+    opacity: 1 !important;
+  }
+
+  body.dou-child-card-route dt,
+  body.dou-child-card-route .school-like-label {
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 500 !important;
+    color: #64748b !important;
+  }
+
+  body.dou-child-card-route dd,
+  body.dou-child-card-route .school-like-value,
+  body.dou-child-card-route .card p,
+  body.dou-child-card-route .card div,
+  body.dou-child-card-route .card span {
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+    color: #1f2937 !important;
+  }
+
+  body.dou-child-card-route strong,
+  body.dou-child-card-route b,
+  body.dou-child-card-route dd strong,
+  body.dou-child-card-route dd b,
+  body.dou-child-card-route .school-like-value strong,
+  body.dou-child-card-route .school-like-value b {
+    font-weight: 400 !important;
+  }
+
+  body.dou-child-card-route .card-title strong,
+  body.dou-child-card-route h1 strong,
+  body.dou-child-card-route h2 strong,
+  body.dou-child-card-route h3 strong,
+  body.dou-child-card-route .child-title strong {
+    font-weight: 500 !important;
+  }
+
+  body.dou-child-card-route .btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 32px !important;
+    padding: 0 13px !important;
+    border-radius: 999px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+  }
+
+  body.dou-child-card-route .btn-primary {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+
+  body.dou-child-card-route .btn-outline-primary,
+  body.dou-child-card-route .btn-outline-secondary {
+    background: #ffffff !important;
+    border-color: #dbe4f0 !important;
+    color: #334155 !important;
+  }
+
+  body.dou-child-card-route .btn-danger,
+  body.dou-child-card-route .btn-outline-danger {
+    min-height: 28px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    background: #ffffff !important;
+    border-color: #fecaca !important;
+    color: #dc2626 !important;
+  }
+
+  body.dou-child-card-route .parent-card,
+  body.dou-child-card-route .representative-card,
+  body.dou-child-card-route .border.rounded,
+  body.dou-child-card-route .border {
+    border-color: #dbe4f0 !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+  }
+
+  body.dou-child-card-route .parent-card strong,
+  body.dou-child-card-route .representative-card strong,
+  body.dou-child-card-route .border strong {
+    font-weight: 500 !important;
+  }
+
+  @media (max-width: 980px) {
+    body.dou-child-card-route .container.my-4 {
+      width: min(100% - 28px, 1360px) !important;
+    }
+
+    body.dou-child-card-route .child-hero {
+      align-items: flex-start !important;
+      flex-direction: column !important;
+    }
+  }
+</style>
+
