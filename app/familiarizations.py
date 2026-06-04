@@ -44,12 +44,45 @@ def _upload_root():
     base.mkdir(parents=True, exist_ok=True); return base
 
 def _save_file(file_storage):
-    if not file_storage or not file_storage.filename: return None, None, None, None
-    original=secure_filename(file_storage.filename) or 'document'
-    ext='.'+original.rsplit('.',1)[1].lower() if '.' in original else ''
-    stored=f'{uuid.uuid4().hex}{ext}'
-    path=_upload_root()/stored; file_storage.save(path)
+
+    if not file_storage or not file_storage.filename:
+
+        return None, None, None, None
+
+    # original_filename храним как пользовательское имя файла, включая кириллицу.
+
+    # secure_filename используем только для технического имени на диске.
+
+    raw_original = (file_storage.filename or "document").replace("\\", "/").split("/")[-1].strip()
+
+    original = raw_original or "document"
+
+    # Ограничиваем длину отображаемого имени, чтобы не упереться в VARCHAR(255).
+
+    if len(original) > 240:
+
+        stem = Path(original).stem[:200] or "document"
+
+        suffix = Path(original).suffix[:20]
+
+        original = f"{stem}{suffix}"
+
+    safe_name = secure_filename(raw_original) or "document"
+
+    ext = Path(safe_name).suffix or Path(original).suffix
+
+    if len(ext) > 20:
+
+        ext = ""
+
+    stored = f"{uuid.uuid4().hex}{ext}"
+
+    path = _upload_root() / stored
+
+    file_storage.save(path)
+
     return original, stored, file_storage.mimetype, path.stat().st_size
+
 
 
 def _ensure_attachment_table():
@@ -140,6 +173,9 @@ def new():
         title=(request.form.get('title') or '').strip()
         if not title:
             flash('Укажите тему ознакомления.', 'danger'); return redirect(url_for('familiarizations.new'))
+        if len(title) > 240:
+            flash('Тема документа слишком длинная. Сократите название до 240 символов.', 'danger')
+            return redirect(url_for('familiarizations.new'))
         recipient_ids=[]
         for value in request.form.getlist('recipient_user_ids'):
             try: uid=int(value)
@@ -334,8 +370,9 @@ def download_attachment(item_id, attachment_id):
 @familiarizations_bp.route('/<int:item_id>/delete', methods=['POST'])
 @login_required
 def delete(item_id):
-    if not _is_manager(): abort(403)
-    item=Familiarization.query.get_or_404(item_id)
+    item = Familiarization.query.get_or_404(item_id)
+    if not _is_manager() and item.author_user_id != current_user.id:
+        abort(403)
     try:
         for row in _attachment_rows(item.id):
             stored = row.get('stored_filename') if hasattr(row, 'get') else row['stored_filename']

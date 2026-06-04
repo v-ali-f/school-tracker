@@ -160,7 +160,7 @@
 </div>
 
 {# KPI — крупные читаемые карточки в 2 ряда, каждая подписана сама #}
-<div class="cont-kpi mb-3">
+<div class="cont-kpi">
   <div class="kpi">
     <div class="kpi-label">Всего по школе</div>
     <div class="kpi-value">{{ totals.school }}</div>
@@ -200,7 +200,7 @@
 </div>
 
 {# Вторичные сводки убраны под раскрытие — не доминируют над таблицей классов #}
-<details class="card soft-card mb-3">
+<details class="card soft-card contingent-details" style="margin-top: 12px !important;">
   <summary class="card-body py-2 px-3 fw-semibold d-flex align-items-center" style="cursor:pointer; list-style:none;">
     <i class="bi bi-bar-chart-line me-1"></i>Подробная статистика
     <span class="text-muted small ms-1">(количество классов, своды по параллелям и зданиям)</span>
@@ -581,44 +581,86 @@
 
 
 
+
+
+
 <style id="contingent-kpi-inline-final-css">
-  /* Сводные карточки: название слева, цифра справа */
+
+  /* Сводные карточки: компактно, название слева, цифра справа */
+
+  .contingent-page .cont-kpi {
+
+    row-gap: 8px !important;
+
+  }
+
   .contingent-page .cont-kpi .kpi {
-    min-height: 54px !important;
-    padding: 10px 14px !important;
+
+    min-height: 44px !important;
+
+    padding: 7px 12px !important;
+
     display: flex !important;
+
     flex-direction: row !important;
+
     align-items: center !important;
+
     justify-content: space-between !important;
+
     text-align: left !important;
-    gap: 12px !important;
+
+    gap: 10px !important;
+
   }
 
   .contingent-page .cont-kpi .kpi-label {
+
     margin: 0 !important;
+
     color: #64748b !important;
+
     font-size: 13px !important;
+
     line-height: 1.15 !important;
+
     font-weight: 400 !important;
+
     white-space: nowrap !important;
+
   }
 
   .contingent-page .cont-kpi .kpi-value {
+
     margin: 0 !important;
+
     color: #1f2937 !important;
-    font-size: 20px !important;
+
+    font-size: 19px !important;
+
     line-height: 1 !important;
+
     font-weight: 500 !important;
+
     text-align: right !important;
+
     white-space: nowrap !important;
+
   }
 
   .contingent-page .cont-kpi .kpi-dot {
+
     display: inline-block !important;
+
     margin-right: 5px !important;
+
     vertical-align: middle !important;
+
   }
+
 </style>
+
+
 
 <style id="contingent-table-plus2-css">
   /* Таблица "По классам": увеличить шрифт примерно на 2px */
@@ -643,68 +685,239 @@
 </style>
 
 
-<style id="contingent-spacing-fix-css">
-  /* Сводный контингент: нормальный верхний отступ и плотный переход к фильтрам */
 
-  /* Небольшой отступ от шапки сайта */
+<style id="contingent-spacing-fix-css">
+
+  /* Сводный контингент: компактные отступы без Bootstrap mb-3 */
+
   .contingent-compact-container {
+
     padding-top: 12px !important;
+
     margin-top: 0 !important;
+
   }
 
   .contingent-page {
+
     padding-top: 0 !important;
+
   }
 
-  /* Заголовок */
   .contingent-page .page-head {
+
     margin-top: 0 !important;
+
     margin-bottom: 0 !important;
+
     padding-top: 0 !important;
+
     padding-bottom: 0 !important;
+
   }
 
   .contingent-page .page-title {
+
     margin-top: 0 !important;
+
     margin-bottom: 3px !important;
+
   }
 
   .contingent-page .page-sub {
+
     margin-top: 0 !important;
+
     margin-bottom: 0 !important;
+
   }
 
-  /* Первый блок фильтров — поднимаем ближе к заголовку */
+  /* Фильтр ближе к заголовку */
+
   .contingent-page .page-head + .card.soft-card,
+
   .contingent-page > .card.soft-card:first-of-type {
+
     margin-top: -18px !important;
-    margin-bottom: 8px !important;
+
+    margin-bottom: 10px !important;
+
   }
 
-  .contingent-page .card.soft-card:first-of-type .card-body {
+  .contingent-page .page-head + .card.soft-card .card-body,
+
+  .contingent-page > .card.soft-card:first-of-type .card-body {
+
     padding-top: 10px !important;
+
     padding-bottom: 10px !important;
+
   }
 
-  /* KPI-карточки и следующие блоки */
+  /* KPI: маленький отступ после блока */
+
   .contingent-page .cont-kpi {
-    margin-top: 0 !important;
-    margin-bottom: 8px !important;
+
+    margin-bottom: 4px !important;
+
   }
 
-  .contingent-page .row {
-    --bs-gutter-y: 8px !important;
-  }
+  /* Подробная статистика: почти сразу после KPI, но без наезда */
+
+  .contingent-page .contingent-details,
 
   .contingent-page details.soft-card {
+
     margin-top: 0 !important;
+
     margin-bottom: 8px !important;
+
+    position: static !important;
+
+    z-index: auto !important;
+
   }
 
-  .contingent-page .card-body {
-    padding-top: 10px !important;
-    padding-bottom: 10px !important;
+  .contingent-page .contingent-details summary {
+
+    min-height: 32px !important;
+
+    padding-top: 7px !important;
+
+    padding-bottom: 7px !important;
+
   }
+
+</style>
+
+
+
+<style id="contingent-details-stat-style-css">
+
+  /* Подробная статистика: мини-сводки в том же стиле, что KPI */
+
+  .contingent-page .contingent-details .stat-strip {
+
+    display: grid !important;
+
+    gap: 8px 10px !important;
+
+    margin-bottom: 12px !important;
+
+  }
+
+  .contingent-page .contingent-details .stat-cell {
+
+    min-height: 44px !important;
+
+    padding: 7px 12px !important;
+
+    border: 1px solid #dbe4f0 !important;
+
+    border-radius: 12px !important;
+
+    background: #ffffff !important;
+
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03) !important;
+
+    display: flex !important;
+
+    flex-direction: row !important;
+
+    align-items: center !important;
+
+    justify-content: space-between !important;
+
+    gap: 10px !important;
+
+    text-align: left !important;
+
+  }
+
+  .contingent-page .contingent-details .stat-label {
+
+    margin: 0 !important;
+
+    color: #64748b !important;
+
+    font-size: 13px !important;
+
+    line-height: 1.15 !important;
+
+    font-weight: 400 !important;
+
+    white-space: nowrap !important;
+
+  }
+
+  .contingent-page .contingent-details .stat-value {
+
+    margin: 0 !important;
+
+    color: #1f2937 !important;
+
+    font-size: 19px !important;
+
+    line-height: 1 !important;
+
+    font-weight: 500 !important;
+
+    text-align: right !important;
+
+    white-space: nowrap !important;
+
+  }
+
+  .contingent-page .contingent-details .section-title {
+
+    margin-top: 10px !important;
+
+    margin-bottom: 8px !important;
+
+    font-size: 16px !important;
+
+    line-height: 1.25 !important;
+
+    font-weight: 500 !important;
+
+    color: #1f2937 !important;
+
+  }
+
+  .contingent-page .contingent-details .table {
+
+    margin-bottom: 0 !important;
+
+  }
+
+  .contingent-page .contingent-details .table th {
+
+    font-size: 14px !important;
+
+    font-weight: 500 !important;
+
+    color: #64748b !important;
+
+    background: #f8fafc !important;
+
+  }
+
+  .contingent-page .contingent-details .table td {
+
+    font-size: 15px !important;
+
+    font-weight: 400 !important;
+
+    color: #1f2937 !important;
+
+  }
+
+  .contingent-page .contingent-details .fw-semibold {
+
+    font-weight: 500 !important;
+
+  }
+
 </style>
 
 
