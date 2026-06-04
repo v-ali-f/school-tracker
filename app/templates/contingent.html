@@ -642,4 +642,73 @@
   }
 </style>
 
+
+<style id="contingent-spacing-fix-css">
+  /* Сводный контингент: нормальный верхний отступ и плотный переход к фильтрам */
+
+  /* Небольшой отступ от шапки сайта */
+  .contingent-compact-container {
+    padding-top: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  .contingent-page {
+    padding-top: 0 !important;
+  }
+
+  /* Заголовок */
+  .contingent-page .page-head {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .contingent-page .page-title {
+    margin-top: 0 !important;
+    margin-bottom: 3px !important;
+  }
+
+  .contingent-page .page-sub {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Первый блок фильтров — поднимаем ближе к заголовку */
+  .contingent-page .page-head + .card.soft-card,
+  .contingent-page > .card.soft-card:first-of-type {
+    margin-top: -18px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .contingent-page .card.soft-card:first-of-type .card-body {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  /* KPI-карточки и следующие блоки */
+  .contingent-page .cont-kpi {
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  .contingent-page .row {
+    --bs-gutter-y: 8px !important;
+  }
+
+  .contingent-page details.soft-card {
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  .contingent-page .card-body {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+</style>
+
+
 {% endblock %}
+
+
+

@@ -202,7 +202,7 @@
   </div>
 </nav>
 
-<div class="container my-4 {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %}">
+<div class="container my-4 {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
 
   {% block breadcrumb %}
   {% if auto_breadcrumbs %}
