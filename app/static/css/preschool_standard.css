@@ -1,0 +1,693 @@
+/* Единый стандарт страниц ДОУ.
+   Основан на стиле раздела "Диск" и реестров портала.
+   Главные принципы: спокойные заголовки, единая ширина, читаемые таблицы,
+   без чрезмерной жирности и без узких самодельных контейнеров. */
+
+:root {
+  --preschool-page-width: 1360px;
+  --preschool-page-gap: 96px;
+
+  --preschool-bg: #f6f8fb;
+  --preschool-card-bg: #ffffff;
+  --preschool-border: #dbe4f0;
+  --preschool-border-soft: #e2e8f0;
+
+  --preschool-text: #1f2937;
+  --preschool-muted: #64748b;
+  --preschool-muted-light: #94a3b8;
+  --preschool-primary: #2563eb;
+  --preschool-primary-hover: #1d4ed8;
+
+  --preschool-radius-card: 18px;
+  --preschool-radius-inner: 14px;
+  --preschool-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+
+  --preschool-title-size: 22px;
+  --preschool-subtitle-size: 14px;
+  --preschool-card-title-size: 16px;
+  --preschool-table-head-size: 14px;
+  --preschool-table-cell-size: 15px;
+  --preschool-control-size: 14px;
+}
+
+/* Общая ширина страницы ДОУ */
+.preschool-shell,
+.dou-shell,
+.dou-page,
+.attendance-shell,
+.children-shell,
+.groups-shell,
+.movements-shell,
+.import-shell,
+.registry-shell,
+.child-card-shell {
+  width: min(100% - var(--preschool-page-gap), var(--preschool-page-width)) !important;
+  max-width: var(--preschool-page-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 22px 0 40px !important;
+}
+
+/* Внутренние страницы/карточки, которые уже находятся внутри общего контейнера */
+.child-card-page .child-card-shell,
+.child-card-shell {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Убираем хлебные крошки в ДОУ, если они дублируют кнопки навигации */
+.child-breadcrumbs,
+.preschool-breadcrumbs,
+.dou-breadcrumbs,
+.breadcrumbs.preschool,
+.breadcrumb.preschool {
+  display: none !important;
+}
+
+/* Верх страницы */
+.preschool-top,
+.preschool-header,
+.dou-header,
+.attendance-header,
+.children-header,
+.groups-header,
+.movements-header,
+.import-header,
+.registry-header,
+.child-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  margin: 0 0 14px !important;
+  padding: 18px 20px !important;
+  min-height: 74px !important;
+  border: 1px solid var(--preschool-border) !important;
+  border-radius: var(--preschool-radius-card) !important;
+  background: var(--preschool-card-bg) !important;
+  box-shadow: var(--preschool-shadow) !important;
+}
+
+/* Служебные подписи сверху не должны быть тяжёлыми */
+.preschool-kicker,
+.dou-kicker,
+.child-kicker,
+.page-kicker {
+  display: none !important;
+}
+
+/* Заголовки страниц */
+.preschool-title,
+.dou-title,
+.attendance-title,
+.children-title,
+.groups-title,
+.movements-title,
+.import-title,
+.registry-title,
+.child-title,
+.preschool-top h1,
+.preschool-header h1,
+.dou-header h1,
+.attendance-header h1,
+.children-header h1,
+.groups-header h1,
+.movements-header h1,
+.import-header h1,
+.registry-header h1,
+.child-header h1 {
+  margin: 0 !important;
+  color: var(--preschool-text) !important;
+  font-size: var(--preschool-title-size) !important;
+  line-height: 1.22 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+/* Подзаголовки */
+.preschool-subtitle,
+.dou-subtitle,
+.attendance-subtitle,
+.children-subtitle,
+.groups-subtitle,
+.movements-subtitle,
+.import-subtitle,
+.registry-subtitle,
+.child-subtitle,
+.preschool-top .text-muted,
+.preschool-header .text-muted,
+.dou-header .text-muted {
+  margin-top: 5px !important;
+  color: var(--preschool-muted) !important;
+  font-size: var(--preschool-subtitle-size) !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+/* Действия справа */
+.preschool-actions,
+.dou-actions,
+.attendance-actions,
+.children-actions,
+.groups-actions,
+.movements-actions,
+.import-actions,
+.registry-actions,
+.child-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  flex-shrink: 0 !important;
+}
+
+/* Карточки */
+.preschool-panel,
+.preschool-card,
+.dou-card,
+.dou-panel,
+.attendance-card,
+.children-card,
+.groups-card,
+.movements-card,
+.import-card,
+.registry-card,
+.child-panel,
+.school-like-card,
+.card.preschool-card {
+  box-sizing: border-box !important;
+  border: 1px solid var(--preschool-border) !important;
+  border-radius: var(--preschool-radius-card) !important;
+  background: var(--preschool-card-bg) !important;
+  box-shadow: var(--preschool-shadow) !important;
+  padding: 16px !important;
+  overflow: hidden !important;
+}
+
+/* Заголовки карточек */
+.preschool-panel h2,
+.preschool-card h2,
+.dou-card h2,
+.dou-panel h2,
+.attendance-card h2,
+.children-card h2,
+.groups-card h2,
+.movements-card h2,
+.import-card h2,
+.registry-card h2,
+.child-panel h2,
+.school-like-title,
+.card-title {
+  margin: 0 0 14px !important;
+  color: var(--preschool-text) !important;
+  font-size: var(--preschool-card-title-size) !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+
+/* Секции внутри карточек */
+.school-like-section,
+.preschool-section,
+.dou-section {
+  padding: 0 0 14px !important;
+  margin: 0 0 14px !important;
+  border-bottom: 1px solid var(--preschool-border-soft) !important;
+}
+
+.school-like-section:last-child,
+.preschool-section:last-child,
+.dou-section:last-child {
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+  border-bottom: 0 !important;
+}
+
+/* Сетки */
+.child-grid,
+.preschool-grid-2,
+.dou-grid-2 {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr) !important;
+  gap: 14px !important;
+  align-items: start !important;
+}
+
+/* Поля и формы */
+.preschool-field label,
+.dou-field label,
+.form-label {
+  display: block !important;
+  margin-bottom: 5px !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+
+.preschool-field input,
+.preschool-field select,
+.preschool-field textarea,
+.dou-field input,
+.dou-field select,
+.dou-field textarea,
+.form-control,
+.form-select {
+  min-height: 36px !important;
+  border: 1px solid var(--preschool-border) !important;
+  border-radius: 12px !important;
+  padding: 0 11px !important;
+  color: var(--preschool-text) !important;
+  font-size: var(--preschool-control-size) !important;
+  font-weight: 400 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.preschool-field textarea,
+.dou-field textarea,
+textarea.form-control {
+  min-height: 86px !important;
+  padding-top: 9px !important;
+}
+
+/* Информационные строки карточек */
+.info-list {
+  display: grid !important;
+  grid-template-columns: 180px minmax(0, 1fr) !important;
+  gap: 10px 16px !important;
+  align-items: start !important;
+}
+
+.info-label,
+.school-like-label {
+  color: var(--preschool-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  font-weight: 500 !important;
+}
+
+.info-value,
+.school-like-value {
+  color: var(--preschool-text) !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.info-value strong,
+.info-value b,
+.school-like-value strong,
+.school-like-value b {
+  font-weight: 400 !important;
+}
+
+/* Таблицы — стандарт как у читаемых реестров */
+.preschool-table,
+.dou-table,
+.table {
+  width: 100% !important;
+  margin-bottom: 0 !important;
+  color: var(--preschool-text) !important;
+  font-size: var(--preschool-table-cell-size) !important;
+}
+
+.preschool-table th,
+.dou-table th,
+.table th {
+  color: #475569 !important;
+  font-size: var(--preschool-table-head-size) !important;
+  line-height: 1.3 !important;
+  font-weight: 500 !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid var(--preschool-border-soft) !important;
+}
+
+.preschool-table td,
+.dou-table td,
+.table td {
+  color: var(--preschool-text) !important;
+  font-size: var(--preschool-table-cell-size) !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+  vertical-align: middle !important;
+  border-color: var(--preschool-border-soft) !important;
+}
+
+.preschool-table a,
+.dou-table a,
+.table a {
+  font-size: var(--preschool-table-cell-size) !important;
+  font-weight: 400 !important;
+  text-decoration: none !important;
+}
+
+/* Кнопки */
+.preschool-back,
+.preschool-primary,
+.preschool-secondary,
+.preschool-btn,
+.dou-btn,
+.child-btn,
+.btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 32px !important;
+  padding: 0 13px !important;
+  border-radius: 999px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+}
+
+.preschool-back,
+.preschool-secondary,
+.preschool-btn,
+.dou-btn,
+.child-btn,
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-light {
+  border: 1px solid var(--preschool-border) !important;
+  background: #fff !important;
+  color: #334155 !important;
+}
+
+.preschool-primary,
+.preschool-btn-primary,
+.dou-btn-primary,
+.child-btn-primary,
+.btn-primary {
+  border: 1px solid var(--preschool-primary) !important;
+  background: var(--preschool-primary) !important;
+  color: #fff !important;
+}
+
+.preschool-primary:hover,
+.preschool-btn-primary:hover,
+.dou-btn-primary:hover,
+.child-btn-primary:hover,
+.btn-primary:hover {
+  border-color: var(--preschool-primary-hover) !important;
+  background: var(--preschool-primary-hover) !important;
+  color: #fff !important;
+}
+
+/* Мелкие карточки представителей/элементов */
+.representative-item,
+.parent-card,
+.dou-item,
+.preschool-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 12px !important;
+  border: 1px solid var(--preschool-border) !important;
+  border-radius: var(--preschool-radius-inner) !important;
+  background: #fff !important;
+}
+
+.representative-name,
+.parent-name {
+  color: var(--preschool-text) !important;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+  font-weight: 500 !important;
+}
+
+.representative-meta,
+.parent-role {
+  margin-top: 3px !important;
+  color: var(--preschool-muted) !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+/* Плашки, заметки */
+.child-note,
+.preschool-note,
+.dou-note {
+  margin-top: 14px !important;
+  padding: 12px !important;
+  border-radius: var(--preschool-radius-inner) !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  font-weight: 400 !important;
+}
+
+.child-placeholder,
+.preschool-placeholder,
+.dou-placeholder {
+  color: var(--preschool-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  font-weight: 400 !important;
+}
+
+/* Убираем чрезмерную жирность внутри ДОУ */
+.preschool-shell strong,
+.preschool-shell b,
+.dou-shell strong,
+.dou-shell b,
+.child-card-shell strong,
+.child-card-shell b {
+  font-weight: 500 !important;
+}
+
+/* Но значения в карточке ребёнка оставляем обычными */
+.info-value strong,
+.info-value b {
+  font-weight: 400 !important;
+}
+
+@media (max-width: 980px) {
+  .preschool-shell,
+  .dou-shell,
+  .dou-page,
+  .attendance-shell,
+  .children-shell,
+  .groups-shell,
+  .movements-shell,
+  .import-shell,
+  .registry-shell,
+  .child-card-shell {
+    width: min(100% - 28px, var(--preschool-page-width)) !important;
+  }
+
+  .preschool-top,
+  .preschool-header,
+  .dou-header,
+  .attendance-header,
+  .children-header,
+  .groups-header,
+  .movements-header,
+  .import-header,
+  .registry-header,
+  .child-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .preschool-actions,
+  .dou-actions,
+  .attendance-actions,
+  .children-actions,
+  .groups-actions,
+  .movements-actions,
+  .import-actions,
+  .registry-actions,
+  .child-actions {
+    justify-content: flex-start !important;
+  }
+
+  .child-grid,
+  .preschool-grid-2,
+  .dou-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .info-list {
+    grid-template-columns: 1fr !important;
+    gap: 3px !important;
+  }
+}
+
+
+/* === preschool unified final layout standard === */
+
+/* Единая рабочая ширина ДОУ: выравниваем по шапке сайта, без растяжения шире header */
+.container.my-4.preschool-wide-container,
+.preschool-wide-container {
+  width: min(100% - 64px, 1280px) !important;
+  max-width: 1280px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 18px !important;
+}
+
+/* Внутренние оболочки ДОУ занимают всю ширину родительского контейнера */
+.preschool-wide-container .preschool-shell,
+.preschool-wide-container .dou-shell,
+.preschool-wide-container .child-card-shell,
+.preschool-shell,
+.dou-shell,
+.child-card-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 0 40px !important;
+}
+
+/* Верхние блоки страниц */
+.preschool-top,
+.preschool-header,
+.dou-header,
+.child-header {
+  margin-top: 0 !important;
+  margin-bottom: 14px !important;
+}
+
+/* Формы ДОУ */
+.preschool-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 16px 12px !important;
+  align-items: start !important;
+}
+
+.preschool-field {
+  min-width: 0 !important;
+}
+
+.preschool-field.full {
+  grid-column: 1 / -1 !important;
+}
+
+.preschool-field label {
+  display: block !important;
+  margin: 0 0 5px !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+
+.preschool-field input,
+.preschool-field select,
+.preschool-field textarea {
+  width: 100% !important;
+  min-height: 36px !important;
+  border: 1px solid var(--preschool-border) !important;
+  border-radius: 12px !important;
+  padding: 0 11px !important;
+  color: var(--preschool-text) !important;
+  font-size: var(--preschool-control-size) !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.preschool-field textarea {
+  min-height: 86px !important;
+  padding-top: 9px !important;
+}
+
+form.preschool-panel,
+.preschool-panel {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.preschool-footer {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 18px !important;
+}
+
+/* Хлебные крошки ДОУ скрываем */
+.preschool-wide-container > .breadcrumb,
+.preschool-wide-container > .breadcrumbs,
+.preschool-wide-container > nav[aria-label="breadcrumb"],
+.child-breadcrumbs,
+.preschool-breadcrumbs,
+.dou-breadcrumbs {
+  display: none !important;
+}
+
+@media (max-width: 980px) {
+  .container.my-4.preschool-wide-container,
+  .preschool-wide-container {
+    width: min(100% - 28px, 1280px) !important;
+    max-width: 1280px !important;
+    padding-top: 14px !important;
+  }
+
+  .preschool-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* === end preschool unified final layout standard === */
+
+
+/* === preschool top gap tune === */
+
+/* Уменьшаем расстояние от шапки сайта до содержимого ДОУ примерно в 2 раза */
+.container.my-4.preschool-wide-container,
+.preschool-wide-container {
+  padding-top: 8px !important;
+}
+
+.preschool-shell,
+.dou-shell,
+.child-card-shell {
+  padding-top: 0 !important;
+}
+
+/* Если у первой шапки страницы есть собственный верхний отступ — убираем */
+.preschool-top,
+.preschool-header,
+.dou-header,
+.child-header {
+  margin-top: 0 !important;
+}
+
+/* === end preschool top gap tune === */
+
+/* === preschool top gap tune === */
+
+/* Уменьшаем расстояние от шапки сайта до содержимого ДОУ примерно в 2 раза */
+.container.my-4.preschool-wide-container,
+.preschool-wide-container {
+  padding-top: 8px !important;
+}
+
+.preschool-shell,
+.dou-shell,
+.child-card-shell {
+  padding-top: 0 !important;
+}
+
+/* Если у первой шапки страницы есть собственный верхний отступ — убираем */
+.preschool-top,
+.preschool-header,
+.dou-header,
+.child-header {
+  margin-top: 0 !important;
+}
+
+/* === end preschool top gap tune === */
