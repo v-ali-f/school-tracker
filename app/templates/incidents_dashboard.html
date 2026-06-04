@@ -1,16 +1,5 @@
 {% extends "layout.html" %}
 {% block breadcrumb %}
-<nav class="app-breadcrumb" aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    {% if class_id or grade or category or status_filter %}
-      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_dashboard') }}">Дашборд инцидентов</a></li>
-      <li class="breadcrumb-item active">Фильтр</li>
-    {% else %}
-      <li class="breadcrumb-item active">Дашборд инцидентов</li>
-    {% endif %}
-  </ol>
-</nav>
 {% endblock %}
 {% block content %}
 
