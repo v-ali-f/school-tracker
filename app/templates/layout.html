@@ -45,6 +45,10 @@
   <link rel="shortcut icon" type="image/png" href="{{ org_logo_url }}?v=1324-20260602">
   <link rel="apple-touch-icon" href="{{ org_logo_url }}?v=1324-20260602">
 
+{% if request.path.startswith('/preschool') %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/preschool_standard.css') }}?v=20260604_8">
+{% endif %}
+
 </head>
 
 <body>
@@ -197,7 +201,7 @@
   </div>
 </nav>
 
-<div class="container my-4">
+<div class="container my-4 {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %}">
 
   {% block breadcrumb %}
   {% if auto_breadcrumbs %}
