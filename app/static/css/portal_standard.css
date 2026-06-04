@@ -262,3 +262,149 @@ textarea.portal-control {
     grid-template-columns: 1fr;
   }
 }
+
+/* === unified portal page headers === */
+
+/* Общая идея заголовка страницы:
+   слева иконка/название/описание, справа действия.
+   Стиль спокойный, как утверждённый стандарт ДОУ и раздела Диск. */
+
+.page-head,
+.drive-head,
+.drive-header,
+.drive-hero,
+.preschool-top,
+.preschool-header,
+.dou-header,
+.child-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  margin: 0 0 14px !important;
+  padding: 18px 20px !important;
+  min-height: 74px !important;
+  border: 1px solid var(--portal-border, #dbe4f0) !important;
+  border-radius: var(--portal-radius-card, 18px) !important;
+  background: #fff !important;
+  box-shadow: var(--portal-shadow, 0 10px 26px rgba(15, 23, 42, 0.04)) !important;
+}
+
+.page-title,
+.drive-title,
+.preschool-title,
+.dou-title,
+.child-title,
+.page-head h1,
+.drive-head h1,
+.drive-header h1,
+.drive-hero h1,
+.preschool-top h1,
+.preschool-header h1,
+.dou-header h1,
+.child-header h1 {
+  margin: 0 !important;
+  color: var(--portal-text, #1f2937) !important;
+  font-size: var(--portal-title-size, 22px) !important;
+  line-height: 1.22 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.page-subtitle,
+.drive-subtitle,
+.preschool-subtitle,
+.dou-subtitle,
+.child-subtitle,
+.page-head .text-muted,
+.drive-head .text-muted,
+.drive-header .text-muted,
+.drive-hero .text-muted,
+.preschool-top .text-muted,
+.preschool-header .text-muted {
+  margin-top: 5px !important;
+  color: var(--portal-muted, #64748b) !important;
+  font-size: var(--portal-subtitle-size, 14px) !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.page-actions,
+.drive-actions,
+.preschool-actions,
+.dou-actions,
+.child-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  flex-shrink: 0 !important;
+}
+
+.page-actions .btn,
+.drive-actions .btn,
+.preschool-actions .btn,
+.dou-actions .btn,
+.child-actions .btn,
+.page-head .btn,
+.drive-head .btn,
+.drive-header .btn,
+.drive-hero .btn,
+.preschool-top .btn,
+.preschool-header .btn,
+.dou-header .btn,
+.child-header .btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 32px !important;
+  padding: 0 13px !important;
+  border-radius: 999px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+}
+
+/* Хлебные крошки в новых/унифицированных разделах не показываем */
+.page-breadcrumbs,
+.breadcrumbs,
+.breadcrumb,
+.crumbs,
+nav[aria-label="breadcrumb"] {
+  display: none !important;
+}
+
+/* Но если где-то Bootstrap использует .breadcrumb внутри формы/меню, не ломаем содержимое карточек */
+.card .breadcrumb,
+.portal-card .breadcrumb,
+.dropdown-menu .breadcrumb {
+  display: initial !important;
+}
+
+@media (max-width: 980px) {
+  .page-head,
+  .drive-head,
+  .drive-header,
+  .drive-hero,
+  .preschool-top,
+  .preschool-header,
+  .dou-header,
+  .child-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .page-actions,
+  .drive-actions,
+  .preschool-actions,
+  .dou-actions,
+  .child-actions {
+    justify-content: flex-start !important;
+  }
+}
+
+/* === end unified portal page headers === */
