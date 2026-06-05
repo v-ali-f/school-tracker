@@ -28,6 +28,7 @@ from app.knowledge import knowledge_bp
 from app.datalens import datalens_bp
 from app.saved_views import saved_views_bp
 from app.drive import drive_bp
+from app.document_registers import document_registers_bp
 from app.office import office_bp
 from app.familiarizations import familiarizations_bp
 from app.appeals import appeals_bp
@@ -62,6 +63,7 @@ BLUEPRINTS = [
     datalens_bp,
     saved_views_bp,
     drive_bp,
+    document_registers_bp,
     office_bp,
     familiarizations_bp,
     appeals_bp,

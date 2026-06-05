@@ -1,0 +1,184 @@
+{% extends "layout.html" %}
+{% block title %}{{ registry_label }} — {{ app_display_title }}{% endblock %}
+{% block content %}
+
+<div class="portal-shell document-register-page">
+  <div class="portal-header">
+    <div>
+      <h1 class="portal-title">{{ registry_label }}</h1>
+      <div class="portal-subtitle">Регистрация, поиск и контроль исполнения документов.</div>
+    </div>
+
+    <div class="portal-actions">
+      {% for code, label in visible_registries %}
+        <a
+          class="btn btn-sm {% if code == registry_type %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+          href="{{ url_for('document_registers.registry', registry_type=code) }}"
+        >{{ label }}</a>
+      {% endfor %}
+      {% if can_edit %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('document_registers.create', registry_type=registry_type) }}">
+          <i class="bi bi-plus-lg me-1"></i>Новая запись
+        </a>
+      {% endif %}
+      {% if is_manager %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('document_registers.access') }}">
+          <i class="bi bi-person-check me-1"></i>Доступ
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="get" class="portal-card mb-3">
+    <div class="portal-form-grid">
+      <div class="portal-field">
+        <label for="registry-q">Поиск</label>
+        <input id="registry-q" name="q" value="{{ q }}" placeholder="Номер, тема, корреспондент">
+      </div>
+
+      <div class="portal-field">
+        <label for="registry-status">Статус</label>
+        <select id="registry-status" name="status">
+          <option value="">Все статусы</option>
+          {% for code, label in status_choices %}
+            <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="portal-field">
+        <label for="registry-responsible">Ответственный</label>
+        <select id="registry-responsible" name="responsible_id">
+          <option value="">Все сотрудники</option>
+          {% for u in users %}
+            <option value="{{ u.id }}" {% if responsible_id == u.id %}selected{% endif %}>{{ u.fio or u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="portal-field document-register-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel me-1"></i>Показать
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('document_registers.registry', registry_type=registry_type) }}">
+          Сброс
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <div class="portal-card p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 portal-table document-register-table">
+        <thead>
+          <tr>
+            <th style="width: 120px;">№</th>
+            <th style="width: 130px;">Дата</th>
+            <th>Краткое содержание</th>
+            <th style="width: 220px;">{% if registry_type == 'incoming' %}Отправитель{% else %}Получатель{% endif %}</th>
+            <th style="width: 180px;">Ответственный</th>
+            <th style="width: 140px;">Статус</th>
+            <th class="text-center" style="width: 120px;">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            <tr>
+              <td>{{ item.number }}</td>
+              <td>{{ item.doc_date.strftime('%d.%m.%Y') if item.doc_date else '—' }}</td>
+              <td>
+                <a class="document-register-title" href="{{ url_for('document_registers.detail', registry_type=registry_type, record_id=item.id) }}">
+                  {{ item.subject }}
+                </a>
+                {% if item.delivery_method or item.notes %}
+                  <div class="small text-muted">
+                    {% if item.delivery_method %}{{ item.delivery_method }}{% endif %}
+                    {% if item.delivery_method and item.notes %} · {% endif %}
+                    {% if item.notes %}{{ item.notes[:120] }}{% endif %}
+                  </div>
+                {% endif %}
+              </td>
+              <td>{{ item.correspondent or '—' }}</td>
+              <td>{{ item.responsible_user.fio or item.responsible_user.username if item.responsible_user else '—' }}</td>
+              <td><span class="badge text-bg-light border text-dark">{{ status_map.get(item.status, item.status) }}</span></td>
+              <td class="text-center">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('document_registers.detail', registry_type=registry_type, record_id=item.id) }}">Открыть</a>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-5">Записей пока нет.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .document-register-page .portal-header {
+    align-items: flex-start;
+  }
+
+  .document-register-page {
+    width: min(1280px, calc(100vw - 64px)) !important;
+    max-width: none !important;
+    margin-left: calc(50% - min(640px, calc(50vw - 32px))) !important;
+    margin-right: 0 !important;
+  }
+
+  .document-register-filter-actions {
+    align-self: end;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .document-register-filter-actions .btn {
+    min-height: 36px;
+  }
+
+  .document-register-title {
+    color: #1d4ed8;
+    font-weight: 400;
+    text-decoration: none;
+  }
+
+  .document-register-title:hover {
+    text-decoration: underline;
+  }
+
+  .document-register-table th,
+  .document-register-table td {
+    white-space: nowrap;
+  }
+
+  .document-register-table th:nth-child(3),
+  .document-register-table td:nth-child(3) {
+    min-width: 320px;
+    white-space: normal;
+  }
+
+  @media (max-width: 860px) {
+    .document-register-page .portal-header {
+      flex-direction: column;
+    }
+
+    .document-register-page {
+      width: min(1280px, calc(100vw - 28px)) !important;
+      margin-left: calc(50% - min(640px, calc(50vw - 14px))) !important;
+    }
+
+    .document-register-page .portal-actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
+
+    .document-register-filter-actions {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
+
+{% endblock %}

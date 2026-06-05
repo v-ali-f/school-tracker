@@ -1191,3 +1191,323 @@ button.portal-home-admin-link {
 }
 
 /* === end unified theme and module blocks === */
+
+/* === legacy page unification pass === */
+
+body {
+  background: var(--portal-bg) !important;
+}
+
+.container.my-4:not(.portal-wide-container):not(.preschool-wide-container):not(.contingent-compact-container) {
+  width: min(100% - var(--portal-page-gap), var(--portal-width)) !important;
+  max-width: var(--portal-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.container.my-4 > h1,
+.container.my-4 > h2,
+.container.my-4 > .d-flex:first-child:has(.page-title),
+.container.my-4 > .d-flex:first-child:has(h1),
+.container.my-4 > .d-flex:first-child:has(h2),
+.container.my-4 > .mb-3:first-child:has(.page-title),
+.container.my-4 > .mb-3:first-child:has(h1),
+.container.my-4 > .mb-3:first-child:has(h2) {
+  margin-bottom: 14px !important;
+}
+
+.container.my-4 > h1,
+.container.my-4 > h2,
+.container.my-4 > .d-flex:first-child:has(.page-title),
+.container.my-4 > .d-flex:first-child:has(h1),
+.container.my-4 > .d-flex:first-child:has(h2),
+.container.my-4 > .mb-3:first-child:has(.page-title),
+.container.my-4 > .mb-3:first-child:has(h1),
+.container.my-4 > .mb-3:first-child:has(h2) {
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 18px 20px !important;
+  min-height: 74px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: var(--portal-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--portal-shadow) !important;
+}
+
+.container.my-4 > h1,
+.container.my-4 > h2 {
+  display: flex !important;
+}
+
+.container.my-4 > .d-flex:first-child:has(.page-title),
+.container.my-4 > .d-flex:first-child:has(h1),
+.container.my-4 > .d-flex:first-child:has(h2),
+.container.my-4 > .mb-3:first-child:has(.page-title),
+.container.my-4 > .mb-3:first-child:has(h1),
+.container.my-4 > .mb-3:first-child:has(h2) {
+  display: flex !important;
+}
+
+.container.my-4 > h1,
+.container.my-4 > h2,
+.container.my-4 h1.page-title,
+.container.my-4 h2.page-title,
+.container.my-4 .page-title,
+.container.my-4 .dashboard-title {
+  color: var(--portal-text) !important;
+  font-size: var(--portal-title-size) !important;
+  line-height: 1.22 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.container.my-4 .page-sub,
+.container.my-4 .page-subtitle,
+.container.my-4 .dashboard-subtitle,
+.container.my-4 .dashboard-lead {
+  margin-top: 5px !important;
+  color: var(--portal-muted) !important;
+  font-size: var(--portal-subtitle-size) !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+}
+
+.container.my-4 > .card,
+.container.my-4 > form.card,
+.container.my-4 > .row > [class*="col"] > .card,
+.container.my-4 .card.shadow-sm,
+.container.my-4 .card.border-0,
+.container.my-4 .soft-card,
+.container.my-4 .forward-card,
+.container.my-4 .doc-section {
+  border: 1px solid var(--portal-border) !important;
+  border-radius: var(--portal-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--portal-shadow) !important;
+  overflow: hidden !important;
+}
+
+.container.my-4 .card.border-0 {
+  border-color: var(--portal-border) !important;
+}
+
+.container.my-4 .rounded-4 {
+  border-radius: var(--portal-radius-card) !important;
+}
+
+.container.my-4 .card-body {
+  padding: 16px !important;
+}
+
+.container.my-4 .card-body.p-0,
+.container.my-4 .table-responsive.p-0 {
+  padding: 0 !important;
+}
+
+.container.my-4 .card h2,
+.container.my-4 .card h3,
+.container.my-4 .section-title,
+.container.my-4 .card-title {
+  color: var(--portal-text) !important;
+  font-size: var(--portal-card-title-size) !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.container.my-4 .card h2,
+.container.my-4 .card h3 {
+  margin-bottom: 12px !important;
+}
+
+.container.my-4 .form-label,
+.container.my-4 label.form-label,
+.container.my-4 .form-check-label {
+  color: #475569 !important;
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+
+.container.my-4 .form-control,
+.container.my-4 .form-select,
+.container.my-4 textarea,
+.container.my-4 input[type="date"],
+.container.my-4 input[type="datetime-local"],
+.container.my-4 input[type="time"],
+.container.my-4 input[type="number"],
+.container.my-4 input[type="text"],
+.container.my-4 input[type="email"],
+.container.my-4 input[type="tel"],
+.container.my-4 input[type="password"] {
+  min-height: 36px;
+  border-color: var(--portal-border) !important;
+  border-radius: 12px !important;
+  color: var(--portal-text) !important;
+  font-size: var(--portal-control-size) !important;
+  line-height: 1.35 !important;
+  box-shadow: none !important;
+}
+
+.container.my-4 textarea.form-control,
+.container.my-4 textarea {
+  min-height: 86px;
+}
+
+.container.my-4 .form-control:focus,
+.container.my-4 .form-select:focus,
+.container.my-4 textarea:focus,
+.container.my-4 input:focus {
+  border-color: #93b4f6 !important;
+  box-shadow: 0 0 0 .18rem rgba(37, 99, 235, .12) !important;
+}
+
+.container.my-4 .btn:not(.btn-link) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 32px !important;
+  border-radius: 999px !important;
+  padding: 0 13px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+.container.my-4 .btn-lg:not(.btn-link) {
+  min-height: 38px !important;
+  padding-inline: 18px !important;
+  font-size: 14px !important;
+}
+
+.container.my-4 .table {
+  margin-bottom: 0 !important;
+  color: var(--portal-text);
+  font-size: 14px;
+}
+
+.container.my-4 .table thead th {
+  border-bottom: 1px solid var(--portal-border-soft) !important;
+  background: #f8fafc !important;
+  color: #64748b !important;
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  white-space: nowrap;
+  padding: 10px 12px !important;
+}
+
+.container.my-4 .table tbody td {
+  border-color: #eef2f7 !important;
+  color: var(--portal-text);
+  font-size: 14px;
+  line-height: 1.35;
+  vertical-align: middle;
+  padding: 11px 12px !important;
+}
+
+.container.my-4 .table-striped > tbody > tr:nth-of-type(odd) > * {
+  --bs-table-bg-type: transparent;
+  background-color: #fff !important;
+}
+
+.container.my-4 .table-hover > tbody > tr:hover > *,
+.container.my-4 .table tbody tr:hover > td {
+  background: #fafbfd !important;
+}
+
+.container.my-4 .alert {
+  border-radius: var(--portal-radius-inner) !important;
+  border-color: var(--portal-border-soft) !important;
+  box-shadow: none !important;
+}
+
+.container.my-4 .badge {
+  border-radius: 999px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 980px) {
+  .container.my-4:not(.portal-wide-container):not(.preschool-wide-container):not(.contingent-compact-container) {
+    width: min(100% - var(--portal-mobile-gap), var(--portal-width)) !important;
+  }
+
+  .container.my-4 > .d-flex:first-child:has(.page-title),
+  .container.my-4 > .d-flex:first-child:has(h1),
+  .container.my-4 > .d-flex:first-child:has(h2),
+  .container.my-4 > .mb-3:first-child:has(.page-title),
+  .container.my-4 > .mb-3:first-child:has(h1),
+  .container.my-4 > .mb-3:first-child:has(h2) {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}
+
+/* === end legacy page unification pass === */
+
+/* === calm buttons and appeal registry pass === */
+
+.container.my-4 .btn:not(.btn-link),
+.container.my-4 .nav-pills .nav-link,
+.container.my-4 .tasks-view-switch a {
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  text-align: center !important;
+}
+
+.container.my-4 .btn-primary:not(.btn-link),
+.container.my-4 .nav-pills .nav-link.active,
+.container.my-4 .tasks-view-switch a.active {
+  font-weight: 500 !important;
+}
+
+.container.my-4 .table a:not(.btn),
+.container.my-4 .appeal-subject-link {
+  font-weight: 400 !important;
+}
+
+.container.my-4 .table .badge,
+.container.my-4 .badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 22px !important;
+  border-radius: 999px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+}
+
+.appeals-page .page-title {
+  font-weight: 500 !important;
+}
+
+.appeals-page .stat-value {
+  font-weight: 500 !important;
+}
+
+.appeals-page .table th,
+.appeals-page .table td {
+  font-weight: 400 !important;
+}
+
+.appeals-page .table thead th {
+  font-weight: 500 !important;
+}
+
+.appeals-page .appeal-open-btn,
+.tasks-shell.tasks-shell-no-side .table-actions .btn {
+  min-width: 68px !important;
+}
+
+/* === end calm buttons and appeal registry pass === */

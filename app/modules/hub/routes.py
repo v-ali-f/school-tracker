@@ -26,6 +26,9 @@ ICON_MAP = {
     "Контрольные работы": ("bi-ui-checks-grid", "accent-orange"),
     "Олимпиады": ("bi-trophy", "accent-orange"),
     "Реестр приказов": ("bi-file-earmark-text", "accent-dark"),
+    "Входящие документы": ("bi-inbox", "accent-blue"),
+    "Исходящие документы": ("bi-send", "accent-green"),
+    "Доступ к документам": ("bi-person-check", "accent-dark"),
     "Классное руководство": ("bi-person-badge", "accent-green"),
     "Социально-психологическая служба": ("bi-people-fill", "accent-blue"),
     "Учебные годы": ("bi-calendar3", "accent-dark"),
@@ -499,7 +502,7 @@ def _main_page_config():
                 "title": "Реестр приказов",
                 "description": "Журнал приказов, шаблоны, поиск и архив.",
                 "endpoint": "hub.orders",
-                "roles_any": ["ADMIN", "METHODIST", "SOCIAL_PEDAGOG"],
+                "roles_any": ["ADMIN", "DIRECTOR", "METHODIST", "SOCIAL_PEDAGOG"],
             },
             {
                 "title": "Классное руководство",
@@ -721,11 +724,14 @@ def _theme_configs():
         "orders": {
             "title": "Реестр приказов",
             "subtitle": "Журнал приказов, создание, шаблоны и архивное хранение.",
-            "roles_any": ["ADMIN", "METHODIST", "SOCIAL_PEDAGOG"],
+            "roles_any": ["ADMIN", "DIRECTOR", "METHODIST", "SOCIAL_PEDAGOG"],
             "sections": _materialize([
                 {"title": "Журнал приказов", "description": "Список всех приказов.", "endpoint": "orders.registry"},
                 {"title": "Создание приказов", "description": "Оформление нового приказа.", "endpoint": "orders.create"},
                 {"title": "Ответственные", "description": "Настройка ответственных за направления приказов.", "endpoint": "orders.responsibles"},
+                {"title": "Входящие документы", "description": "Регистрация входящих писем и документов.", "endpoint": "document_registers.registry", "endpoint_kwargs": {"registry_type": "incoming"}},
+                {"title": "Исходящие документы", "description": "Регистрация исходящих писем и документов.", "endpoint": "document_registers.registry", "endpoint_kwargs": {"registry_type": "outgoing"}},
+                {"title": "Доступ к документам", "description": "Права просмотра и ведения реестров документов.", "endpoint": "document_registers.access", "roles_any": ["ADMIN", "DIRECTOR"]},
             ]),
         },
         "classroom": {

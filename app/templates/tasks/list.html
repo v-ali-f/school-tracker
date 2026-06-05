@@ -1195,6 +1195,166 @@
 
 </style>
 
+<style>
+  /* Финальное выравнивание задач под общий визуальный стандарт портала. */
+  .tasks-shell.tasks-shell-no-side {
+    width: 100% !important;
+    max-width: 1280px !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-topbar {
+    margin: 0 0 14px !important;
+    padding: 18px 20px !important;
+    min-height: 74px !important;
+    border: 1px solid var(--portal-border, #dbe4f0) !important;
+    border-radius: var(--portal-radius-card, 18px) !important;
+    background: #fff !important;
+    box-shadow: var(--portal-shadow, 0 10px 26px rgba(15, 23, 42, 0.04)) !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-topline {
+    align-items: center !important;
+    margin: 0 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-title {
+    color: var(--portal-text, #1f2937) !important;
+    font-size: var(--portal-title-size, 22px) !important;
+    line-height: 1.22 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-top-actions .btn,
+  .tasks-shell.tasks-shell-no-side .tasks-view-switch a,
+  .tasks-shell.tasks-shell-no-side .table-actions .btn,
+  .tasks-shell.tasks-shell-no-side .btn-sm {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 32px !important;
+    height: auto !important;
+    border-radius: 999px !important;
+    padding: 0 13px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-view-switch {
+    margin: 12px 0 0 !important;
+    gap: 8px !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .metric-card,
+  .tasks-shell.tasks-shell-no-side .tasks-filters-card,
+  .tasks-shell.tasks-shell-no-side .card,
+  .tasks-shell.tasks-shell-no-side .board-col,
+  .tasks-shell.tasks-shell-no-side .task-card-board {
+    border: 1px solid var(--portal-border, #dbe4f0) !important;
+    border-radius: var(--portal-radius-card, 18px) !important;
+    background: #fff !important;
+    box-shadow: var(--portal-shadow, 0 10px 26px rgba(15, 23, 42, 0.04)) !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side table th {
+    padding: 10px 12px !important;
+    color: #64748b !important;
+    font-size: 12.5px !important;
+    line-height: 1.25 !important;
+    font-weight: 600 !important;
+    background: #f8fafc !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side table td {
+    padding: 11px 12px !important;
+    color: var(--portal-text, #1f2937) !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+  }
+
+  @media (max-width: 980px) {
+    .tasks-shell.tasks-shell-no-side .tasks-topline {
+      align-items: flex-start !important;
+      flex-direction: column !important;
+    }
+  }
+</style>
+
+<style>
+  /* Сдержанный финальный слой: меньше жирности, ровные кнопки и вкладки. */
+  .tasks-shell.tasks-shell-no-side .tasks-title {
+    font-weight: 500 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-top-actions {
+    align-items: center !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-top-actions .btn,
+  .tasks-shell.tasks-shell-no-side .tasks-view-switch a,
+  .tasks-shell.tasks-shell-no-side .table-actions .btn,
+  .tasks-shell.tasks-shell-no-side .btn-sm {
+    min-width: 0 !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 13px !important;
+    border-radius: 999px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    font-weight: 400 !important;
+    text-align: center !important;
+    letter-spacing: 0 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-top-actions .btn-primary,
+  .tasks-shell.tasks-shell-no-side .tasks-view-switch a.active {
+    font-weight: 500 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .tasks-view-switch {
+    align-items: center !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .table-actions {
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .table-actions .btn {
+    min-width: 68px !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .badge,
+  .tasks-shell.tasks-shell-no-side .status-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 22px !important;
+    border-radius: 999px !important;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side table th,
+  .tasks-shell.tasks-shell-no-side .board-col-header {
+    font-weight: 500 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side table td,
+  .tasks-shell.tasks-shell-no-side table a:not(.btn),
+  .tasks-shell.tasks-shell-no-side .board-col-header span {
+    font-weight: 400 !important;
+  }
+
+  .tasks-shell.tasks-shell-no-side .board-col-header .count {
+    font-weight: 500 !important;
+  }
+</style>
+
 <div class="tasks-shell tasks-shell-no-side">
   <section class="tasks-main">
     <div class="tasks-topbar">

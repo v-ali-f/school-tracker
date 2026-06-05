@@ -49,7 +49,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/preschool_standard.css') }}?v=20260604_9">
 {% endif %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/portal_standard.css') }}?v=20260604_blocks_2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/portal_standard.css') }}?v=20260605_calm_buttons_1">
 </head>
 
 <body>
@@ -230,6 +230,74 @@
 
   {% block content %}{% endblock %}
 </div>
+
+<style id="portal-final-calm-controls">
+  .container.my-4 h1,
+  .container.my-4 h2,
+  .container.my-4 .page-title,
+  .container.my-4 .dashboard-title,
+  .container.my-4 .tasks-title,
+  .container.my-4 .card-title,
+  .container.my-4 .section-title {
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .container.my-4 .btn:not(.btn-link),
+  .container.my-4 a.btn:not(.btn-link),
+  .container.my-4 button.btn:not(.btn-link),
+  .container.my-4 [role="button"],
+  .container.my-4 .nav-pills .nav-link,
+  .container.my-4 .tasks-view-switch a,
+  .container.my-4 .view-tab-btn,
+  .container.my-4 .nv-chip,
+  .container.my-4 .sort-arrow,
+  .container.my-4 .portal-btn,
+  .container.my-4 .portal-btn-primary,
+  .container.my-4 .portal-btn-secondary,
+  .container.my-4 .zone-btn,
+  .container.my-4 .theme-action-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: 400 !important;
+    letter-spacing: 0 !important;
+    text-align: center !important;
+    box-shadow: none !important;
+  }
+
+  .container.my-4 .btn-primary:not(.btn-link),
+  .container.my-4 .btn-outline-primary:not(.btn-link),
+  .container.my-4 .nav-pills .nav-link.active,
+  .container.my-4 .tasks-view-switch a.active,
+  .container.my-4 .view-tab-btn.active,
+  .container.my-4 .nv-chip.active,
+  .container.my-4 .sort-arrow.active {
+    font-weight: 400 !important;
+  }
+
+  .container.my-4 .table .btn:not(.btn-link),
+  .container.my-4 .table-actions .btn,
+  .container.my-4 .appeal-open-btn {
+    min-width: 68px !important;
+    min-height: 32px !important;
+  }
+
+  .container.my-4 .badge,
+  .container.my-4 .status-badge,
+  .container.my-4 .board-col-header .count {
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .container.my-4 .board-col-header,
+  .container.my-4 .board-col-header span,
+  .container.my-4 .card-header,
+  .container.my-4 .card-header b,
+  .container.my-4 .card-header strong {
+    font-weight: 500 !important;
+  }
+</style>
 
 <script>
   function hideCollapseById(id) {
