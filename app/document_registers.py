@@ -155,6 +155,11 @@ def registry(registry_type):
     status = (request.args.get("status") or "").strip()
     responsible_id = request.args.get("responsible_id", type=int)
 
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = request.args.get("per_page", 20, type=int)
+    if per_page not in (20, 50, 100):
+        per_page = 20
+
     query = DocumentRegistryRecord.query.filter_by(registry_type=registry_type)
     if query_text:
         like = f"%{query_text}%"
@@ -168,11 +173,18 @@ def registry(registry_type):
     if responsible_id:
         query = query.filter(DocumentRegistryRecord.responsible_user_id == responsible_id)
 
-    items = query.order_by(
+    ordered_query = query.order_by(
         DocumentRegistryRecord.doc_date.desc(),
         DocumentRegistryRecord.number.desc(),
         DocumentRegistryRecord.id.desc(),
-    ).all()
+    )
+
+    pagination = ordered_query.paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False,
+    )
+    items = pagination.items
 
     return render_template(
         "document_registers_registry.html",
@@ -180,6 +192,9 @@ def registry(registry_type):
         registry_label=REGISTRY_MAP[registry_type],
         visible_registries=visible_registries,
         items=items,
+        pagination=pagination,
+        page=page,
+        per_page=per_page,
         q=query_text,
         status=status,
         responsible_id=responsible_id,
