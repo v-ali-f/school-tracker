@@ -1,6 +1,191 @@
 {% extends "layout.html" %}
-{% block title %}{{ registry_label }} — {{ app_display_title }}{% endblock %}
+{% block title %}Реестр документов
+{% endblock %}
 {% block content %}
+
+<style>
+  .document-register-table,
+  .registry-table,
+  table {
+    table-layout: fixed;
+  }
+
+  .document-register-table th,
+  .document-register-table td,
+  .registry-table th,
+  .registry-table td {
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .document-register-table th:nth-child(1),
+  .document-register-table td:nth-child(1),
+  .registry-table th:nth-child(1),
+  .registry-table td:nth-child(1) {
+    width: 90px;
+    white-space: nowrap;
+  }
+
+  .document-register-table th:nth-child(2),
+  .document-register-table td:nth-child(2),
+  .registry-table th:nth-child(2),
+  .registry-table td:nth-child(2) {
+    width: 105px;
+    white-space: nowrap;
+  }
+
+  .document-register-table th:nth-child(3),
+  .document-register-table td:nth-child(3),
+  .registry-table th:nth-child(3),
+  .registry-table td:nth-child(3) {
+    width: 285px;
+  }
+
+  .document-register-table th:nth-child(4),
+  .document-register-table td:nth-child(4),
+  .registry-table th:nth-child(4),
+  .registry-table td:nth-child(4) {
+    width: 170px;
+  }
+
+  .document-register-table th:nth-child(5),
+  .document-register-table td:nth-child(5),
+  .registry-table th:nth-child(5),
+  .registry-table td:nth-child(5) {
+    width: 145px;
+  }
+
+  .document-register-table th:nth-child(6),
+  .document-register-table td:nth-child(6),
+  .registry-table th:nth-child(6),
+  .registry-table td:nth-child(6) {
+    width: 120px;
+  }
+
+  .document-register-table th:nth-child(7),
+  .document-register-table td:nth-child(7),
+  .registry-table th:nth-child(7),
+  .registry-table td:nth-child(7) {
+    width: 90px;
+    white-space: nowrap;
+  }
+
+  .doc-import-meta,
+  .import-meta,
+  .source-import-meta {
+    display: none !important;
+  }
+
+  .doc-record-subtext {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.25;
+    margin-top: 4px;
+  }
+
+  .doc-record-subtext:empty {
+    display: none;
+  }
+
+  .doc-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+    color: #64748b;
+    font-size: 14px;
+  }
+
+  .doc-pagination-left {
+    white-space: nowrap;
+  }
+
+  .doc-pagination-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .doc-page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .doc-page-size select {
+    min-height: 36px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    padding: 0 10px;
+    background: #ffffff;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .doc-pager {
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .doc-pager a,
+  .doc-pager span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-right: 1px solid #cbd5e1;
+    color: #334155;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .doc-pager a:last-child,
+  .doc-pager span:last-child {
+    border-right: 0;
+  }
+
+  .doc-pager a:hover {
+    background: #f8fafc;
+    color: #2563eb;
+  }
+
+  .doc-pager .disabled {
+    color: #cbd5e1;
+    background: #f8fafc;
+  }
+
+  .doc-current-page {
+    min-width: 64px !important;
+    color: #1f2937 !important;
+    background: #ffffff;
+    font-weight: 500 !important;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 760px) {
+    .doc-pagination {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .doc-pagination-right {
+      margin-left: 0;
+      flex-wrap: wrap;
+    }
+  }
+
+</style>
+
 
 <div class="portal-shell document-register-page">
   <div class="portal-header">
@@ -30,6 +215,7 @@
   </div>
 
   <form method="get" class="portal-card mb-3">
+    <input type="hidden" name="per_page" value="{{ per_page }}">
     <div class="portal-form-grid">
       <div class="portal-field">
         <label for="registry-q">Поиск</label>
@@ -92,7 +278,7 @@
                 </a>
                 {% if item.delivery_method or item.notes %}
                   <div class="small text-muted">
-                    {% if item.delivery_method %}{{ item.delivery_method }}{% endif %}
+                    {% if item.delivery_method %}{% if item.delivery_method and not item.delivery_method.startswith("Импорт из книги") %}{{ item.delivery_method }}{% endif %}{% endif %}
                     {% if item.delivery_method and item.notes %} · {% endif %}
                     {% if item.notes %}{{ item.notes[:120] }}{% endif %}
                   </div>
@@ -180,5 +366,51 @@
     }
   }
 </style>
+
+
+  <div class="doc-pagination">
+    <div class="doc-pagination-left">
+      {% if pagination.total %}
+        Показано {{ pagination.first }}–{{ pagination.last }} из {{ pagination.total }} записей
+      {% else %}
+        Показано 0–0 из 0 записей
+      {% endif %}
+    </div>
+
+    <div class="doc-pagination-right">
+      <form class="doc-page-size" method="get">
+        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        {% if responsible_id %}<input type="hidden" name="responsible_id" value="{{ responsible_id }}">{% endif %}
+
+        <span>Строк</span>
+        <select name="per_page" onchange="this.form.submit()">
+          <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+          <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+          <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+        </select>
+      </form>
+
+      <div class="doc-pager">
+        {% if pagination.has_prev %}
+          <a href="{{ url_for('document_registers.registry', registry_type=registry_type, q=q, status=status, responsible_id=responsible_id, per_page=per_page, page=1) }}">«</a>
+          <a href="{{ url_for('document_registers.registry', registry_type=registry_type, q=q, status=status, responsible_id=responsible_id, per_page=per_page, page=pagination.prev_num) }}">‹</a>
+        {% else %}
+          <span class="disabled">«</span>
+          <span class="disabled">‹</span>
+        {% endif %}
+
+        <span class="doc-current-page">{{ pagination.page }} / {{ pagination.pages or 1 }}</span>
+
+        {% if pagination.has_next %}
+          <a href="{{ url_for('document_registers.registry', registry_type=registry_type, q=q, status=status, responsible_id=responsible_id, per_page=per_page, page=pagination.next_num) }}">›</a>
+          <a href="{{ url_for('document_registers.registry', registry_type=registry_type, q=q, status=status, responsible_id=responsible_id, per_page=per_page, page=pagination.pages) }}">»</a>
+        {% else %}
+          <span class="disabled">›</span>
+          <span class="disabled">»</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 
 {% endblock %}
