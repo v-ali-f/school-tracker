@@ -292,6 +292,10 @@ def children_registry():
         first_name = (request.form.get("first_name") or "").strip()
         middle_name = (request.form.get("middle_name") or "").strip()
         birth_date_raw = (request.form.get("birth_date") or "").strip()
+        personal_account = (request.form.get("personal_account") or "").strip()
+        reg_address = (request.form.get("reg_address") or "").strip()
+        living_address = (request.form.get("living_address") or "").strip()
+        actual_address = (request.form.get("actual_address") or "").strip()
         note = (request.form.get("note") or "").strip()
         group_id_raw = (request.form.get("group_id") or "").strip()
 
@@ -2261,6 +2265,10 @@ def edit_child(child_id):
         child.first_name = first_name
         child.middle_name = middle_name or None
         child.birth_date = birth_date
+        child.personal_account = personal_account or None
+        child.reg_address = reg_address or None
+        child.living_address = living_address or None
+        child.actual_address = actual_address or None
         child.note = note or None
 
         db.session.commit()
@@ -2269,12 +2277,20 @@ def edit_child(child_id):
         flash("Карточка воспитанника обновлена.", "success")
         return redirect(url_for("preschool.children_registry", academic_year_id=year_id))
 
+    representatives = (
+        PreschoolRepresentative.query
+        .filter(PreschoolRepresentative.child_id == child.id)
+        .order_by(PreschoolRepresentative.full_name.asc())
+        .all()
+    )
+
     return render_template(
         "preschool/child_form.html",
         child=child,
         groups=groups,
         all_years=all_years,
         year=year,
+        representatives=representatives,
     )
 
 

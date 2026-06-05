@@ -1,0 +1,207 @@
+{% extends "layout.html" %}
+{% block title %}{{ registry_label }} — {{ app_display_title }}{% endblock %}
+{% block content %}
+
+{% set read_only = read_only|default(false) %}
+{% set page_title = 'Карточка документа' if read_only else ('Редактирование записи' if item else 'Новая запись') %}
+{% set correspondent_label = 'Отправитель' if registry_type == 'incoming' else 'Получатель' %}
+{% set method_label = 'Способ получения' if registry_type == 'incoming' else 'Способ отправки' %}
+
+<div class="portal-shell document-register-form-page">
+  <div class="portal-header">
+    <div>
+      <h1 class="portal-title">{{ page_title }}</h1>
+      <div class="portal-subtitle">{{ registry_label }}</div>
+    </div>
+
+    <div class="portal-actions">
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('document_registers.registry', registry_type=registry_type) }}">
+        <i class="bi bi-arrow-left me-1"></i>К реестру
+      </a>
+      {% if read_only and can_edit %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('document_registers.edit', registry_type=registry_type, record_id=item.id) }}">
+          <i class="bi bi-pencil-square me-1"></i>Редактировать
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="{{ 'get' if read_only else 'post' }}" class="portal-card document-register-form-card">
+    <div class="portal-form-grid">
+      <div class="portal-field">
+        <label for="doc-number">Регистрационный номер</label>
+        <input
+          id="doc-number"
+          name="number"
+          value="{{ item.number if item else '' }}"
+          autocomplete="off"
+          required
+          {% if read_only %}readonly{% endif %}
+        >
+      </div>
+
+      <div class="portal-field">
+        <label for="doc-date">Дата документа</label>
+        <input
+          id="doc-date"
+          type="date"
+          name="doc_date"
+          value="{% if item and item.doc_date %}{{ item.doc_date.strftime('%Y-%m-%d') }}{% endif %}"
+          required
+          {% if read_only %}readonly{% endif %}
+        >
+      </div>
+
+      <div class="portal-field">
+        <label for="doc-status">Статус</label>
+        <select id="doc-status" name="status" required {% if read_only %}disabled{% endif %}>
+          {% set current_status = item.status if item else 'registered' %}
+          {% for code, label in status_choices %}
+            <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="portal-field">
+        <label for="doc-responsible">Ответственный</label>
+        <select id="doc-responsible" name="responsible_user_id" {% if read_only %}disabled{% endif %}>
+          <option value="">Не назначен</option>
+          {% set current_responsible_id = item.responsible_user_id if item else none %}
+          {% for u in users %}
+            <option value="{{ u.id }}" {% if current_responsible_id == u.id %}selected{% endif %}>{{ u.fio or u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="portal-field full">
+        <label for="doc-subject">Краткое содержание</label>
+        <input
+          id="doc-subject"
+          name="subject"
+          value="{{ item.subject if item else '' }}"
+          autocomplete="off"
+          required
+          {% if read_only %}readonly{% endif %}
+        >
+      </div>
+
+      <div class="portal-field">
+        <label for="doc-correspondent">{{ correspondent_label }}</label>
+        <input
+          id="doc-correspondent"
+          name="correspondent"
+          value="{{ item.correspondent if item and item.correspondent else '' }}"
+          autocomplete="off"
+          {% if read_only %}readonly{% endif %}
+        >
+      </div>
+
+      <div class="portal-field">
+        <label for="doc-method">{{ method_label }}</label>
+        <input
+          id="doc-method"
+          name="delivery_method"
+          value="{{ item.delivery_method if item and item.delivery_method else '' }}"
+          autocomplete="off"
+          {% if read_only %}readonly{% endif %}
+        >
+      </div>
+
+      <div class="portal-field full">
+        <label for="doc-notes">Примечание</label>
+        <textarea id="doc-notes" name="notes" rows="5" {% if read_only %}readonly{% endif %}>{{ item.notes if item and item.notes else '' }}</textarea>
+      </div>
+    </div>
+
+    {% if not read_only %}
+      <div class="document-register-form-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-check2 me-1"></i>Сохранить
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('document_registers.registry', registry_type=registry_type) }}">
+          Отмена
+        </a>
+      </div>
+    {% endif %}
+  </form>
+
+  {% if item and not read_only %}
+    <form
+      method="post"
+      action="{{ url_for('document_registers.delete', registry_type=registry_type, record_id=item.id) }}"
+      class="document-register-delete-form"
+      onsubmit="return confirm('Удалить запись из реестра?');"
+    >
+      <button class="btn btn-outline-danger btn-sm" type="submit">
+        <i class="bi bi-trash me-1"></i>Удалить запись
+      </button>
+    </form>
+  {% endif %}
+</div>
+
+<style>
+  .document-register-form-page .portal-header {
+    align-items: flex-start;
+  }
+
+  .document-register-form-page {
+    width: min(1280px, calc(100vw - 64px)) !important;
+    max-width: none !important;
+    margin-left: calc(50% - min(640px, calc(50vw - 32px))) !important;
+    margin-right: 0 !important;
+  }
+
+  .document-register-form-card input[readonly],
+  .document-register-form-card textarea[readonly],
+  .document-register-form-card select:disabled {
+    color: #334155;
+    background: #f8fafc;
+    opacity: 1;
+  }
+
+  .document-register-form-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--portal-border-soft);
+  }
+
+  .document-register-delete-form {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 860px) {
+    .document-register-form-page .portal-header {
+      flex-direction: column;
+    }
+
+    .document-register-form-page {
+      width: min(1280px, calc(100vw - 28px)) !important;
+      margin-left: calc(50% - min(640px, calc(50vw - 14px))) !important;
+    }
+
+    .document-register-form-page .portal-actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
+  }
+</style>
+
+<script>
+(function () {
+  const dateInput = document.getElementById('doc-date');
+  if (!dateInput || dateInput.value || dateInput.hasAttribute('readonly')) return;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  dateInput.value = `${yyyy}-${mm}-${dd}`;
+})();
+</script>
+
+{% endblock %}

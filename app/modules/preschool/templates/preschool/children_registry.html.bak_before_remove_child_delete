@@ -172,6 +172,7 @@
             <th>Здание</th>
             <th>Возрастная группа</th>
             <th>Дата рождения</th>
+            <th class="dou-actions">Действия</th>
           </tr>
         </thead>
         <tbody>
@@ -188,11 +189,28 @@
                 <td>{{ child.group.building.name if child.group and child.group.building else '—' }}</td>
                 <td>{{ child.group.age_level if child.group and child.group.age_level else '—' }}</td>
                 <td>{{ child.birth_date.strftime('%d.%m.%Y') if child.birth_date else '—' }}</td>
+                <td class="dou-actions">
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{{ url_for('preschool.edit_child', child_id=child.id) }}">
+                    Изменить
+                  </a>
+                  <form method="post"
+                        action="{{ url_for('preschool.delete_child', child_id=child.id) }}"
+                        class="d-inline"
+                        onsubmit="return confirm('Удалить ребёнка из реестра?');">
+                    {% if csrf_token is defined %}
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                      Удалить
+                    </button>
+                  </form>
+                </td>
               </tr>
             {% endfor %}
           {% else %}
             <tr>
-              <td colspan="6" class="text-muted py-3">
+              <td colspan="7" class="text-muted py-3">
                 Реестр ДОУ пуст. Используйте импорт для загрузки данных.
               </td>
             </tr>

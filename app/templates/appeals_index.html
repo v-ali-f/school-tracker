@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="container-fluid py-3">
+<div class="appeals-page py-3">
   <div class="page-head">
     <div>
       <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / Обращения</nav>
@@ -30,18 +30,18 @@
   <div class="card soft-card">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
-        <thead class="table-light"><tr><th>№</th><th>Дата</th><th>Заявитель</th><th>Тема</th><th>Ответственный</th><th>Срок</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>
+        <thead class="table-light"><tr><th>№</th><th>Дата</th><th>Заявитель</th><th>Тема</th><th>Ответственный</th><th>Срок</th><th>Статус</th><th class="text-center">Действия</th></tr></thead>
         <tbody>
           {% for a in appeals %}
           <tr class="{% if a.is_overdue %}table-danger{% endif %}">
             <td>{{ a.number or a.id }}</td>
             <td>{{ a.received_at.strftime('%d.%m.%Y') if a.received_at else '—' }}</td>
             <td>{{ a.applicant_name }}</td>
-            <td><a class="fw-semibold text-decoration-none" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">{{ a.subject }}</a>{% if a.linked_task_id %}<div class="small text-muted">Связана с задачей #{{ a.linked_task_id }}</div>{% endif %}</td>
+            <td><a class="appeal-subject-link text-decoration-none" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">{{ a.subject }}</a>{% if a.linked_task_id %}<div class="small text-muted">Связана с задачей #{{ a.linked_task_id }}</div>{% endif %}</td>
             <td>{{ a.responsible.fio or a.responsible.username if a.responsible else '—' }}</td>
             <td>{{ a.deadline_at.strftime('%d.%m.%Y') if a.deadline_at else '—' }}</td>
             <td><span class="badge text-bg-{{ 'danger' if a.is_overdue else ('success' if a.status == 'Закрыто' else 'primary') }}">{{ 'Просрочено' if a.is_overdue else a.status }}</span></td>
-            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">Открыть</a></td>
+            <td class="text-center"><a class="btn btn-sm btn-outline-primary appeal-open-btn" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">Открыть</a></td>
           </tr>
           {% else %}<tr><td colspan="8" class="text-center text-muted py-5">Обращения не найдены.</td></tr>{% endfor %}
         </tbody>

@@ -763,6 +763,45 @@ class Document(db.Model):
         return f"<Document {self.original_name}>"
 
 
+class DocumentRegistryRecord(db.Model):
+    __tablename__ = "document_registry_record"
+
+    id = db.Column(db.Integer, primary_key=True)
+    registry_type = db.Column(db.String(20), nullable=False, index=True)
+    number = db.Column(db.String(80), nullable=False, index=True)
+    doc_date = db.Column(db.Date, nullable=False, index=True)
+    subject = db.Column(db.String(500), nullable=False)
+    correspondent = db.Column(db.String(255), nullable=True)
+    delivery_method = db.Column(db.String(120), nullable=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
+    status = db.Column(db.String(40), nullable=False, default="registered", index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    responsible_user = db.relationship("User", foreign_keys=[responsible_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+    def __repr__(self):
+        return f"<DocumentRegistryRecord {self.registry_type} {self.number}>"
+
+
+class DocumentRegistryAccess(db.Model):
+    __tablename__ = "document_registry_access"
+
+    id = db.Column(db.Integer, primary_key=True)
+    registry_type = db.Column(db.String(20), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    access_type = db.Column(db.String(20), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User")
+
+    __table_args__ = (
+        db.UniqueConstraint("registry_type", "user_id", "access_type", name="uq_document_registry_access"),
+    )
+
 
 # =========================
 # COMMENTS

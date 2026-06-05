@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
-from sqlalchemy import or_, text
+from sqlalchemy import bindparam, or_, text
 from sqlalchemy.orm import selectinload, joinedload
 
 from app.core.extensions import db
