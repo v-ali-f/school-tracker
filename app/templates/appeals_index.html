@@ -38,7 +38,7 @@
             <td>{{ a.received_at.strftime('%d.%m.%Y') if a.received_at else '—' }}</td>
             <td>{{ a.applicant_name }}</td>
             <td><a class="appeal-subject-link text-decoration-none" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">{{ a.subject }}</a>{% if a.linked_task_id %}<div class="small text-muted">Связана с задачей #{{ a.linked_task_id }}</div>{% endif %}</td>
-            <td>{{ a.responsible.fio or a.responsible.username if a.responsible else '—' }}</td>
+            <td>{{ a.responsibles_label if a.responsibles_label is defined else (a.responsible.fio or a.responsible.username if a.responsible else '—') }}</td>
             <td>{{ a.deadline_at.strftime('%d.%m.%Y') if a.deadline_at else '—' }}</td>
             <td><span class="badge text-bg-{{ 'danger' if a.is_overdue else ('success' if a.status == 'Закрыто' else 'primary') }}">{{ 'Просрочено' if a.is_overdue else a.status }}</span></td>
             <td class="text-center"><a class="btn btn-sm btn-outline-primary appeal-open-btn" href="{{ url_for('appeals.detail', appeal_id=a.id) }}">Открыть</a></td>
