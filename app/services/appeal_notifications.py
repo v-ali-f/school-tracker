@@ -26,7 +26,7 @@ def _fmt_date(value) -> str:
     return str(value)
 
 
-def build_appeal_max_message(appeal, notification_type: str = 'new_appeal') -> str:
+def build_appeal_max_message(appeal, notification_type: str = 'new_appeal', extra_text: str | None = None) -> str:
     icon_map = {
         'new_appeal': '📨',
         'appeal_updated': '✏️',
@@ -35,7 +35,16 @@ def build_appeal_max_message(appeal, notification_type: str = 'new_appeal') -> s
         'appeal_overdue': '⚠️',
         'appeal_closed': '✅',
     }
+    title_map = {
+        'new_appeal': 'Новое обращение',
+        'appeal_updated': 'Обращение обновлено',
+        'appeal_deadline_changed': 'Изменён срок по обращению',
+        'appeal_status_changed': 'Изменён статус обращения',
+        'appeal_overdue': 'Обращение просрочено',
+        'appeal_closed': 'Обращение закрыто',
+    }
     icon = icon_map.get(notification_type, '📣')
+    title = title_map.get(notification_type, 'Обращение')
     appeal_id = getattr(appeal, 'id', None)
     number = getattr(appeal, 'number', None) or appeal_id or '—'
     subject = getattr(appeal, 'subject', None) or 'Обращение'
@@ -47,7 +56,7 @@ def build_appeal_max_message(appeal, notification_type: str = 'new_appeal') -> s
     link = _portal_link(f'/appeals/{appeal_id}') if appeal_id else ''
 
     lines = [
-        f'{icon} Новое обращение',
+        f'{icon} {title}',
         '',
         f'Обращение: {subject}',
         f'№: {number}',
@@ -62,6 +71,8 @@ def build_appeal_max_message(appeal, notification_type: str = 'new_appeal') -> s
     description = (getattr(appeal, 'description', None) or '').strip()
     if description:
         lines.extend(['', description[:500]])
+    if extra_text:
+        lines.extend(['', str(extra_text).strip()])
     if link:
         lines.extend(['', f'Открыть обращение в портале: {link}'])
     else:
@@ -69,7 +80,7 @@ def build_appeal_max_message(appeal, notification_type: str = 'new_appeal') -> s
     return '\n'.join(lines).strip()
 
 
-def send_appeal_max_notification(appeal, user=None, notification_type: str = 'new_appeal') -> bool:
+def send_appeal_max_notification(appeal, user=None, notification_type: str = 'new_appeal', extra_text: str | None = None) -> bool:
     """Отправляет MAX-уведомление ответственному по обращению.
 
     Ошибки отправки не должны ломать создание/сохранение обращения.
@@ -98,7 +109,7 @@ def send_appeal_max_notification(appeal, user=None, notification_type: str = 'ne
     if not binding or not binding.max_chat_id:
         return False
 
-    text = build_appeal_max_message(appeal, notification_type=notification_type)
+    text = build_appeal_max_message(appeal, notification_type=notification_type, extra_text=extra_text)
     try:
         client.notify(chat_id=binding.max_chat_id, text=text)
         current_app.logger.info(

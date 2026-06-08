@@ -29,7 +29,38 @@ def _can_create():
 
 def _can_edit(appeal):
     uid = getattr(current_user, 'id', None)
-    return _can_view_all() or appeal.responsible_user_id == uid or appeal.creator_user_id == uid
+    return _can_view_all() or uid in _appeal_responsible_ids(appeal) or appeal.creator_user_id == uid
+
+
+def _responsible_match_filter(user_id):
+    value = str(user_id)
+    return or_(
+        Appeal.responsible_user_id == user_id,
+        Appeal.responsible_user_ids == value,
+        Appeal.responsible_user_ids.like(f'{value},%'),
+        Appeal.responsible_user_ids.like(f'%,{value},%'),
+        Appeal.responsible_user_ids.like(f'%,{value}'),
+    )
+
+
+def _search_user_ids(text):
+    text = (text or '').strip()
+    if not text:
+        return []
+    like = f'%{text}%'
+    users = (
+        User.query
+        .filter(or_(
+            User.username.ilike(like),
+            User.last_name.ilike(like),
+            User.first_name.ilike(like),
+            User.middle_name.ilike(like),
+            User.role.ilike(like),
+        ))
+        .limit(100)
+        .all()
+    )
+    return [user.id for user in users]
 
 
 def _upload_root():
@@ -89,6 +120,13 @@ def _apply_responsibles(appeal, responsible_ids):
     appeal.responsible_user_id = responsible_ids[0] if responsible_ids else None
 
 
+def _notify_new_responsibles(appeal, old_responsible_ids):
+    old_ids = set(old_responsible_ids or [])
+    for responsible_user in _appeal_responsible_users(appeal):
+        if responsible_user.id not in old_ids:
+            send_appeal_max_notification(appeal, user=responsible_user, notification_type='new_appeal')
+
+
 def _appeal_responsible_ids(appeal):
     ids = []
     raw = getattr(appeal, 'responsible_user_ids', None)
@@ -120,9 +158,20 @@ def _responsibles_text(appeal):
         return 'не назначены'
     names = []
     for user in users:
-        name = getattr(user, 'full_name', None) or getattr(user, 'display_name', None) or getattr(user, 'username', None) or f'ID {user.id}'
+        name = getattr(user, 'fio', None) or getattr(user, 'full_name', None) or getattr(user, 'display_name', None) or getattr(user, 'username', None) or f'ID {user.id}'
         names.append(name)
     return '\\n'.join(f'— {name}' for name in names)
+
+
+def _responsibles_label(appeal):
+    users = _appeal_responsible_users(appeal)
+    if not users:
+        return '—'
+    names = []
+    for user in users:
+        name = getattr(user, 'fio', None) or getattr(user, 'full_name', None) or getattr(user, 'display_name', None) or getattr(user, 'username', None) or f'ID {user.id}'
+        names.append(name)
+    return ', '.join(names)
 
 
 @appeals_bp.route('/')
@@ -130,15 +179,27 @@ def _responsibles_text(appeal):
 def index():
     q = Appeal.query
     if not _can_view_all():
-        q = q.filter(Appeal.responsible_user_id == current_user.id)
+        q = q.filter(_responsible_match_filter(current_user.id))
     status = request.args.get('status') or ''
     text = request.args.get('q') or ''
     if status:
         q = q.filter(Appeal.status == status)
     if text:
         like = f'%{text}%'
-        q = q.filter(or_(Appeal.subject.ilike(like), Appeal.applicant_name.ilike(like), Appeal.number.ilike(like)))
+        search_filters = [
+            Appeal.subject.ilike(like),
+            Appeal.description.ilike(like),
+            Appeal.applicant_name.ilike(like),
+            Appeal.applicant_contact.ilike(like),
+            Appeal.number.ilike(like),
+            Appeal.result_text.ilike(like),
+        ]
+        for user_id in _search_user_ids(text):
+            search_filters.append(_responsible_match_filter(user_id))
+        q = q.filter(or_(*search_filters))
     appeals = q.order_by(Appeal.created_at.desc()).limit(300).all()
+    for appeal in appeals:
+        appeal.responsibles_label = _responsibles_label(appeal)
     counts = {
         'total': q.count(),
         'overdue': sum(1 for x in appeals if x.is_overdue),
@@ -167,6 +228,7 @@ def new():
             status=request.form.get('status') or 'Новое',
             creator_user_id=current_user.id,
         )
+        _apply_responsibles(appeal, responsible_ids)
         db.session.add(appeal)
         db.session.flush()
         _save_files(appeal, request.files.getlist('attachments'))
@@ -187,8 +249,7 @@ def new():
         db.session.commit()
         try:
             # Уведомляем всех ответственных
-            for responsible_user in _appeal_responsible_users(appeal):
-                send_appeal_max_notification(appeal, user=responsible_user, notification_type='new_appeal')
+            _notify_new_responsibles(appeal, [])
 
             # Директору отправляем отдельное уведомление с перечнем ответственных
             directors = User.query.filter_by(role='DIRECTOR', is_active_user=True).all()
@@ -216,6 +277,7 @@ def detail(appeal_id):
     users = User.query.filter_by(is_active_user=True).order_by(User.last_name.asc(), User.first_name.asc()).all()
     if request.method == 'POST':
         old_status = appeal.status
+        old_responsible_ids = _appeal_responsible_ids(appeal)
         appeal.number = request.form.get('number') or None
         appeal.received_at = _parse_date(request.form.get('received_at'))
         appeal.applicant_name = request.form.get('applicant_name') or appeal.applicant_name
@@ -231,6 +293,11 @@ def detail(appeal_id):
         appeal.answered_at = _parse_date(request.form.get('answered_at'))
         _save_files(appeal, request.files.getlist('attachments'))
         db.session.commit()
+
+        try:
+            _notify_new_responsibles(appeal, old_responsible_ids)
+        except Exception as exc:
+            current_app.logger.warning("Appeal responsible MAX notification failed: %s", exc)
 
         closed_statuses = {'Закрыто', 'Подготовлен ответ'}
         if old_status != appeal.status and appeal.status in closed_statuses:
