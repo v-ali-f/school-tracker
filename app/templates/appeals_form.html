@@ -22,23 +22,41 @@
     <div class="col-md-6">
   <label class="form-label">Ответственные</label>
   <div class="border rounded-4 p-3 bg-light">
-    <input type="text"
-           class="form-control form-control-sm mb-2 js-responsible-search"
-           placeholder="Поиск по ФИО, логину или роли">
+    <input
+      type="text"
+      class="form-control form-control-sm mb-2 js-user-search"
+      placeholder="Поиск по ФИО, логину или роли"
+      autocomplete="off"
+    >
 
-    <div class="small text-muted mb-2">
-      Отметьте одного или нескольких ответственных. Первый выбранный станет основным ответственным.
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div class="small text-muted">
+        Отметьте одного или нескольких ответственных. Первый выбранный станет основным ответственным.
+      </div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm js-select-visible">
+          Выбрать найденных
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm js-clear-visible">
+          Снять найденных
+        </button>
+      </div>
     </div>
 
-    <div class="responsible-check-list" style="max-height: 280px; overflow:auto;">
+    <div style="max-height:320px;overflow:auto;" class="js-users-list">
       {% for u in users %}
-        <label class="d-flex align-items-center gap-2 py-1 responsible-check-item"
-               data-search="{{ ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or ''))|lower }}">
+        {% set label = u.fio or u.full_name or u.username %}
+        {% set search_text = ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or '')) %}
+        <label
+          class="d-flex align-items-center gap-2 py-1 user-check-item"
+          data-search="{{ search_text|lower }}"
+        >
           <input type="checkbox"
                  class="form-check-input m-0"
                  name="responsible_user_ids"
-                 value="{{ u.id }}">
-          <span>{{ u.fio or u.full_name or u.username }}</span>
+                 value="{{ u.id }}"
+                 >
+          <span>{{ label }}</span>
           {% if u.role %}
             <span class="text-muted small">({{ u.role }})</span>
           {% endif %}
@@ -56,20 +74,92 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  document.querySelectorAll('.js-responsible-search').forEach(function (input) {
-    const container = input.closest('.border');
-    if (!container) return;
+  function normalizeText(value) {
+    return (value || '')
+      .toString()
+      .toLowerCase()
+      .replaceAll('ё', 'е')
+      .replace(/[.,;:()«»"']/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
 
-    const items = container.querySelectorAll('.responsible-check-item');
+  document.querySelectorAll('.js-user-search').forEach(function (input) {
+    const box = input.closest('.border');
+    if (!box) return;
 
-    input.addEventListener('input', function () {
-      const q = input.value.trim().toLowerCase();
+    const items = Array.from(box.querySelectorAll('.user-check-item'));
+    const selectVisibleBtn = box.querySelector('.js-select-visible');
+    const clearVisibleBtn = box.querySelector('.js-clear-visible');
+
+    let counter = box.querySelector('.js-search-counter');
+    if (!counter) {
+      counter = document.createElement('div');
+      counter.className = 'small text-muted mt-2 js-search-counter';
+      input.insertAdjacentElement('afterend', counter);
+    }
+
+    function applyFilter() {
+      const q = normalizeText(input.value);
+      let visibleCount = 0;
 
       items.forEach(function (item) {
-        const text = item.dataset.search || item.textContent.toLowerCase();
-        item.style.display = text.includes(q) ? '' : 'none';
+        const raw = item.dataset.search || item.textContent || '';
+        const text = normalizeText(raw);
+        const matched = !q || text.includes(q);
+
+        if (matched) {
+          item.style.setProperty('display', 'flex', 'important');
+        } else {
+          item.style.setProperty('display', 'none', 'important');
+        }
+
+        if (matched) visibleCount += 1;
       });
+
+      if (!q) {
+        counter.textContent = '';
+      } else if (visibleCount > 0) {
+        counter.textContent = 'Найдено совпадений: ' + visibleCount;
+      } else {
+        counter.textContent = 'Совпадений не найдено';
+      }
+    }
+
+    input.addEventListener('input', applyFilter);
+    input.addEventListener('keyup', applyFilter);
+    input.addEventListener('change', applyFilter);
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        applyFilter();
+      }
     });
+
+    if (selectVisibleBtn) {
+      selectVisibleBtn.addEventListener('click', function () {
+        items.forEach(function (item) {
+          if (item.style.display !== 'none') {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) cb.checked = true;
+          }
+        });
+      });
+    }
+
+    if (clearVisibleBtn) {
+      clearVisibleBtn.addEventListener('click', function () {
+        items.forEach(function (item) {
+          if (item.style.display !== 'none') {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) cb.checked = false;
+          }
+        });
+      });
+    }
+
+    applyFilter();
   });
 });
 </script>
