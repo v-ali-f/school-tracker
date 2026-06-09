@@ -32,6 +32,7 @@ from app.document_registers import document_registers_bp
 from app.office import office_bp
 from app.familiarizations import familiarizations_bp
 from app.appeals import appeals_bp
+from app.mobile_api import mobile_api_bp
 
 BLUEPRINTS = [
     main_bp,
@@ -67,6 +68,7 @@ BLUEPRINTS = [
     office_bp,
     familiarizations_bp,
     appeals_bp,
+    mobile_api_bp,
     preschool_bp,
 ]
 
