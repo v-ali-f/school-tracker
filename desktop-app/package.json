@@ -26,6 +26,7 @@
       "main.js",
       "preload.js",
       "config.json",
+      "renderer/**/*",
       "assets/**/*"
     ],
     "win": {
