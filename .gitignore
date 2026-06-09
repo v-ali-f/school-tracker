@@ -13,6 +13,9 @@ __pycache__/
 *.pyd
 .Python
 
+# Node/Electron
+node_modules/
+
 # Окружение
 .env
 *.env
