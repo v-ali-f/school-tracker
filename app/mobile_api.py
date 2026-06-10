@@ -5,11 +5,21 @@ from functools import wraps
 
 from flask import Blueprint, jsonify, request, session
 from flask_login import current_user, login_user, logout_user
+from sqlalchemy import or_
 
 from app.auth import _client_ip, _login_is_blocked, _record_failed_login, _reset_failed_login
 from app.children import INCIDENT_CATEGORIES
 from app.core.extensions import csrf, db
-from app.models import AcademicYear, Child, ChildEnrollment, SchoolClass, TaskNotification, User
+from app.models import (
+    AcademicYear,
+    Child,
+    ChildEnrollment,
+    SchoolClass,
+    Task,
+    TaskNotification,
+    TaskParticipant,
+    User,
+)
 from app.models_legacy import Incident, IncidentChild, IncidentNote, IncidentNotification
 from app.permissions import has_permission
 
@@ -89,6 +99,25 @@ def _incident_to_dict(incident: Incident) -> dict:
         "children": children,
         "author": _user_to_dict(incident.author) if incident.author else None,
         "assignee": _user_to_dict(incident.assignee) if incident.assignee else None,
+    }
+
+
+def _task_to_dict(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "display_status": task.display_status,
+        "priority": task.priority,
+        "deadline_at": task.deadline_at.isoformat() if task.deadline_at else None,
+        "created_at": task.created_at.isoformat() if task.created_at else None,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "is_overdue": bool(task.is_overdue),
+        "checklist_total": task.checklist_total,
+        "checklist_done": task.checklist_done,
+        "responsible": _user_to_dict(task.responsible) if task.responsible else None,
+        "creator": _user_to_dict(task.creator) if task.creator else None,
     }
 
 
@@ -217,6 +246,58 @@ def notifications():
     return jsonify({"ok": True, "unread": task_unread + incident_unread, "items": items[:limit]})
 
 
+@mobile_api_bp.get("/tasks/mine")
+@_require_mobile_login
+def my_tasks():
+    limit = min(max(request.args.get("limit", default=100, type=int), 1), 200)
+    selected_filter = (request.args.get("filter") or "active").strip().lower()
+    completed_statuses = [Task.STATUS_DONE, Task.STATUS_CLOSED, Task.STATUS_CANCELLED]
+    query = Task.query.filter(
+        or_(
+            Task.responsible_user_id == current_user.id,
+            Task.controller_user_id == current_user.id,
+            Task.creator_user_id == current_user.id,
+            Task.id.in_(
+                db.session.query(TaskParticipant.task_id).filter(
+                    TaskParticipant.user_id == current_user.id
+                )
+            ),
+        )
+    )
+
+    if selected_filter == "active":
+        query = query.filter(Task.status.notin_(completed_statuses)).filter(
+            or_(Task.deadline_at.is_(None), Task.deadline_at >= datetime.utcnow())
+        )
+    elif selected_filter == "overdue":
+        query = query.filter(
+            Task.status.notin_(completed_statuses),
+            Task.deadline_at.isnot(None),
+            Task.deadline_at < datetime.utcnow(),
+        )
+    elif selected_filter == "completed":
+        query = query.filter(Task.status.in_(completed_statuses))
+    elif selected_filter != "all":
+        return _json_error("Неизвестный фильтр задач.", 400, "invalid_task_filter")
+
+    items = (
+        query.order_by(
+            Task.deadline_at.is_(None),
+            Task.deadline_at.asc(),
+            Task.created_at.desc(),
+        )
+        .limit(limit)
+        .all()
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "filter": selected_filter,
+            "items": [_task_to_dict(item) for item in items],
+        }
+    )
+
+
 @mobile_api_bp.post("/notifications/incident/<int:notification_id>/read")
 @_require_mobile_login
 def read_incident_notification(notification_id: int):
@@ -297,11 +378,19 @@ def my_incidents():
         .limit(limit)
         .all()
     )
+    registry = []
+    if has_permission("incident_registry_view", user=current_user):
+        registry = (
+            Incident.query.order_by(Incident.occurred_at.desc(), Incident.id.desc())
+            .limit(limit)
+            .all()
+        )
     return jsonify(
         {
             "ok": True,
             "authored": [_incident_to_dict(item) for item in authored],
             "assigned": [_incident_to_dict(item) for item in assigned],
+            "registry": [_incident_to_dict(item) for item in registry],
         }
     )
 
@@ -309,6 +398,9 @@ def my_incidents():
 @mobile_api_bp.post("/incidents")
 @_require_mobile_login
 def create_incident():
+    if not has_permission("incident_add", user=current_user):
+        return _json_error("Нет права на создание инцидентов.", 403, "forbidden")
+
     data = _payload()
     category = (data.get("category") or "").strip()
     description = (data.get("description") or "").strip()
