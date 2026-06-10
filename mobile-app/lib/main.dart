@@ -84,6 +84,9 @@ class PortalApi {
 
   Future<Map<String, dynamic>> myIncidents() => get('/incidents/mine');
 
+  Future<Map<String, dynamic>> myTasks(String filter) =>
+      get('/tasks/mine', query: {'filter': filter});
+
   Future<Map<String, dynamic>> incidentMeta() => get('/incidents/meta');
 
   Future<List<dynamic>> classes({int? grade}) async {
@@ -121,6 +124,7 @@ class PortalApi {
   }) async {
     final uri = _uri(path, query);
     final request = await _client.getUrl(uri);
+    _prepareRequest(request);
     return _send(request);
   }
 
@@ -129,6 +133,7 @@ class PortalApi {
     Map<String, dynamic> body,
   ) async {
     final request = await _client.postUrl(_uri(path));
+    _prepareRequest(request);
     request.headers.contentType = ContentType.json;
     request.write(jsonEncode(body));
     return _send(request);
@@ -141,12 +146,14 @@ class PortalApi {
     ).replace(queryParameters: query.isEmpty ? null : query);
   }
 
-  Future<Map<String, dynamic>> _send(HttpClientRequest request) async {
+  void _prepareRequest(HttpClientRequest request) {
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     if (_cookie.isNotEmpty) {
       request.headers.set(HttpHeaders.cookieHeader, _cookie);
     }
+  }
 
+  Future<Map<String, dynamic>> _send(HttpClientRequest request) async {
     final response = await request.close();
     _saveCookies(response);
     final text = await utf8.decodeStream(response);
@@ -328,8 +335,24 @@ class _HomeShellState extends State<HomeShell> {
     widget.onLogout();
   }
 
+  Future<void> createIncident() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NewIncidentScreen(api: widget.api)),
+    );
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Инцидент создан')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final permissions = Map<String, dynamic>.from(
+      widget.user['permissions'] as Map? ?? const {},
+    );
+    final canCreateIncident =
+        permissions['can_add_incident'] == true || permissions.isEmpty;
     final pages = [
       HomeScreen(api: widget.api, user: widget.user, openTab: openTab),
       NotificationsScreen(api: widget.api),
@@ -342,21 +365,17 @@ class _HomeShellState extends State<HomeShell> {
       appBar: AppBar(
         title: const Text('Сопровождение'),
         actions: [
-          IconButton(
-            tooltip: 'Создать инцидент',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => NewIncidentScreen(api: widget.api),
-                ),
-              );
-            },
-            icon: const Icon(Icons.add_circle_outline),
-          ),
+          if (canCreateIncident)
+            IconButton(
+              tooltip: 'Создать инцидент',
+              onPressed: createIncident,
+              icon: const Icon(Icons.add_circle_outline),
+            ),
         ],
       ),
       body: pages[index],
       bottomNavigationBar: NavigationBar(
+        height: 72,
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
         destinations: const [
@@ -366,7 +385,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
           NavigationDestination(
             icon: Icon(Icons.notifications_outlined),
-            label: 'Уведомления',
+            label: 'События',
           ),
           NavigationDestination(
             icon: Icon(Icons.task_alt_outlined),
@@ -433,13 +452,25 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      alignment: Alignment.center,
+                    ),
                     onPressed: canCreateIncident
-                        ? () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => NewIncidentScreen(api: api),
-                              ),
-                            );
+                        ? () async {
+                            final created = await Navigator.of(context)
+                                .push<bool>(
+                                  MaterialPageRoute(
+                                    builder: (_) => NewIncidentScreen(api: api),
+                                  ),
+                                );
+                            if (created == true && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Инцидент создан'),
+                                ),
+                              );
+                            }
                           }
                         : null,
                     icon: const Icon(Icons.report_outlined),
@@ -449,6 +480,10 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      alignment: Alignment.center,
+                    ),
                     onPressed: () => openTab(2),
                     icon: const Icon(Icons.add_task_outlined),
                     label: const Text('Задача'),
@@ -459,9 +494,13 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Разделы', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              mainAxisExtent: 118,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 ServiceCard(
                   icon: Icons.assignment_outlined,
@@ -470,7 +509,10 @@ class HomeScreen extends StatelessWidget {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => IncidentsScreen(api: api),
+                        builder: (_) => IncidentsScreen(
+                          api: api,
+                          canCreate: canCreateIncident,
+                        ),
                       ),
                     );
                   },
@@ -573,60 +615,150 @@ class NotificationsScreen extends StatelessWidget {
   }
 }
 
-class IncidentsScreen extends StatelessWidget {
-  const IncidentsScreen({super.key, required this.api});
+class IncidentsScreen extends StatefulWidget {
+  const IncidentsScreen({
+    super.key,
+    required this.api,
+    required this.canCreate,
+  });
 
   final PortalApi api;
+  final bool canCreate;
+
+  @override
+  State<IncidentsScreen> createState() => _IncidentsScreenState();
+}
+
+class _IncidentsScreenState extends State<IncidentsScreen> {
+  int refreshVersion = 0;
+
+  Future<void> createIncident() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NewIncidentScreen(api: widget.api)),
+    );
+    if (created == true && mounted) {
+      setState(() => refreshVersion++);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Инцидент создан')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return RefreshableFuture(
-      load: api.myIncidents,
-      builder: (context, data, reload) {
-        final authored = List<dynamic>.from(
-          data['authored'] as List? ?? const [],
-        );
-        final assigned = List<dynamic>.from(
-          data['assigned'] as List? ?? const [],
-        );
-        final items = [
-          ...authored.map((item) => Map<String, dynamic>.from(item as Map)),
-          ...assigned.map((item) => Map<String, dynamic>.from(item as Map)),
-        ];
-        final seen = <Object>{};
-        final unique = items.where((item) => seen.add(item['id'])).toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Инциденты')),
+      body: RefreshableFuture(
+        key: ValueKey(refreshVersion),
+        load: widget.api.myIncidents,
+        builder: (context, data, reload) {
+          final authored = List<dynamic>.from(
+            data['authored'] as List? ?? const [],
+          );
+          final assigned = List<dynamic>.from(
+            data['assigned'] as List? ?? const [],
+          );
+          final registry = List<dynamic>.from(
+            data['registry'] as List? ?? const [],
+          );
+          final items = [
+            ...registry.map((item) => Map<String, dynamic>.from(item as Map)),
+            ...authored.map((item) => Map<String, dynamic>.from(item as Map)),
+            ...assigned.map((item) => Map<String, dynamic>.from(item as Map)),
+          ];
+          final seen = <Object>{};
+          final unique = items.where((item) => seen.add(item['id'])).toList();
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Мои инциденты',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            if (unique.isEmpty)
-              const EmptyState(text: 'Инцидентов пока нет')
-            else
-              ...unique.map((item) => IncidentTile(item: item)),
-          ],
-        );
-      },
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              if (unique.isEmpty)
+                const EmptyState(text: 'Инцидентов пока нет')
+              else
+                ...unique.map((item) => IncidentTile(item: item)),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: widget.canCreate
+          ? FloatingActionButton(
+              tooltip: 'Создать инцидент',
+              onPressed: createIncident,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }
 
-class TasksScreen extends StatelessWidget {
+class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key, required this.api});
 
   final PortalApi api;
 
   @override
+  State<TasksScreen> createState() => _TasksScreenState();
+}
+
+class _TasksScreenState extends State<TasksScreen> {
+  String filter = 'active';
+
+  @override
   Widget build(BuildContext context) {
-    return const ModulePlaceholder(
-      icon: Icons.task_alt_outlined,
-      title: 'Задачи',
-      text:
-          'Раздел первой очереди по ТЗ. Экран готов к подключению API задач: список моих задач, статусы, сроки и комментарии.',
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              showSelectedIcon: false,
+              expandedInsets: EdgeInsets.zero,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+              ),
+              segments: const [
+                ButtonSegment(value: 'active', label: Text('Активные')),
+                ButtonSegment(value: 'overdue', label: Text('Просроч.')),
+                ButtonSegment(value: 'completed', label: Text('Готово')),
+              ],
+              selected: {filter},
+              onSelectionChanged: (value) {
+                setState(() => filter = value.first);
+              },
+            ),
+          ),
+        ),
+        Expanded(
+          child: RefreshableFuture(
+            key: ValueKey(filter),
+            load: () => widget.api.myTasks(filter),
+            builder: (context, data, reload) {
+              final items = List<dynamic>.from(
+                data['items'] as List? ?? const [],
+              );
+              if (items.isEmpty) {
+                return ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  children: [EmptyState(text: _emptyTasksLabel(filter))],
+                );
+              }
+              return ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) => TaskCard(
+                  item: Map<String, dynamic>.from(items[index] as Map),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -731,6 +863,13 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
     loadMeta();
   }
 
+  @override
+  void dispose() {
+    description.dispose();
+    initialWork.dispose();
+    super.dispose();
+  }
+
   Future<void> loadMeta() async {
     setState(() {
       loading = true;
@@ -739,6 +878,9 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
     try {
       final meta = await widget.api.incidentMeta();
       final classRows = await widget.api.classes();
+      if (!mounted) {
+        return;
+      }
       setState(() {
         categories = List<dynamic>.from(
           meta['categories'] as List? ?? const [],
@@ -749,9 +891,13 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
         category = categories.isEmpty ? null : categories.first;
       });
     } catch (exception) {
-      setState(() => error = _message(exception));
+      if (mounted) {
+        setState(() => error = _message(exception));
+      }
     } finally {
-      setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
   }
 
@@ -763,13 +909,18 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
     });
     try {
       final rows = await widget.api.children(classId);
+      if (!mounted) {
+        return;
+      }
       setState(() {
         children = rows
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList();
       });
     } catch (exception) {
-      setState(() => error = _message(exception));
+      if (mounted) {
+        setState(() => error = _message(exception));
+      }
     }
   }
 
@@ -825,145 +976,152 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
       if (!mounted) {
         return;
       }
-      description.clear();
-      initialWork.clear();
-      setState(() => selectedChildren.clear());
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Инцидент создан')));
+      Navigator.of(context).pop(true);
     } catch (exception) {
-      setState(() => error = _message(exception));
+      if (mounted) {
+        setState(() => error = _message(exception));
+      }
     } finally {
-      setState(() => saving = false);
+      if (mounted) {
+        setState(() => saving = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Scaffold(
+        appBar: AppBar(title: const Text('Новый инцидент')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Новый инцидент', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: category,
-          items: categories
-              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-              .toList(),
-          onChanged: (value) => setState(() => category = value),
-          decoration: const InputDecoration(
-            labelText: 'Категория',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<int>(
-          initialValue: selectedClassId,
-          items: classes
-              .map(
-                (item) => DropdownMenuItem<int>(
-                  value: item['id'] as int,
-                  child: Text(item['name'].toString()),
-                ),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value != null) {
-              loadChildren(value);
-            }
-          },
-          decoration: const InputDecoration(
-            labelText: 'Класс',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (children.isNotEmpty)
-          Card(
-            child: Column(
-              children: children.map((item) {
-                final id = item['id'] as int;
-                return CheckboxListTile(
-                  value: selectedChildren.contains(id),
-                  onChanged: (checked) {
-                    setState(() {
-                      if (checked == true) {
-                        selectedChildren.add(id);
-                      } else {
-                        selectedChildren.remove(id);
-                      }
-                    });
-                  },
-                  title: Text(item['fio'].toString()),
-                );
-              }).toList(),
-            ),
-          ),
-        const SizedBox(height: 12),
-        Row(
+    return Scaffold(
+      appBar: AppBar(title: const Text('Новый инцидент')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: pickDate,
-                icon: const Icon(Icons.calendar_today_outlined),
-                label: Text(_dateLabel(date)),
+            DropdownButtonFormField<String>(
+              initialValue: category,
+              items: categories
+                  .map(
+                    (item) => DropdownMenuItem(value: item, child: Text(item)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => category = value),
+              decoration: const InputDecoration(
+                labelText: 'Категория',
+                border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: pickTime,
-                icon: const Icon(Icons.schedule),
-                label: Text(time.format(context)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: selectedClassId,
+              items: classes
+                  .map(
+                    (item) => DropdownMenuItem<int>(
+                      value: item['id'] as int,
+                      child: Text(item['name'].toString()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  loadChildren(value);
+                }
+              },
+              decoration: const InputDecoration(
+                labelText: 'Класс',
+                border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 12),
+            if (children.isNotEmpty)
+              Card(
+                child: Column(
+                  children: children.map((item) {
+                    final id = item['id'] as int;
+                    return CheckboxListTile(
+                      value: selectedChildren.contains(id),
+                      onChanged: (checked) {
+                        setState(() {
+                          if (checked == true) {
+                            selectedChildren.add(id);
+                          } else {
+                            selectedChildren.remove(id);
+                          }
+                        });
+                      },
+                      title: Text(item['fio'].toString()),
+                    );
+                  }).toList(),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: pickDate,
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    label: Text(_dateLabel(date)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: pickTime,
+                    icon: const Icon(Icons.schedule),
+                    label: Text(time.format(context)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: description,
+              minLines: 4,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                labelText: 'Описание',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: initialWork,
+              minLines: 2,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                labelText: 'Что уже сделано',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (error.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: saving ? null : submit,
+              icon: saving
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send_outlined),
+              label: const Text('Отправить'),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: description,
-          minLines: 4,
-          maxLines: 8,
-          decoration: const InputDecoration(
-            labelText: 'Описание',
-            alignLabelWithHint: true,
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: initialWork,
-          minLines: 2,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'Что уже сделано',
-            alignLabelWithHint: true,
-            border: OutlineInputBorder(),
-          ),
-        ),
-        if (error.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            error,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        ],
-        const SizedBox(height: 18),
-        FilledButton.icon(
-          onPressed: saving ? null : submit,
-          icon: saving
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.send_outlined),
-          label: const Text('Отправить'),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -1075,29 +1233,32 @@ class ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: MediaQuery.sizeOf(context).width >= 700 ? 210 : 160,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, size: 30),
-                const SizedBox(height: 14),
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 26),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ),
         ),
       ),
@@ -1160,6 +1321,136 @@ class NotificationTile extends StatelessWidget {
             ? null
             : const Icon(Icons.circle, size: 12),
       ),
+    );
+  }
+}
+
+class TaskCard extends StatelessWidget {
+  const TaskCard({super.key, required this.item});
+
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final responsible = Map<String, dynamic>.from(
+      item['responsible'] as Map? ?? const {},
+    );
+    final status = item['display_status']?.toString() ?? 'Без статуса';
+    final isOverdue = item['is_overdue'] == true;
+    final checklistDone = item['checklist_done'] as int? ?? 0;
+    final checklistTotal = item['checklist_total'] as int? ?? 0;
+    final accent = isOverdue
+        ? Theme.of(context).colorScheme.error
+        : Theme.of(context).colorScheme.primary;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    item['title']?.toString() ?? 'Задача',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 132),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if ((item['description']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                item['description'].toString(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 14,
+              runSpacing: 6,
+              children: [
+                _TaskMeta(
+                  icon: Icons.event_outlined,
+                  text: _taskDeadlineLabel(item['deadline_at']),
+                  color: isOverdue ? accent : null,
+                ),
+                if (responsible.isNotEmpty)
+                  _TaskMeta(
+                    icon: Icons.person_outline,
+                    text:
+                        responsible['fio']?.toString() ??
+                        responsible['username']?.toString() ??
+                        'Ответственный',
+                  ),
+                if (checklistTotal > 0)
+                  _TaskMeta(
+                    icon: Icons.checklist_outlined,
+                    text: '$checklistDone из $checklistTotal',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskMeta extends StatelessWidget {
+  const _TaskMeta({required this.icon, required this.text, this.color});
+
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 210),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1246,9 +1537,26 @@ void _showPlanned(BuildContext context) {
   );
 }
 
+String describePortalError(Object? exception) => _message(exception);
+
 String _message(Object? exception) {
   if (exception is PortalApiException) {
     return exception.message;
+  }
+  if (exception is SocketException) {
+    final details = exception.osError?.message ?? exception.message;
+    return 'Не удалось открыть $defaultApiBaseUrl. '
+        'Проверьте доступ приложения к локальной сети. Причина: $details';
+  }
+  if (exception is HandshakeException) {
+    return 'Ошибка защищенного соединения с сервером: '
+        '${exception.message}';
+  }
+  if (exception is HttpException) {
+    return 'Сервер вернул некорректный HTTP-ответ: ${exception.message}';
+  }
+  if (exception is FormatException) {
+    return 'Сервер ответил, но данные мобильного API имеют неверный формат.';
   }
   return 'Не удалось подключиться к серверу портала.';
 }
@@ -1257,4 +1565,30 @@ String _dateLabel(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day.$month.${date.year}';
+}
+
+String _emptyTasksLabel(String filter) {
+  switch (filter) {
+    case 'overdue':
+      return 'Просроченных задач нет';
+    case 'completed':
+      return 'Выполненных задач пока нет';
+    default:
+      return 'Активных задач нет';
+  }
+}
+
+String _taskDeadlineLabel(Object? value) {
+  if (value == null || value.toString().isEmpty) {
+    return 'Без срока';
+  }
+  final date = DateTime.tryParse(value.toString());
+  if (date == null) {
+    return 'Срок не указан';
+  }
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$day.$month.${date.year} $hour:$minute';
 }
