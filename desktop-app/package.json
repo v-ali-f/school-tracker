@@ -1,7 +1,7 @@
 {
   "name": "school-support-portal",
   "version": "1.0.0",
-  "description": "Система сопровождения обучающихся",
+  "description": "Альтаир — управление образовательной организацией",
   "main": "main.js",
   "author": "ГБОУ Школа № 1324",
   "private": true,
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "ru.school1324.supportportal",
-    "productName": "Система сопровождения обучающихся",
+    "productName": "Альтаир",
     "directories": {
       "output": "dist"
     },
@@ -36,14 +36,14 @@
       "icon": "assets/icon.ico"
     },
     "portable": {
-      "artifactName": "Система сопровождения обучающихся.exe"
+      "artifactName": "Альтаир.exe"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Система сопровождения обучающихся"
+      "shortcutName": "Альтаир"
     }
   }
 }

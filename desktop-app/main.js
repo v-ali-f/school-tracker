@@ -10,7 +10,7 @@ function readConfig() {
   const fallback = {
     portalUrl: 'http://10.172.85.55/',
     apiBaseUrl: 'http://10.172.85.55/mobile/api',
-    appTitle: 'Система сопровождения обучающихся'
+    appTitle: 'Альтаир'
   };
 
   try {

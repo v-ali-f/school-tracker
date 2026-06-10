@@ -4,7 +4,7 @@
 .metadata
 .idea/
 *.iml
-build/
+build
 ios/Pods/
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec

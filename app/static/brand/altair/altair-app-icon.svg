@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Альтаир">
+  <defs>
+    <linearGradient id="appBlue" x1="238" y1="168" x2="800" y2="844" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#42A5FF"/>
+      <stop offset="0.48" stop-color="#0B5FEA"/>
+      <stop offset="1" stop-color="#061F9A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(512 586) rotate(90) scale(244)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.42" stop-color="#BFDFFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#42A5FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="210" fill="#F8FBFF"/>
+  <path fill="url(#appBlue)" d="M449 162c27-56 99-56 126 0l306 630c23 47-11 102-63 102h-82c-28 0-53-16-65-41L512 506 353 853c-12 25-37 41-65 41h-82c-52 0-86-55-63-102l306-630Z"/>
+  <ellipse cx="512" cy="590" rx="230" ry="202" fill="url(#glow)"/>
+  <path fill="#FFFFFF" d="M512 338c23 135 49 188 184 211-135 23-161 76-184 211-23-135-49-188-184-211 135-23 161-76 184-211Z"/>
+  <path fill="#0B5FEA" d="M512 459c10 54 28 72 82 82-54 10-72 28-82 82-10-54-28-72-82-82 54-10 72-28 82-82Z"/>
+</svg>

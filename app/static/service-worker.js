@@ -1,4 +1,4 @@
-const CACHE_NAME = 'school-portal-pwa-v1';
+const CACHE_NAME = 'altair-portal-pwa-v2';
 
 self.addEventListener('install', event => {
   self.skipWaiting();

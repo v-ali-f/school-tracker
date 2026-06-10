@@ -2,37 +2,111 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-const String defaultApiBaseUrl = 'http://10.172.85.55/mobile/api';
+const String localApiBaseUrl = 'http://127.0.0.1:5001/mobile/api';
+const String schoolApiBaseUrl = 'http://10.172.85.55/mobile/api';
+const String apiBaseUrlPreferenceKey = 'api_base_url';
 
 void main() {
   runApp(const SchoolSupportApp());
 }
 
-class SchoolSupportApp extends StatelessWidget {
+class SchoolSupportApp extends StatefulWidget {
   const SchoolSupportApp({super.key});
+
+  @override
+  State<SchoolSupportApp> createState() => _SchoolSupportAppState();
+}
+
+class _SchoolSupportAppState extends State<SchoolSupportApp> {
+  final SharedPreferencesAsync preferences = SharedPreferencesAsync();
+  String apiBaseUrl = localApiBaseUrl;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadServer();
+  }
+
+  Future<void> loadServer() async {
+    String? savedUrl;
+    try {
+      savedUrl = await preferences.getString(apiBaseUrlPreferenceKey);
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      apiBaseUrl = savedUrl?.trim().isNotEmpty == true
+          ? savedUrl!.trim()
+          : localApiBaseUrl;
+      loading = false;
+    });
+  }
+
+  Future<void> changeServer(String value) async {
+    final normalized = normalizeApiBaseUrl(value);
+    await preferences.setString(apiBaseUrlPreferenceKey, normalized);
+    if (!mounted) return;
+    setState(() => apiBaseUrl = normalized);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Сопровождение',
+      title: 'Альтаир',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff246b5f),
+          seedColor: const Color(0xff0b5fea),
           brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xfff5f8fc),
+        cardTheme: const CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+            side: BorderSide(color: Color(0xffe4eaf3)),
+          ),
         ),
         useMaterial3: true,
       ),
-      home: AppRoot(api: PortalApi(defaultApiBaseUrl)),
+      home: loading
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : AppRoot(
+              key: ValueKey(apiBaseUrl),
+              api: PortalApi(apiBaseUrl),
+              apiBaseUrl: apiBaseUrl,
+              onServerChanged: changeServer,
+            ),
     );
   }
 }
 
+String normalizeApiBaseUrl(String value) {
+  var result = value.trim();
+  if (!result.startsWith('http://') && !result.startsWith('https://')) {
+    result = 'http://$result';
+  }
+  result = result.replaceFirst(RegExp(r'/+$'), '');
+  if (!result.endsWith('/mobile/api')) {
+    result = '$result/mobile/api';
+  }
+  return result;
+}
+
 class AppRoot extends StatefulWidget {
-  const AppRoot({super.key, required this.api});
+  const AppRoot({
+    super.key,
+    required this.api,
+    required this.apiBaseUrl,
+    required this.onServerChanged,
+  });
 
   final PortalApi api;
+  final String apiBaseUrl;
+  final Future<void> Function(String value) onServerChanged;
 
   @override
   State<AppRoot> createState() => _AppRootState();
@@ -48,7 +122,12 @@ class _AppRootState extends State<AppRoot> {
   @override
   Widget build(BuildContext context) {
     if (user == null) {
-      return LoginScreen(api: widget.api, onLogin: _setUser);
+      return LoginScreen(
+        api: widget.api,
+        apiBaseUrl: widget.apiBaseUrl,
+        onServerChanged: widget.onServerChanged,
+        onLogin: _setUser,
+      );
     }
 
     return HomeShell(
@@ -200,9 +279,17 @@ class PortalApiException implements Exception {
 }
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.api, required this.onLogin});
+  const LoginScreen({
+    super.key,
+    required this.api,
+    required this.apiBaseUrl,
+    required this.onServerChanged,
+    required this.onLogin,
+  });
 
   final PortalApi api;
+  final String apiBaseUrl;
+  final Future<void> Function(String value) onServerChanged;
   final ValueChanged<Map<String, dynamic>> onLogin;
 
   @override
@@ -223,13 +310,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final user = await widget.api.login(username.text.trim(), password.text);
+      if (!mounted) return;
+      setState(() => loading = false);
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
       widget.onLogin(user);
+      return;
     } catch (exception) {
-      setState(() => error = _message(exception));
-    } finally {
-      if (mounted) {
-        setState(() => loading = false);
-      }
+      if (!mounted) return;
+      setState(() => error = _message(exception, widget.api.baseUrl));
+    }
+
+    if (mounted) {
+      setState(() => loading = false);
     }
   }
 
@@ -244,20 +337,36 @@ class _LoginScreenState extends State<LoginScreen> {
               shrinkWrap: true,
               padding: const EdgeInsets.all(24),
               children: [
-                const Icon(Icons.school_outlined, size: 56),
-                const SizedBox(height: 18),
+                Center(
+                  child: Image.asset(
+                    'assets/altair-app-icon.png',
+                    width: 92,
+                    height: 92,
+                  ),
+                ),
+                const SizedBox(height: 14),
                 Text(
-                  'Система сопровождения',
+                  'АЛЬТАИР',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: const Color(0xff061442),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 4,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Войдите под учетной записью портала',
+                  'Управление. Аналитика. Сопровождение.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: loading ? null : chooseServer,
+                  icon: const Icon(Icons.dns_outlined),
+                  label: Text('Сервер: ${serverLabel(widget.apiBaseUrl)}'),
+                ),
+                const SizedBox(height: 20),
                 TextField(
                   controller: username,
                   textInputAction: TextInputAction.next,
@@ -305,6 +414,102 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  Future<void> chooseServer() async {
+    final value = await showServerDialog(context, widget.apiBaseUrl);
+    if (value == null || value == widget.apiBaseUrl) return;
+    await widget.onServerChanged(value);
+  }
+}
+
+String serverLabel(String url) {
+  if (url == localApiBaseUrl) return 'Локальный компьютер';
+  if (url == schoolApiBaseUrl) return 'Сервер школы';
+  return url.replaceFirst(RegExp(r'/mobile/api$'), '');
+}
+
+Future<String?> showServerDialog(
+  BuildContext context,
+  String currentUrl,
+) async {
+  final customController = TextEditingController(
+    text: currentUrl == localApiBaseUrl || currentUrl == schoolApiBaseUrl
+        ? ''
+        : currentUrl.replaceFirst(RegExp(r'/mobile/api$'), ''),
+  );
+  var selected = currentUrl == localApiBaseUrl
+      ? 'local'
+      : currentUrl == schoolApiBaseUrl
+      ? 'school'
+      : 'custom';
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Выбор сервера'),
+        content: SingleChildScrollView(
+          child: RadioGroup<String>(
+            groupValue: selected,
+            onChanged: (value) {
+              if (value != null) {
+                setDialogState(() => selected = value);
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<String>(
+                  value: 'local',
+                  title: const Text('Локальный компьютер'),
+                  subtitle: const Text('Для симулятора на этом Mac'),
+                ),
+                RadioListTile<String>(
+                  value: 'school',
+                  title: const Text('Сервер школы'),
+                  subtitle: const Text('10.172.85.55'),
+                ),
+                RadioListTile<String>(
+                  value: 'custom',
+                  title: const Text('Другой адрес'),
+                ),
+                if (selected == 'custom')
+                  TextField(
+                    controller: customController,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      labelText: 'Адрес сервера',
+                      hintText: '192.168.1.20:5001',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = switch (selected) {
+                'local' => localApiBaseUrl,
+                'school' => schoolApiBaseUrl,
+                _ => customController.text,
+              };
+              if (value.trim().isEmpty) return;
+              Navigator.pop(dialogContext, normalizeApiBaseUrl(value));
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    ),
+  );
+  customController.dispose();
+  return result;
 }
 
 class HomeShell extends StatefulWidget {
@@ -363,7 +568,7 @@ class _HomeShellState extends State<HomeShell> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Сопровождение'),
+        title: const Text('Альтаир'),
         actions: [
           if (canCreateIncident)
             IconButton(
@@ -1539,13 +1744,14 @@ void _showPlanned(BuildContext context) {
 
 String describePortalError(Object? exception) => _message(exception);
 
-String _message(Object? exception) {
+String _message(Object? exception, [String? apiBaseUrl]) {
   if (exception is PortalApiException) {
     return exception.message;
   }
   if (exception is SocketException) {
     final details = exception.osError?.message ?? exception.message;
-    return 'Не удалось открыть $defaultApiBaseUrl. '
+    final target = apiBaseUrl ?? 'сервер портала';
+    return 'Не удалось открыть $target. '
         'Проверьте доступ приложения к локальной сети. Причина: $details';
   }
   if (exception is HandshakeException) {

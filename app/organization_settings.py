@@ -5,6 +5,7 @@ from app.core.extensions import db
 from app.models import OrganizationSettings
 from app.roles import require_roles
 from app.services.org_settings_service import get_active_organization_settings, ensure_single_active_organization_settings, get_organization_header_lines, get_organization_signature_block
+from sqlalchemy import inspect
 from werkzeug.utils import secure_filename
 
 organization_settings_bp = Blueprint('organization_settings', __name__)
@@ -13,6 +14,7 @@ FIELDS = [
     'parent_org_name', 'full_name', 'short_name', 'legal_name',
     'city', 'address', 'postal_code', 'phone', 'fax', 'email', 'website',
     'okpo', 'ogrn', 'inn', 'kpp', 'director_name', 'director_position',
+    'service_description',
 ]
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'svg'}
 
@@ -81,10 +83,30 @@ def ensure_olympiad_school_columns():
     except Exception:
         db.session.rollback()
 
+
+def ensure_branding_columns():
+    inspector = inspect(db.engine)
+    columns = {column['name'] for column in inspector.get_columns('organization_settings')}
+    statements = []
+    if 'show_in_header' not in columns:
+        statements.append("ALTER TABLE organization_settings ADD COLUMN show_in_header BOOLEAN NOT NULL DEFAULT TRUE")
+    if 'service_description' not in columns:
+        statements.append("ALTER TABLE organization_settings ADD COLUMN service_description VARCHAR(500)")
+    if not statements:
+        return
+    try:
+        for statement in statements:
+            db.session.execute(db.text(statement))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Не удалось добавить поля брендинга организации')
+
 @organization_settings_bp.route('/admin/organization-settings', methods=['GET', 'POST'])
 @require_roles('ADMIN')
 def edit():
     ensure_olympiad_school_columns()
+    ensure_branding_columns()
     settings = OrganizationSettings.query.filter_by(is_active=True).order_by(OrganizationSettings.id.desc()).first()
 
     if request.method == 'POST':
@@ -98,6 +120,7 @@ def edit():
 
         make_active = (request.form.get('is_active') or '1').strip()
         settings.is_active = make_active not in {'0', 'false', 'False'}
+        settings.show_in_header = request.form.get('show_in_header') == '1'
 
         try:
             settings.logo_path = _save_image(request.files.get('logo_file'), 'logo', settings.logo_path)

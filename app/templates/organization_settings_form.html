@@ -33,6 +33,16 @@
             <label class="form-label">Официальное/юридическое название</label>
             <input class="form-control" type="text" name="legal_name" value="{{ settings.legal_name or '' }}">
           </div>
+          <div class="col-12">
+            <label class="form-label">Служебное описание организации</label>
+            <textarea class="form-control" name="service_description" rows="2" placeholder="Краткое описание для интерфейса и справочных блоков">{{ settings.service_description or '' }}</textarea>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="1" id="show_in_header" name="show_in_header" {% if settings.show_in_header is not false %}checked{% endif %}>
+              <label class="form-check-label" for="show_in_header">Показывать название и логотип организации в шапке «Альтаир»</label>
+            </div>
+          </div>
 
           <div class="col-12 mt-2">
             <h5 class="section-title mb-1">Контакты и реквизиты</h5>
@@ -101,7 +111,7 @@
             <div class="text-muted small">Поддерживаются PNG, JPG, JPEG и SVG. После загрузки пути сохраняются в настройках организации.</div>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Логотип сайта</label>
+            <label class="form-label">Логотип организации</label>
             <input class="form-control" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
             {% if settings.logo_path %}
               <div class="mt-2 small text-muted">Текущий файл: {{ settings.logo_path }}</div>
@@ -148,7 +158,7 @@
                 {% endif %}
                 <div>
                   <div class="fw-semibold">{{ settings.short_name or settings.full_name or 'Образовательная организация' }}</div>
-                  <div class="small text-muted">Система сопровождения обучающихся</div>
+                  <div class="small text-muted">Альтаир — {{ app_platform_slogan }}</div>
                 </div>
               </div>
             </div>

@@ -44,6 +44,7 @@ def create_app():
         from app import models as app_models  # noqa: F401
         from app import attendance as attendance_module  # noqa: F401
         from app.bootstrap import ensure_runtime_schema
+        from app.organization_settings import ensure_branding_columns
         from app.services.org_settings_service import ensure_single_active_organization_settings
         from app.role_access_admin import role_access_admin_bp
         from app.models.role_access import DashboardBlockCatalog
@@ -51,6 +52,7 @@ def create_app():
         from app.core.activity import init_user_activity
         from app.core.page_visit import init_page_visit_logger
         db.create_all()
+        ensure_branding_columns()
         ensure_runtime_schema()
         init_profiler(app, db.engine)
         init_user_activity(app)
