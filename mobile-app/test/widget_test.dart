@@ -8,6 +8,22 @@ class FakePortalApi extends PortalApi {
   FakePortalApi() : super('http://example.test/mobile/api');
 
   @override
+  Future<Map<String, dynamic>> login(String username, String password) async =>
+      {
+        'username': username,
+        'fio': 'Тестовый пользователь',
+        'role': 'Сотрудник',
+        'permissions': <String, dynamic>{},
+      };
+
+  @override
+  Future<Map<String, dynamic>> notifications() async => {
+    'ok': true,
+    'unread': 0,
+    'items': <dynamic>[],
+  };
+
+  @override
   Future<Map<String, dynamic>> incidentMeta() async => {
     'ok': true,
     'categories': ['Нарушение дисциплины'],
@@ -23,7 +39,7 @@ void main() {
   testWidgets('shows the employee login screen', (tester) async {
     await tester.pumpWidget(const SchoolSupportApp());
 
-    expect(find.text('Система сопровождения'), findsOneWidget);
+    expect(find.text('АЛЬТАИР'), findsOneWidget);
     expect(find.text('Логин'), findsOneWidget);
     expect(find.text('Пароль'), findsOneWidget);
     expect(find.text('Войти'), findsOneWidget);
@@ -34,7 +50,7 @@ void main() {
       const SocketException('Operation not permitted'),
     );
 
-    expect(message, contains('http://10.172.85.55/mobile/api'));
+    expect(message, contains('сервер портала'));
     expect(message, contains('локальной сети'));
     expect(message, contains('Operation not permitted'));
   });
@@ -49,6 +65,30 @@ void main() {
     expect(find.text('Категория'), findsOneWidget);
     expect(find.text('Класс'), findsOneWidget);
     expect(find.text('Отправить'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('successful login replaces the login screen cleanly', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppRoot(
+          api: FakePortalApi(),
+          apiBaseUrl: 'http://example.test/mobile/api',
+          onServerChanged: (_) async {},
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'admin');
+    await tester.enterText(find.byType(TextField).last, 'password');
+    await tester.tap(find.text('Войти'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Альтаир'), findsOneWidget);
+    expect(find.text('Тестовый пользователь'), findsOneWidget);
+    expect(find.text('Войти'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

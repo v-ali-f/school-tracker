@@ -1,0 +1,526 @@
+/* Единая фирменная тема платформы «Альтаир». */
+:root {
+  --altair-navy: #061442;
+  --altair-blue: #0b5fea;
+  --altair-sky: #42a5ff;
+  --altair-light-blue: #bfdfff;
+  --altair-bg: #f5f8fc;
+  --altair-card: #ffffff;
+  --altair-border: #e4eaf3;
+  --altair-text: #102044;
+  --altair-muted: #6b7890;
+  --altair-danger: #e31321;
+  --altair-radius-sm: 8px;
+  --altair-radius-md: 12px;
+  --altair-radius-lg: 16px;
+  --altair-shadow: 0 8px 24px rgba(6, 20, 66, 0.06);
+  --altair-shadow-soft: 0 4px 14px rgba(6, 20, 66, 0.05);
+
+  --brand-orange: var(--altair-blue);
+  --brand-dark: var(--altair-navy);
+  --brand-bg: var(--altair-bg);
+  --portal-bg: var(--altair-bg);
+  --portal-card-bg: var(--altair-card);
+  --portal-border: var(--altair-border);
+  --portal-border-soft: #edf2f8;
+  --portal-text: var(--altair-text);
+  --portal-muted: var(--altair-muted);
+  --portal-muted-light: #91a0b8;
+  --portal-primary: var(--altair-blue);
+  --portal-primary-hover: #084fc5;
+  --portal-radius-card: var(--altair-radius-lg);
+  --portal-radius-inner: var(--altair-radius-md);
+  --portal-shadow: var(--altair-shadow);
+  --portal-title-size: 26px;
+  --portal-card-title-size: 17px;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+.btn,
+.form-control,
+.form-select,
+.card,
+.table,
+.navbar,
+.dropdown-menu {
+  font-family: Manrope, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0;
+}
+
+body {
+  color: var(--altair-text);
+  background: var(--altair-bg);
+  font-size: 15px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.page-title,
+.dashboard-title,
+.portal-title,
+.portal-card-title {
+  color: var(--altair-navy) !important;
+  font-family: Montserrat, Manrope, sans-serif !important;
+  letter-spacing: 0 !important;
+}
+
+a {
+  color: var(--altair-blue);
+}
+
+a:hover {
+  color: #084fc5;
+}
+
+/* Верхняя идентификация платформы и организации */
+.app-navbar {
+  min-height: 72px;
+  border-bottom: 1px solid var(--altair-border) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 5px 18px rgba(6, 20, 66, 0.045) !important;
+}
+
+.app-navbar::before,
+.app-navbar::after {
+  display: none !important;
+}
+
+.app-navbar > .container {
+  width: min(100% - 48px, 1320px);
+  max-width: 1320px;
+}
+
+.altair-navbar-identity,
+.altair-platform-brand,
+.altair-org-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.altair-navbar-identity {
+  gap: 14px;
+}
+
+.altair-platform-brand {
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.altair-navbar-logo {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+}
+
+.altair-brand-copy {
+  display: block;
+  min-width: 0;
+  line-height: 1.12;
+}
+
+.altair-brand-name {
+  display: block;
+  color: var(--altair-navy);
+  font-family: Montserrat, Manrope, sans-serif;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+}
+
+.altair-brand-slogan {
+  display: block;
+  margin-top: 3px;
+  color: var(--altair-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.altair-org-divider {
+  width: 1px;
+  height: 34px;
+  background: var(--altair-border);
+}
+
+.altair-org-brand {
+  max-width: 250px;
+  gap: 9px;
+}
+
+.altair-org-logo,
+.altair-org-placeholder {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--altair-border);
+  border-radius: var(--altair-radius-sm);
+  background: #fff;
+}
+
+.altair-org-logo {
+  object-fit: contain;
+  padding: 3px;
+}
+
+.altair-org-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--altair-blue);
+}
+
+.altair-org-name {
+  overflow: hidden;
+  color: #33456b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+}
+
+.btn-app-nav,
+.btn-app-exit,
+.app-bell-btn {
+  border-color: #d9e2f1 !important;
+  border-radius: var(--altair-radius-sm) !important;
+  color: #344568 !important;
+  background: #fff !important;
+}
+
+.btn-app-nav:hover,
+.btn-app-exit:hover,
+.app-bell-btn:hover {
+  border-color: #b7cff2 !important;
+  color: var(--altair-blue) !important;
+  background: #f5f9ff !important;
+}
+
+.app-user-name {
+  color: var(--altair-navy) !important;
+}
+
+.app-user-role {
+  color: var(--altair-muted) !important;
+}
+
+.bell-filter-opt.active {
+  color: var(--altair-blue) !important;
+  background: #eef6ff !important;
+}
+
+.bell-filter-btn:focus-visible,
+.bell-filter-opt:focus-visible {
+  outline-color: var(--altair-sky) !important;
+}
+
+/* Общие поверхности */
+.card,
+.soft-card,
+.dashboard-section,
+.portal-card,
+.page-head,
+.portal-header,
+.classic-page-header,
+.panel-card {
+  border-color: var(--altair-border) !important;
+  background-color: var(--altair-card) !important;
+  box-shadow: var(--altair-shadow) !important;
+}
+
+.card,
+.soft-card,
+.portal-card,
+.dashboard-section,
+.page-head,
+.portal-header,
+.classic-page-header {
+  border-radius: var(--altair-radius-lg) !important;
+}
+
+.portal-home-card,
+.classic-nav-card,
+.summary-card,
+.stat-cell,
+.movement-stat,
+.analytics-stat,
+.attendance-stat,
+.pc-stat {
+  border-color: var(--altair-border) !important;
+  border-radius: var(--altair-radius-md) !important;
+  box-shadow: var(--altair-shadow-soft) !important;
+}
+
+.portal-home-card:hover,
+.classic-nav-card:hover {
+  border-color: #b8cff0 !important;
+  background: #f8fbff !important;
+}
+
+/* Кнопки */
+.btn:not(.btn-link),
+.portal-btn,
+.portal-btn-primary,
+.portal-btn-secondary,
+.zone-btn,
+.theme-action-btn {
+  min-height: 36px;
+  border-radius: var(--altair-radius-md) !important;
+  font-weight: 550 !important;
+}
+
+.btn-primary,
+.portal-btn-primary,
+.zone-btn:not(.zone-btn-soft) {
+  border: 0 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--altair-blue), var(--altair-sky)) !important;
+  box-shadow: 0 5px 13px rgba(11, 95, 234, 0.18) !important;
+}
+
+.btn-primary:hover,
+.portal-btn-primary:hover,
+.zone-btn:not(.zone-btn-soft):hover {
+  color: #fff !important;
+  background: linear-gradient(135deg, #084fc5, #258de9) !important;
+}
+
+.btn-secondary,
+.btn-outline-secondary,
+.btn-outline-primary,
+.portal-btn,
+.portal-btn-secondary,
+.zone-btn-soft {
+  border: 1px solid #d9e2f1 !important;
+  color: var(--altair-navy) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.btn-secondary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-primary:hover,
+.portal-btn:hover,
+.portal-btn-secondary:hover,
+.zone-btn-soft:hover {
+  border-color: #abc8f2 !important;
+  color: var(--altair-blue) !important;
+  background: #f5f9ff !important;
+}
+
+.btn-danger,
+.btn-outline-danger {
+  border: 1px solid #f1c6ca !important;
+  color: var(--altair-danger) !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.btn-danger:hover,
+.btn-outline-danger:hover {
+  border-color: var(--altair-danger) !important;
+  color: #fff !important;
+  background: var(--altair-danger) !important;
+}
+
+/* Формы */
+.form-control,
+.form-select,
+textarea.form-control {
+  min-height: 40px;
+  border: 1px solid #d9e2f1 !important;
+  border-radius: var(--altair-radius-md) !important;
+  color: var(--altair-text) !important;
+  background-color: #fff !important;
+  box-shadow: none !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea.form-control:focus {
+  border-color: var(--altair-sky) !important;
+  box-shadow: 0 0 0 3px rgba(66, 165, 255, 0.17) !important;
+}
+
+.form-label,
+.portal-form-label,
+.portal-field label {
+  color: #405172 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.form-check-input:checked {
+  border-color: var(--altair-blue);
+  background-color: var(--altair-blue);
+}
+
+/* Таблицы */
+.table {
+  color: var(--altair-text) !important;
+  font-size: 14px !important;
+}
+
+.table thead th,
+.card .table thead th,
+.soft-card .table thead th {
+  border-color: var(--altair-border) !important;
+  color: #405172 !important;
+  background: #f0f5fb !important;
+  font-weight: 600 !important;
+}
+
+.table tbody td,
+.card .table tbody td,
+.soft-card .table tbody td {
+  border-color: #edf2f8 !important;
+}
+
+.table-hover > tbody > tr:hover > *,
+.table tbody tr:hover > td {
+  background: #f6faff !important;
+}
+
+.badge.text-bg-danger,
+.text-bg-danger {
+  background-color: var(--altair-danger) !important;
+}
+
+.alert-info {
+  border-color: #cae2ff;
+  color: #174c91;
+  background: #eef7ff;
+}
+
+/* Экран входа */
+.login-page {
+  min-height: 100vh;
+  padding: 40px 24px;
+  background: linear-gradient(145deg, #f5f8fc 0%, #ffffff 52%, #edf6ff 100%) !important;
+}
+
+.altair-login-shell {
+  max-width: 470px !important;
+}
+
+.altair-login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.altair-login-brand > img {
+  width: min(380px, 88vw);
+  height: auto;
+}
+
+.altair-login-organization {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  color: #405172;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.altair-login-organization img {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--altair-border);
+  border-radius: var(--altair-radius-sm);
+  object-fit: contain;
+  padding: 3px;
+  background: #fff;
+}
+
+.altair-login-card {
+  overflow: visible !important;
+  border: 1px solid var(--altair-border) !important;
+  border-radius: var(--altair-radius-lg) !important;
+  box-shadow: 0 18px 44px rgba(6, 20, 66, 0.1) !important;
+}
+
+.altair-login-card .login-form-wrap {
+  padding: 30px;
+  border-radius: inherit;
+}
+
+.altair-login-card .login-form-title {
+  font-size: 23px !important;
+  font-weight: 600 !important;
+  text-align: center;
+}
+
+.altair-login-card .login-form-hint {
+  color: var(--altair-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.altair-login-footer {
+  margin-top: 18px;
+  color: var(--altair-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .altair-brand-slogan,
+  .altair-org-divider {
+    display: none;
+  }
+
+  .altair-org-name {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-navbar > .container {
+    width: calc(100% - 24px);
+  }
+
+  .altair-navbar-logo {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .altair-brand-name {
+    font-size: 15px;
+    letter-spacing: 1.5px;
+  }
+
+  .altair-org-logo,
+  .altair-org-placeholder {
+    display: none;
+  }
+
+  .altair-org-name {
+    max-width: 115px;
+    font-size: 11px;
+  }
+
+  .login-page {
+    padding: 24px 16px;
+  }
+
+  .altair-login-card .login-form-wrap {
+    padding: 24px 20px;
+  }
+}

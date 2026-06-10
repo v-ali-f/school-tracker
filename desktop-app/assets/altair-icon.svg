@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Альтаир</title>
+  <defs>
+    <linearGradient id="altairBlue" x1="48" y1="38" x2="212" y2="218" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#42A5FF"/>
+      <stop offset="0.5" stop-color="#0B5FEA"/>
+      <stop offset="1" stop-color="#061F9A"/>
+    </linearGradient>
+    <radialGradient id="altairGlow" cx="0" cy="0" r="1" gradientTransform="translate(129 148) rotate(90) scale(64)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.45" stop-color="#BFDFFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#42A5FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#altairBlue)" d="M111.8 31.7c7-14.4 25.4-14.4 32.4 0l78.1 160.8c5.8 12-2.9 26-16.2 26h-20.9c-7 0-13.3-4.1-16.3-10.5l-40.9-88.7-41 88.7c-3 6.4-9.3 10.5-16.3 10.5H49.9c-13.3 0-22-14-16.2-26l78.1-160.8Z"/>
+  <ellipse cx="128" cy="151" rx="59" ry="51" fill="url(#altairGlow)"/>
+  <path fill="#FFFFFF" d="M128 87c5.8 34.6 12.4 48.3 47 54-34.6 5.8-41.2 19.5-47 54-5.8-34.5-12.4-48.2-47-54 34.6-5.7 41.2-19.4 47-54Z"/>
+  <path fill="#0B5FEA" d="M128 118c2.5 13.8 7.2 18.5 21 21-13.8 2.5-18.5 7.2-21 21-2.5-13.8-7.2-18.5-21-21 13.8-2.5 18.5-7.2 21-21Z"/>
+</svg>

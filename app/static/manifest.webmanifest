@@ -1,12 +1,12 @@
 {
-  "name": "Система сопровождения обучающихся",
-  "short_name": "Портал 1324",
-  "description": "Школьный портал сопровождения обучающихся",
+  "name": "Альтаир — управление образовательной организацией",
+  "short_name": "Альтаир",
+  "description": "Управление. Аналитика. Сопровождение.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "theme_color": "#0B5FEA",
   "orientation": "portrait-primary",
   "icons": [
     {

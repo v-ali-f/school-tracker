@@ -40,7 +40,9 @@ def register_context_processors(app, has_permission, build_menu_flags):
     @app.context_processor
     def inject_organization_settings():
         settings = get_active_organization_settings()
-        default_system_name = "Система сопровождения обучающихся"
+        default_system_name = "Альтаир"
+        platform_slogan = "Управление. Аналитика. Сопровождение."
+        platform_description = "Система управления образовательной организацией"
         org_name = getattr(settings, 'display_name', None) or getattr(settings, 'short_name', None) or getattr(settings, 'full_name', None) or "Образовательная организация"
         org_full_name = getattr(settings, 'full_name', None) or org_name
 
@@ -59,8 +61,15 @@ def register_context_processors(app, has_permission, build_menu_flags):
             org_full_name=org_full_name,
             org_logo_url=media_url(getattr(settings, 'logo_path', None), None),
             org_emblem_url=media_url(getattr(settings, 'emblem_path', None)),
+            org_show_in_header=getattr(settings, 'show_in_header', True) is not False,
+            org_service_description=getattr(settings, 'service_description', None) or '',
             app_system_name=default_system_name,
-            app_display_title=f"{default_system_name} — {org_name}",
+            app_platform_slogan=platform_slogan,
+            app_platform_description=platform_description,
+            altair_icon_url=url_for('static', filename='brand/altair/altair-icon.svg'),
+            altair_logo_url=url_for('static', filename='brand/altair/altair-logo-horizontal.svg'),
+            altair_app_icon_url=url_for('static', filename='brand/altair/altair-app-icon.png'),
+            app_display_title=f"{default_system_name} | {org_name}",
         )
 
     @app.context_processor

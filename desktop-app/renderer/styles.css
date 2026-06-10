@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
-  --bg: #f5f6f1;
+  --bg: #f5f8fc;
   --surface: #ffffff;
-  --surface-soft: #f9faf6;
-  --border: #dfe3d8;
-  --text: #20251f;
-  --muted: #66705f;
-  --accent: #276749;
-  --accent-strong: #1f5139;
-  --warning: #a4491f;
-  --danger: #9f2d2d;
-  --shadow: 0 16px 40px rgba(32, 37, 31, 0.08);
+  --surface-soft: #f0f5fb;
+  --border: #e4eaf3;
+  --text: #102044;
+  --muted: #6b7890;
+  --accent: #0b5fea;
+  --accent-strong: #084fc5;
+  --warning: #a95d12;
+  --danger: #e31321;
+  --shadow: 0 12px 32px rgba(6, 20, 66, 0.08);
 }
 
 * {
@@ -23,7 +23,7 @@ body {
   min-height: 650px;
   color: var(--text);
   background: var(--bg);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Manrope, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button,
@@ -36,10 +36,10 @@ textarea {
 button {
   min-height: 38px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 12px;
   padding: 0 16px;
   color: #fff;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), #42a5ff);
   cursor: pointer;
 }
 
@@ -57,7 +57,7 @@ select,
 textarea {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 12px;
   padding: 10px 12px;
   color: var(--text);
   background: #fff;
@@ -68,7 +68,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(39, 103, 73, 0.14);
+  box-shadow: 0 0 0 3px rgba(66, 165, 255, 0.18);
 }
 
 textarea {
@@ -97,26 +97,33 @@ label span {
   width: min(420px, 100%);
   padding: 32px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
 
-.brand-mark {
-  display: inline-grid;
-  width: 62px;
-  height: 42px;
-  place-items: center;
-  border-radius: 7px;
-  color: #fff;
-  background: var(--accent);
-  font-weight: 800;
+.login-logo {
+  display: block;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto;
 }
 
 .login-panel h1 {
-  margin: 18px 0 24px;
+  margin: 14px 0 6px;
+  color: #061442;
   font-size: 25px;
+  letter-spacing: 4px;
   line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.brand-slogan {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
 }
 
 .login-form,
@@ -136,19 +143,16 @@ label span {
   flex-direction: column;
   gap: 28px;
   padding: 24px;
-  border-right: 1px solid var(--border);
-  background: #eef1e8;
+  border-right: 0;
+  color: #d7e3ff;
+  background: #061442;
 }
 
-.sidebar-title {
-  font-size: 24px;
-  font-weight: 800;
-}
-
-.sidebar-subtitle {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 13px;
+.sidebar-logo {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  height: auto;
 }
 
 .nav {
@@ -157,9 +161,14 @@ label span {
 }
 
 .nav-item,
-.ghost-button,
+.sidebar .ghost-button {
+  color: #d7e3ff;
+  background: transparent;
+}
+
 .secondary-button,
-.text-button {
+.text-button,
+.topbar .ghost-button {
   color: var(--text);
   background: transparent;
 }
@@ -172,19 +181,27 @@ label span {
 
 .nav-item:hover,
 .nav-item.is-active {
-  background: rgba(39, 103, 73, 0.12);
+  color: #fff;
+  background: linear-gradient(135deg, #0b5fea, #42a5ff);
+  box-shadow: 0 8px 20px rgba(11, 95, 234, 0.25);
 }
 
-.ghost-button {
+.sidebar .ghost-button {
   margin-top: auto;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.ghost-button:hover,
+.sidebar .ghost-button:hover,
 .secondary-button:hover,
-.text-button:hover {
-  background: rgba(39, 103, 73, 0.1);
+.text-button:hover,
+.topbar .ghost-button:hover {
+  background: rgba(66, 165, 255, 0.14);
+}
+
+.topbar .ghost-button {
+  border: 1px solid var(--border);
+  background: #fff;
 }
 
 .secondary-button {

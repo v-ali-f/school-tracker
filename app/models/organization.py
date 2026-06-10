@@ -27,6 +27,8 @@ class OrganizationSettings(db.Model):
     director_position = db.Column(db.String(255), nullable=True)
     logo_path = db.Column(db.String(500), nullable=True)
     emblem_path = db.Column(db.String(500), nullable=True)
+    show_in_header = db.Column(db.Boolean, nullable=False, default=True)
+    service_description = db.Column(db.String(500), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
 
     olympiad_school_login = db.Column(db.String(80), nullable=True)
@@ -63,6 +65,8 @@ class OrganizationSettings(db.Model):
             director_position="",
             logo_path=None,
             emblem_path=None,
+            show_in_header=True,
+            service_description="",
             is_active=True,
             created_at=None,
             updated_at=None,
