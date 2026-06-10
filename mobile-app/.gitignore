@@ -2,6 +2,8 @@
 .flutter-plugins
 .flutter-plugins-dependencies
 .metadata
+.idea/
+*.iml
 build/
 ios/Pods/
 ios/Flutter/Flutter.framework
