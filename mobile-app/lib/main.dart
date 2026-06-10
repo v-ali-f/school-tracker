@@ -67,11 +67,10 @@ class PortalApi {
   String _cookie = '';
 
   Future<Map<String, dynamic>> login(String username, String password) async {
-    final data = await post('/auth/login', {
-      'username': username,
-      'password': password,
-    });
-    return Map<String, dynamic>.from(data['user'] as Map);
+    await post('/auth/login', {'username': username, 'password': password});
+    final profile = await me();
+    return Map<String, dynamic>.from(profile['user'] as Map)
+      ..['permissions'] = profile['permissions'];
   }
 
   Future<void> logout() async {
@@ -320,6 +319,10 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
 
+  void openTab(int value) {
+    setState(() => index = value);
+  }
+
   Future<void> logout() async {
     await widget.api.logout();
     widget.onLogout();
@@ -328,9 +331,11 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      OverviewScreen(api: widget.api, user: widget.user),
-      IncidentsScreen(api: widget.api),
-      NewIncidentScreen(api: widget.api),
+      HomeScreen(api: widget.api, user: widget.user, openTab: openTab),
+      NotificationsScreen(api: widget.api),
+      TasksScreen(api: widget.api),
+      DocumentsScreen(api: widget.api),
+      ProfileScreen(user: widget.user, onLogout: logout),
     ];
 
     return Scaffold(
@@ -338,9 +343,15 @@ class _HomeShellState extends State<HomeShell> {
         title: const Text('Сопровождение'),
         actions: [
           IconButton(
-            tooltip: 'Выйти',
-            onPressed: logout,
-            icon: const Icon(Icons.logout),
+            tooltip: 'Создать инцидент',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => NewIncidentScreen(api: widget.api),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_circle_outline),
           ),
         ],
       ),
@@ -354,12 +365,20 @@ class _HomeShellState extends State<HomeShell> {
             label: 'Главная',
           ),
           NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            label: 'Инциденты',
+            icon: Icon(Icons.notifications_outlined),
+            label: 'Уведомления',
           ),
           NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            label: 'Создать',
+            icon: Icon(Icons.task_alt_outlined),
+            label: 'Задачи',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.folder_open_outlined),
+            label: 'Документы',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            label: 'Профиль',
           ),
         ],
       ),
@@ -367,11 +386,17 @@ class _HomeShellState extends State<HomeShell> {
   }
 }
 
-class OverviewScreen extends StatelessWidget {
-  const OverviewScreen({super.key, required this.api, required this.user});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({
+    super.key,
+    required this.api,
+    required this.user,
+    required this.openTab,
+  });
 
   final PortalApi api;
   final Map<String, dynamic> user;
+  final ValueChanged<int> openTab;
 
   @override
   Widget build(BuildContext context) {
@@ -380,6 +405,12 @@ class OverviewScreen extends StatelessWidget {
       builder: (context, data, reload) {
         final items = List<dynamic>.from(data['items'] as List? ?? const []);
         final unread = data['unread'] ?? 0;
+        final permissions = Map<String, dynamic>.from(
+          user['permissions'] as Map? ?? const {},
+        );
+        final canCreateIncident =
+            permissions['can_add_incident'] == true || permissions.isEmpty;
+
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -389,13 +420,146 @@ class OverviewScreen extends StatelessWidget {
                   user['fio']?.toString() ??
                   user['username']?.toString() ??
                   'Пользователь',
-              subtitle: 'Новых уведомлений: $unread',
+              subtitle:
+                  '${user['role'] ?? 'Сотрудник'} • новых уведомлений: $unread',
             ),
             const SizedBox(height: 16),
-            Text('Уведомления', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Быстрые действия',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: canCreateIncident
+                        ? () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => NewIncidentScreen(api: api),
+                              ),
+                            );
+                          }
+                        : null,
+                    icon: const Icon(Icons.report_outlined),
+                    label: const Text('Инцидент'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => openTab(2),
+                    icon: const Icon(Icons.add_task_outlined),
+                    label: const Text('Задача'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text('Разделы', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ServiceCard(
+                  icon: Icons.assignment_outlined,
+                  title: 'Инциденты',
+                  subtitle: 'Создание и реестр',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => IncidentsScreen(api: api),
+                      ),
+                    );
+                  },
+                ),
+                ServiceCard(
+                  icon: Icons.task_alt_outlined,
+                  title: 'Задачи',
+                  subtitle: 'Мои поручения',
+                  onTap: () => openTab(2),
+                ),
+                ServiceCard(
+                  icon: Icons.chat_bubble_outline,
+                  title: 'Обращения',
+                  subtitle: 'Внутренние заявки',
+                  onTap: () => _showPlanned(context),
+                ),
+                ServiceCard(
+                  icon: Icons.folder_open_outlined,
+                  title: 'Документы',
+                  subtitle: 'Просмотр файлов',
+                  onTap: () => openTab(3),
+                ),
+                ServiceCard(
+                  icon: Icons.event_note_outlined,
+                  title: 'План работы',
+                  subtitle: 'День, неделя, месяц',
+                  onTap: () => _showPlanned(context),
+                ),
+                ServiceCard(
+                  icon: Icons.search,
+                  title: 'Поиск',
+                  subtitle: 'Ученики и документы',
+                  onTap: () => _showPlanned(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Последние уведомления',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => openTab(1),
+                  child: const Text('Все'),
+                ),
+              ],
+            ),
             if (items.isEmpty)
               const EmptyState(text: 'Новых уведомлений нет')
+            else
+              ...items
+                  .take(5)
+                  .map(
+                    (item) => NotificationTile(
+                      item: Map<String, dynamic>.from(item as Map),
+                    ),
+                  ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class NotificationsScreen extends StatelessWidget {
+  const NotificationsScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshableFuture(
+      load: api.notifications,
+      builder: (context, data, reload) {
+        final items = List<dynamic>.from(data['items'] as List? ?? const []);
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              'Центр уведомлений',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            if (items.isEmpty)
+              const EmptyState(text: 'Уведомлений пока нет')
             else
               ...items.map(
                 (item) => NotificationTile(
@@ -447,6 +611,92 @@ class IncidentsScreen extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class TasksScreen extends StatelessWidget {
+  const TasksScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  Widget build(BuildContext context) {
+    return const ModulePlaceholder(
+      icon: Icons.task_alt_outlined,
+      title: 'Задачи',
+      text:
+          'Раздел первой очереди по ТЗ. Экран готов к подключению API задач: список моих задач, статусы, сроки и комментарии.',
+    );
+  }
+}
+
+class DocumentsScreen extends StatelessWidget {
+  const DocumentsScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  Widget build(BuildContext context) {
+    return const ModulePlaceholder(
+      icon: Icons.folder_open_outlined,
+      title: 'Документы',
+      text:
+          'Раздел второй очереди по ТЗ. Здесь будет просмотр документов, приказов, избранное и последние открытые файлы.',
+    );
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key, required this.user, required this.onLogout});
+
+  final Map<String, dynamic> user;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    final permissions = Map<String, dynamic>.from(
+      user['permissions'] as Map? ?? const {},
+    );
+    final available = [
+      if (permissions['can_add_incident'] == true) 'создание инцидентов',
+      if (permissions['can_view_incident_registry'] == true)
+        'реестр инцидентов',
+      if (permissions['can_view_incident_dashboard'] == true)
+        'аналитика инцидентов',
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        InfoPanel(
+          icon: Icons.badge_outlined,
+          title:
+              user['fio']?.toString() ??
+              user['username']?.toString() ??
+              'Пользователь',
+          subtitle: user['role']?.toString() ?? 'Сотрудник',
+        ),
+        const SizedBox(height: 16),
+        Text('Доступ', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              available.isEmpty
+                  ? 'Права будут отображаться после расширения мобильного API.'
+                  : available.join(', '),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: onLogout,
+          icon: const Icon(Icons.logout),
+          label: const Text('Выйти'),
+        ),
+      ],
     );
   }
 }
@@ -600,7 +850,7 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
         Text('Новый инцидент', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          value: category,
+          initialValue: category,
           items: categories
               .map((item) => DropdownMenuItem(value: item, child: Text(item)))
               .toList(),
@@ -612,7 +862,7 @@ class _NewIncidentScreenState extends State<NewIncidentScreen> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<int>(
-          value: selectedClassId,
+          initialValue: selectedClassId,
           items: classes
               .map(
                 (item) => DropdownMenuItem<int>(
@@ -809,6 +1059,87 @@ class InfoPanel extends StatelessWidget {
   }
 }
 
+class ServiceCard extends StatelessWidget {
+  const ServiceCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: MediaQuery.sizeOf(context).width >= 700 ? 210 : 160,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 30),
+                const SizedBox(height: 14),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ModulePlaceholder extends StatelessWidget {
+  const ModulePlaceholder({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 52),
+              const SizedBox(height: 16),
+              Text(title, style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(text, textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class NotificationTile extends StatelessWidget {
   const NotificationTile({super.key, required this.item});
 
@@ -907,6 +1238,12 @@ class ErrorState extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showPlanned(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Раздел будет подключен на следующем этапе')),
+  );
 }
 
 String _message(Object? exception) {
