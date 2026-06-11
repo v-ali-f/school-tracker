@@ -304,6 +304,9 @@ class PortalApi {
 
   Future<Map<String, dynamic>> notifications() => get('/notifications');
 
+  Future<Map<String, dynamic>> markNotificationRead(String kind, int id) =>
+      post('/notifications/$kind/$id/read', {});
+
   Future<Map<String, dynamic>> myIncidents() => get('/incidents/mine');
 
   Future<Map<String, dynamic>> myTasks(String filter) =>
@@ -1113,6 +1116,9 @@ class HomeScreen extends StatelessWidget {
       builder: (context, data, reload) {
         final items = List<dynamic>.from(data['items'] as List? ?? const []);
         final unread = data['unread'] ?? 0;
+        final counts = Map<String, dynamic>.from(
+          data['counts'] as Map? ?? const {},
+        );
         final permissions = Map<String, dynamic>.from(
           user['permissions'] as Map? ?? const {},
         );
@@ -1153,6 +1159,7 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Создание и реестр',
                   accent: const Color(0xffeaf1ff),
                   iconColor: const Color(0xff3478e5),
+                  badgeCount: counts['incidents'] as int? ?? 0,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => IncidentsScreen(
@@ -1168,6 +1175,7 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Мои поручения',
                   accent: const Color(0xffeaf8f2),
                   iconColor: const Color(0xff15966a),
+                  badgeCount: counts['tasks'] as int? ?? 0,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => TasksScreen(api: api)),
                   ),
@@ -1178,6 +1186,7 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Приказы школы',
                   accent: const Color(0xfffff3e5),
                   iconColor: const Color(0xffd97706),
+                  badgeCount: counts['orders'] as int? ?? 0,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => OrdersScreen(api: api)),
                   ),
@@ -1188,6 +1197,7 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Заявки и ответы',
                   accent: const Color(0xffffeceb),
                   iconColor: const Color(0xffdf6559),
+                  badgeCount: counts['appeals'] as int? ?? 0,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => AppealsScreen(api: api)),
                   ),
@@ -1198,6 +1208,7 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Информирование',
                   accent: const Color(0xfff1edff),
                   iconColor: const Color(0xff7357c7),
+                  badgeCount: counts['familiarizations'] as int? ?? 0,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => FamiliarizationsScreen(api: api),
@@ -1947,15 +1958,34 @@ class OrdersScreen extends StatelessWidget {
                 ? [const EmptyState(text: 'Доступных приказов пока нет')]
                 : items.map((raw) {
                     final item = Map<String, dynamic>.from(raw as Map);
+                    final isRead = item['is_read'] == true;
                     return Card(
                       child: ListTile(
-                        leading: const Icon(Icons.gavel_outlined),
+                        leading: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.gavel_outlined),
+                            if (!isRead)
+                              const Positioned(
+                                right: -2,
+                                top: -2,
+                                child: _UnreadDot(),
+                              ),
+                          ],
+                        ),
                         title: Text(
                           '№ ${item['number'] ?? '—'} • ${item['title'] ?? ''}',
                         ),
                         subtitle: Text(
                           '${_dateFromValue(item['order_date'])}${(item['executor']?.toString() ?? '').isEmpty ? '' : ' • ${item['executor']}'}',
                         ),
+                        onTap: () async {
+                          await api.markNotificationRead(
+                            'order',
+                            item['id'] as int,
+                          );
+                          await reload();
+                        },
                       ),
                     );
                   }).toList(),
@@ -1987,13 +2017,25 @@ class AppealsScreen extends StatelessWidget {
                 : items.map((raw) {
                     final item = Map<String, dynamic>.from(raw as Map);
                     final overdue = item['is_overdue'] == true;
+                    final isRead = item['is_read'] == true;
                     return Card(
                       child: ListTile(
-                        leading: Icon(
-                          Icons.forum_outlined,
-                          color: overdue
-                              ? Theme.of(context).colorScheme.error
-                              : null,
+                        leading: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Icon(
+                              Icons.forum_outlined,
+                              color: overdue
+                                  ? Theme.of(context).colorScheme.error
+                                  : null,
+                            ),
+                            if (!isRead)
+                              const Positioned(
+                                right: -2,
+                                top: -2,
+                                child: _UnreadDot(),
+                              ),
+                          ],
                         ),
                         title: Text(item['subject']?.toString() ?? 'Обращение'),
                         subtitle: Text(
@@ -2002,14 +2044,17 @@ class AppealsScreen extends StatelessWidget {
                         trailing: (item['number']?.toString() ?? '').isEmpty
                             ? null
                             : Text('№ ${item['number']}'),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => AppealDetailScreen(
-                              api: api,
-                              appealId: item['id'] as int,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AppealDetailScreen(
+                                api: api,
+                                appealId: item['id'] as int,
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                          await reload();
+                        },
                       ),
                     );
                   }).toList(),
@@ -2880,6 +2925,7 @@ class ServiceCard extends StatelessWidget {
     required this.onTap,
     this.accent = const Color(0xffeef3fb),
     this.iconColor = const Color(0xff3478e5),
+    this.badgeCount = 0,
   });
 
   final IconData icon;
@@ -2888,6 +2934,7 @@ class ServiceCard extends StatelessWidget {
   final VoidCallback onTap;
   final Color accent;
   final Color iconColor;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -2902,14 +2949,47 @@ class ServiceCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 23, color: iconColor),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, size: 23, color: iconColor),
+                  ),
+                  const Spacer(),
+                  if (badgeCount > 0)
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 26),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffe5484d),
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : badgeCount.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
@@ -2930,6 +3010,23 @@ class ServiceCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _UnreadDot extends StatelessWidget {
+  const _UnreadDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(
+        color: const Color(0xffe5484d),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
       ),
     );
   }
@@ -3189,6 +3286,7 @@ class NotificationTile extends StatelessWidget {
         );
         return;
       case 'order':
+        await api.markNotificationRead('order', id);
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => OrdersScreen(api: api)));

@@ -6,7 +6,7 @@ from functools import wraps
 from flask import Blueprint, current_app, jsonify, request, send_file, session
 from flask_login import current_user, login_user, logout_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from sqlalchemy import or_
+from sqlalchemy import bindparam, or_, text
 
 from app.auth import _client_ip, _login_is_blocked, _record_failed_login, _reset_failed_login
 from app.children import INCIDENT_CATEGORIES
@@ -62,6 +62,86 @@ _FAMILIARIZATION_MANAGER_ROLES = {
     "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "SECRETARY", "SECRETARY_ACADEMIC",
 }
 _TASK_ADMIN_ROLES = {"ADMIN", "DEPUTY_DIRECTOR", "METHODIST", "DIRECTOR"}
+
+
+def _ensure_mobile_read_table():
+    engine_name = db.engine.dialect.name
+    if engine_name == "postgresql":
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS mobile_notification_read (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                kind VARCHAR(32) NOT NULL,
+                entity_id INTEGER NOT NULL,
+                read_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, kind, entity_id)
+            )
+        """))
+    else:
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS mobile_notification_read (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                kind VARCHAR(32) NOT NULL,
+                entity_id INTEGER NOT NULL,
+                read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, kind, entity_id)
+            )
+        """))
+
+
+def _mobile_read_keys(kind: str, entity_ids: list[int]) -> set[int]:
+    ids = [int(value) for value in entity_ids if value]
+    if not ids:
+        return set()
+    try:
+        _ensure_mobile_read_table()
+        query = text("""
+            SELECT entity_id
+            FROM mobile_notification_read
+            WHERE user_id = :user_id AND kind = :kind AND entity_id IN :ids
+        """).bindparams(bindparam("ids", expanding=True))
+        rows = db.session.execute(
+            query,
+            {"user_id": current_user.id, "kind": kind, "ids": ids},
+        ).all()
+        return {int(row[0]) for row in rows}
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Mobile notification read lookup failed")
+        return set()
+
+
+def _mark_mobile_read(kind: str, entity_id: int):
+    if kind not in {"appeal", "order"}:
+        return
+    try:
+        _ensure_mobile_read_table()
+        exists = db.session.execute(
+            text("""
+                SELECT id
+                FROM mobile_notification_read
+                WHERE user_id = :user_id AND kind = :kind AND entity_id = :entity_id
+                LIMIT 1
+            """),
+            {"user_id": current_user.id, "kind": kind, "entity_id": entity_id},
+        ).first()
+        if not exists:
+            db.session.execute(
+                text("""
+                    INSERT INTO mobile_notification_read (user_id, kind, entity_id, read_at)
+                    VALUES (:user_id, :kind, :entity_id, :read_at)
+                """),
+                {
+                    "user_id": current_user.id,
+                    "kind": kind,
+                    "entity_id": entity_id,
+                    "read_at": datetime.utcnow(),
+                },
+            )
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Mobile notification read mark failed")
 
 
 def _mobile_user_from_any_token():
@@ -553,11 +633,15 @@ def notifications():
     appeal_items = []
     if getattr(current_user, "role", None) in _APPEAL_MANAGER_ROLES:
         appeal_items = Appeal.query.order_by(Appeal.created_at.desc()).limit(20).all()
+    appeal_read_ids = _mobile_read_keys("appeal", [item.id for item in appeal_items])
     order_items = (
         SchoolOrder.query.order_by(SchoolOrder.order_date.desc(), SchoolOrder.id.desc())
         .limit(20)
         .all()
     )
+    order_read_ids = _mobile_read_keys("order", [item.id for item in order_items])
+    appeal_unread = sum(1 for item in appeal_items if item.id not in appeal_read_ids)
+    order_unread = sum(1 for item in order_items if item.id not in order_read_ids)
     items = [_task_notification_to_dict(x) for x in task_items]
     items.extend(_incident_notification_to_dict(x) for x in incident_items)
     items.extend(
@@ -582,7 +666,7 @@ def notifications():
             "type": "appeal",
             "title": "Обращение",
             "message": f"{item.subject} · {item.status}",
-            "is_read": False,
+            "is_read": item.id in appeal_read_ids,
             "is_important": bool(item.is_overdue),
             "created_at": item.created_at.isoformat() if item.created_at else None,
         }
@@ -596,7 +680,7 @@ def notifications():
             "type": "order",
             "title": "Приказ",
             "message": f"№ {item.number or '—'} · {item.title or ''}",
-            "is_read": True,
+            "is_read": item.id in order_read_ids,
             "is_important": False,
             "created_at": item.order_date.isoformat() if item.order_date else None,
         }
@@ -606,10 +690,36 @@ def notifications():
     return jsonify(
         {
             "ok": True,
-            "unread": task_unread + incident_unread + familiarization_unread,
+            "unread": task_unread
+            + incident_unread
+            + familiarization_unread
+            + appeal_unread
+            + order_unread,
+            "counts": {
+                "tasks": task_unread,
+                "incidents": incident_unread,
+                "familiarizations": familiarization_unread,
+                "appeals": appeal_unread,
+                "orders": order_unread,
+                "total": task_unread
+                + incident_unread
+                + familiarization_unread
+                + appeal_unread
+                + order_unread,
+            },
             "items": items[:limit],
         }
     )
+
+
+@mobile_api_bp.post("/notifications/<kind>/<int:entity_id>/read")
+@_require_mobile_login
+def read_mobile_notification(kind: str, entity_id: int):
+    if kind not in {"appeal", "order"}:
+        return _json_error("Такое уведомление отмечается автоматически.", 400, "unsupported_kind")
+    _mark_mobile_read(kind, entity_id)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @mobile_api_bp.get("/tasks/mine")
@@ -911,6 +1021,7 @@ def orders():
         .limit(100)
         .all()
     )
+    read_ids = _mobile_read_keys("order", [item.id for item in rows])
     return jsonify(
         {
             "ok": True,
@@ -922,6 +1033,7 @@ def orders():
                     "section": item.section,
                     "order_date": item.order_date.isoformat() if item.order_date else None,
                     "executor": item.executor,
+                    "is_read": item.id in read_ids,
                 }
                 for item in rows
             ],
@@ -947,10 +1059,14 @@ def appeals():
             )
         )
     rows = query.order_by(Appeal.created_at.desc()).limit(100).all()
+    read_ids = _mobile_read_keys("appeal", [item.id for item in rows])
     return jsonify(
         {
             "ok": True,
-            "items": [_appeal_to_dict(item) for item in rows],
+            "items": [
+                {**_appeal_to_dict(item), "is_read": item.id in read_ids}
+                for item in rows
+            ],
         }
     )
 
@@ -961,6 +1077,8 @@ def appeal_detail(appeal_id: int):
     item = Appeal.query.get_or_404(appeal_id)
     if not _can_view_appeal(item):
         return _json_error("Нет доступа к обращению.", 403, "forbidden")
+    _mark_mobile_read("appeal", item.id)
+    db.session.commit()
     return jsonify({"ok": True, "appeal": _appeal_to_dict(item, detail=True)})
 
 
