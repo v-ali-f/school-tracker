@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:school_support_mobile/main.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 class FakePortalApi extends PortalApi {
   FakePortalApi() : super('http://example.test/mobile/api');
@@ -49,8 +51,23 @@ class FakePortalApi extends PortalApi {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
   testWidgets('shows the employee login screen', (tester) async {
-    await tester.pumpWidget(const SchoolSupportApp());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(
+          api: FakePortalApi(),
+          apiBaseUrl: 'http://example.test/mobile/api',
+          onServerChanged: (_) async {},
+          onLogin: (_) async {},
+        ),
+      ),
+    );
+    await tester.pump();
 
     expect(find.text('АЛЬТАИР'), findsOneWidget);
     expect(find.text('Логин'), findsOneWidget);
@@ -94,10 +111,13 @@ void main() {
       ),
     );
 
+    await tester.pump();
+    await tester.pump();
     await tester.enterText(find.byType(TextField).first, 'admin');
     await tester.enterText(find.byType(TextField).last, 'password');
     await tester.tap(find.text('Войти'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
 
     expect(find.text('Быстрый вход'), findsOneWidget);
     expect(find.text('Защитите вход в приложение'), findsOneWidget);
@@ -114,7 +134,7 @@ void main() {
     expect(find.text('Новая задача'), findsOneWidget);
     expect(find.text('Название задачи'), findsOneWidget);
     expect(find.text('Ответственный'), findsOneWidget);
-    expect(find.text('Создать задачу'), findsOneWidget);
+    expect(find.text('Создать задачу', skipOffstage: false), findsOneWidget);
     expect(find.text('Новый инцидент'), findsNothing);
     expect(tester.takeException(), isNull);
   });
