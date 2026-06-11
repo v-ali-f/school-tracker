@@ -33,6 +33,19 @@ class FakePortalApi extends PortalApi {
   Future<List<dynamic>> classes({int? grade}) async => [
     {'id': 1, 'name': '5А', 'grade': 5},
   ];
+
+  @override
+  Future<Map<String, dynamic>> taskMeta() async => {
+    'ok': true,
+    'can_create': true,
+    'priorities': ['обычный'],
+    'task_types': [
+      {'id': 1, 'name': 'поручение'},
+    ],
+    'users': [
+      {'id': 1, 'fio': 'Ответственный сотрудник'},
+    ],
+  };
 }
 
 void main() {
@@ -86,9 +99,23 @@ void main() {
     await tester.tap(find.text('Войти'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Альтаир'), findsOneWidget);
-    expect(find.text('Тестовый пользователь'), findsOneWidget);
+    expect(find.text('Быстрый вход'), findsOneWidget);
+    expect(find.text('Защитите вход в приложение'), findsOneWidget);
     expect(find.text('Войти'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('new task uses the task form', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: NewTaskScreen(api: FakePortalApi())),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Новая задача'), findsOneWidget);
+    expect(find.text('Название задачи'), findsOneWidget);
+    expect(find.text('Ответственный'), findsOneWidget);
+    expect(find.text('Создать задачу'), findsOneWidget);
+    expect(find.text('Новый инцидент'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

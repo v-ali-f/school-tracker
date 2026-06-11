@@ -4,11 +4,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'quick_access.dart';
+
 const String localApiBaseUrl = 'http://127.0.0.1:5001/mobile/api';
 const String schoolApiBaseUrl = 'http://10.172.85.55/mobile/api';
 const String apiBaseUrlPreferenceKey = 'api_base_url';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const SchoolSupportApp());
 }
 
@@ -57,17 +60,43 @@ class _SchoolSupportAppState extends State<SchoolSupportApp> {
       debugShowCheckedModeBanner: false,
       title: 'Альтаир',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff0b5fea),
-          brightness: Brightness.light,
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: const Color(0xff3478e5),
+              brightness: Brightness.light,
+            ).copyWith(
+              primary: const Color(0xff3478e5),
+              secondary: const Color(0xff18a9bb),
+              surface: Colors.white,
+              surfaceContainer: const Color(0xfff2f5fa),
+            ),
+        scaffoldBackgroundColor: const Color(0xfff4f6fb),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xff111827),
+          surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          elevation: 0,
         ),
-        scaffoldBackgroundColor: const Color(0xfff5f8fc),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: Color(0xffe2ebff),
+          height: 68,
+        ),
         cardTheme: const CardThemeData(
           color: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(16)),
-            side: BorderSide(color: Color(0xffe4eaf3)),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            side: BorderSide(color: Color(0xffe5eaf2)),
+          ),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+            borderSide: BorderSide(color: Color(0xffdce3ee)),
           ),
         ),
         useMaterial3: true,
@@ -112,15 +141,98 @@ class AppRoot extends StatefulWidget {
   State<AppRoot> createState() => _AppRootState();
 }
 
-class _AppRootState extends State<AppRoot> {
+class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
+  final QuickAccessStore quickAccess = QuickAccessStore();
   Map<String, dynamic>? user;
+  bool starting = true;
+  bool locked = false;
+  bool needsQuickAccessSetup = false;
+  bool quickAccessConfigured = false;
+  DateTime? backgroundedAt;
 
-  void _setUser(Map<String, dynamic>? value) {
-    setState(() => user = value);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    restoreSession();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      backgroundedAt ??= DateTime.now();
+    } else if (state == AppLifecycleState.resumed &&
+        user != null &&
+        quickAccessConfigured &&
+        backgroundedAt != null &&
+        DateTime.now().difference(backgroundedAt!) >
+            const Duration(seconds: 20)) {
+      setState(() => locked = true);
+      backgroundedAt = null;
+    }
+  }
+
+  Future<void> restoreSession() async {
+    final token = await quickAccess.readToken();
+    final pin = await quickAccess.readPin();
+    if (token != null && token.isNotEmpty) {
+      widget.api.setToken(token);
+      try {
+        final profile = await widget.api.me();
+        if (!mounted) return;
+        user = Map<String, dynamic>.from(profile['user'] as Map)
+          ..['permissions'] = profile['permissions'];
+        quickAccessConfigured = pin != null && pin.length == 4;
+        locked = quickAccessConfigured;
+        needsQuickAccessSetup = !quickAccessConfigured;
+      } catch (_) {
+        await quickAccess.clear();
+        widget.api.setToken('');
+      }
+    }
+    if (mounted) setState(() => starting = false);
+  }
+
+  Future<void> _setUser(Map<String, dynamic> value) async {
+    user = value;
+    if (widget.api.token.isNotEmpty) {
+      await quickAccess.saveToken(widget.api.token);
+    }
+    final pin = await quickAccess.readPin();
+    if (!mounted) return;
+    setState(() {
+      quickAccessConfigured = pin != null && pin.length == 4;
+      needsQuickAccessSetup = !quickAccessConfigured;
+      locked = false;
+    });
+  }
+
+  Future<void> _logout() async {
+    try {
+      await widget.api.logout();
+    } catch (_) {}
+    await quickAccess.clear();
+    if (!mounted) return;
+    setState(() {
+      user = null;
+      locked = false;
+      quickAccessConfigured = false;
+      needsQuickAccessSetup = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (starting) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (user == null) {
       return LoginScreen(
         api: widget.api,
@@ -130,10 +242,30 @@ class _AppRootState extends State<AppRoot> {
       );
     }
 
+    if (needsQuickAccessSetup) {
+      return QuickAccessSetupScreen(
+        store: quickAccess,
+        onComplete: () => setState(() {
+          needsQuickAccessSetup = false;
+          quickAccessConfigured = true;
+        }),
+        onLogout: _logout,
+      );
+    }
+
+    if (locked) {
+      return UnlockScreen(
+        store: quickAccess,
+        onUnlocked: () => setState(() => locked = false),
+        onLogout: _logout,
+      );
+    }
+
     return HomeShell(
       api: widget.api,
       user: user!,
-      onLogout: () => _setUser(null),
+      quickAccess: quickAccess,
+      onLogout: _logout,
     );
   }
 }
@@ -144,9 +276,18 @@ class PortalApi {
   final String baseUrl;
   final HttpClient _client = HttpClient();
   String _cookie = '';
+  String token = '';
+
+  void setToken(String value) {
+    token = value;
+  }
 
   Future<Map<String, dynamic>> login(String username, String password) async {
-    await post('/auth/login', {'username': username, 'password': password});
+    final loginData = await post('/auth/login', {
+      'username': username,
+      'password': password,
+    });
+    token = loginData['token']?.toString() ?? '';
     final profile = await me();
     return Map<String, dynamic>.from(profile['user'] as Map)
       ..['permissions'] = profile['permissions'];
@@ -155,6 +296,7 @@ class PortalApi {
   Future<void> logout() async {
     await post('/auth/logout', {});
     _cookie = '';
+    token = '';
   }
 
   Future<Map<String, dynamic>> me() => get('/me');
@@ -167,6 +309,41 @@ class PortalApi {
       get('/tasks/mine', query: {'filter': filter});
 
   Future<Map<String, dynamic>> incidentMeta() => get('/incidents/meta');
+
+  Future<Map<String, dynamic>> taskMeta() => get('/tasks/meta');
+
+  Future<Map<String, dynamic>> orders() => get('/orders');
+
+  Future<Map<String, dynamic>> appeals() => get('/appeals');
+
+  Future<Map<String, dynamic>> familiarizations() =>
+      get('/familiarizations/mine');
+
+  Future<void> acknowledgeFamiliarization(int id) async {
+    await post('/familiarizations/$id/acknowledge', {});
+  }
+
+  Future<void> createTask({
+    required String title,
+    required String description,
+    required int responsibleUserId,
+    int? taskTypeId,
+    required String priority,
+    DateTime? deadlineAt,
+    bool isPrivate = false,
+    bool isControlRequired = false,
+  }) async {
+    await post('/tasks', {
+      'title': title,
+      'description': description,
+      'responsible_user_id': responsibleUserId,
+      'task_type_id': taskTypeId,
+      'priority': priority,
+      'deadline_at': deadlineAt?.toIso8601String(),
+      'is_private': isPrivate,
+      'is_control_required': isControlRequired,
+    });
+  }
 
   Future<List<dynamic>> classes({int? grade}) async {
     final data = await get(
@@ -230,6 +407,9 @@ class PortalApi {
     if (_cookie.isNotEmpty) {
       request.headers.set(HttpHeaders.cookieHeader, _cookie);
     }
+    if (token.isNotEmpty) {
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+    }
   }
 
   Future<Map<String, dynamic>> _send(HttpClientRequest request) async {
@@ -290,7 +470,7 @@ class LoginScreen extends StatefulWidget {
   final PortalApi api;
   final String apiBaseUrl;
   final Future<void> Function(String value) onServerChanged;
-  final ValueChanged<Map<String, dynamic>> onLogin;
+  final Future<void> Function(Map<String, dynamic>) onLogin;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -314,7 +494,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => loading = false);
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
-      widget.onLogin(user);
+      await widget.onLogin(user);
       return;
     } catch (exception) {
       if (!mounted) return;
@@ -359,6 +539,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   'Управление. Аналитика. Сопровождение.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'ГБОУ Школа № 1324',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: const Color(0xff3478e5),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 OutlinedButton.icon(
@@ -512,16 +701,308 @@ Future<String?> showServerDialog(
   return result;
 }
 
+class QuickAccessSetupScreen extends StatefulWidget {
+  const QuickAccessSetupScreen({
+    super.key,
+    required this.store,
+    required this.onComplete,
+    required this.onLogout,
+    this.showLogout = true,
+  });
+
+  final QuickAccessStore store;
+  final VoidCallback onComplete;
+  final VoidCallback onLogout;
+  final bool showLogout;
+
+  @override
+  State<QuickAccessSetupScreen> createState() => _QuickAccessSetupScreenState();
+}
+
+class _QuickAccessSetupScreenState extends State<QuickAccessSetupScreen> {
+  final pin = TextEditingController();
+  final repeatPin = TextEditingController();
+  final DeviceAuthentication authentication = DeviceAuthentication();
+  bool biometricAvailable = false;
+  bool biometricEnabled = false;
+  bool saving = false;
+  String error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadBiometrics();
+  }
+
+  Future<void> loadBiometrics() async {
+    final available = await authentication.isAvailable();
+    if (mounted) {
+      setState(() {
+        biometricAvailable = available;
+        biometricEnabled = available;
+      });
+    }
+  }
+
+  Future<void> save() async {
+    if (!RegExp(r'^\d{4}$').hasMatch(pin.text)) {
+      setState(() => error = 'Придумайте PIN из четырёх цифр.');
+      return;
+    }
+    if (pin.text != repeatPin.text) {
+      setState(() => error = 'PIN-коды не совпадают.');
+      return;
+    }
+    setState(() {
+      saving = true;
+      error = '';
+    });
+    await widget.store.configure(
+      pin: pin.text,
+      biometric: biometricAvailable && biometricEnabled,
+    );
+    if (mounted) widget.onComplete();
+  }
+
+  @override
+  void dispose() {
+    pin.dispose();
+    repeatPin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Быстрый вход'),
+        actions: widget.showLogout
+            ? [
+                TextButton(
+                  onPressed: widget.onLogout,
+                  child: const Text('Выйти'),
+                ),
+              ]
+            : null,
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const Icon(
+              Icons.shield_outlined,
+              size: 60,
+              color: Color(0xff3478e5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Защитите вход в приложение',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'После этого пароль от портала вводить не потребуется. Для входа будет использоваться PIN или Face ID.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: pin,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                labelText: 'PIN-код',
+                prefixIcon: Icon(Icons.pin_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: repeatPin,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                labelText: 'Повторите PIN-код',
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+            ),
+            if (biometricAvailable)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: biometricEnabled,
+                onChanged: (value) => setState(() => biometricEnabled = value),
+                title: const Text('Использовать Face ID'),
+                subtitle: const Text('PIN останется запасным способом входа'),
+                secondary: const Icon(Icons.face_outlined),
+              ),
+            if (error.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: saving ? null : save,
+              icon: saving
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check),
+              label: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class UnlockScreen extends StatefulWidget {
+  const UnlockScreen({
+    super.key,
+    required this.store,
+    required this.onUnlocked,
+    required this.onLogout,
+  });
+
+  final QuickAccessStore store;
+  final VoidCallback onUnlocked;
+  final VoidCallback onLogout;
+
+  @override
+  State<UnlockScreen> createState() => _UnlockScreenState();
+}
+
+class _UnlockScreenState extends State<UnlockScreen> {
+  final pin = TextEditingController();
+  final DeviceAuthentication authentication = DeviceAuthentication();
+  bool biometricEnabled = false;
+  bool checking = false;
+  String error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    prepare();
+  }
+
+  Future<void> prepare() async {
+    biometricEnabled = await widget.store.biometricEnabled();
+    if (mounted) setState(() {});
+    if (biometricEnabled) await useBiometric();
+  }
+
+  Future<void> useBiometric() async {
+    if (checking) return;
+    setState(() => checking = true);
+    final accepted = await authentication.authenticate();
+    if (!mounted) return;
+    setState(() => checking = false);
+    if (accepted) widget.onUnlocked();
+  }
+
+  Future<void> submitPin() async {
+    final savedPin = await widget.store.readPin();
+    if (!mounted) return;
+    if (pin.text == savedPin) {
+      widget.onUnlocked();
+    } else {
+      setState(() => error = 'Неверный PIN-код.');
+      pin.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(28),
+              children: [
+                Image.asset(
+                  'assets/altair-app-icon.png',
+                  width: 88,
+                  height: 88,
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Альтаир',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: pin,
+                  autofocus: !biometricEnabled,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  onSubmitted: (_) => submitPin(),
+                  decoration: const InputDecoration(
+                    labelText: 'PIN-код',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+                if (error.isNotEmpty)
+                  Text(
+                    error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                FilledButton(onPressed: submitPin, child: const Text('Войти')),
+                if (biometricEnabled) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: checking ? null : useBiometric,
+                    icon: const Icon(Icons.face_outlined),
+                    label: const Text('Войти с Face ID'),
+                  ),
+                ],
+                TextButton(
+                  onPressed: widget.onLogout,
+                  child: const Text('Войти под другой учётной записью'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
     required this.api,
     required this.user,
+    required this.quickAccess,
     required this.onLogout,
   });
 
   final PortalApi api;
   final Map<String, dynamic> user;
+  final QuickAccessStore quickAccess;
   final VoidCallback onLogout;
 
   @override
@@ -535,52 +1016,28 @@ class _HomeShellState extends State<HomeShell> {
     setState(() => index = value);
   }
 
-  Future<void> logout() async {
-    await widget.api.logout();
-    widget.onLogout();
-  }
-
-  Future<void> createIncident() async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => NewIncidentScreen(api: widget.api)),
-    );
-    if (created == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Инцидент создан')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final permissions = Map<String, dynamic>.from(
-      widget.user['permissions'] as Map? ?? const {},
-    );
-    final canCreateIncident =
-        permissions['can_add_incident'] == true || permissions.isEmpty;
     final pages = [
       HomeScreen(api: widget.api, user: widget.user, openTab: openTab),
       NotificationsScreen(api: widget.api),
-      TasksScreen(api: widget.api),
-      DocumentsScreen(api: widget.api),
-      ProfileScreen(user: widget.user, onLogout: logout),
+      ProfileScreen(
+        user: widget.user,
+        quickAccess: widget.quickAccess,
+        onLogout: widget.onLogout,
+      ),
     ];
+    const titles = ['Альтаир · Школа № 1324', 'Уведомления', 'Профиль'];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Альтаир'),
-        actions: [
-          if (canCreateIncident)
-            IconButton(
-              tooltip: 'Создать инцидент',
-              onPressed: createIncident,
-              icon: const Icon(Icons.add_circle_outline),
-            ),
-        ],
+        title: Text(
+          titles[index],
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
       ),
       body: pages[index],
       bottomNavigationBar: NavigationBar(
-        height: 72,
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
         destinations: const [
@@ -590,15 +1047,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
           NavigationDestination(
             icon: Icon(Icons.notifications_outlined),
-            label: 'События',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.task_alt_outlined),
-            label: 'Задачи',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.folder_open_outlined),
-            label: 'Документы',
+            label: 'Уведомления',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
@@ -636,7 +1085,7 @@ class HomeScreen extends StatelessWidget {
             permissions['can_add_incident'] == true || permissions.isEmpty;
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             InfoPanel(
               icon: Icons.account_circle_outlined,
@@ -645,65 +1094,21 @@ class HomeScreen extends StatelessWidget {
                   user['username']?.toString() ??
                   'Пользователь',
               subtitle:
-                  '${user['role'] ?? 'Сотрудник'} • новых уведомлений: $unread',
+                  '${user['role'] ?? 'Сотрудник'} • непрочитанных: $unread',
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
-              'Быстрые действия',
-              style: Theme.of(context).textTheme.titleLarge,
+              'Рабочие разделы',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      alignment: Alignment.center,
-                    ),
-                    onPressed: canCreateIncident
-                        ? () async {
-                            final created = await Navigator.of(context)
-                                .push<bool>(
-                                  MaterialPageRoute(
-                                    builder: (_) => NewIncidentScreen(api: api),
-                                  ),
-                                );
-                            if (created == true && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Инцидент создан'),
-                                ),
-                              );
-                            }
-                          }
-                        : null,
-                    icon: const Icon(Icons.report_outlined),
-                    label: const Text('Инцидент'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      alignment: Alignment.center,
-                    ),
-                    onPressed: () => openTab(2),
-                    icon: const Icon(Icons.add_task_outlined),
-                    label: const Text('Задача'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('Разделы', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             GridView.count(
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              mainAxisExtent: 118,
+              mainAxisExtent: 128,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
@@ -711,46 +1116,70 @@ class HomeScreen extends StatelessWidget {
                   icon: Icons.assignment_outlined,
                   title: 'Инциденты',
                   subtitle: 'Создание и реестр',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => IncidentsScreen(
-                          api: api,
-                          canCreate: canCreateIncident,
-                        ),
+                  accent: const Color(0xffeaf1ff),
+                  iconColor: const Color(0xff3478e5),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => IncidentsScreen(
+                        api: api,
+                        canCreate: canCreateIncident,
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
                 ServiceCard(
                   icon: Icons.task_alt_outlined,
                   title: 'Задачи',
                   subtitle: 'Мои поручения',
-                  onTap: () => openTab(2),
+                  accent: const Color(0xffeaf8f2),
+                  iconColor: const Color(0xff15966a),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => TasksScreen(api: api)),
+                  ),
                 ),
                 ServiceCard(
-                  icon: Icons.chat_bubble_outline,
+                  icon: Icons.gavel_outlined,
+                  title: 'Реестр приказов',
+                  subtitle: 'Приказы школы',
+                  accent: const Color(0xfffff3e5),
+                  iconColor: const Color(0xffd97706),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => OrdersScreen(api: api)),
+                  ),
+                ),
+                ServiceCard(
+                  icon: Icons.forum_outlined,
                   title: 'Обращения',
-                  subtitle: 'Внутренние заявки',
-                  onTap: () => _showPlanned(context),
+                  subtitle: 'Заявки и ответы',
+                  accent: const Color(0xffffeceb),
+                  iconColor: const Color(0xffdf6559),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => AppealsScreen(api: api)),
+                  ),
+                ),
+                ServiceCard(
+                  icon: Icons.mark_email_read_outlined,
+                  title: 'Мои ознакомления',
+                  subtitle: 'Информирование',
+                  accent: const Color(0xfff1edff),
+                  iconColor: const Color(0xff7357c7),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FamiliarizationsScreen(api: api),
+                    ),
+                  ),
                 ),
                 ServiceCard(
                   icon: Icons.folder_open_outlined,
                   title: 'Документы',
-                  subtitle: 'Просмотр файлов',
-                  onTap: () => openTab(3),
-                ),
-                ServiceCard(
-                  icon: Icons.event_note_outlined,
-                  title: 'План работы',
-                  subtitle: 'День, неделя, месяц',
-                  onTap: () => _showPlanned(context),
-                ),
-                ServiceCard(
-                  icon: Icons.search,
-                  title: 'Поиск',
-                  subtitle: 'Ученики и документы',
-                  onTap: () => _showPlanned(context),
+                  subtitle: 'Файлы и материалы',
+                  accent: const Color(0xffe7f7fa),
+                  iconColor: const Color(0xff1593a5),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DocumentsScreen(api: api),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -908,62 +1337,532 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   String filter = 'active';
+  int refreshVersion = 0;
+
+  Future<void> createTask() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NewTaskScreen(api: widget.api)),
+    );
+    if (created == true && mounted) {
+      setState(() => refreshVersion++);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Задача создана')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<String>(
-              showSelectedIcon: false,
-              expandedInsets: EdgeInsets.zero,
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Задачи')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                showSelectedIcon: false,
+                expandedInsets: EdgeInsets.zero,
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+                ),
+                segments: const [
+                  ButtonSegment(value: 'active', label: Text('Активные')),
+                  ButtonSegment(value: 'overdue', label: Text('Просроч.')),
+                  ButtonSegment(value: 'completed', label: Text('Готово')),
+                ],
+                selected: {filter},
+                onSelectionChanged: (value) {
+                  setState(() => filter = value.first);
+                },
               ),
-              segments: const [
-                ButtonSegment(value: 'active', label: Text('Активные')),
-                ButtonSegment(value: 'overdue', label: Text('Просроч.')),
-                ButtonSegment(value: 'completed', label: Text('Готово')),
-              ],
-              selected: {filter},
-              onSelectionChanged: (value) {
-                setState(() => filter = value.first);
+            ),
+          ),
+          Expanded(
+            child: RefreshableFuture(
+              key: ValueKey('$filter-$refreshVersion'),
+              load: () => widget.api.myTasks(filter),
+              builder: (context, data, reload) {
+                final items = List<dynamic>.from(
+                  data['items'] as List? ?? const [],
+                );
+                if (items.isEmpty) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: [EmptyState(text: _emptyTasksLabel(filter))],
+                  );
+                }
+                return ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) => TaskCard(
+                    item: Map<String, dynamic>.from(items[index] as Map),
+                  ),
+                );
               },
             ),
           ),
-        ),
-        Expanded(
-          child: RefreshableFuture(
-            key: ValueKey(filter),
-            load: () => widget.api.myTasks(filter),
-            builder: (context, data, reload) {
-              final items = List<dynamic>.from(
-                data['items'] as List? ?? const [],
-              );
-              if (items.isEmpty) {
-                return ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  children: [EmptyState(text: _emptyTasksLabel(filter))],
-                );
-              }
-              return ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => TaskCard(
-                  item: Map<String, dynamic>.from(items[index] as Map),
+        ],
+      ),
+      floatingActionButton: FutureBuilder<Map<String, dynamic>>(
+        future: widget.api.taskMeta(),
+        builder: (context, snapshot) => snapshot.data?['can_create'] == true
+            ? FloatingActionButton(
+                tooltip: 'Создать задачу',
+                onPressed: createTask,
+                child: const Icon(Icons.add),
+              )
+            : const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+class NewTaskScreen extends StatefulWidget {
+  const NewTaskScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  State<NewTaskScreen> createState() => _NewTaskScreenState();
+}
+
+class _NewTaskScreenState extends State<NewTaskScreen> {
+  final title = TextEditingController();
+  final description = TextEditingController();
+  late Future<Map<String, dynamic>> metaFuture;
+  int? responsibleUserId;
+  int? taskTypeId;
+  String priority = 'обычный';
+  DateTime? deadline;
+  bool isPrivate = false;
+  bool isControlRequired = false;
+  bool saving = false;
+  String error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    metaFuture = widget.api.taskMeta();
+  }
+
+  @override
+  void dispose() {
+    title.dispose();
+    description.dispose();
+    super.dispose();
+  }
+
+  Future<void> chooseDeadline() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: deadline ?? DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 18, minute: 0),
+    );
+    if (time == null) return;
+    setState(() {
+      deadline = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
+
+  Future<void> submit() async {
+    if (title.text.trim().isEmpty) {
+      setState(() => error = 'Укажите название задачи.');
+      return;
+    }
+    if (responsibleUserId == null) {
+      setState(() => error = 'Выберите ответственного.');
+      return;
+    }
+    setState(() {
+      saving = true;
+      error = '';
+    });
+    try {
+      await widget.api.createTask(
+        title: title.text.trim(),
+        description: description.text.trim(),
+        responsibleUserId: responsibleUserId!,
+        taskTypeId: taskTypeId,
+        priority: priority,
+        deadlineAt: deadline,
+        isPrivate: isPrivate,
+        isControlRequired: isControlRequired,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (exception) {
+      if (mounted) {
+        setState(() {
+          saving = false;
+          error = describePortalError(exception);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Новая задача')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: metaFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ErrorState(
+              message: describePortalError(snapshot.error),
+              onRetry: () async =>
+                  setState(() => metaFuture = widget.api.taskMeta()),
+            );
+          }
+          final data = snapshot.data ?? const <String, dynamic>{};
+          final users = List<dynamic>.from(data['users'] as List? ?? const []);
+          final types = List<dynamic>.from(
+            data['task_types'] as List? ?? const [],
+          );
+          final priorities = List<String>.from(
+            (data['priorities'] as List? ?? const ['обычный']).map(
+              (item) => item.toString(),
+            ),
+          );
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextField(
+                controller: title,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Название задачи',
+                  prefixIcon: Icon(Icons.task_alt_outlined),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: description,
+                minLines: 3,
+                maxLines: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Описание',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: responsibleUserId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Ответственный',
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+                items: users.map((raw) {
+                  final user = Map<String, dynamic>.from(raw as Map);
+                  return DropdownMenuItem<int>(
+                    value: user['id'] as int,
+                    child: Text(
+                      user['fio']?.toString() ??
+                          user['username']?.toString() ??
+                          '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) => setState(() => responsibleUserId = value),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int?>(
+                initialValue: taskTypeId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Тип задачи',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('Без типа'),
+                  ),
+                  ...types.map((raw) {
+                    final type = Map<String, dynamic>.from(raw as Map);
+                    return DropdownMenuItem<int?>(
+                      value: type['id'] as int,
+                      child: Text(type['name']?.toString() ?? ''),
+                    );
+                  }),
+                ],
+                onChanged: (value) => setState(() => taskTypeId = value),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: priority,
+                decoration: const InputDecoration(
+                  labelText: 'Приоритет',
+                  prefixIcon: Icon(Icons.flag_outlined),
+                ),
+                items: priorities
+                    .map(
+                      (item) =>
+                          DropdownMenuItem(value: item, child: Text(item)),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => priority = value ?? 'обычный'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                tileColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: Color(0xffdce3ee)),
+                ),
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('Срок выполнения'),
+                subtitle: Text(
+                  deadline == null ? 'Не указан' : _taskDeadlineLabel(deadline),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: chooseDeadline,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: isControlRequired,
+                onChanged: (value) => setState(() => isControlRequired = value),
+                title: const Text('Требуется контроль'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: isPrivate,
+                onChanged: (value) => setState(() => isPrivate = value),
+                title: const Text('Приватная задача'),
+              ),
+              if (error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              FilledButton.icon(
+                onPressed: saving ? null : submit,
+                icon: saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check),
+                label: const Text('Создать задачу'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class OrdersScreen extends StatelessWidget {
+  const OrdersScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Реестр приказов')),
+      body: RefreshableFuture(
+        load: api.orders,
+        builder: (context, data, reload) {
+          final items = List<dynamic>.from(data['items'] as List? ?? const []);
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: items.isEmpty
+                ? [const EmptyState(text: 'Доступных приказов пока нет')]
+                : items.map((raw) {
+                    final item = Map<String, dynamic>.from(raw as Map);
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.gavel_outlined),
+                        title: Text(
+                          '№ ${item['number'] ?? '—'} • ${item['title'] ?? ''}',
+                        ),
+                        subtitle: Text(
+                          '${_dateFromValue(item['order_date'])}${(item['executor']?.toString() ?? '').isEmpty ? '' : ' • ${item['executor']}'}',
+                        ),
+                      ),
+                    );
+                  }).toList(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class AppealsScreen extends StatelessWidget {
+  const AppealsScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Обращения')),
+      body: RefreshableFuture(
+        load: api.appeals,
+        builder: (context, data, reload) {
+          final items = List<dynamic>.from(data['items'] as List? ?? const []);
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: items.isEmpty
+                ? [const EmptyState(text: 'Обращений пока нет')]
+                : items.map((raw) {
+                    final item = Map<String, dynamic>.from(raw as Map);
+                    final overdue = item['is_overdue'] == true;
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.forum_outlined,
+                          color: overdue
+                              ? Theme.of(context).colorScheme.error
+                              : null,
+                        ),
+                        title: Text(item['subject']?.toString() ?? 'Обращение'),
+                        subtitle: Text(
+                          '${item['applicant_name'] ?? ''} • ${item['status'] ?? ''}',
+                        ),
+                        trailing: (item['number']?.toString() ?? '').isEmpty
+                            ? null
+                            : Text('№ ${item['number']}'),
+                      ),
+                    );
+                  }).toList(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class FamiliarizationsScreen extends StatefulWidget {
+  const FamiliarizationsScreen({super.key, required this.api});
+
+  final PortalApi api;
+
+  @override
+  State<FamiliarizationsScreen> createState() => _FamiliarizationsScreenState();
+}
+
+class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
+  int refreshVersion = 0;
+
+  Future<void> acknowledge(int id) async {
+    await widget.api.acknowledgeFamiliarization(id);
+    if (!mounted) return;
+    setState(() => refreshVersion++);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Ознакомление подтверждено')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Мои ознакомления')),
+      body: RefreshableFuture(
+        key: ValueKey(refreshVersion),
+        load: widget.api.familiarizations,
+        builder: (context, data, reload) {
+          final items = List<dynamic>.from(data['items'] as List? ?? const []);
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: items.isEmpty
+                ? [const EmptyState(text: 'Новых ознакомлений нет')]
+                : items.map((raw) {
+                    final item = Map<String, dynamic>.from(raw as Map);
+                    final acknowledged = item['acknowledged_at'] != null;
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  acknowledged
+                                      ? Icons.check_circle_outline
+                                      : Icons.mark_email_unread_outlined,
+                                  color: acknowledged
+                                      ? const Color(0xff15966a)
+                                      : const Color(0xff7357c7),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    item['title']?.toString() ?? 'Ознакомление',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if ((item['description']?.toString() ?? '')
+                                .isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(item['description'].toString()),
+                            ],
+                            if (item['deadline_at'] != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Срок: ${_dateFromValue(item['deadline_at'])}',
+                              ),
+                            ],
+                            if (!acknowledged) ...[
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: FilledButton.tonalIcon(
+                                  onPressed: () =>
+                                      acknowledge(item['id'] as int),
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('Ознакомлен'),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+          );
+        },
+      ),
     );
   }
 }
@@ -975,19 +1874,28 @@ class DocumentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ModulePlaceholder(
-      icon: Icons.folder_open_outlined,
-      title: 'Документы',
-      text:
-          'Раздел второй очереди по ТЗ. Здесь будет просмотр документов, приказов, избранное и последние открытые файлы.',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Документы')),
+      body: const ModulePlaceholder(
+        icon: Icons.folder_open_outlined,
+        title: 'Документы',
+        text:
+            'Просмотр файлов и материалов будет подключён к мобильному API следующим этапом.',
+      ),
     );
   }
 }
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, required this.user, required this.onLogout});
+  const ProfileScreen({
+    super.key,
+    required this.user,
+    required this.quickAccess,
+    required this.onLogout,
+  });
 
   final Map<String, dynamic> user;
+  final QuickAccessStore quickAccess;
   final VoidCallback onLogout;
 
   @override
@@ -1028,6 +1936,23 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (settingsContext) => QuickAccessSetupScreen(
+                  store: quickAccess,
+                  onComplete: () => Navigator.pop(settingsContext),
+                  onLogout: () => Navigator.pop(settingsContext),
+                  showLogout: false,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.face_outlined),
+          label: const Text('Изменить PIN и Face ID'),
+        ),
+        const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: onLogout,
           icon: const Icon(Icons.logout),
@@ -1429,17 +2354,22 @@ class ServiceCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.accent = const Color(0xffeef3fb),
+    this.iconColor = const Color(0xff3478e5),
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Color accent;
+  final Color iconColor;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: accent,
+      borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -1448,13 +2378,23 @@ class ServiceCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 26),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 23, color: iconColor),
+              ),
               const SizedBox(height: 8),
               Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 2),
               Text(
@@ -1515,11 +2455,11 @@ class NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: Icon(
-          item['kind'] == 'incident'
-              ? Icons.report_outlined
-              : Icons.task_outlined,
-        ),
+        leading: Icon(switch (item['kind']) {
+          'incident' => Icons.report_outlined,
+          'familiarization' => Icons.mark_email_unread_outlined,
+          _ => Icons.task_outlined,
+        }),
         title: Text(item['title']?.toString() ?? 'Уведомление'),
         subtitle: Text(item['message']?.toString() ?? ''),
         trailing: item['is_read'] == true
@@ -1736,12 +2676,6 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-void _showPlanned(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Раздел будет подключен на следующем этапе')),
-  );
-}
-
 String describePortalError(Object? exception) => _message(exception);
 
 String _message(Object? exception, [String? apiBaseUrl]) {
@@ -1771,6 +2705,11 @@ String _dateLabel(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day.$month.${date.year}';
+}
+
+String _dateFromValue(Object? value) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '');
+  return parsed == null ? 'Дата не указана' : _dateLabel(parsed);
 }
 
 String _emptyTasksLabel(String filter) {
