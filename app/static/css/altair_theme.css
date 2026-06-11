@@ -118,9 +118,10 @@ a:hover {
 }
 
 .altair-navbar-logo {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  object-fit: contain;
 }
 
 .altair-brand-copy {
@@ -143,7 +144,7 @@ a:hover {
   display: block;
   margin-top: 3px;
   color: var(--altair-muted);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -155,23 +156,23 @@ a:hover {
 }
 
 .altair-org-brand {
-  max-width: 250px;
-  gap: 9px;
+  max-width: 310px;
+  gap: 12px;
 }
 
 .altair-org-logo,
 .altair-org-placeholder {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  border: 1px solid var(--altair-border);
-  border-radius: var(--altair-radius-sm);
-  background: #fff;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .altair-org-logo {
   object-fit: contain;
-  padding: 3px;
+  padding: 0;
 }
 
 .altair-org-placeholder {
@@ -427,6 +428,45 @@ textarea.form-control:focus {
   height: auto;
 }
 
+.altair-login-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+}
+
+.altair-login-platform-logo {
+  width: 74px;
+  height: 74px;
+  flex: 0 0 74px;
+  object-fit: contain;
+}
+
+.altair-login-platform-copy {
+  min-width: 0;
+  text-align: left;
+}
+
+.altair-login-platform-name {
+  display: block;
+  color: var(--altair-navy);
+  font-family: Montserrat, Manrope, sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.altair-login-platform-slogan {
+  display: block;
+  margin-top: 5px;
+  color: var(--altair-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
 .altair-login-organization {
   display: inline-flex;
   max-width: 100%;
@@ -439,13 +479,13 @@ textarea.form-control:focus {
 }
 
 .altair-login-organization img {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--altair-border);
-  border-radius: var(--altair-radius-sm);
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 0;
   object-fit: contain;
-  padding: 3px;
-  background: #fff;
+  padding: 0;
+  background: transparent;
 }
 
 .altair-login-card {
@@ -496,9 +536,9 @@ textarea.form-control:focus {
   }
 
   .altair-navbar-logo {
-    width: 36px;
-    height: 36px;
-    flex-basis: 36px;
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
   }
 
   .altair-brand-name {
@@ -508,7 +548,9 @@ textarea.form-control:focus {
 
   .altair-org-logo,
   .altair-org-placeholder {
-    display: none;
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
   }
 
   .altair-org-name {
@@ -522,5 +564,14 @@ textarea.form-control:focus {
 
   .altair-login-card .login-form-wrap {
     padding: 24px 20px;
+  }
+
+  .altair-login-platform {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .altair-login-platform-copy {
+    text-align: center;
   }
 }

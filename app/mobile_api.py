@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Blueprint, current_app, jsonify, request, send_file, session
+from flask import Blueprint, current_app, jsonify, request, send_file, session, url_for
 from flask_login import current_user, login_user, logout_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import bindparam, or_, text
@@ -37,6 +37,7 @@ from app.models_legacy import (
     SchoolOrder,
 )
 from app.permissions import has_permission
+from app.services.org_settings_service import get_active_organization_settings
 
 mobile_api_bp = Blueprint("mobile_api", __name__, url_prefix="/mobile/api")
 csrf.exempt(mobile_api_bp)
@@ -62,6 +63,7 @@ _FAMILIARIZATION_MANAGER_ROLES = {
     "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "SECRETARY", "SECRETARY_ACADEMIC",
 }
 _TASK_ADMIN_ROLES = {"ADMIN", "DEPUTY_DIRECTOR", "METHODIST", "DIRECTOR"}
+_ALTAIR_SLOGAN = "Единая цифровая система управления школой"
 
 
 def _ensure_mobile_read_table():
@@ -276,6 +278,40 @@ def _mobile_token(user: User) -> str:
     return _mobile_serializer().dumps(
         {"user_id": user.id, "password": (user.password_hash or "")[-24:]}
     )
+
+
+def _organization_media_url(relative_path) -> str:
+    if not relative_path:
+        return ""
+    filename = str(relative_path).split("organization/", 1)[-1]
+    return url_for("organization_settings.uploaded_media", filename=filename)
+
+
+def _mobile_organization_dict() -> dict:
+    settings = get_active_organization_settings()
+    name = (
+        getattr(settings, "display_name", None)
+        or getattr(settings, "short_name", None)
+        or getattr(settings, "full_name", None)
+        or "Образовательная организация"
+    )
+    short_name = getattr(settings, "short_name", None) or name
+    full_name = getattr(settings, "full_name", None) or name
+    return {
+        "name": name,
+        "short_name": short_name,
+        "full_name": full_name,
+        "logo_url": _organization_media_url(getattr(settings, "logo_path", None)),
+        "show_in_header": getattr(settings, "show_in_header", True) is not False,
+    }
+
+
+def _mobile_branding_dict() -> dict:
+    return {
+        "system_name": "Альтаир",
+        "slogan": _ALTAIR_SLOGAN,
+        "organization": _mobile_organization_dict(),
+    }
 
 
 def _user_from_mobile_token():
@@ -620,7 +656,14 @@ def login():
 
     session.permanent = True
     login_user(user)
-    return jsonify({"ok": True, "user": _user_to_dict(user), "token": _mobile_token(user)})
+    return jsonify(
+        {
+            "ok": True,
+            "user": _user_to_dict(user),
+            "token": _mobile_token(user),
+            "branding": _mobile_branding_dict(),
+        }
+    )
 
 
 @mobile_api_bp.post("/auth/logout")
@@ -630,13 +673,20 @@ def logout():
     return jsonify({"ok": True})
 
 
+@mobile_api_bp.get("/branding")
+def branding():
+    return jsonify({"ok": True, "branding": _mobile_branding_dict()})
+
+
 @mobile_api_bp.get("/me")
 @_require_mobile_login
 def me():
+    organization = _mobile_organization_dict()
     return jsonify(
         {
             "ok": True,
-            "user": _user_to_dict(current_user),
+            "user": {**_user_to_dict(current_user), "organization": organization},
+            "branding": _mobile_branding_dict(),
             "permissions": {
                 "can_add_incident": has_permission("incident_add", user=current_user),
                 "can_view_incident_registry": has_permission("incident_registry_view", user=current_user),
