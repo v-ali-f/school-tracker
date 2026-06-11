@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request, session
 from flask_login import current_user, login_user, logout_user
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import or_
 
 from app.auth import _client_ip, _login_is_blocked, _record_failed_login, _reset_failed_login
@@ -12,15 +13,24 @@ from app.children import INCIDENT_CATEGORIES
 from app.core.extensions import csrf, db
 from app.models import (
     AcademicYear,
+    Appeal,
     Child,
     ChildEnrollment,
     SchoolClass,
     Task,
     TaskNotification,
     TaskParticipant,
+    TaskType,
     User,
+    FamiliarizationRecipient,
 )
-from app.models_legacy import Incident, IncidentChild, IncidentNote, IncidentNotification
+from app.models_legacy import (
+    Incident,
+    IncidentChild,
+    IncidentNote,
+    IncidentNotification,
+    SchoolOrder,
+)
 from app.permissions import has_permission
 
 mobile_api_bp = Blueprint("mobile_api", __name__, url_prefix="/mobile/api")
@@ -32,6 +42,17 @@ try:
     _MSK_TZ = ZoneInfo("Europe/Moscow")
 except Exception:  # pragma: no cover - fallback for minimal runtimes
     _MSK_TZ = timezone(timedelta(hours=3))
+
+_MOBILE_TOKEN_MAX_AGE = 90 * 24 * 60 * 60
+_TASK_CREATOR_ROLES = {
+    "ADMIN", "DEPUTY_DIRECTOR", "METHODIST", "DIRECTOR", "CLASS_TEACHER",
+    "TEACHER", "SPECIALIST", "SOCIAL_PEDAGOGUE", "LOGOPEDIST", "PSYCHOLOGIST",
+    "DEFECTOLOGIST", "TUTOR", "ASSISTANT", "EDUCATOR", "SENIOR_EDUCATOR",
+    "SECRETARY_ACADEMIC",
+}
+_APPEAL_MANAGER_ROLES = {
+    "ADMIN", "DEPUTY_DIRECTOR", "DIRECTOR", "SECRETARY_ACADEMIC", "SECRETARY",
+}
 
 
 def _now_msk_naive() -> datetime:
@@ -46,11 +67,43 @@ def _json_error(message: str, status: int = 400, code: str = "bad_request"):
     return jsonify({"ok": False, "error": code, "message": message}), status
 
 
+def _mobile_serializer():
+    return URLSafeTimedSerializer(current_app.secret_key, salt="altair-mobile-auth")
+
+
+def _mobile_token(user: User) -> str:
+    return _mobile_serializer().dumps(
+        {"user_id": user.id, "password": (user.password_hash or "")[-24:]}
+    )
+
+
+def _user_from_mobile_token():
+    header = (request.headers.get("Authorization") or "").strip()
+    if not header.lower().startswith("bearer "):
+        return None
+    token = header[7:].strip()
+    if not token:
+        return None
+    try:
+        data = _mobile_serializer().loads(token, max_age=_MOBILE_TOKEN_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        return None
+    user = db.session.get(User, data.get("user_id"))
+    if not user or getattr(user, "is_active_user", True) is False:
+        return None
+    if data.get("password") != (user.password_hash or "")[-24:]:
+        return None
+    return user
+
+
 def _require_mobile_login(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
         if not getattr(current_user, "is_authenticated", False):
-            return _json_error("Требуется вход в систему.", 401, "unauthorized")
+            token_user = _user_from_mobile_token()
+            if token_user is None:
+                return _json_error("Требуется вход в систему.", 401, "unauthorized")
+            login_user(token_user, remember=False, force=True)
         return view(*args, **kwargs)
 
     return wrapper
@@ -196,7 +249,7 @@ def login():
 
     session.permanent = True
     login_user(user)
-    return jsonify({"ok": True, "user": _user_to_dict(user)})
+    return jsonify({"ok": True, "user": _user_to_dict(user), "token": _mobile_token(user)})
 
 
 @mobile_api_bp.post("/auth/logout")
@@ -228,6 +281,9 @@ def notifications():
     limit = min(max(request.args.get("limit", default=30, type=int), 1), 100)
     task_unread = TaskNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
     incident_unread = IncidentNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    familiarization_unread = FamiliarizationRecipient.query.filter_by(
+        user_id=current_user.id, acknowledged_at=None
+    ).count()
     task_items = (
         TaskNotification.query.filter_by(user_id=current_user.id)
         .order_by(TaskNotification.created_at.desc())
@@ -240,10 +296,37 @@ def notifications():
         .limit(limit)
         .all()
     )
+    familiarization_items = (
+        FamiliarizationRecipient.query.filter_by(user_id=current_user.id)
+        .join(FamiliarizationRecipient.familiarization)
+        .order_by(FamiliarizationRecipient.created_at.desc())
+        .limit(limit)
+        .all()
+    )
     items = [_task_notification_to_dict(x) for x in task_items]
     items.extend(_incident_notification_to_dict(x) for x in incident_items)
+    items.extend(
+        {
+            "id": row.id,
+            "kind": "familiarization",
+            "entity_id": row.familiarization_id,
+            "type": "familiarization",
+            "title": "Документ для ознакомления",
+            "message": row.familiarization.title,
+            "is_read": row.acknowledged_at is not None,
+            "is_important": row.acknowledged_at is None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in familiarization_items
+    )
     items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
-    return jsonify({"ok": True, "unread": task_unread + incident_unread, "items": items[:limit]})
+    return jsonify(
+        {
+            "ok": True,
+            "unread": task_unread + incident_unread + familiarization_unread,
+            "items": items[:limit],
+        }
+    )
 
 
 @mobile_api_bp.get("/tasks/mine")
@@ -296,6 +379,220 @@ def my_tasks():
             "items": [_task_to_dict(item) for item in items],
         }
     )
+
+
+@mobile_api_bp.get("/tasks/meta")
+@_require_mobile_login
+def task_meta():
+    can_create = getattr(current_user, "role", None) in _TASK_CREATOR_ROLES
+    users = (
+        User.query.filter_by(is_active_user=True)
+        .order_by(User.last_name.asc(), User.first_name.asc(), User.username.asc())
+        .all()
+    )
+    task_types = (
+        TaskType.query.filter_by(is_active=True)
+        .order_by(TaskType.sort_order.asc(), TaskType.name.asc())
+        .all()
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "can_create": can_create,
+            "priorities": Task.PRIORITY_CHOICES,
+            "users": [_user_to_dict(user) for user in users],
+            "task_types": [{"id": item.id, "name": item.name} for item in task_types],
+        }
+    )
+
+
+@mobile_api_bp.post("/tasks")
+@_require_mobile_login
+def create_task():
+    if getattr(current_user, "role", None) not in _TASK_CREATOR_ROLES:
+        return _json_error("Нет права на создание задач.", 403, "forbidden")
+
+    data = _payload()
+    title = (data.get("title") or "").strip()
+    description = (data.get("description") or "").strip() or None
+    priority = (data.get("priority") or "обычный").strip()
+    responsible_user_id = data.get("responsible_user_id")
+    task_type_id = data.get("task_type_id")
+
+    try:
+        responsible_user_id = int(responsible_user_id)
+    except (TypeError, ValueError):
+        responsible_user_id = None
+    try:
+        task_type_id = int(task_type_id) if task_type_id else None
+    except (TypeError, ValueError):
+        task_type_id = None
+
+    if not title:
+        return _json_error("Укажите название задачи.", 400, "missing_title")
+    responsible = db.session.get(User, responsible_user_id) if responsible_user_id else None
+    if not responsible or getattr(responsible, "is_active_user", True) is False:
+        return _json_error("Выберите ответственного.", 400, "invalid_responsible")
+
+    deadline_at = None
+    deadline_raw = (data.get("deadline_at") or "").strip()
+    if deadline_raw:
+        try:
+            deadline_at = datetime.fromisoformat(deadline_raw.replace("Z", "+00:00"))
+            if deadline_at.tzinfo:
+                deadline_at = deadline_at.astimezone(_MSK_TZ).replace(tzinfo=None)
+        except ValueError:
+            return _json_error("Неверный формат срока задачи.", 400, "invalid_deadline")
+
+    task = Task(
+        title=title,
+        description=description,
+        task_type_id=task_type_id,
+        priority=priority if priority in Task.PRIORITY_CHOICES else "обычный",
+        status=Task.STATUS_NEW,
+        creator_user_id=current_user.id,
+        responsible_user_id=responsible.id,
+        deadline_at=deadline_at,
+        is_control_required=bool(data.get("is_control_required")),
+        is_private=bool(data.get("is_private")),
+    )
+    db.session.add(task)
+    db.session.flush()
+    db.session.add(
+        TaskNotification(
+            task_id=task.id,
+            user_id=responsible.id,
+            notification_type="new_task",
+            title="Новая задача",
+            message=f"Вам назначена задача «{task.title}».",
+            is_important=priority in {"срочный", "критический"},
+        )
+    )
+    db.session.commit()
+    return jsonify({"ok": True, "task": _task_to_dict(task)}), 201
+
+
+@mobile_api_bp.get("/orders")
+@_require_mobile_login
+def orders():
+    try:
+        from app.orders import _allowed_order_sections
+
+        sections = _allowed_order_sections("view")
+    except Exception:
+        current_app.logger.exception("Mobile orders access lookup failed")
+        sections = []
+    if not sections:
+        return jsonify({"ok": True, "items": []})
+    rows = (
+        SchoolOrder.query.filter(SchoolOrder.section.in_(sections))
+        .order_by(SchoolOrder.order_date.desc(), SchoolOrder.number.desc())
+        .limit(100)
+        .all()
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "items": [
+                {
+                    "id": item.id,
+                    "number": item.number,
+                    "title": item.title,
+                    "section": item.section,
+                    "order_date": item.order_date.isoformat() if item.order_date else None,
+                    "executor": item.executor,
+                }
+                for item in rows
+            ],
+        }
+    )
+
+
+@mobile_api_bp.get("/appeals")
+@_require_mobile_login
+def appeals():
+    query = Appeal.query
+    if getattr(current_user, "role", None) not in _APPEAL_MANAGER_ROLES:
+        uid = current_user.id
+        uid_text = str(uid)
+        query = query.filter(
+            or_(
+                Appeal.creator_user_id == uid,
+                Appeal.responsible_user_id == uid,
+                Appeal.responsible_user_ids == uid_text,
+                Appeal.responsible_user_ids.like(f"{uid_text},%"),
+                Appeal.responsible_user_ids.like(f"%,{uid_text},%"),
+                Appeal.responsible_user_ids.like(f"%,{uid_text}"),
+            )
+        )
+    rows = query.order_by(Appeal.created_at.desc()).limit(100).all()
+    return jsonify(
+        {
+            "ok": True,
+            "items": [
+                {
+                    "id": item.id,
+                    "number": item.number,
+                    "subject": item.subject,
+                    "applicant_name": item.applicant_name,
+                    "status": item.status,
+                    "deadline_at": item.deadline_at.isoformat() if item.deadline_at else None,
+                    "is_overdue": bool(item.is_overdue),
+                }
+                for item in rows
+            ],
+        }
+    )
+
+
+@mobile_api_bp.get("/familiarizations/mine")
+@_require_mobile_login
+def my_familiarizations():
+    rows = (
+        FamiliarizationRecipient.query.filter_by(user_id=current_user.id)
+        .join(FamiliarizationRecipient.familiarization)
+        .order_by(FamiliarizationRecipient.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "unread": sum(1 for row in rows if not row.acknowledged_at),
+            "items": [
+                {
+                    "id": row.familiarization.id,
+                    "recipient_id": row.id,
+                    "title": row.familiarization.title,
+                    "description": row.familiarization.description,
+                    "deadline_at": row.familiarization.deadline_at.isoformat()
+                    if row.familiarization.deadline_at
+                    else None,
+                    "created_at": row.familiarization.created_at.isoformat()
+                    if row.familiarization.created_at
+                    else None,
+                    "acknowledged_at": row.acknowledged_at.isoformat()
+                    if row.acknowledged_at
+                    else None,
+                }
+                for row in rows
+            ],
+        }
+    )
+
+
+@mobile_api_bp.post("/familiarizations/<int:item_id>/acknowledge")
+@_require_mobile_login
+def acknowledge_familiarization(item_id: int):
+    row = FamiliarizationRecipient.query.filter_by(
+        familiarization_id=item_id, user_id=current_user.id
+    ).first()
+    if row is None:
+        return _json_error("Ознакомление не найдено.", 404, "not_found")
+    if row.acknowledged_at is None:
+        row.acknowledged_at = datetime.utcnow()
+        db.session.commit()
+    return jsonify({"ok": True})
 
 
 @mobile_api_bp.post("/notifications/incident/<int:notification_id>/read")
