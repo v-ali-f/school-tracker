@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" role="img" aria-labelledby="title desc">
   <title id="title">Альтаир</title>
-  <desc id="desc">Управление. Аналитика. Сопровождение.</desc>
+  <desc id="desc">Единая цифровая система управления школой</desc>
   <defs>
     <linearGradient id="blue" x1="22" y1="20" x2="158" y2="158" gradientUnits="userSpaceOnUse">
       <stop stop-color="#42A5FF"/>
@@ -12,7 +12,7 @@
   <path fill="#FFFFFF" d="M89 61c4.4 26.7 9.6 31.9 36.3 36.3-26.7 4.4-31.9 9.6-36.3 36.3-4.4-26.7-9.6-31.9-36.3-36.3C79.4 92.9 84.6 87.7 89 61Z"/>
   <path fill="#0B5FEA" d="M89 82.8c1.9 10.6 5.6 14.3 16.2 16.2-10.6 1.9-14.3 5.6-16.2 16.2-1.9-10.6-5.6-14.3-16.2-16.2C83.4 97.1 87.1 93.4 89 82.8Z"/>
   <text x="196" y="91" fill="#061442" font-family="Montserrat, Manrope, Inter, sans-serif" font-size="64" font-weight="600" letter-spacing="13">АЛЬТАИР</text>
-  <text x="200" y="132" fill="#6B7890" font-family="Manrope, Inter, sans-serif" font-size="20">Управление. Аналитика. Сопровождение.</text>
+  <text x="200" y="132" fill="#6B7890" font-family="Manrope, Inter, sans-serif" font-size="18">Единая цифровая система управления школой</text>
   <rect x="200" y="151" width="438" height="3" rx="1.5" fill="#E4EAF3"/>
   <rect x="200" y="151" width="260" height="3" rx="1.5" fill="url(#blue)"/>
   <rect x="460" y="151" width="54" height="3" rx="1.5" fill="#E31321"/>

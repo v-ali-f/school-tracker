@@ -10,6 +10,7 @@ import 'quick_access.dart';
 const String localApiBaseUrl = 'http://127.0.0.1:5001/mobile/api';
 const String schoolApiBaseUrl = 'http://10.172.85.55/mobile/api';
 const String apiBaseUrlPreferenceKey = 'api_base_url';
+const String altairSlogan = 'Единая цифровая система управления школой';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -302,6 +303,8 @@ class PortalApi {
 
   Future<Map<String, dynamic>> me() => get('/me');
 
+  Future<Map<String, dynamic>> branding() => get('/branding');
+
   Future<Map<String, dynamic>> notifications() => get('/notifications');
 
   Future<Map<String, dynamic>> markNotificationRead(String kind, int id) =>
@@ -432,6 +435,15 @@ class PortalApi {
     ).replace(queryParameters: query.isEmpty ? null : query);
   }
 
+  String mediaUrl(Object? value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    final origin = baseUrl.replaceFirst(RegExp(r'/mobile/api/?$'), '');
+    if (raw.startsWith('/')) return '$origin$raw';
+    return '$origin/$raw';
+  }
+
   void _prepareRequest(HttpClientRequest request) {
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     if (_cookie.isNotEmpty) {
@@ -517,8 +529,34 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final username = TextEditingController();
   final password = TextEditingController();
+  Map<String, dynamic> branding = const {};
   bool loading = false;
   String error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadBranding();
+  }
+
+  @override
+  void dispose() {
+    username.dispose();
+    password.dispose();
+    super.dispose();
+  }
+
+  Future<void> loadBranding() async {
+    try {
+      final data = await widget.api.branding();
+      if (!mounted) return;
+      setState(
+        () => branding = Map<String, dynamic>.from(
+          data['branding'] as Map? ?? const {},
+        ),
+      );
+    } catch (_) {}
+  }
 
   Future<void> submit() async {
     setState(() {
@@ -546,6 +584,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final organization = _organizationFromBranding(branding);
+    final organizationName = _organizationName(organization);
+    final organizationLogoUrl = widget.api.mediaUrl(organization['logo_url']);
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -574,19 +616,35 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Управление. Аналитика. Сопровождение.',
+                  altairSlogan,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'ГБОУ Школа № 1324',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: const Color(0xff3478e5),
-                    fontWeight: FontWeight.w600,
+                if (organizationName.isNotEmpty ||
+                    organizationLogoUrl.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (organizationLogoUrl.isNotEmpty) ...[
+                        OrganizationLogo(url: organizationLogoUrl, size: 42),
+                        const SizedBox(width: 10),
+                      ],
+                      Flexible(
+                        child: Text(
+                          organizationName,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: const Color(0xff3478e5),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
                 const SizedBox(height: 14),
                 OutlinedButton.icon(
                   onPressed: loading ? null : chooseServer,
@@ -646,6 +704,50 @@ class _LoginScreenState extends State<LoginScreen> {
     final value = await showServerDialog(context, widget.apiBaseUrl);
     if (value == null || value == widget.apiBaseUrl) return;
     await widget.onServerChanged(value);
+  }
+}
+
+Map<String, dynamic> _organizationFromBranding(Map<String, dynamic> branding) {
+  final value = branding['organization'];
+  return value is Map ? Map<String, dynamic>.from(value) : const {};
+}
+
+Map<String, dynamic> _organizationFromUser(Map<String, dynamic> user) {
+  final value = user['organization'];
+  return value is Map ? Map<String, dynamic>.from(value) : const {};
+}
+
+String _organizationName(Map<String, dynamic> organization) {
+  return (organization['short_name'] ??
+          organization['name'] ??
+          organization['full_name'] ??
+          '')
+      .toString()
+      .trim();
+}
+
+class OrganizationLogo extends StatelessWidget {
+  const OrganizationLogo({super.key, required this.url, required this.size});
+
+  final String url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => SizedBox(
+          width: size,
+          height: size,
+          child: const Icon(Icons.school_outlined, color: Color(0xff3478e5)),
+        ),
+      ),
+    );
   }
 }
 
@@ -1056,6 +1158,9 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final organization = _organizationFromUser(widget.user);
+    final organizationName = _organizationName(organization);
+    final organizationLogoUrl = widget.api.mediaUrl(organization['logo_url']);
     final pages = [
       HomeScreen(api: widget.api, user: widget.user, openTab: openTab),
       NotificationsScreen(api: widget.api),
@@ -1065,14 +1170,40 @@ class _HomeShellState extends State<HomeShell> {
         onLogout: widget.onLogout,
       ),
     ];
-    const titles = ['Альтаир · Школа № 1324', 'Уведомления', 'Профиль'];
+    final titles = [
+      organizationName.isEmpty ? 'Альтаир' : 'Альтаир · $organizationName',
+      'Уведомления',
+      'Профиль',
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          titles[index],
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
+        title: index == 0
+            ? Row(
+                children: [
+                  if (organizationLogoUrl.isNotEmpty) ...[
+                    OrganizationLogo(url: organizationLogoUrl, size: 30),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Text(
+                      titles[index],
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                titles[index],
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
       ),
       body: pages[index],
       bottomNavigationBar: NavigationBar(
@@ -1209,7 +1340,9 @@ class HomeScreen extends StatelessWidget {
                   badgeCount: counts['appeals'] as int? ?? 0,
                   onTap: () async {
                     await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => AppealsScreen(api: api)),
+                      MaterialPageRoute(
+                        builder: (_) => AppealsScreen(api: api),
+                      ),
                     );
                     await reload();
                   },
@@ -2134,13 +2267,13 @@ class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
                     final statusLabel = canAcknowledge
                         ? 'Новое'
                         : acknowledged
-                            ? 'Ознакомлен'
-                            : 'Контроль';
+                        ? 'Ознакомлен'
+                        : 'Контроль';
                     final statusColor = canAcknowledge
                         ? const Color(0xff7357c7)
                         : acknowledged
-                            ? const Color(0xff15966a)
-                            : const Color(0xff64748b);
+                        ? const Color(0xff15966a)
+                        : const Color(0xff64748b);
                     return Card(
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
@@ -2156,21 +2289,25 @@ class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
                                     canAcknowledge
                                         ? Icons.mark_email_unread_outlined
                                         : acknowledged
-                                            ? Icons.check_circle_outline
-                                            : Icons.fact_check_outlined,
+                                        ? Icons.check_circle_outline
+                                        : Icons.fact_check_outlined,
                                     color: statusColor,
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      item['title']?.toString() ?? 'Ознакомление',
+                                      item['title']?.toString() ??
+                                          'Ознакомление',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.titleMedium,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  _StatusPill(label: statusLabel, color: statusColor),
+                                  _StatusPill(
+                                    label: statusLabel,
+                                    color: statusColor,
+                                  ),
                                 ],
                               ),
                               if ((item['description']?.toString() ?? '')
@@ -3060,9 +3197,9 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-            ),
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

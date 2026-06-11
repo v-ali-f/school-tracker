@@ -41,8 +41,8 @@ def register_context_processors(app, has_permission, build_menu_flags):
     def inject_organization_settings():
         settings = get_active_organization_settings()
         default_system_name = "Альтаир"
-        platform_slogan = "Управление. Аналитика. Сопровождение."
-        platform_description = "Система управления образовательной организацией"
+        platform_slogan = "Единая цифровая система управления школой"
+        platform_description = "Единая цифровая система управления школой"
         org_name = getattr(settings, 'display_name', None) or getattr(settings, 'short_name', None) or getattr(settings, 'full_name', None) or "Образовательная организация"
         org_full_name = getattr(settings, 'full_name', None) or org_name
 
@@ -66,7 +66,7 @@ def register_context_processors(app, has_permission, build_menu_flags):
             app_system_name=default_system_name,
             app_platform_slogan=platform_slogan,
             app_platform_description=platform_description,
-            altair_icon_url=url_for('static', filename='brand/altair/altair-icon.svg'),
+            altair_icon_url=url_for('static', filename='brand/altair/altair-app-icon-128.png'),
             altair_logo_url=url_for('static', filename='brand/altair/altair-logo-horizontal.svg'),
             altair_app_icon_url=url_for('static', filename='brand/altair/altair-app-icon.png'),
             app_display_title=f"{default_system_name} | {org_name}",
