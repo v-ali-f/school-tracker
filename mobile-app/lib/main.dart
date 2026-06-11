@@ -2065,6 +2065,10 @@ class AppealsScreen extends StatelessWidget {
                             ? null
                             : Text('№ ${item['number']}'),
                         onTap: () async {
+                          await api.markNotificationRead(
+                            'appeal',
+                            item['id'] as int,
+                          );
                           await Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => AppealDetailScreen(
@@ -2097,15 +2101,6 @@ class FamiliarizationsScreen extends StatefulWidget {
 class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
   int refreshVersion = 0;
 
-  Future<void> acknowledge(int id) async {
-    await widget.api.acknowledgeFamiliarization(id);
-    if (!mounted) return;
-    setState(() => refreshVersion++);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Ознакомление подтверждено')));
-  }
-
   Future<void> openDetail(int id) async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -2134,67 +2129,63 @@ class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
                 ? [const EmptyState(text: 'Новых ознакомлений нет')]
                 : items.map((raw) {
                     final item = Map<String, dynamic>.from(raw as Map);
+                    final canAcknowledge = item['can_acknowledge'] == true;
                     final acknowledged = item['acknowledged_at'] != null;
+                    final statusLabel = canAcknowledge
+                        ? 'Новое'
+                        : acknowledged
+                            ? 'Ознакомлен'
+                            : 'Контроль';
+                    final statusColor = canAcknowledge
+                        ? const Color(0xff7357c7)
+                        : acknowledged
+                            ? const Color(0xff15966a)
+                            : const Color(0xff64748b);
                     return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  acknowledged
-                                      ? Icons.check_circle_outline
-                                      : Icons.mark_email_unread_outlined,
-                                  color: acknowledged
-                                      ? const Color(0xff15966a)
-                                      : const Color(0xff7357c7),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    item['title']?.toString() ?? 'Ознакомление',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => openDetail(item['id'] as int),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    canAcknowledge
+                                        ? Icons.mark_email_unread_outlined
+                                        : acknowledged
+                                            ? Icons.check_circle_outline
+                                            : Icons.fact_check_outlined,
+                                    color: statusColor,
                                   ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      item['title']?.toString() ?? 'Ознакомление',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _StatusPill(label: statusLabel, color: statusColor),
+                                ],
+                              ),
+                              if ((item['description']?.toString() ?? '')
+                                  .isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(item['description'].toString()),
+                              ],
+                              if (item['deadline_at'] != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Срок: ${_dateFromValue(item['deadline_at'])}',
                                 ),
                               ],
-                            ),
-                            if ((item['description']?.toString() ?? '')
-                                .isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(item['description'].toString()),
                             ],
-                            if (item['deadline_at'] != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Срок: ${_dateFromValue(item['deadline_at'])}',
-                              ),
-                            ],
-                            if (!acknowledged) ...[
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: FilledButton.tonalIcon(
-                                  onPressed: () =>
-                                      acknowledge(item['id'] as int),
-                                  icon: const Icon(Icons.check),
-                                  label: const Text('Ознакомлен'),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () => openDetail(item['id'] as int),
-                                icon: const Icon(Icons.chevron_right),
-                                label: const Text('Открыть'),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     );
@@ -3052,6 +3043,31 @@ class _UnreadDot extends StatelessWidget {
   }
 }
 
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+}
+
 class ModulePlaceholder extends StatelessWidget {
   const ModulePlaceholder({
     super.key,
@@ -3307,6 +3323,7 @@ class NotificationTile extends StatelessWidget {
         await onOpened?.call();
         return;
       case 'appeal':
+        await api.markNotificationRead('appeal', id);
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => AppealDetailScreen(api: api, appealId: id),

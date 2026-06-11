@@ -664,9 +664,13 @@ def notifications():
         .count()
     )
     incident_unread = IncidentNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
-    familiarization_unread = FamiliarizationRecipient.query.filter_by(
-        user_id=current_user.id, acknowledged_at=None
-    ).count()
+    familiarization_unread = (
+        FamiliarizationRecipient.query.filter_by(
+            user_id=current_user.id, acknowledged_at=None
+        )
+        .join(FamiliarizationRecipient.familiarization)
+        .count()
+    )
     task_items = (
         TaskNotification.query.filter_by(user_id=current_user.id)
         .order_by(TaskNotification.created_at.desc())
@@ -1117,7 +1121,11 @@ def my_familiarizations():
         items = Familiarization.query.order_by(Familiarization.created_at.desc()).limit(200).all()
         rows_by_item = {
             row.familiarization_id: row
-            for row in FamiliarizationRecipient.query.filter_by(user_id=current_user.id).all()
+            for row in (
+                FamiliarizationRecipient.query.filter_by(user_id=current_user.id)
+                .join(FamiliarizationRecipient.familiarization)
+                .all()
+            )
         }
         payload_items = [
             _familiarization_to_dict(item, rows_by_item.get(item.id)) for item in items

@@ -221,6 +221,12 @@ def _send_familiarization_file_to_max(client, chat_id, item):
 
 def send_familiarization_max_notification(item, user, notification_type: str = 'new_familiarization', recipient_names=None) -> bool:
     client = get_bot_client()
+    current_app.logger.warning(
+        'Familiarization MAX notification attempt: familiarization_id=%s user_id=%s type=%s',
+        getattr(item, 'id', None),
+        getattr(user, 'id', None),
+        notification_type,
+    )
     if not client._enabled():
         current_app.logger.warning(
             'Familiarization MAX notification skipped: bot disabled familiarization_id=%s user_id=%s type=%s',
@@ -275,6 +281,14 @@ def send_familiarization_max_notification(item, user, notification_type: str = '
             client.notify(chat_id=binding.max_chat_id, text=text)
 
         file_sent = _send_familiarization_file_to_max(client, binding.max_chat_id, item)
+        current_app.logger.warning(
+            'Familiarization MAX notification sent: familiarization_id=%s user_id=%s chat_id=%s type=%s file_sent=%s',
+            getattr(item, 'id', None),
+            user_id,
+            binding.max_chat_id,
+            notification_type,
+            file_sent,
+        )
         current_app.logger.info('Familiarization MAX notification sent: familiarization_id=%s user_id=%s chat_id=%s type=%s file_sent=%s', getattr(item,'id',None), user_id, binding.max_chat_id, notification_type, file_sent)
         return True
     except Exception:
