@@ -221,14 +221,34 @@ def _send_familiarization_file_to_max(client, chat_id, item):
 
 def send_familiarization_max_notification(item, user, notification_type: str = 'new_familiarization', recipient_names=None) -> bool:
     client = get_bot_client()
-    if not client._enabled(): return False
+    if not client._enabled():
+        current_app.logger.warning(
+            'Familiarization MAX notification skipped: bot disabled familiarization_id=%s user_id=%s type=%s',
+            getattr(item, 'id', None),
+            getattr(user, 'id', None),
+            notification_type,
+        )
+        return False
     user_id = getattr(user, 'id', None)
-    if not user_id: return False
+    if not user_id:
+        current_app.logger.warning(
+            'Familiarization MAX notification skipped: missing user familiarization_id=%s type=%s',
+            getattr(item, 'id', None),
+            notification_type,
+        )
+        return False
     try:
         binding = (MaxBinding.query.filter_by(user_id=user_id, status='done').filter(MaxBinding.max_chat_id.isnot(None)).order_by(MaxBinding.id.desc()).first())
     except Exception:
         db.session.rollback(); current_app.logger.exception('Familiarization MAX binding lookup failed'); return False
-    if not binding or not binding.max_chat_id: return False
+    if not binding or not binding.max_chat_id:
+        current_app.logger.warning(
+            'Familiarization MAX notification skipped: no binding familiarization_id=%s user_id=%s type=%s',
+            getattr(item, 'id', None),
+            user_id,
+            notification_type,
+        )
+        return False
     text = build_familiarization_max_message(item, notification_type=notification_type)
 
     # В служебном уведомлении директору показываем, кому направлено ознакомление.

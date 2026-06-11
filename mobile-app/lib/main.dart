@@ -1160,14 +1160,17 @@ class HomeScreen extends StatelessWidget {
                   accent: const Color(0xffeaf1ff),
                   iconColor: const Color(0xff3478e5),
                   badgeCount: counts['incidents'] as int? ?? 0,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => IncidentsScreen(
-                        api: api,
-                        canCreate: canCreateIncident,
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => IncidentsScreen(
+                          api: api,
+                          canCreate: canCreateIncident,
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                    await reload();
+                  },
                 ),
                 ServiceCard(
                   icon: Icons.task_alt_outlined,
@@ -1176,9 +1179,12 @@ class HomeScreen extends StatelessWidget {
                   accent: const Color(0xffeaf8f2),
                   iconColor: const Color(0xff15966a),
                   badgeCount: counts['tasks'] as int? ?? 0,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => TasksScreen(api: api)),
-                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => TasksScreen(api: api)),
+                    );
+                    await reload();
+                  },
                 ),
                 ServiceCard(
                   icon: Icons.gavel_outlined,
@@ -1187,9 +1193,12 @@ class HomeScreen extends StatelessWidget {
                   accent: const Color(0xfffff3e5),
                   iconColor: const Color(0xffd97706),
                   badgeCount: counts['orders'] as int? ?? 0,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => OrdersScreen(api: api)),
-                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => OrdersScreen(api: api)),
+                    );
+                    await reload();
+                  },
                 ),
                 ServiceCard(
                   icon: Icons.forum_outlined,
@@ -1198,9 +1207,12 @@ class HomeScreen extends StatelessWidget {
                   accent: const Color(0xffffeceb),
                   iconColor: const Color(0xffdf6559),
                   badgeCount: counts['appeals'] as int? ?? 0,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => AppealsScreen(api: api)),
-                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => AppealsScreen(api: api)),
+                    );
+                    await reload();
+                  },
                 ),
                 ServiceCard(
                   icon: Icons.mark_email_read_outlined,
@@ -1209,11 +1221,14 @@ class HomeScreen extends StatelessWidget {
                   accent: const Color(0xfff1edff),
                   iconColor: const Color(0xff7357c7),
                   badgeCount: counts['familiarizations'] as int? ?? 0,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => FamiliarizationsScreen(api: api),
-                    ),
-                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => FamiliarizationsScreen(api: api),
+                      ),
+                    );
+                    await reload();
+                  },
                 ),
                 ServiceCard(
                   icon: Icons.folder_open_outlined,
@@ -1221,11 +1236,14 @@ class HomeScreen extends StatelessWidget {
                   subtitle: 'Файлы и материалы',
                   accent: const Color(0xffe7f7fa),
                   iconColor: const Color(0xff1593a5),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => DocumentsScreen(api: api),
-                    ),
-                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => DocumentsScreen(api: api),
+                      ),
+                    );
+                    await reload();
+                  },
                 ),
               ],
             ),
@@ -1253,6 +1271,7 @@ class HomeScreen extends StatelessWidget {
                     (item) => NotificationTile(
                       api: api,
                       item: Map<String, dynamic>.from(item as Map),
+                      onOpened: reload,
                     ),
                   ),
           ],
@@ -1288,6 +1307,7 @@ class NotificationsScreen extends StatelessWidget {
                 (item) => NotificationTile(
                   api: api,
                   item: Map<String, dynamic>.from(item as Map),
+                  onOpened: reload,
                 ),
               ),
           ],
@@ -3254,10 +3274,16 @@ class _DetailLine extends StatelessWidget {
 }
 
 class NotificationTile extends StatelessWidget {
-  const NotificationTile({super.key, required this.api, required this.item});
+  const NotificationTile({
+    super.key,
+    required this.api,
+    required this.item,
+    this.onOpened,
+  });
 
   final PortalApi api;
   final Map<String, dynamic> item;
+  final Future<void> Function()? onOpened;
 
   Future<void> _open(BuildContext context) async {
     final id = item['entity_id'] as int?;
@@ -3269,6 +3295,7 @@ class NotificationTile extends StatelessWidget {
             builder: (_) => TaskDetailScreen(api: api, taskId: id),
           ),
         );
+        await onOpened?.call();
         return;
       case 'familiarization':
         await Navigator.of(context).push(
@@ -3277,6 +3304,7 @@ class NotificationTile extends StatelessWidget {
                 FamiliarizationDetailScreen(api: api, familiarizationId: id),
           ),
         );
+        await onOpened?.call();
         return;
       case 'appeal':
         await Navigator.of(context).push(
@@ -3284,12 +3312,14 @@ class NotificationTile extends StatelessWidget {
             builder: (_) => AppealDetailScreen(api: api, appealId: id),
           ),
         );
+        await onOpened?.call();
         return;
       case 'order':
         await api.markNotificationRead('order', id);
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => OrdersScreen(api: api)));
+        await onOpened?.call();
         return;
     }
   }

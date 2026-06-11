@@ -212,6 +212,50 @@ def _can_view_appeal(item: Appeal, user=None) -> bool:
     return uid in ids
 
 
+def _task_access_filter(user_id: int):
+    return or_(
+        Task.responsible_user_id == user_id,
+        Task.controller_user_id == user_id,
+        Task.creator_user_id == user_id,
+        Task.id.in_(
+            db.session.query(TaskParticipant.task_id).filter(
+                TaskParticipant.user_id == user_id
+            )
+        ),
+    )
+
+
+def _visible_appeals_query():
+    query = Appeal.query
+    if getattr(current_user, "role", None) in _APPEAL_MANAGER_ROLES:
+        return query
+    uid = current_user.id
+    uid_text = str(uid)
+    return query.filter(
+        or_(
+            Appeal.creator_user_id == uid,
+            Appeal.responsible_user_id == uid,
+            Appeal.responsible_user_ids == uid_text,
+            Appeal.responsible_user_ids.like(f"{uid_text},%"),
+            Appeal.responsible_user_ids.like(f"%,{uid_text},%"),
+            Appeal.responsible_user_ids.like(f"%,{uid_text}"),
+        )
+    )
+
+
+def _visible_orders_query():
+    try:
+        from app.orders import _allowed_order_sections
+
+        sections = _allowed_order_sections("view")
+    except Exception:
+        current_app.logger.exception("Mobile orders access lookup failed")
+        sections = []
+    if not sections:
+        return None
+    return SchoolOrder.query.filter(SchoolOrder.section.in_(sections))
+
+
 def _now_msk_naive() -> datetime:
     return datetime.now(_MSK_TZ).replace(tzinfo=None)
 
@@ -606,7 +650,19 @@ def me():
 @_require_mobile_login
 def notifications():
     limit = min(max(request.args.get("limit", default=30, type=int), 1), 100)
-    task_unread = TaskNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    completed_task_statuses = [Task.STATUS_DONE, Task.STATUS_CLOSED, Task.STATUS_CANCELLED]
+    task_unread = (
+        db.session.query(TaskNotification.task_id)
+        .join(Task, Task.id == TaskNotification.task_id)
+        .filter(
+            TaskNotification.user_id == current_user.id,
+            TaskNotification.is_read.is_(False),
+            Task.status.notin_(completed_task_statuses),
+            _task_access_filter(current_user.id),
+        )
+        .distinct()
+        .count()
+    )
     incident_unread = IncidentNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
     familiarization_unread = FamiliarizationRecipient.query.filter_by(
         user_id=current_user.id, acknowledged_at=None
@@ -630,13 +686,17 @@ def notifications():
         .limit(limit)
         .all()
     )
-    appeal_items = []
-    if getattr(current_user, "role", None) in _APPEAL_MANAGER_ROLES:
-        appeal_items = Appeal.query.order_by(Appeal.created_at.desc()).limit(20).all()
+    appeal_items = (
+        _visible_appeals_query()
+        .order_by(Appeal.created_at.desc())
+        .limit(100)
+        .all()
+    )
     appeal_read_ids = _mobile_read_keys("appeal", [item.id for item in appeal_items])
-    order_items = (
-        SchoolOrder.query.order_by(SchoolOrder.order_date.desc(), SchoolOrder.id.desc())
-        .limit(20)
+    order_query = _visible_orders_query()
+    order_items = [] if order_query is None else (
+        order_query.order_by(SchoolOrder.order_date.desc(), SchoolOrder.id.desc())
+        .limit(100)
         .all()
     )
     order_read_ids = _mobile_read_keys("order", [item.id for item in order_items])
@@ -728,18 +788,7 @@ def my_tasks():
     limit = min(max(request.args.get("limit", default=100, type=int), 1), 200)
     selected_filter = (request.args.get("filter") or "active").strip().lower()
     completed_statuses = [Task.STATUS_DONE, Task.STATUS_CLOSED, Task.STATUS_CANCELLED]
-    query = Task.query.filter(
-        or_(
-            Task.responsible_user_id == current_user.id,
-            Task.controller_user_id == current_user.id,
-            Task.creator_user_id == current_user.id,
-            Task.id.in_(
-                db.session.query(TaskParticipant.task_id).filter(
-                    TaskParticipant.user_id == current_user.id
-                )
-            ),
-        )
-    )
+    query = Task.query.filter(_task_access_filter(current_user.id))
 
     if selected_filter == "active":
         query = query.filter(Task.status.notin_(completed_statuses)).filter(
@@ -1006,18 +1055,11 @@ def mobile_task_comment(task_id: int):
 @mobile_api_bp.get("/orders")
 @_require_mobile_login
 def orders():
-    try:
-        from app.orders import _allowed_order_sections
-
-        sections = _allowed_order_sections("view")
-    except Exception:
-        current_app.logger.exception("Mobile orders access lookup failed")
-        sections = []
-    if not sections:
+    query = _visible_orders_query()
+    if query is None:
         return jsonify({"ok": True, "items": []})
     rows = (
-        SchoolOrder.query.filter(SchoolOrder.section.in_(sections))
-        .order_by(SchoolOrder.order_date.desc(), SchoolOrder.number.desc())
+        query.order_by(SchoolOrder.order_date.desc(), SchoolOrder.number.desc())
         .limit(100)
         .all()
     )
@@ -1044,21 +1086,7 @@ def orders():
 @mobile_api_bp.get("/appeals")
 @_require_mobile_login
 def appeals():
-    query = Appeal.query
-    if getattr(current_user, "role", None) not in _APPEAL_MANAGER_ROLES:
-        uid = current_user.id
-        uid_text = str(uid)
-        query = query.filter(
-            or_(
-                Appeal.creator_user_id == uid,
-                Appeal.responsible_user_id == uid,
-                Appeal.responsible_user_ids == uid_text,
-                Appeal.responsible_user_ids.like(f"{uid_text},%"),
-                Appeal.responsible_user_ids.like(f"%,{uid_text},%"),
-                Appeal.responsible_user_ids.like(f"%,{uid_text}"),
-            )
-        )
-    rows = query.order_by(Appeal.created_at.desc()).limit(100).all()
+    rows = _visible_appeals_query().order_by(Appeal.created_at.desc()).limit(100).all()
     read_ids = _mobile_read_keys("appeal", [item.id for item in rows])
     return jsonify(
         {
