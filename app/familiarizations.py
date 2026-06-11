@@ -147,6 +147,25 @@ def _insert_attachment(item_id, original, stored, content_type, file_size):
 
 def _recipient_for(item_id, user_id): return FamiliarizationRecipient.query.filter_by(familiarization_id=item_id, user_id=user_id).first()
 
+
+def _notify_directors_about_familiarization(item, recipient_names=None):
+    try:
+        directors = (
+            User.query
+            .filter(User.role == 'DIRECTOR')
+            .filter(User.is_active_user.isnot(False))
+            .all()
+        )
+        for director in directors:
+            send_familiarization_max_notification(
+                item,
+                director,
+                notification_type='director_new_familiarization',
+                recipient_names=recipient_names or [],
+            )
+    except Exception as exc:
+        current_app.logger.warning('Director familiarization MAX notification failed: %s', exc)
+
 @familiarizations_bp.route('/')
 @login_required
 def index():
@@ -216,21 +235,9 @@ def new():
             except Exception as exc:
                 current_app.logger.warning('Familiarization MAX notification failed: %s', exc)
 
-        # Служебное уведомление директору: только если директор НЕ является получателем,
-        # чтобы не приходил дубль. В тексте показываем ФИО адресатов.
-        try:
-            directors = User.query.filter_by(role='DIRECTOR', is_active_user=True).all()
-            for director in directors:
-                if director.id in selected_recipient_ids:
-                    continue
-                send_familiarization_max_notification(
-                    item,
-                    director,
-                    notification_type='director_new_familiarization',
-                    recipient_names=selected_recipient_names,
-                )
-        except Exception as exc:
-            current_app.logger.warning('Director familiarization MAX notification failed: %s', exc)
+        # Служебное уведомление директору: отдельный контрольный канал,
+        # даже если директор также был среди получателей.
+        _notify_directors_about_familiarization(item, selected_recipient_names)
 
         flash(f'Ознакомление создано. Получателей: {len(selected_users)}.', 'success')
         return redirect(url_for('familiarizations.detail', item_id=item.id))
@@ -295,6 +302,11 @@ def forward(item_id):
                 )
             except Exception as exc:
                 current_app.logger.warning('Forwarded familiarization MAX notification failed: %s', exc)
+
+        _notify_directors_about_familiarization(
+            item,
+            [_user_label(user) for user in selected_users],
+        )
 
         flash(f'Ознакомление перенаправлено. Новых получателей: {len(selected_users)}.', 'success')
         return redirect(url_for('familiarizations.detail', item_id=item.id))

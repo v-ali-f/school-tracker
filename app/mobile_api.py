@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Blueprint, current_app, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request, send_file, session
 from flask_login import current_user, login_user, logout_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import or_
@@ -14,10 +14,15 @@ from app.core.extensions import csrf, db
 from app.models import (
     AcademicYear,
     Appeal,
+    AppealAttachment,
     Child,
     ChildEnrollment,
+    Familiarization,
     SchoolClass,
     Task,
+    TaskAttachment,
+    TaskComment,
+    TaskHistory,
     TaskNotification,
     TaskParticipant,
     TaskType,
@@ -53,6 +58,78 @@ _TASK_CREATOR_ROLES = {
 _APPEAL_MANAGER_ROLES = {
     "ADMIN", "DEPUTY_DIRECTOR", "DIRECTOR", "SECRETARY_ACADEMIC", "SECRETARY",
 }
+_FAMILIARIZATION_MANAGER_ROLES = {
+    "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "SECRETARY", "SECRETARY_ACADEMIC",
+}
+_TASK_ADMIN_ROLES = {"ADMIN", "DEPUTY_DIRECTOR", "METHODIST", "DIRECTOR"}
+
+
+def _mobile_user_from_any_token():
+    user = _user_from_mobile_token()
+    if user is not None:
+        return user
+    token = (request.args.get("token") or "").strip()
+    if not token:
+        return None
+    try:
+        data = _mobile_serializer().loads(token, max_age=_MOBILE_TOKEN_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        return None
+    user = db.session.get(User, data.get("user_id"))
+    if not user or getattr(user, "is_active_user", True) is False:
+        return None
+    if data.get("password") != (user.password_hash or "")[-24:]:
+        return None
+    return user
+
+
+def _can_manage_familiarizations(user=None) -> bool:
+    user = user or current_user
+    return getattr(user, "role", None) in _FAMILIARIZATION_MANAGER_ROLES
+
+
+def _is_task_participant(task: Task, user_id: int | None) -> bool:
+    if not user_id:
+        return False
+    if user_id in {task.creator_user_id, task.responsible_user_id, task.controller_user_id}:
+        return True
+    return any(p.user_id == user_id for p in (task.participants or []))
+
+
+def _can_view_task(task: Task, user=None) -> bool:
+    user = user or current_user
+    if getattr(user, "role", None) in _TASK_ADMIN_ROLES:
+        return True
+    return _is_task_participant(task, getattr(user, "id", None))
+
+
+def _can_edit_task(task: Task, user=None) -> bool:
+    user = user or current_user
+    if getattr(user, "role", None) in _TASK_ADMIN_ROLES:
+        return True
+    uid = getattr(user, "id", None)
+    if uid in {task.creator_user_id, task.responsible_user_id, task.controller_user_id}:
+        return True
+    return any(
+        p.user_id == uid
+        and p.role in {Task.PARTICIPANT_ROLE_COEXECUTOR, Task.PARTICIPANT_ROLE_CONTROLLER}
+        for p in (task.participants or [])
+    )
+
+
+def _can_view_appeal(item: Appeal, user=None) -> bool:
+    user = user or current_user
+    if getattr(user, "role", None) in _APPEAL_MANAGER_ROLES:
+        return True
+    uid = getattr(user, "id", None)
+    if uid in {item.creator_user_id, item.responsible_user_id}:
+        return True
+    ids = {
+        int(value)
+        for value in (item.responsible_user_ids or "").split(",")
+        if value.strip().isdigit()
+    }
+    return uid in ids
 
 
 def _now_msk_naive() -> datetime:
@@ -156,6 +233,11 @@ def _incident_to_dict(incident: Incident) -> dict:
 
 
 def _task_to_dict(task: Task) -> dict:
+    coexecutors = [
+        _user_to_dict(participant.user)
+        for participant in (task.participants or [])
+        if participant.user and participant.role == Task.PARTICIPANT_ROLE_COEXECUTOR
+    ]
     return {
         "id": task.id,
         "title": task.title,
@@ -170,8 +252,70 @@ def _task_to_dict(task: Task) -> dict:
         "checklist_total": task.checklist_total,
         "checklist_done": task.checklist_done,
         "responsible": _user_to_dict(task.responsible) if task.responsible else None,
+        "coexecutors": coexecutors,
         "creator": _user_to_dict(task.creator) if task.creator else None,
     }
+
+
+def _task_detail_to_dict(task: Task) -> dict:
+    data = _task_to_dict(task)
+    can_edit = _can_edit_task(task)
+    transitions = [
+        status for status in Task.STATUS_CHOICES if task.can_transition_to(status) and status != task.status
+    ] if can_edit else []
+    data.update(
+        {
+            "can_edit": can_edit,
+            "available_statuses": transitions,
+            "participants": [
+                {
+                    "id": participant.id,
+                    "role": participant.role,
+                    "role_label": Task.PARTICIPANT_ROLE_LABELS.get(participant.role, participant.role),
+                    "user": _user_to_dict(participant.user) if participant.user else None,
+                }
+                for participant in (task.participants or [])
+            ],
+            "comments": [
+                {
+                    "id": item.id,
+                    "text": item.comment_text,
+                    "is_system": bool(item.is_system_comment),
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "author": _user_to_dict(item.author) if item.author else None,
+                }
+                for item in TaskComment.query.filter_by(task_id=task.id)
+                .order_by(TaskComment.created_at.desc())
+                .limit(50)
+                .all()
+            ],
+            "history": [
+                {
+                    "id": item.id,
+                    "message": item.message,
+                    "event_type": item.event_type,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "actor": _user_to_dict(item.actor) if item.actor else None,
+                }
+                for item in TaskHistory.query.filter_by(task_id=task.id)
+                .order_by(TaskHistory.created_at.desc())
+                .limit(30)
+                .all()
+            ],
+            "attachments": [
+                {
+                    "id": item.id,
+                    "filename": item.filename,
+                    "file_kind": item.file_kind,
+                    "file_size": item.file_size,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                }
+                for item in (task.attachments or [])
+                if not item.is_deleted
+            ],
+        }
+    )
+    return data
 
 
 def _task_notification_to_dict(item: TaskNotification) -> dict:
@@ -200,6 +344,109 @@ def _incident_notification_to_dict(item: IncidentNotification) -> dict:
         "is_important": False,
         "created_at": item.created_at.isoformat() if item.created_at else None,
     }
+
+
+def _appeal_to_dict(item: Appeal, detail: bool = False) -> dict:
+    data = {
+        "id": item.id,
+        "number": item.number,
+        "subject": item.subject,
+        "applicant_name": item.applicant_name,
+        "applicant_contact": item.applicant_contact,
+        "channel": item.channel,
+        "status": item.status,
+        "received_at": item.received_at.isoformat() if item.received_at else None,
+        "deadline_at": item.deadline_at.isoformat() if item.deadline_at else None,
+        "answered_at": item.answered_at.isoformat() if item.answered_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "is_overdue": bool(item.is_overdue),
+        "responsible": _user_to_dict(item.responsible) if item.responsible else None,
+        "creator": _user_to_dict(item.creator) if item.creator else None,
+        "linked_task_id": item.linked_task_id,
+    }
+    if detail:
+        data.update(
+            {
+                "description": item.description,
+                "result_text": item.result_text,
+                "attachments": [
+                    {
+                        "id": attachment.id,
+                        "filename": attachment.original_filename,
+                        "created_at": attachment.created_at.isoformat()
+                        if attachment.created_at
+                        else None,
+                    }
+                    for attachment in (item.attachments or [])
+                ],
+            }
+        )
+    return data
+
+
+def _familiarization_attachments(item: Familiarization) -> list[dict]:
+    try:
+        from app.familiarizations import _attachment_rows
+
+        rows = _attachment_rows(item.id)
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Mobile familiarization attachments lookup failed")
+        rows = []
+    attachments = [
+        {
+            "id": row.get("id") if hasattr(row, "get") else row["id"],
+            "filename": (row.get("original_filename") if hasattr(row, "get") else row["original_filename"])
+            or (row.get("stored_filename") if hasattr(row, "get") else row["stored_filename"]),
+            "content_type": row.get("content_type") if hasattr(row, "get") else row["content_type"],
+            "file_size": row.get("file_size") if hasattr(row, "get") else row["file_size"],
+        }
+        for row in rows
+    ]
+    if item.stored_filename and not any(row.get("id") is None for row in attachments):
+        attachments.insert(
+            0,
+            {
+                "id": None,
+                "filename": item.original_filename or item.stored_filename,
+                "content_type": item.content_type,
+                "file_size": item.file_size,
+            },
+        )
+    return attachments
+
+
+def _familiarization_to_dict(item: Familiarization, recipient=None, detail: bool = False) -> dict:
+    total = len(item.recipients or [])
+    done = sum(1 for row in (item.recipients or []) if row.acknowledged_at)
+    data = {
+        "id": item.id,
+        "recipient_id": recipient.id if recipient else None,
+        "title": item.title,
+        "description": item.description,
+        "deadline_at": item.deadline_at.isoformat() if item.deadline_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "acknowledged_at": recipient.acknowledged_at.isoformat()
+        if recipient and recipient.acknowledged_at
+        else None,
+        "is_recipient": recipient is not None,
+        "can_acknowledge": recipient is not None and recipient.acknowledged_at is None,
+        "stats": {"total": total, "done": done, "pending": total - done},
+        "author": _user_to_dict(item.author) if item.author else None,
+    }
+    if detail:
+        data["attachments"] = _familiarization_attachments(item)
+        data["recipients"] = [
+            {
+                "id": row.id,
+                "acknowledged_at": row.acknowledged_at.isoformat()
+                if row.acknowledged_at
+                else None,
+                "user": _user_to_dict(row.user) if row.user else None,
+            }
+            for row in (item.recipients or [])
+        ] if _can_manage_familiarizations() else []
+    return data
 
 
 def _payload() -> dict:
@@ -303,6 +550,14 @@ def notifications():
         .limit(limit)
         .all()
     )
+    appeal_items = []
+    if getattr(current_user, "role", None) in _APPEAL_MANAGER_ROLES:
+        appeal_items = Appeal.query.order_by(Appeal.created_at.desc()).limit(20).all()
+    order_items = (
+        SchoolOrder.query.order_by(SchoolOrder.order_date.desc(), SchoolOrder.id.desc())
+        .limit(20)
+        .all()
+    )
     items = [_task_notification_to_dict(x) for x in task_items]
     items.extend(_incident_notification_to_dict(x) for x in incident_items)
     items.extend(
@@ -318,6 +573,34 @@ def notifications():
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
         for row in familiarization_items
+    )
+    items.extend(
+        {
+            "id": item.id,
+            "kind": "appeal",
+            "entity_id": item.id,
+            "type": "appeal",
+            "title": "Обращение",
+            "message": f"{item.subject} · {item.status}",
+            "is_read": False,
+            "is_important": bool(item.is_overdue),
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        }
+        for item in appeal_items
+    )
+    items.extend(
+        {
+            "id": item.id,
+            "kind": "order",
+            "entity_id": item.id,
+            "type": "order",
+            "title": "Приказ",
+            "message": f"№ {item.number or '—'} · {item.title or ''}",
+            "is_read": True,
+            "is_important": False,
+            "created_at": item.order_date.isoformat() if item.order_date else None,
+        }
+        for item in order_items
     )
     items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return jsonify(
@@ -418,6 +701,14 @@ def create_task():
     priority = (data.get("priority") or "обычный").strip()
     responsible_user_id = data.get("responsible_user_id")
     task_type_id = data.get("task_type_id")
+    coexecutor_ids = []
+    for raw in _list_from_payload(data, "coexecutor_user_ids"):
+        try:
+            uid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if uid and uid not in coexecutor_ids:
+            coexecutor_ids.append(uid)
 
     try:
         responsible_user_id = int(responsible_user_id)
@@ -458,18 +749,148 @@ def create_task():
     )
     db.session.add(task)
     db.session.flush()
+    for user in User.query.filter(User.id.in_(coexecutor_ids)).all() if coexecutor_ids else []:
+        if user.id != responsible.id and getattr(user, "is_active_user", True) is not False:
+            db.session.add(
+                TaskParticipant(
+                    task_id=task.id,
+                    user_id=user.id,
+                    role=Task.PARTICIPANT_ROLE_COEXECUTOR,
+                )
+            )
+    try:
+        from app.tasks import _deliver_notifications
+
+        _deliver_notifications(
+            task,
+            "new_task",
+            "Новая задача",
+            f"Вам назначена задача «{task.title}».",
+            extra_user_ids=coexecutor_ids,
+        )
+    except Exception:
+        current_app.logger.exception("Mobile task notification delivery failed")
+        db.session.add(
+            TaskNotification(
+                task_id=task.id,
+                user_id=responsible.id,
+                notification_type="new_task",
+                title="Новая задача",
+                message=f"Вам назначена задача «{task.title}».",
+                is_important=priority in {"срочный", "критический"},
+            )
+        )
+    db.session.commit()
+    return jsonify({"ok": True, "task": _task_to_dict(task)}), 201
+
+
+@mobile_api_bp.get("/tasks/<int:task_id>")
+@_require_mobile_login
+def task_detail(task_id: int):
+    task = Task.query.get_or_404(task_id)
+    if not _can_view_task(task):
+        return _json_error("Нет доступа к задаче.", 403, "forbidden")
+    TaskNotification.query.filter_by(
+        task_id=task.id, user_id=current_user.id, is_read=False
+    ).update(
+        {TaskNotification.is_read: True, TaskNotification.read_at: datetime.utcnow()},
+        synchronize_session=False,
+    )
+    db.session.commit()
+    return jsonify({"ok": True, "task": _task_detail_to_dict(task)})
+
+
+@mobile_api_bp.post("/tasks/<int:task_id>/status")
+@_require_mobile_login
+def mobile_task_status(task_id: int):
+    task = Task.query.filter_by(id=task_id).with_for_update().first()
+    if task is None:
+        return _json_error("Задача не найдена.", 404, "not_found")
+    if not _can_edit_task(task):
+        return _json_error("Нет права менять задачу.", 403, "forbidden")
+    data = _payload()
+    status = (data.get("status") or "").strip()
+    if status not in Task.STATUS_CHOICES:
+        return _json_error("Недопустимый статус.", 400, "invalid_status")
+    if not task.can_transition_to(status):
+        return _json_error("Недопустимый переход между статусами.", 400, "invalid_status_transition")
+    old_status = task.status
+    task.status = status
+    if status in {Task.STATUS_DONE, Task.STATUS_CLOSED}:
+        task.completed_at = datetime.utcnow()
+    elif old_status in {Task.STATUS_DONE, Task.STATUS_CLOSED} and status == Task.STATUS_REWORK:
+        task.completed_at = None
+    comment_text = (data.get("comment") or "").strip() or f"Изменен статус: {status}"
     db.session.add(
-        TaskNotification(
+        TaskComment(
             task_id=task.id,
-            user_id=responsible.id,
-            notification_type="new_task",
-            title="Новая задача",
-            message=f"Вам назначена задача «{task.title}».",
-            is_important=priority in {"срочный", "критический"},
+            author_user_id=current_user.id,
+            comment_text=comment_text,
+            is_system_comment=True,
+        )
+    )
+    db.session.add(
+        TaskHistory(
+            task_id=task.id,
+            actor_user_id=current_user.id,
+            event_type="status_changed",
+            field_name="status",
+            old_value=old_status,
+            new_value=status,
+            message=f"Изменен статус: {old_status} → {status}",
+        )
+    )
+    notification_type = "status_changed"
+    notification_title = "Изменение статуса задачи"
+    notification_message = f"По задаче «{task.title}» установлен статус «{status}»."
+    if status == Task.STATUS_REWORK:
+        notification_type = "returned_for_rework"
+        notification_title = "Задача возвращена на доработку"
+        notification_message = f"Задача «{task.title}» возвращена на доработку."
+    elif status in {Task.STATUS_DONE, Task.STATUS_CLOSED}:
+        notification_type = "closed"
+        notification_title = "Задача закрыта"
+        notification_message = f"Задача «{task.title}» закрыта."
+    try:
+        from app.tasks import _deliver_notifications
+
+        _deliver_notifications(task, notification_type, notification_title, notification_message)
+    except Exception:
+        current_app.logger.exception("Mobile task status notification delivery failed")
+        db.session.add(
+            TaskNotification(
+                task_id=task.id,
+                user_id=task.responsible_user_id,
+                notification_type=notification_type,
+                title=notification_title,
+                message=notification_message,
+                is_important=status == Task.STATUS_REWORK,
+            )
+        )
+    db.session.commit()
+    return jsonify({"ok": True, "task": _task_detail_to_dict(task)})
+
+
+@mobile_api_bp.post("/tasks/<int:task_id>/comments")
+@_require_mobile_login
+def mobile_task_comment(task_id: int):
+    task = Task.query.get_or_404(task_id)
+    if not _can_view_task(task):
+        return _json_error("Нет доступа к задаче.", 403, "forbidden")
+    text_value = (_payload().get("text") or "").strip()
+    if not text_value:
+        return _json_error("Введите комментарий.", 400, "missing_comment")
+    db.session.add(TaskComment(task_id=task.id, author_user_id=current_user.id, comment_text=text_value))
+    db.session.add(
+        TaskHistory(
+            task_id=task.id,
+            actor_user_id=current_user.id,
+            event_type="comment_added",
+            message="Добавлен комментарий",
         )
     )
     db.session.commit()
-    return jsonify({"ok": True, "task": _task_to_dict(task)}), 201
+    return jsonify({"ok": True, "task": _task_detail_to_dict(task)})
 
 
 @mobile_api_bp.get("/orders")
@@ -529,56 +950,61 @@ def appeals():
     return jsonify(
         {
             "ok": True,
-            "items": [
-                {
-                    "id": item.id,
-                    "number": item.number,
-                    "subject": item.subject,
-                    "applicant_name": item.applicant_name,
-                    "status": item.status,
-                    "deadline_at": item.deadline_at.isoformat() if item.deadline_at else None,
-                    "is_overdue": bool(item.is_overdue),
-                }
-                for item in rows
-            ],
+            "items": [_appeal_to_dict(item) for item in rows],
         }
     )
+
+
+@mobile_api_bp.get("/appeals/<int:appeal_id>")
+@_require_mobile_login
+def appeal_detail(appeal_id: int):
+    item = Appeal.query.get_or_404(appeal_id)
+    if not _can_view_appeal(item):
+        return _json_error("Нет доступа к обращению.", 403, "forbidden")
+    return jsonify({"ok": True, "appeal": _appeal_to_dict(item, detail=True)})
 
 
 @mobile_api_bp.get("/familiarizations/mine")
 @_require_mobile_login
 def my_familiarizations():
-    rows = (
-        FamiliarizationRecipient.query.filter_by(user_id=current_user.id)
-        .join(FamiliarizationRecipient.familiarization)
-        .order_by(FamiliarizationRecipient.created_at.desc())
-        .limit(100)
-        .all()
-    )
+    if _can_manage_familiarizations():
+        items = Familiarization.query.order_by(Familiarization.created_at.desc()).limit(200).all()
+        rows_by_item = {
+            row.familiarization_id: row
+            for row in FamiliarizationRecipient.query.filter_by(user_id=current_user.id).all()
+        }
+        payload_items = [
+            _familiarization_to_dict(item, rows_by_item.get(item.id)) for item in items
+        ]
+    else:
+        rows = (
+            FamiliarizationRecipient.query.filter_by(user_id=current_user.id)
+            .join(FamiliarizationRecipient.familiarization)
+            .order_by(FamiliarizationRecipient.created_at.desc())
+            .limit(100)
+            .all()
+        )
+        payload_items = [_familiarization_to_dict(row.familiarization, row) for row in rows]
     return jsonify(
         {
             "ok": True,
-            "unread": sum(1 for row in rows if not row.acknowledged_at),
-            "items": [
-                {
-                    "id": row.familiarization.id,
-                    "recipient_id": row.id,
-                    "title": row.familiarization.title,
-                    "description": row.familiarization.description,
-                    "deadline_at": row.familiarization.deadline_at.isoformat()
-                    if row.familiarization.deadline_at
-                    else None,
-                    "created_at": row.familiarization.created_at.isoformat()
-                    if row.familiarization.created_at
-                    else None,
-                    "acknowledged_at": row.acknowledged_at.isoformat()
-                    if row.acknowledged_at
-                    else None,
-                }
-                for row in rows
-            ],
+            "is_manager": _can_manage_familiarizations(),
+            "unread": sum(1 for item in payload_items if item.get("can_acknowledge")),
+            "items": payload_items,
         }
     )
+
+
+@mobile_api_bp.get("/familiarizations/<int:item_id>")
+@_require_mobile_login
+def familiarization_detail(item_id: int):
+    item = Familiarization.query.get_or_404(item_id)
+    recipient = FamiliarizationRecipient.query.filter_by(
+        familiarization_id=item.id, user_id=current_user.id
+    ).first()
+    if not _can_manage_familiarizations() and recipient is None:
+        return _json_error("Нет доступа к ознакомлению.", 403, "forbidden")
+    return jsonify({"ok": True, "familiarization": _familiarization_to_dict(item, recipient, detail=True)})
 
 
 @mobile_api_bp.post("/familiarizations/<int:item_id>/acknowledge")
@@ -593,6 +1019,49 @@ def acknowledge_familiarization(item_id: int):
         row.acknowledged_at = datetime.utcnow()
         db.session.commit()
     return jsonify({"ok": True})
+
+
+@mobile_api_bp.get("/familiarizations/<int:item_id>/attachments/<attachment_id>/download")
+def familiarization_attachment_download(item_id: int, attachment_id: str):
+    user = _mobile_user_from_any_token()
+    if user is None:
+        return _json_error("Требуется вход в систему.", 401, "unauthorized")
+    item = Familiarization.query.get_or_404(item_id)
+    recipient = FamiliarizationRecipient.query.filter_by(
+        familiarization_id=item.id, user_id=user.id
+    ).first()
+    if not _can_manage_familiarizations(user) and recipient is None:
+        return _json_error("Нет доступа к ознакомлению.", 403, "forbidden")
+    try:
+        from app.familiarizations import _attachment_rows, _upload_root
+
+        if attachment_id == "main":
+            stored = item.stored_filename
+            filename = item.original_filename or item.stored_filename
+        else:
+            row = next(
+                (
+                    value
+                    for value in _attachment_rows(item.id)
+                    if str(value.get("id") if hasattr(value, "get") else value["id"]) == attachment_id
+                ),
+                None,
+            )
+            if not row:
+                return _json_error("Файл не найден.", 404, "not_found")
+            stored = row.get("stored_filename") if hasattr(row, "get") else row["stored_filename"]
+            filename = (
+                row.get("original_filename") if hasattr(row, "get") else row["original_filename"]
+            ) or stored
+        if not stored:
+            return _json_error("Файл не найден.", 404, "not_found")
+        path = _upload_root() / stored
+        if not path.exists():
+            return _json_error("Файл не найден.", 404, "not_found")
+        return send_file(path, as_attachment=False, download_name=filename)
+    except Exception:
+        current_app.logger.exception("Mobile familiarization attachment download failed")
+        return _json_error("Не удалось открыть файл.", 500, "download_failed")
 
 
 @mobile_api_bp.post("/notifications/incident/<int:notification_id>/read")

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'quick_access.dart';
@@ -308,6 +309,17 @@ class PortalApi {
   Future<Map<String, dynamic>> myTasks(String filter) =>
       get('/tasks/mine', query: {'filter': filter});
 
+  Future<Map<String, dynamic>> taskDetail(int id) => get('/tasks/$id');
+
+  Future<Map<String, dynamic>> changeTaskStatus(
+    int id,
+    String status, {
+    String comment = '',
+  }) => post('/tasks/$id/status', {'status': status, 'comment': comment});
+
+  Future<Map<String, dynamic>> addTaskComment(int id, String text) =>
+      post('/tasks/$id/comments', {'text': text});
+
   Future<Map<String, dynamic>> incidentMeta() => get('/incidents/meta');
 
   Future<Map<String, dynamic>> taskMeta() => get('/tasks/meta');
@@ -316,8 +328,21 @@ class PortalApi {
 
   Future<Map<String, dynamic>> appeals() => get('/appeals');
 
+  Future<Map<String, dynamic>> appealDetail(int id) => get('/appeals/$id');
+
   Future<Map<String, dynamic>> familiarizations() =>
       get('/familiarizations/mine');
+
+  Future<Map<String, dynamic>> familiarizationDetail(int id) =>
+      get('/familiarizations/$id');
+
+  String familiarizationAttachmentUrl(int familiarizationId, Object? id) {
+    final attachmentId = id == null ? 'main' : id.toString();
+    return _uri(
+      '/familiarizations/$familiarizationId/attachments/$attachmentId/download',
+      {if (token.isNotEmpty) 'token': token},
+    ).toString();
+  }
 
   Future<void> acknowledgeFamiliarization(int id) async {
     await post('/familiarizations/$id/acknowledge', {});
@@ -327,6 +352,7 @@ class PortalApi {
     required String title,
     required String description,
     required int responsibleUserId,
+    List<int> coexecutorUserIds = const [],
     int? taskTypeId,
     required String priority,
     DateTime? deadlineAt,
@@ -337,6 +363,7 @@ class PortalApi {
       'title': title,
       'description': description,
       'responsible_user_id': responsibleUserId,
+      'coexecutor_user_ids': coexecutorUserIds,
       'task_type_id': taskTypeId,
       'priority': priority,
       'deadline_at': deadlineAt?.toIso8601String(),
@@ -456,6 +483,14 @@ class PortalApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class PlatformLinks {
+  static const MethodChannel _channel = MethodChannel('altair/open_url');
+
+  static Future<void> open(String url) async {
+    await _channel.invokeMethod<void>('openUrl', {'url': url});
+  }
 }
 
 class LoginScreen extends StatefulWidget {
@@ -1205,6 +1240,7 @@ class HomeScreen extends StatelessWidget {
                   .take(5)
                   .map(
                     (item) => NotificationTile(
+                      api: api,
                       item: Map<String, dynamic>.from(item as Map),
                     ),
                   ),
@@ -1239,6 +1275,7 @@ class NotificationsScreen extends StatelessWidget {
             else
               ...items.map(
                 (item) => NotificationTile(
+                  api: api,
                   item: Map<String, dynamic>.from(item as Map),
                 ),
               ),
@@ -1400,9 +1437,23 @@ class _TasksScreenState extends State<TasksScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   itemCount: items.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) => TaskCard(
-                    item: Map<String, dynamic>.from(items[index] as Map),
-                  ),
+                  itemBuilder: (context, index) {
+                    final item = Map<String, dynamic>.from(items[index] as Map);
+                    return TaskCard(
+                      item: item,
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TaskDetailScreen(
+                              api: widget.api,
+                              taskId: item['id'] as int,
+                            ),
+                          ),
+                        );
+                        if (mounted) setState(() => refreshVersion++);
+                      },
+                    );
+                  },
                 );
               },
             ),
@@ -1436,7 +1487,7 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   final title = TextEditingController();
   final description = TextEditingController();
   late Future<Map<String, dynamic>> metaFuture;
-  int? responsibleUserId;
+  final List<Map<String, dynamic>> selectedResponsibleUsers = [];
   int? taskTypeId;
   String priority = 'обычный';
   DateTime? deadline;
@@ -1487,8 +1538,8 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       setState(() => error = 'Укажите название задачи.');
       return;
     }
-    if (responsibleUserId == null) {
-      setState(() => error = 'Выберите ответственного.');
+    if (selectedResponsibleUsers.isEmpty) {
+      setState(() => error = 'Выберите хотя бы одного ответственного.');
       return;
     }
     setState(() {
@@ -1499,7 +1550,11 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
       await widget.api.createTask(
         title: title.text.trim(),
         description: description.text.trim(),
-        responsibleUserId: responsibleUserId!,
+        responsibleUserId: selectedResponsibleUsers.first['id'] as int,
+        coexecutorUserIds: selectedResponsibleUsers
+            .skip(1)
+            .map((user) => user['id'] as int)
+            .toList(),
         taskTypeId: taskTypeId,
         priority: priority,
         deadlineAt: deadline,
@@ -1566,27 +1621,17 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                initialValue: responsibleUserId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Ответственный',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                items: users.map((raw) {
-                  final user = Map<String, dynamic>.from(raw as Map);
-                  return DropdownMenuItem<int>(
-                    value: user['id'] as int,
-                    child: Text(
-                      user['fio']?.toString() ??
-                          user['username']?.toString() ??
-                          '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) => setState(() => responsibleUserId = value),
+              _UserMultiPickerField(
+                label: 'Ответственные',
+                users: users
+                    .map((raw) => Map<String, dynamic>.from(raw as Map))
+                    .toList(),
+                selectedUsers: selectedResponsibleUsers,
+                onChanged: (value) => setState(() {
+                  selectedResponsibleUsers
+                    ..clear()
+                    ..addAll(value);
+                }),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
@@ -1682,6 +1727,206 @@ class _NewTaskScreenState extends State<NewTaskScreen> {
   }
 }
 
+class TaskDetailScreen extends StatefulWidget {
+  const TaskDetailScreen({super.key, required this.api, required this.taskId});
+
+  final PortalApi api;
+  final int taskId;
+
+  @override
+  State<TaskDetailScreen> createState() => _TaskDetailScreenState();
+}
+
+class _TaskDetailScreenState extends State<TaskDetailScreen> {
+  int refreshVersion = 0;
+  bool saving = false;
+
+  Future<void> changeStatus(String status) async {
+    final comment = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: Text(
+            status == 'Возвращена на доработку'
+                ? 'Вернуть на доработку'
+                : 'Изменить статус',
+          ),
+          content: TextField(
+            controller: controller,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Комментарий',
+              alignLabelWithHint: true,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+    if (comment == null) return;
+    setState(() => saving = true);
+    try {
+      await widget.api.changeTaskStatus(
+        widget.taskId,
+        status,
+        comment: comment,
+      );
+      if (!mounted) return;
+      setState(() {
+        saving = false;
+        refreshVersion++;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(describePortalError(error))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Задача')),
+      body: RefreshableFuture(
+        key: ValueKey(refreshVersion),
+        load: () => widget.api.taskDetail(widget.taskId),
+        builder: (context, data, reload) {
+          final task = Map<String, dynamic>.from(data['task'] as Map);
+          final responsible = Map<String, dynamic>.from(
+            task['responsible'] as Map? ?? const {},
+          );
+          final creator = Map<String, dynamic>.from(
+            task['creator'] as Map? ?? const {},
+          );
+          final coexecutors = List<dynamic>.from(
+            task['coexecutors'] as List? ?? const [],
+          );
+          final statuses = List<String>.from(
+            (task['available_statuses'] as List? ?? const []).map(
+              (item) => item.toString(),
+            ),
+          );
+          final comments = List<dynamic>.from(
+            task['comments'] as List? ?? const [],
+          );
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                task['title']?.toString() ?? 'Задача',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(
+                    label: Text(task['display_status']?.toString() ?? 'Статус'),
+                  ),
+                  Chip(label: Text(task['priority']?.toString() ?? 'обычный')),
+                  if (task['deadline_at'] != null)
+                    Chip(
+                      label: Text(
+                        'Срок: ${_taskDeadlineLabel(task['deadline_at'])}',
+                      ),
+                    ),
+                ],
+              ),
+              if ((task['description']?.toString() ?? '').isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(task['description'].toString()),
+              ],
+              const SizedBox(height: 12),
+              _DetailLine(
+                label: 'Ответственный',
+                value: responsible['fio'] ?? responsible['username'],
+              ),
+              if (coexecutors.isNotEmpty)
+                _DetailLine(
+                  label: 'Соисполнители',
+                  value: coexecutors
+                      .map((raw) => Map<String, dynamic>.from(raw as Map))
+                      .map((user) => user['fio'] ?? user['username'])
+                      .where((value) => value != null)
+                      .join(', '),
+                ),
+              _DetailLine(
+                label: 'Поставил',
+                value: creator['fio'] ?? creator['username'],
+              ),
+              if (statuses.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Действия',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: statuses.map((status) {
+                    final isRework = status == 'Возвращена на доработку';
+                    return FilledButton.tonalIcon(
+                      onPressed: saving ? null : () => changeStatus(status),
+                      icon: Icon(
+                        isRework ? Icons.undo : Icons.change_circle_outlined,
+                      ),
+                      label: Text(isRework ? 'Вернуть на доработку' : status),
+                    );
+                  }).toList(),
+                ),
+              ],
+              if (comments.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'Комментарии',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                ...comments.map((raw) {
+                  final comment = Map<String, dynamic>.from(raw as Map);
+                  final author = Map<String, dynamic>.from(
+                    comment['author'] as Map? ?? const {},
+                  );
+                  return Card(
+                    child: ListTile(
+                      title: Text(comment['text']?.toString() ?? ''),
+                      subtitle: Text(
+                        [
+                              author['fio'] ?? author['username'],
+                              _dateFromValue(comment['created_at']),
+                            ]
+                            .where(
+                              (value) => (value?.toString() ?? '').isNotEmpty,
+                            )
+                            .join(' · '),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key, required this.api});
 
@@ -1757,6 +2002,14 @@ class AppealsScreen extends StatelessWidget {
                         trailing: (item['number']?.toString() ?? '').isEmpty
                             ? null
                             : Text('№ ${item['number']}'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AppealDetailScreen(
+                              api: api,
+                              appealId: item['id'] as int,
+                            ),
+                          ),
+                        ),
                       ),
                     );
                   }).toList(),
@@ -1786,6 +2039,18 @@ class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Ознакомление подтверждено')));
+  }
+
+  Future<void> openDetail(int id) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            FamiliarizationDetailScreen(api: widget.api, familiarizationId: id),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => refreshVersion++);
+    }
   }
 
   @override
@@ -1855,11 +2120,267 @@ class _FamiliarizationsScreenState extends State<FamiliarizationsScreen> {
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => openDetail(item['id'] as int),
+                                icon: const Icon(Icons.chevron_right),
+                                label: const Text('Открыть'),
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     );
                   }).toList(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class FamiliarizationDetailScreen extends StatefulWidget {
+  const FamiliarizationDetailScreen({
+    super.key,
+    required this.api,
+    required this.familiarizationId,
+  });
+
+  final PortalApi api;
+  final int familiarizationId;
+
+  @override
+  State<FamiliarizationDetailScreen> createState() =>
+      _FamiliarizationDetailScreenState();
+}
+
+class _FamiliarizationDetailScreenState
+    extends State<FamiliarizationDetailScreen> {
+  int refreshVersion = 0;
+  bool changed = false;
+
+  Future<void> acknowledge() async {
+    await widget.api.acknowledgeFamiliarization(widget.familiarizationId);
+    if (!mounted) return;
+    setState(() {
+      changed = true;
+      refreshVersion++;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Ознакомление подтверждено')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(changed);
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Ознакомление')),
+        body: RefreshableFuture(
+          key: ValueKey(refreshVersion),
+          load: () =>
+              widget.api.familiarizationDetail(widget.familiarizationId),
+          builder: (context, data, reload) {
+            final item = Map<String, dynamic>.from(
+              data['familiarization'] as Map? ?? const {},
+            );
+            final attachments = List<dynamic>.from(
+              item['attachments'] as List? ?? const [],
+            );
+            final recipients = List<dynamic>.from(
+              item['recipients'] as List? ?? const [],
+            );
+            final stats = Map<String, dynamic>.from(
+              item['stats'] as Map? ?? const {},
+            );
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  item['title']?.toString() ?? 'Ознакомление',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                if ((item['description']?.toString() ?? '').isNotEmpty)
+                  Text(item['description'].toString()),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(label: Text('Ознакомились: ${stats['done'] ?? 0}')),
+                    Chip(label: Text('Ожидают: ${stats['pending'] ?? 0}')),
+                    if (item['deadline_at'] != null)
+                      Chip(
+                        label: Text(
+                          'Срок: ${_dateFromValue(item['deadline_at'])}',
+                        ),
+                      ),
+                  ],
+                ),
+                if (attachments.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    'Документы',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  ...attachments.map((raw) {
+                    final attachment = Map<String, dynamic>.from(raw as Map);
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text(
+                          attachment['filename']?.toString() ?? 'Документ',
+                        ),
+                        trailing: const Icon(Icons.open_in_new),
+                        onTap: () => PlatformLinks.open(
+                          widget.api.familiarizationAttachmentUrl(
+                            widget.familiarizationId,
+                            attachment['id'],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+                if (item['can_acknowledge'] == true) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: acknowledge,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Ознакомлен'),
+                  ),
+                ],
+                if (recipients.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    'Сотрудники',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  ...recipients.map((raw) {
+                    final row = Map<String, dynamic>.from(raw as Map);
+                    final user = Map<String, dynamic>.from(
+                      row['user'] as Map? ?? const {},
+                    );
+                    final done = row['acknowledged_at'] != null;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        done ? Icons.check_circle_outline : Icons.schedule,
+                        color: done ? const Color(0xff15966a) : null,
+                      ),
+                      title: Text(user['fio']?.toString() ?? 'Сотрудник'),
+                      subtitle: Text(
+                        done
+                            ? 'Ознакомлен: ${_dateFromValue(row['acknowledged_at'])}'
+                            : 'Не ознакомлен',
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class AppealDetailScreen extends StatelessWidget {
+  const AppealDetailScreen({
+    super.key,
+    required this.api,
+    required this.appealId,
+  });
+
+  final PortalApi api;
+  final int appealId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Обращение')),
+      body: RefreshableFuture(
+        load: () => api.appealDetail(appealId),
+        builder: (context, data, reload) {
+          final item = Map<String, dynamic>.from(data['appeal'] as Map);
+          final responsible = Map<String, dynamic>.from(
+            item['responsible'] as Map? ?? const {},
+          );
+          final attachments = List<dynamic>.from(
+            item['attachments'] as List? ?? const [],
+          );
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                item['subject']?.toString() ?? 'Обращение',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(label: Text(item['status']?.toString() ?? 'Статус')),
+                  if ((item['number']?.toString() ?? '').isNotEmpty)
+                    Chip(label: Text('№ ${item['number']}')),
+                  if (item['deadline_at'] != null)
+                    Chip(
+                      label: Text(
+                        'Срок: ${_dateFromValue(item['deadline_at'])}',
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _DetailLine(label: 'Заявитель', value: item['applicant_name']),
+              _DetailLine(label: 'Контакт', value: item['applicant_contact']),
+              _DetailLine(label: 'Канал', value: item['channel']),
+              _DetailLine(
+                label: 'Ответственный',
+                value: responsible['fio'] ?? responsible['username'],
+              ),
+              if ((item['description']?.toString() ?? '').isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Содержание',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(item['description'].toString()),
+              ],
+              if ((item['result_text']?.toString() ?? '').isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Ответ', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Text(item['result_text'].toString()),
+              ],
+              if (attachments.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Вложения',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                ...attachments.map((raw) {
+                  final attachment = Map<String, dynamic>.from(raw as Map);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.attach_file),
+                    title: Text(attachment['filename']?.toString() ?? 'Файл'),
+                  );
+                }),
+              ],
+            ],
           );
         },
       ),
@@ -2285,8 +2806,11 @@ class _RefreshableFutureState extends State<RefreshableFuture> {
   }
 
   Future<void> reload() async {
-    setState(() => future = widget.load());
-    await future;
+    final nextFuture = widget.load();
+    setState(() {
+      future = nextFuture;
+    });
+    await nextFuture;
   }
 
   @override
@@ -2446,10 +2970,231 @@ class ModulePlaceholder extends StatelessWidget {
   }
 }
 
-class NotificationTile extends StatelessWidget {
-  const NotificationTile({super.key, required this.item});
+class _UserMultiPickerField extends StatelessWidget {
+  const _UserMultiPickerField({
+    required this.label,
+    required this.users,
+    required this.selectedUsers,
+    required this.onChanged,
+  });
 
+  final String label;
+  final List<Map<String, dynamic>> users;
+  final List<Map<String, dynamic>> selectedUsers;
+  final ValueChanged<List<Map<String, dynamic>>> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = selectedUsers.isEmpty
+        ? 'Выбрать'
+        : selectedUsers
+              .map(
+                (user) =>
+                    user['fio']?.toString() ??
+                    user['username']?.toString() ??
+                    '',
+              )
+              .where((value) => value.isNotEmpty)
+              .join(', ');
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () async {
+        final result = await showModalBottomSheet<List<Map<String, dynamic>>>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => _UserMultiPickerSheet(
+            users: users,
+            selectedIds: selectedUsers.map((user) => user['id'] as int).toSet(),
+          ),
+        );
+        if (result != null) onChanged(result);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.group_outlined),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selectedUsers.isEmpty ? const Color(0xff6b7280) : null,
+                ),
+              ),
+            ),
+            const Icon(Icons.search),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UserMultiPickerSheet extends StatefulWidget {
+  const _UserMultiPickerSheet({required this.users, required this.selectedIds});
+
+  final List<Map<String, dynamic>> users;
+  final Set<int> selectedIds;
+
+  @override
+  State<_UserMultiPickerSheet> createState() => _UserMultiPickerSheetState();
+}
+
+class _UserMultiPickerSheetState extends State<_UserMultiPickerSheet> {
+  final search = TextEditingController();
+  late final Set<int> selectedIds = {...widget.selectedIds};
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = search.text.trim().toLowerCase();
+    final filtered = widget.users.where((user) {
+      final label = '${user['fio'] ?? ''} ${user['username'] ?? ''}'
+          .toLowerCase();
+      return query.isEmpty || label.contains(query);
+    }).toList();
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+        ),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.78,
+          child: Column(
+            children: [
+              TextField(
+                controller: search,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Поиск сотрудника',
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final user = filtered[index];
+                    final id = user['id'] as int;
+                    return CheckboxListTile(
+                      value: selectedIds.contains(id),
+                      onChanged: (value) => setState(() {
+                        if (value == true) {
+                          selectedIds.add(id);
+                        } else {
+                          selectedIds.remove(id);
+                        }
+                      }),
+                      title: Text(
+                        user['fio']?.toString() ??
+                            user['username']?.toString() ??
+                            '',
+                      ),
+                      subtitle: user['username'] == null
+                          ? null
+                          : Text(user['username'].toString()),
+                    );
+                  },
+                ),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(
+                    context,
+                    widget.users
+                        .where((user) => selectedIds.contains(user['id']))
+                        .toList(),
+                  );
+                },
+                child: Text('Выбрать: ${selectedIds.length}'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.label, required this.value});
+
+  final String label;
+  final Object? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = value?.toString() ?? '';
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+}
+
+class NotificationTile extends StatelessWidget {
+  const NotificationTile({super.key, required this.api, required this.item});
+
+  final PortalApi api;
   final Map<String, dynamic> item;
+
+  Future<void> _open(BuildContext context) async {
+    final id = item['entity_id'] as int?;
+    if (id == null) return;
+    switch (item['kind']) {
+      case 'task':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TaskDetailScreen(api: api, taskId: id),
+          ),
+        );
+        return;
+      case 'familiarization':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                FamiliarizationDetailScreen(api: api, familiarizationId: id),
+          ),
+        );
+        return;
+      case 'appeal':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AppealDetailScreen(api: api, appealId: id),
+          ),
+        );
+        return;
+      case 'order':
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => OrdersScreen(api: api)));
+        return;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2458,6 +3203,8 @@ class NotificationTile extends StatelessWidget {
         leading: Icon(switch (item['kind']) {
           'incident' => Icons.report_outlined,
           'familiarization' => Icons.mark_email_unread_outlined,
+          'appeal' => Icons.forum_outlined,
+          'order' => Icons.gavel_outlined,
           _ => Icons.task_outlined,
         }),
         title: Text(item['title']?.toString() ?? 'Уведомление'),
@@ -2465,15 +3212,17 @@ class NotificationTile extends StatelessWidget {
         trailing: item['is_read'] == true
             ? null
             : const Icon(Icons.circle, size: 12),
+        onTap: () => _open(context),
       ),
     );
   }
 }
 
 class TaskCard extends StatelessWidget {
-  const TaskCard({super.key, required this.item});
+  const TaskCard({super.key, required this.item, this.onTap});
 
   final Map<String, dynamic> item;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2490,80 +3239,84 @@ class TaskCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    item['title']?.toString() ?? 'Задача',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 132),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    status,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: accent,
-                      fontWeight: FontWeight.w600,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item['title']?.toString() ?? 'Задача',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 132),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      status,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if ((item['description']?.toString() ?? '').isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  item['description'].toString(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
-            ),
-            if ((item['description']?.toString() ?? '').isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                item['description'].toString(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 14,
+                runSpacing: 6,
+                children: [
+                  _TaskMeta(
+                    icon: Icons.event_outlined,
+                    text: _taskDeadlineLabel(item['deadline_at']),
+                    color: isOverdue ? accent : null,
+                  ),
+                  if (responsible.isNotEmpty)
+                    _TaskMeta(
+                      icon: Icons.person_outline,
+                      text:
+                          responsible['fio']?.toString() ??
+                          responsible['username']?.toString() ??
+                          'Ответственный',
+                    ),
+                  if (checklistTotal > 0)
+                    _TaskMeta(
+                      icon: Icons.checklist_outlined,
+                      text: '$checklistDone из $checklistTotal',
+                    ),
+                ],
               ),
             ],
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 14,
-              runSpacing: 6,
-              children: [
-                _TaskMeta(
-                  icon: Icons.event_outlined,
-                  text: _taskDeadlineLabel(item['deadline_at']),
-                  color: isOverdue ? accent : null,
-                ),
-                if (responsible.isNotEmpty)
-                  _TaskMeta(
-                    icon: Icons.person_outline,
-                    text:
-                        responsible['fio']?.toString() ??
-                        responsible['username']?.toString() ??
-                        'Ответственный',
-                  ),
-                if (checklistTotal > 0)
-                  _TaskMeta(
-                    icon: Icons.checklist_outlined,
-                    text: '$checklistDone из $checklistTotal',
-                  ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
