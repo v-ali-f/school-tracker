@@ -12,6 +12,7 @@ from app.services.familiarization_notifications import send_familiarization_max_
 
 familiarizations_bp = Blueprint('familiarizations', __name__, url_prefix='/familiarizations')
 MANAGER_ROLES = {'ADMIN','DIRECTOR','DEPUTY_DIRECTOR','SECRETARY','SECRETARY_ACADEMIC'}
+DIRECTOR_NOTIFICATION_ROLES = {'ADMIN', 'DIRECTOR'}
 
 def _is_manager(): return getattr(current_user, 'role', None) in MANAGER_ROLES
 
@@ -152,17 +153,30 @@ def _notify_directors_about_familiarization(item, recipient_names=None):
     try:
         directors = (
             User.query
-            .filter(User.role == 'DIRECTOR')
+            .filter(User.role.in_(DIRECTOR_NOTIFICATION_ROLES))
             .filter(User.is_active_user.isnot(False))
             .all()
         )
+        if not directors:
+            current_app.logger.warning(
+                'Director familiarization MAX notification skipped: no active director users familiarization_id=%s',
+                getattr(item, 'id', None),
+            )
+            return
         for director in directors:
-            send_familiarization_max_notification(
+            sent = send_familiarization_max_notification(
                 item,
                 director,
                 notification_type='director_new_familiarization',
                 recipient_names=recipient_names or [],
             )
+            if not sent:
+                current_app.logger.warning(
+                    'Director familiarization MAX notification skipped: familiarization_id=%s user_id=%s role=%s',
+                    getattr(item, 'id', None),
+                    getattr(director, 'id', None),
+                    getattr(director, 'role', None),
+                )
     except Exception as exc:
         current_app.logger.warning('Director familiarization MAX notification failed: %s', exc)
 
