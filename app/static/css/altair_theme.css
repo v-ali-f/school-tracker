@@ -208,6 +208,27 @@ a:hover {
   background: #f5f9ff !important;
 }
 
+@media (min-width: 992px) {
+  .app-navbar .app-bell-btn,
+  .app-navbar .btn-app-exit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    padding: 0 !important;
+    line-height: 1;
+  }
+
+  .app-navbar .app-bell-btn .bi,
+  .app-navbar .btn-app-exit .bi {
+    display: block;
+    font-size: 1rem;
+    line-height: 1;
+  }
+}
+
 .app-user-name {
   color: var(--altair-navy) !important;
 }
