@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 from app.core.extensions import db
 from sqlalchemy import text
 from app.models import Familiarization, FamiliarizationRecipient, User
-from app.services.familiarization_notifications import send_familiarization_max_notification
+from app.services.familiarization_notifications import send_familiarization_max_notification, send_familiarization_mobile_push
 
 familiarizations_bp = Blueprint('familiarizations', __name__, url_prefix='/familiarizations')
 MANAGER_ROLES = {'ADMIN','DIRECTOR','DEPUTY_DIRECTOR','SECRETARY','SECRETARY_ACADEMIC'}
@@ -170,6 +170,18 @@ def _notify_directors_about_familiarization(item, recipient_names=None):
                 notification_type='director_new_familiarization',
                 recipient_names=recipient_names or [],
             )
+            try:
+                send_familiarization_mobile_push(
+                    item,
+                    director,
+                    notification_type='director_new_familiarization',
+                )
+            except Exception:
+                current_app.logger.warning(
+                    'Director familiarization mobile push failed: familiarization_id=%s user_id=%s',
+                    getattr(item, 'id', None),
+                    getattr(director, 'id', None),
+                )
             if not sent:
                 current_app.logger.warning(
                     'Director familiarization MAX notification skipped: familiarization_id=%s user_id=%s role=%s',
@@ -248,6 +260,10 @@ def new():
                 send_familiarization_max_notification(item, user, notification_type='new_familiarization')
             except Exception as exc:
                 current_app.logger.warning('Familiarization MAX notification failed: %s', exc)
+            try:
+                send_familiarization_mobile_push(item, user, notification_type='new_familiarization')
+            except Exception as exc:
+                current_app.logger.warning('Familiarization mobile push failed: %s', exc)
 
         # Служебное уведомление директору: отдельный контрольный канал,
         # даже если директор также был среди получателей.
@@ -306,7 +322,7 @@ def forward(item_id):
 
         db.session.commit()
 
-        # Уведомляем новых получателей в MAX.
+        # Уведомляем новых получателей во внешние каналы.
         for user in selected_users:
             try:
                 send_familiarization_max_notification(
@@ -316,6 +332,10 @@ def forward(item_id):
                 )
             except Exception as exc:
                 current_app.logger.warning('Forwarded familiarization MAX notification failed: %s', exc)
+            try:
+                send_familiarization_mobile_push(item, user, notification_type='new_familiarization')
+            except Exception as exc:
+                current_app.logger.warning('Forwarded familiarization mobile push failed: %s', exc)
 
         _notify_directors_about_familiarization(
             item,

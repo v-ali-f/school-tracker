@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  firebase_core: ^4.10.0
+  firebase_messaging: ^16.3.0
   flutter_secure_storage: ^10.3.1
   local_auth: ^3.0.1
   shared_preferences: ^2.5.5

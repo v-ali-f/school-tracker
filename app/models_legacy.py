@@ -84,6 +84,10 @@ class User(db.Model, UserMixin):
     notify_task_mode = db.Column(
         db.String(20), nullable=False, default="all", server_default="all"
     )
+    # Канал доставки внешних уведомлений: both / max / app
+    notification_delivery_channel = db.Column(
+        db.String(20), nullable=False, default="both", server_default="both"
+    )
 
     # Персональные настройки уведомлений по задачам.
     # Важно: app/tasks.py проверяет эти поля перед отправкой внутренних и email-уведомлений.

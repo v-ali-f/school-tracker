@@ -8,6 +8,8 @@ from app.core.extensions import db
 from app.models import MaxBinding
 from app.services.bot_client import get_client as get_bot_client
 from app.services.mail_settings_service import get_mail_config
+from app.services.mobile_push import send_mobile_push_to_user
+from app.services.notification_channels import allows_max, allows_mobile_app
 
 
 def _portal_link(path: str) -> str:
@@ -92,6 +94,8 @@ def send_appeal_max_notification(appeal, user=None, notification_type: str = 'ne
     user_id = getattr(user, 'id', None) or getattr(appeal, 'responsible_user_id', None)
     if not user_id:
         return False
+    if user is not None and not allows_max(user):
+        return False
 
     try:
         binding = (
@@ -129,3 +133,27 @@ def send_appeal_max_notification(appeal, user=None, notification_type: str = 'ne
             notification_type,
         )
         return False
+
+
+def send_appeal_mobile_push(appeal, user=None, notification_type: str = 'new_appeal', extra_text: str | None = None) -> bool:
+    if user is not None and not allows_mobile_app(user):
+        return False
+    user_id = getattr(user, 'id', None) or getattr(appeal, 'responsible_user_id', None)
+    if not user_id:
+        return False
+    title = 'Обращение закрыто' if notification_type == 'appeal_closed' else 'Новое обращение'
+    subject = getattr(appeal, 'subject', None) or getattr(appeal, 'title', None) or 'Откройте приложение для просмотра.'
+    body = str(subject)
+    if extra_text:
+        body = f'{body}\n{extra_text}'
+    sent = send_mobile_push_to_user(
+        user_id,
+        title,
+        body,
+        data={
+            'kind': 'appeal',
+            'appeal_id': getattr(appeal, 'id', None),
+            'notification_type': notification_type,
+        },
+    )
+    return sent > 0

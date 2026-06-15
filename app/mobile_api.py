@@ -28,6 +28,7 @@ from app.models import (
     TaskType,
     User,
     FamiliarizationRecipient,
+    MobilePushToken,
 )
 from app.models_legacy import (
     Incident,
@@ -696,6 +697,33 @@ def me():
     )
 
 
+@mobile_api_bp.post("/push/register")
+@_require_mobile_login
+def register_push_token():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    platform = (data.get("platform") or "android").strip().lower()[:20]
+    device_id = (data.get("device_id") or "").strip()[:128] or None
+    app_version = (data.get("app_version") or "").strip()[:40] or None
+    if not token or len(token) < 20:
+        return _json_error("Некорректный push-токен.", 400, "invalid_push_token")
+    if platform not in {"android", "ios"}:
+        platform = "android"
+
+    row = MobilePushToken.query.filter_by(token=token).first()
+    if row is None:
+        row = MobilePushToken(token=token)
+        db.session.add(row)
+    row.user_id = current_user.id
+    row.platform = platform
+    row.device_id = device_id
+    row.app_version = app_version
+    row.is_active = True
+    row.last_seen_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @mobile_api_bp.get("/notifications")
 @_require_mobile_login
 def notifications():
@@ -993,6 +1021,19 @@ def create_task():
                 is_important=priority in {"срочный", "критический"},
             )
         )
+        try:
+            from app.services.mobile_push import send_mobile_push_to_user
+            from app.services.notification_channels import allows_mobile_app
+
+            if allows_mobile_app(responsible):
+                send_mobile_push_to_user(
+                    responsible.id,
+                    "Новая задача",
+                    f"Вам назначена задача «{task.title}».",
+                    data={"kind": "task", "task_id": task.id, "notification_type": "new_task"},
+                )
+        except Exception:
+            current_app.logger.exception("Mobile task fallback push failed")
     db.session.commit()
     return jsonify({"ok": True, "task": _task_to_dict(task)}), 201
 
@@ -1080,6 +1121,24 @@ def mobile_task_status(task_id: int):
                 is_important=status == Task.STATUS_REWORK,
             )
         )
+        try:
+            from app.services.mobile_push import send_mobile_push_to_user
+            from app.services.notification_channels import allows_mobile_app
+
+            responsible = db.session.get(User, task.responsible_user_id)
+            if allows_mobile_app(responsible):
+                send_mobile_push_to_user(
+                    task.responsible_user_id,
+                    notification_title,
+                    notification_message,
+                    data={
+                        "kind": "task",
+                        "task_id": task.id,
+                        "notification_type": notification_type,
+                    },
+                )
+        except Exception:
+            current_app.logger.exception("Mobile task status fallback push failed")
     db.session.commit()
     return jsonify({"ok": True, "task": _task_detail_to_dict(task)})
 

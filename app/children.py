@@ -3442,6 +3442,27 @@ def _notify_user(user_id, incident_id, notification_type, title, message, new_st
         title=title[:255],
         message=message,
     ))
+    try:
+        from app.services.mobile_push import send_mobile_push_to_user
+        from app.services.notification_channels import allows_mobile_app
+
+        if allows_mobile_app(u):
+            send_mobile_push_to_user(
+                user_id,
+                title,
+                message,
+                data={
+                    "kind": "incident",
+                    "incident_id": incident_id,
+                    "notification_type": notification_type,
+                },
+            )
+    except Exception:
+        current_app.logger.exception(
+            "Failed to send mobile push for incident_id=%s user_id=%s",
+            incident_id,
+            user_id,
+        )
 
 
 def _log_status_change(inc, old_status, new_status, comment=None):
@@ -6686,7 +6707,7 @@ def registry_kdn():
         selected_class_id=filters["selected_class_id"],
         export_url=url_for("children.registry_kdn_export", grade=filters["selected_grade_raw"], class_id=filters["selected_class_id"], q=filters["q_text"])
     )
-    
+
 @children_bp.route("/registry/kdn/export")
 @login_required
 def registry_kdn_export():

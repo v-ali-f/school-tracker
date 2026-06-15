@@ -10,7 +10,7 @@ from sqlalchemy import or_
 
 from app.core.extensions import db
 from app.models import Appeal, AppealAttachment, Task, User
-from app.services.appeal_notifications import send_appeal_max_notification
+from app.services.appeal_notifications import send_appeal_max_notification, send_appeal_mobile_push
 
 appeals_bp = Blueprint('appeals', __name__, url_prefix='/appeals')
 
@@ -125,6 +125,7 @@ def _notify_new_responsibles(appeal, old_responsible_ids):
     for responsible_user in _appeal_responsible_users(appeal):
         if responsible_user.id not in old_ids:
             send_appeal_max_notification(appeal, user=responsible_user, notification_type='new_appeal')
+            send_appeal_mobile_push(appeal, user=responsible_user, notification_type='new_appeal')
 
 
 def _appeal_responsible_ids(appeal):
@@ -260,6 +261,12 @@ def new():
                     notification_type='new_appeal',
                     extra_text="Ответственные:\n" + _responsibles_text(appeal)
                 )
+                send_appeal_mobile_push(
+                    appeal,
+                    user=director,
+                    notification_type='new_appeal',
+                    extra_text="Ответственные:\n" + _responsibles_text(appeal)
+                )
         except Exception as exc:
             current_app.logger.warning("Appeal MAX notification failed: %s", exc)
 
@@ -305,6 +312,7 @@ def detail(appeal_id):
                 directors = User.query.filter_by(role='DIRECTOR', is_active_user=True).all()
                 for director in directors:
                     send_appeal_max_notification(appeal, user=director, notification_type='appeal_closed')
+                    send_appeal_mobile_push(appeal, user=director, notification_type='appeal_closed')
             except Exception as exc:
                 current_app.logger.warning("Appeal close MAX notification failed: %s", exc)
 
