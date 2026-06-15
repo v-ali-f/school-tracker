@@ -60,3 +60,21 @@ flutter run
 
 Выбранный адрес сохраняется в настройках приложения. При следующем запуске
 выбирать его повторно не нужно.
+
+## Push-уведомления Android
+
+Для Android подключен Firebase Cloud Messaging. Файл Firebase должен лежать тут:
+
+```text
+android/app/google-services.json
+```
+
+После входа приложение запрашивает разрешение на уведомления, получает FCM-токен
+устройства и отправляет его в `/mobile/api/push/register`.
+
+Для фактической отправки push с сервера нужно добавить Firebase Admin service
+account JSON на сервер и указать путь к нему в переменной окружения:
+
+```text
+FIREBASE_SERVICE_ACCOUNT_FILE=/path/to/firebase-service-account.json
+```

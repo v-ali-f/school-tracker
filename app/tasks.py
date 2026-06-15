@@ -32,6 +32,8 @@ from app.models import (
     TaskEmailLog,
 )
 from app.services.task_notifications import is_important_notification, send_task_email, send_task_max_notification
+from app.services.mobile_push import send_mobile_push_to_user
+from app.services.notification_channels import allows_max, allows_mobile_app
 
 
 tasks_bp = Blueprint('tasks', __name__, url_prefix='/tasks')
@@ -676,14 +678,33 @@ def _deliver_notifications(task, notification_type, title, message, extra_user_i
                 message=message,
                 is_important=is_important,
             ))
-            try:
-                send_task_max_notification(task, user, notification_type, title, message)
-            except Exception:
-                current_app.logger.exception(
-                    'Failed to send task MAX notification for task_id=%s user_id=%s',
-                    task.id,
-                    user.id,
-                )
+            if allows_max(user):
+                try:
+                    send_task_max_notification(task, user, notification_type, title, message)
+                except Exception:
+                    current_app.logger.exception(
+                        'Failed to send task MAX notification for task_id=%s user_id=%s',
+                        task.id,
+                        user.id,
+                    )
+            if allows_mobile_app(user):
+                try:
+                    send_mobile_push_to_user(
+                        user.id,
+                        title,
+                        message,
+                        data={
+                            'kind': 'task',
+                            'task_id': task.id,
+                            'notification_type': notification_type,
+                        },
+                    )
+                except Exception:
+                    current_app.logger.exception(
+                        'Failed to send mobile push for task_id=%s user_id=%s',
+                        task.id,
+                        user.id,
+                    )
         if _email_enabled_for_user(user, is_important=is_important):
             try:
                 current_app.logger.info(

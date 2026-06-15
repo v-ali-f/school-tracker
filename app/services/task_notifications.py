@@ -8,6 +8,7 @@ from app.core.extensions import db
 from app.models import MaxBinding, TaskEmailLog
 from app.services.bot_client import get_client as get_bot_client
 from app.services.mail_settings_service import get_mail_config, send_mail_via_config
+from app.services.notification_channels import allows_max
 from app.services.task_email_templates import build_task_email
 
 IMPORTANT_NOTIFICATION_TYPES = {
@@ -194,6 +195,8 @@ def send_task_max_notification(task, user, notification_type: str, title: str, m
     Не заменяет внутренние уведомления и email: это дополнительный канал.
     Ошибки не должны ломать создание/обновление задачи.
     """
+    if not allows_max(user):
+        return False
     client = get_bot_client()
     if not client._enabled():
         return False

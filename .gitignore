@@ -20,6 +20,13 @@ node_modules/
 .env
 *.env
 
+# Firebase local credentials
+firebase-service-account*.json
+mobile-app/android/app/google-services.json
+
+# Flutter/iOS generated SwiftPM workspace data
+mobile-app/ios/**/xcshareddata/swiftpm/
+
 # IDE
 .vscode/
 .idea/

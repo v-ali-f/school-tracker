@@ -189,6 +189,7 @@ def ensure_runtime_schema():
             "active_days_count": 'ALTER TABLE "user" ADD COLUMN active_days_count INTEGER NOT NULL DEFAULT 0',
             "notify_incident_mode": 'ALTER TABLE "user" ADD COLUMN notify_incident_mode VARCHAR(20) NOT NULL DEFAULT \'all\'',
             "notify_task_mode": 'ALTER TABLE "user" ADD COLUMN notify_task_mode VARCHAR(20) NOT NULL DEFAULT \'all\'',
+            "notification_delivery_channel": 'ALTER TABLE "user" ADD COLUMN notification_delivery_channel VARCHAR(20) NOT NULL DEFAULT \'both\'',
             "task_notifications_enabled": 'ALTER TABLE "user" ADD COLUMN task_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE',
             "task_email_enabled": 'ALTER TABLE "user" ADD COLUMN task_email_enabled BOOLEAN NOT NULL DEFAULT TRUE',
             "task_notify_only_important": 'ALTER TABLE "user" ADD COLUMN task_notify_only_important BOOLEAN NOT NULL DEFAULT FALSE',

@@ -119,6 +119,33 @@
         <form method="post" action="{{ url_for('auth.profile_settings_notifications') }}">
 
           <div class="d-flex align-items-center gap-2 mt-2 mb-2">
+            <i class="bi bi-send text-success"></i>
+            <h5 class="section-title m-0">Куда отправлять уведомления</h5>
+          </div>
+          <p class="text-muted small mb-3">
+            Управляет внешними уведомлениями: MAX-ботом и push-уведомлениями
+            мобильного приложения. Колокольчик внутри портала продолжит работать.
+          </p>
+          {% for code, label, hint in delivery_channels %}
+          <label class="card mb-2 notify-mode-card {% if code == current_delivery_channel %}border-primary{% endif %}"
+                 style="cursor:pointer;">
+            <div class="card-body py-3 d-flex gap-3 align-items-start">
+              <input type="radio" name="delivery_channel" value="{{ code }}" class="form-check-input mt-1"
+                     {% if code == current_delivery_channel %}checked{% endif %}>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ label }}</div>
+                <div class="small text-muted">{{ hint }}</div>
+              </div>
+              {% if code == current_delivery_channel %}
+              <span class="badge bg-primary-subtle text-primary-emphasis align-self-center">Текущий</span>
+              {% endif %}
+            </div>
+          </label>
+          {% endfor %}
+
+          <hr class="my-4">
+
+          <div class="d-flex align-items-center gap-2 mt-2 mb-2">
             <i class="bi bi-exclamation-triangle text-warning"></i>
             <h5 class="section-title m-0">Уведомления по инцидентам</h5>
           </div>

@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,8 +15,19 @@ const String schoolApiBaseUrl = 'http://10.172.85.55/mobile/api';
 const String apiBaseUrlPreferenceKey = 'api_base_url';
 const String altairSlogan = 'Единая цифровая система управления школой';
 
-void main() {
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (Platform.isAndroid) {
+    await Firebase.initializeApp();
+  }
+}
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isAndroid) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
   runApp(const SchoolSupportApp());
 }
 
@@ -151,6 +165,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   bool needsQuickAccessSetup = false;
   bool quickAccessConfigured = false;
   DateTime? backgroundedAt;
+  StreamSubscription<String>? pushTokenSubscription;
 
   @override
   void initState() {
@@ -162,6 +177,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    pushTokenSubscription?.cancel();
     super.dispose();
   }
 
@@ -194,6 +210,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         quickAccessConfigured = pin != null && pin.length == 4;
         locked = quickAccessConfigured;
         needsQuickAccessSetup = !quickAccessConfigured;
+        await registerPushNotifications();
       } catch (_) {
         await quickAccess.clear();
         widget.api.setToken('');
@@ -214,9 +231,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       needsQuickAccessSetup = !quickAccessConfigured;
       locked = false;
     });
+    await registerPushNotifications();
   }
 
   Future<void> _logout() async {
+    await pushTokenSubscription?.cancel();
+    pushTokenSubscription = null;
     try {
       await widget.api.logout();
     } catch (_) {}
@@ -228,6 +248,32 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       quickAccessConfigured = false;
       needsQuickAccessSetup = false;
     });
+  }
+
+  Future<void> registerPushNotifications() async {
+    if (!Platform.isAndroid || widget.api.token.isEmpty) {
+      return;
+    }
+    try {
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final token = await messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        await widget.api.registerPushToken(
+          token,
+          platform: Platform.operatingSystem,
+        );
+      }
+      await pushTokenSubscription?.cancel();
+      pushTokenSubscription = messaging.onTokenRefresh.listen((token) async {
+        try {
+          await widget.api.registerPushToken(
+            token,
+            platform: Platform.operatingSystem,
+          );
+        } catch (_) {}
+      });
+    } catch (_) {}
   }
 
   @override
@@ -309,6 +355,11 @@ class PortalApi {
 
   Future<Map<String, dynamic>> markNotificationRead(String kind, int id) =>
       post('/notifications/$kind/$id/read', {});
+
+  Future<Map<String, dynamic>> registerPushToken(
+    String pushToken, {
+    required String platform,
+  }) => post('/push/register', {'token': pushToken, 'platform': platform});
 
   Future<Map<String, dynamic>> myIncidents() => get('/incidents/mine');
 

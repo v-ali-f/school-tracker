@@ -5,6 +5,8 @@ from app.core.extensions import db
 from app.models import MaxBinding
 from app.services.bot_client import get_client as get_bot_client
 from app.services.mail_settings_service import get_mail_config
+from app.services.mobile_push import send_mobile_push_to_user
+from app.services.notification_channels import allows_max, allows_mobile_app
 from pathlib import Path
 from sqlalchemy import text
 
@@ -220,6 +222,8 @@ def _send_familiarization_file_to_max(client, chat_id, item):
     return sent_any
 
 def send_familiarization_max_notification(item, user, notification_type: str = 'new_familiarization', recipient_names=None) -> bool:
+    if not allows_max(user):
+        return False
     client = get_bot_client()
     current_app.logger.warning(
         'Familiarization MAX notification attempt: familiarization_id=%s user_id=%s type=%s',
@@ -294,3 +298,29 @@ def send_familiarization_max_notification(item, user, notification_type: str = '
     except Exception:
         current_app.logger.exception('Familiarization MAX notification failed: familiarization_id=%s user_id=%s chat_id=%s type=%s', getattr(item,'id',None), user_id, binding.max_chat_id, notification_type)
         return False
+
+
+def send_familiarization_mobile_push(item, user, notification_type: str = 'new_familiarization') -> bool:
+    if not allows_mobile_app(user):
+        return False
+    user_id = getattr(user, 'id', None)
+    item_id = getattr(item, 'id', None)
+    if not user_id or not item_id:
+        return False
+    if notification_type == 'director_new_familiarization':
+        title = 'Новое ознакомление'
+        body = f'Создано ознакомление «{getattr(item, "title", "") or "без названия"}».'
+    else:
+        title = 'Документ для ознакомления'
+        body = getattr(item, 'title', None) or 'Откройте приложение, чтобы ознакомиться с документом.'
+    sent = send_mobile_push_to_user(
+        user_id,
+        title,
+        body,
+        data={
+            'kind': 'familiarization',
+            'familiarization_id': item_id,
+            'notification_type': notification_type,
+        },
+    )
+    return sent > 0

@@ -246,18 +246,27 @@ NOTIFY_TASK_MODES = [
      "Только когда задача переведена в финальный статус «Закрыта»."),
 ]
 
+NOTIFICATION_DELIVERY_CHANNELS = [
+    ("both", "MAX и мобильное приложение", "Уведомления приходят в MAX-бот и push на телефон."),
+    ("max", "Только MAX", "Push в мобильное приложение не отправляется."),
+    ("app", "Только мобильное приложение", "MAX-бот не получает уведомления."),
+]
+
 
 @auth_bp.route("/profile/settings", methods=["GET"])
 @login_required
 def profile_settings():
     current_inc_mode = getattr(current_user, "notify_incident_mode", None) or "all"
     current_task_mode = getattr(current_user, "notify_task_mode", None) or "all"
+    current_delivery_channel = getattr(current_user, "notification_delivery_channel", None) or "both"
     return render_template(
         "profile_settings.html",
         incident_modes=NOTIFY_INCIDENT_MODES,
         task_modes=NOTIFY_TASK_MODES,
+        delivery_channels=NOTIFICATION_DELIVERY_CHANNELS,
         current_incident_mode=current_inc_mode,
         current_task_mode=current_task_mode,
+        current_delivery_channel=current_delivery_channel,
     )
 
 
@@ -265,14 +274,17 @@ def profile_settings():
 @login_required
 def profile_settings_notifications():
     valid_modes = {code for code, _, _ in NOTIFY_INCIDENT_MODES}
+    valid_channels = {code for code, _, _ in NOTIFICATION_DELIVERY_CHANNELS}
     inc_mode = (request.form.get("incident_mode") or "").strip()
     task_mode = (request.form.get("task_mode") or "").strip()
-    if inc_mode not in valid_modes or task_mode not in valid_modes:
+    delivery_channel = (request.form.get("delivery_channel") or "both").strip()
+    if inc_mode not in valid_modes or task_mode not in valid_modes or delivery_channel not in valid_channels:
         flash("Неверный режим уведомлений", "danger")
         return redirect(url_for("auth.profile_settings") + "#notifications")
     try:
         current_user.notify_incident_mode = inc_mode
         current_user.notify_task_mode = task_mode
+        current_user.notification_delivery_channel = delivery_channel
         db.session.commit()
         flash("Настройки уведомлений сохранены", "success")
     except Exception:
