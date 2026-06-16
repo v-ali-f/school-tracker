@@ -157,6 +157,46 @@ def _bind_payload_for_user(user):
     }
 
 
+def _parse_familiarization_ack_item(ack_item):
+    """Разбирает нажатие «Ознакомлен» из MAX-бота.
+
+    Бот в разных версиях может вернуть уже разобранные поля или исходный
+    callback payload вида `fam_ack:<familiarization_id>:<user_id>`.
+    """
+    ack_id = (
+        ack_item.get("ack_id")
+        or ack_item.get("id")
+        or ack_item.get("queue_id")
+        or ack_item.get("callback_id")
+    )
+    familiarization_id = (
+        ack_item.get("familiarization_id")
+        or ack_item.get("familiarizationId")
+        or ack_item.get("fam_id")
+    )
+    user_id = ack_item.get("user_id") or ack_item.get("userId")
+
+    callback = ack_item.get("callback") if isinstance(ack_item.get("callback"), dict) else {}
+    update = ack_item.get("update") if isinstance(ack_item.get("update"), dict) else {}
+    update_callback = update.get("callback") if isinstance(update.get("callback"), dict) else {}
+    payload = (
+        ack_item.get("payload")
+        or ack_item.get("data")
+        or ack_item.get("callback_payload")
+        or callback.get("payload")
+        or update_callback.get("payload")
+        or ""
+    )
+
+    if payload and (not familiarization_id or not user_id):
+        parts = str(payload).split(":")
+        if len(parts) >= 3 and parts[0] in {"fam_ack", "familiarization_ack"}:
+            familiarization_id = familiarization_id or parts[1]
+            user_id = user_id or parts[2]
+
+    return ack_id, familiarization_id, user_id, payload
+
+
 def _poll_bot_queue(app):
     with app.app_context():
         try:
@@ -363,9 +403,7 @@ def _poll_bot_queue(app):
                 fam_acks = []
 
             for ack_item in fam_acks:
-                ack_id = ack_item.get("ack_id")
-                familiarization_id = ack_item.get("familiarization_id")
-                user_id = ack_item.get("user_id")
+                ack_id, familiarization_id, user_id, payload = _parse_familiarization_ack_item(ack_item)
 
                 try:
                     # Импорт внутри функции, чтобы не ломать запуск при старых миграциях/структуре.
@@ -396,10 +434,11 @@ def _poll_bot_queue(app):
 
                     client.ack_familiarization_ack(ack_id=ack_id, ok=True)
                     app.logger.info(
-                        "MAX familiarization ack processed: ack_id=%s familiarization_id=%s user_id=%s",
+                        "MAX familiarization ack processed: ack_id=%s familiarization_id=%s user_id=%s payload=%s",
                         ack_id,
                         familiarization_id,
                         user_id,
+                        payload,
                     )
 
                 except Exception as e:
