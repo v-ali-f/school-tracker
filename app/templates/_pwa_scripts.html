@@ -24,7 +24,58 @@
     return window.navigator.standalone === true;
   }
 
+  function isTouchDevice() {
+    return ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
+  }
+
+  function isMobileViewport() {
+    return window.innerWidth <= 760;
+  }
+
+  function detectPlatform() {
+    var ua = (navigator.userAgent || "").toLowerCase();
+    return {
+      ios: /iphone|ipad|ipod/.test(ua),
+      android: /android/.test(ua),
+      touch: isTouchDevice(),
+      mobileViewport: isMobileViewport(),
+    };
+  }
+
   state.standalone = isStandalone();
+
+  function syncShellMode() {
+    state.standalone = isStandalone();
+    if (document.body) {
+      document.body.classList.toggle("altair-standalone", state.standalone);
+    }
+  }
+
+  function syncClientMode() {
+    if (!document.body) return;
+    var platform = detectPlatform();
+    var mobileClient = platform.mobileViewport || platform.touch;
+    document.body.classList.toggle("altair-mobile-client", mobileClient);
+    document.body.classList.toggle("altair-desktop-client", !mobileClient);
+    document.body.classList.toggle("altair-ios-client", platform.ios);
+    document.body.classList.toggle("altair-android-client", platform.android);
+  }
+
+  function syncKeyboardState() {
+    if (!document.body) return;
+    var viewport = window.visualViewport;
+    var compactScreen = window.innerWidth <= 760;
+    if (!viewport || !compactScreen) {
+      document.body.classList.remove("altair-keyboard-open");
+      return;
+    }
+    var heightDelta = Math.max(0, window.innerHeight - viewport.height);
+    document.body.classList.toggle("altair-keyboard-open", heightDelta > 160);
+  }
+
+  syncShellMode();
+  syncClientMode();
+  syncKeyboardState();
 
   function getDeviceId() {
     try {
@@ -44,6 +95,39 @@
     document.dispatchEvent(new CustomEvent("altair:pwa-status", {
       detail: window.AltairPwa.getStatus(),
     }));
+  }
+
+  function renderModeStrip() {
+    if (!window.AltairPwa) return;
+    var root = document.getElementById("appModeStrip");
+    if (!root) return;
+    var eyebrow = document.getElementById("appModeEyebrow");
+    var text = document.getElementById("appModeText");
+    var installBtn = document.getElementById("appModeInstallAction");
+    var status = window.AltairPwa.getStatus();
+    var show = status.mobileClient || status.standalone;
+
+    root.hidden = !show;
+    if (!show) return;
+
+    if (eyebrow) {
+      eyebrow.textContent = status.standalone ? "Режим приложения" : "Мобильный доступ";
+    }
+
+    if (text) {
+      if (status.standalone) {
+        text.textContent = "Портал открыт как приложение: нижняя навигация, push и быстрый доступ уже работают как в мобильном режиме.";
+      } else if (status.installAvailable) {
+        text.textContent = "Портал можно установить на главный экран, чтобы он открывался почти как отдельное приложение.";
+      } else {
+        text.textContent = "Сейчас открыт мобильный браузерный режим. После установки запуск будет быстрее и привычнее.";
+      }
+    }
+
+    if (installBtn) {
+      installBtn.hidden = !status.installAvailable || status.standalone;
+      installBtn.disabled = !status.installAvailable;
+    }
   }
 
   async function applyBadge(count) {
@@ -222,6 +306,8 @@
   }
 
   function getStatus() {
+    var platform = detectPlatform();
+    var mobileClient = platform.mobileViewport || platform.touch;
     return {
       secureContext: window.isSecureContext,
       serviceWorkerSupported: "serviceWorker" in navigator,
@@ -232,6 +318,10 @@
       standalone: isStandalone(),
       installAvailable: Boolean(state.installPrompt),
       unreadCount: state.lastUnreadCount || 0,
+      ios: platform.ios,
+      android: platform.android,
+      mobileClient: mobileClient,
+      desktopClient: !mobileClient,
     };
   }
 
@@ -250,13 +340,37 @@
     event.preventDefault();
     state.installPrompt = event;
     emitStatus();
+    renderModeStrip();
   });
 
   window.addEventListener("appinstalled", function () {
     state.installPrompt = null;
     state.standalone = true;
+    syncShellMode();
+    syncClientMode();
     emitStatus();
+    renderModeStrip();
   });
+
+  window.addEventListener("resize", function () {
+    syncShellMode();
+    syncClientMode();
+    syncKeyboardState();
+    emitStatus();
+    renderModeStrip();
+  });
+
+  window.addEventListener("pageshow", function () {
+    syncShellMode();
+    syncClientMode();
+    syncKeyboardState();
+    emitStatus();
+    renderModeStrip();
+  });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncKeyboardState);
+  }
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") {
@@ -277,5 +391,20 @@
       state.refreshTimer = window.setInterval(refreshBadge, state.badgePollIntervalMs);
     }
   });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    syncShellMode();
+    syncClientMode();
+    syncKeyboardState();
+    emitStatus();
+    renderModeStrip();
+    var installBtn = document.getElementById("appModeInstallAction");
+    if (installBtn) {
+      installBtn.addEventListener("click", async function () {
+        await showInstallPrompt();
+        renderModeStrip();
+      });
+    }
+  }, {once: true});
 })();
 </script>

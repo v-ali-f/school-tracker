@@ -3,8 +3,8 @@
 
 {% block content %}
 <div class="row">
-  <div class="col-lg-9">
-    <div class="page-head mb-3">
+  <div class="col-lg-9 profile-settings-shell">
+    <div class="page-head mb-3 profile-settings-head">
       <div>
         <div class="d-flex align-items-center gap-2">
           <i class="bi bi-person-gear text-primary" style="font-size:1.4rem;"></i>
@@ -26,7 +26,7 @@
         }
       }
     </style>
-    <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+    <ul class="nav nav-tabs mb-4 profile-settings-tabs" id="settingsTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="tab-profile" data-bs-toggle="tab"
                 data-bs-target="#profile" type="button" role="tab">
@@ -52,15 +52,15 @@
       </li>
     </ul>
 
-    <div class="tab-content">
+    <div class="tab-content profile-settings-content">
 
       {# === Профиль (read-only) === #}
-      <div class="tab-pane fade show active" id="profile" role="tabpanel">
+      <div class="tab-pane fade show active profile-settings-pane" id="profile" role="tabpanel">
         <p class="text-muted small mb-3">
           Эти данные задаёт администратор. Если что-то указано неверно — обратитесь
           к администратору системы.
         </p>
-        <dl class="row mb-0">
+        <dl class="row mb-0 profile-settings-facts">
           <dt class="col-sm-3 text-muted fw-normal">ФИО</dt>
           <dd class="col-sm-9">{{ current_user.fio or '—' }}</dd>
 
@@ -79,13 +79,13 @@
       </div>
 
       {# === Смена пароля === #}
-      <div class="tab-pane fade" id="password" role="tabpanel">
+      <div class="tab-pane fade profile-settings-pane" id="password" role="tabpanel">
         <p class="text-muted small mb-3">
           Минимум 8 символов. После смены пароля текущая сессия не сбрасывается —
           можно продолжать работу.
         </p>
         <form method="post" action="{{ url_for('auth.profile_settings_password') }}"
-              autocomplete="off" style="max-width:480px;">
+              autocomplete="off" class="profile-settings-form" style="max-width:480px;">
           <div class="mb-3">
             <label class="form-label">Текущий пароль</label>
             <input type="password" name="current_password" class="form-control" required
@@ -108,7 +108,7 @@
       </div>
 
       {# === Уведомления === #}
-      <div class="tab-pane fade" id="notifications" role="tabpanel">
+      <div class="tab-pane fade profile-settings-pane" id="notifications" role="tabpanel">
         <p class="text-muted small mb-4">
           Выберите, какие уведомления показывать в колокольчике. Настройки
           применяются только к вашей учётной записи. Настройки по инцидентам
@@ -116,7 +116,7 @@
           только закрытия по инцидентам, и наоборот.
         </p>
 
-        <form method="post" action="{{ url_for('auth.profile_settings_notifications') }}">
+        <form method="post" action="{{ url_for('auth.profile_settings_notifications') }}" class="profile-settings-form">
 
           <div class="d-flex align-items-center gap-2 mt-2 mb-2">
             <i class="bi bi-send text-success"></i>
@@ -156,6 +156,11 @@
           </p>
           <div class="card mb-4">
             <div class="card-body">
+              <div class="profile-pwa-state" id="profilePwaState">
+                <span class="profile-pwa-pill" id="profilePwaInstallState">Установка</span>
+                <span class="profile-pwa-pill" id="profilePwaPushState">Push</span>
+                <span class="profile-pwa-pill" id="profilePwaBadgeState">Badge</span>
+              </div>
               <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-center">
                 <div>
                   <div class="fw-semibold mb-1">Статус PWA</div>
@@ -256,6 +261,14 @@
   .notify-mode-card { transition: border-color .15s ease, box-shadow .15s ease; }
   .notify-mode-card:hover { border-color: #86b7fe; box-shadow: 0 0 0 .15rem rgba(13,110,253,.1); }
   .notify-mode-card input[type="radio"] { flex-shrink: 0; }
+  .profile-pwa-state { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .profile-pwa-pill {
+    display:inline-flex; align-items:center; min-height:30px; padding:0 10px; border-radius:999px;
+    border:1px solid #d7e4f4; background:#f8fbff; color:#42506b; font-size:12px; font-weight:700;
+  }
+  .profile-pwa-pill.is-ready { border-color:#b7e4c7; background:#eefaf2; color:#1f6f43; }
+  .profile-pwa-pill.is-pending { border-color:#cfe0f6; background:#eef5ff; color:#0b5ed7; }
+  .profile-pwa-pill.is-blocked { border-color:#f2d4d8; background:#fff5f6; color:#b42318; }
 </style>
 
 <script>
@@ -281,6 +294,16 @@
   var installBtn = document.getElementById('pwaInstallBtn');
   var pushBtn = document.getElementById('pwaPushBtn');
   var badgeBtn = document.getElementById('pwaBadgeRefreshBtn');
+  var installState = document.getElementById('profilePwaInstallState');
+  var pushState = document.getElementById('profilePwaPushState');
+  var badgeState = document.getElementById('profilePwaBadgeState');
+
+  function setPillState(node, label, stateName) {
+    if (!node) return;
+    node.textContent = label;
+    node.classList.remove('is-ready', 'is-pending', 'is-blocked');
+    if (stateName) node.classList.add(stateName);
+  }
 
   function renderPwaStatus() {
     if (!window.AltairPwa || !statusText) return;
@@ -310,6 +333,30 @@
       parts.push('Счетчик на иконке поддерживается браузером.');
     } else {
       parts.push('Этот браузер может не показывать badge на иконке.');
+    }
+
+    if (status.standalone) {
+      setPillState(installState, 'Установлено', 'is-ready');
+    } else if (status.installAvailable) {
+      setPillState(installState, 'Можно установить', 'is-pending');
+    } else {
+      setPillState(installState, 'Через браузер', 'is-pending');
+    }
+
+    if (!status.notificationSupported) {
+      setPillState(pushState, 'Push недоступен', 'is-blocked');
+    } else if (status.notificationPermission === 'granted') {
+      setPillState(pushState, 'Push включён', 'is-ready');
+    } else if (status.notificationPermission === 'denied') {
+      setPillState(pushState, 'Push заблокирован', 'is-blocked');
+    } else {
+      setPillState(pushState, 'Push не включён', 'is-pending');
+    }
+
+    if (status.badgeSupported) {
+      setPillState(badgeState, 'Badge поддерживается', 'is-ready');
+    } else {
+      setPillState(badgeState, 'Badge не гарантирован', 'is-pending');
     }
 
     statusText.textContent = parts.join(' ');
