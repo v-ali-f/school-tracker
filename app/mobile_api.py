@@ -702,13 +702,13 @@ def me():
 def register_push_token():
     data = request.get_json(silent=True) or {}
     token = (data.get("token") or "").strip()
-    platform = (data.get("platform") or "android").strip().lower()[:20]
+    platform = (data.get("platform") or "web").strip().lower()[:20]
     device_id = (data.get("device_id") or "").strip()[:128] or None
     app_version = (data.get("app_version") or "").strip()[:40] or None
     if not token or len(token) < 20:
         return _json_error("Некорректный push-токен.", 400, "invalid_push_token")
-    if platform not in {"android", "ios"}:
-        platform = "android"
+    if platform not in {"android", "ios", "web"}:
+        platform = "web"
 
     row = MobilePushToken.query.filter_by(token=token).first()
     if row is None:
