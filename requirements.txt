@@ -3,6 +3,7 @@ Flask-SQLAlchemy
 Flask-Migrate
 Flask-Login
 Flask-WTF
+gunicorn
 firebase-admin>=6.5.0
 python-dotenv
 openpyxl
