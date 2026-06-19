@@ -10,15 +10,39 @@ INSTANCE_DIR = BASE_DIR / "instance"
 UPLOADS_DIR = BASE_DIR / "uploads"
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-later")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", f"sqlite:///{INSTANCE_DIR / 'app.db'}")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", str(UPLOADS_DIR))
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 200 * 1024 * 1024))
+    APP_BASE_URL = os.getenv("APP_BASE_URL", "").strip()
+    FIREBASE_SERVICE_ACCOUNT_FILE = os.getenv("FIREBASE_SERVICE_ACCOUNT_FILE", "").strip()
+    FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY", "").strip()
+    FIREBASE_WEB_AUTH_DOMAIN = os.getenv("FIREBASE_WEB_AUTH_DOMAIN", "").strip()
+    FIREBASE_WEB_PROJECT_ID = os.getenv("FIREBASE_WEB_PROJECT_ID", "").strip()
+    FIREBASE_WEB_STORAGE_BUCKET = os.getenv("FIREBASE_WEB_STORAGE_BUCKET", "").strip()
+    FIREBASE_WEB_MESSAGING_SENDER_ID = os.getenv("FIREBASE_WEB_MESSAGING_SENDER_ID", "").strip()
+    FIREBASE_WEB_APP_ID = os.getenv("FIREBASE_WEB_APP_ID", "").strip()
+    FIREBASE_WEB_MEASUREMENT_ID = os.getenv("FIREBASE_WEB_MEASUREMENT_ID", "").strip()
+    FIREBASE_WEB_VAPID_KEY = os.getenv("FIREBASE_WEB_VAPID_KEY", "").strip()
+    PWA_BADGE_POLL_INTERVAL_MS = max(
+        15000,
+        int(os.getenv("PWA_BADGE_POLL_INTERVAL_MS", "60000") or "60000"),
+    )
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    # SESSION_COOKIE_SECURE = True  # включить после перехода на HTTPS
+    SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
     PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
 
 

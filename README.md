@@ -19,6 +19,37 @@ python run.py
 - `DATABASE_URL` — строка подключения SQLAlchemy. Для PostgreSQL пример: `postgresql+psycopg2://user:password@localhost/school_tracker`
 - `UPLOAD_FOLDER` — внешняя папка для документов
 - `MAX_CONTENT_LENGTH` — лимит загрузки файлов в байтах. По умолчанию 200 МБ
+- `APP_BASE_URL` — внешний адрес портала. Для PWA и web push должен быть `https://...`
+- `FIREBASE_SERVICE_ACCOUNT_FILE` — путь к service account JSON для отправки push
+- `FIREBASE_WEB_API_KEY`
+- `FIREBASE_WEB_AUTH_DOMAIN`
+- `FIREBASE_WEB_PROJECT_ID`
+- `FIREBASE_WEB_STORAGE_BUCKET`
+- `FIREBASE_WEB_MESSAGING_SENDER_ID`
+- `FIREBASE_WEB_APP_ID`
+- `FIREBASE_WEB_MEASUREMENT_ID` — необязательно
+- `FIREBASE_WEB_VAPID_KEY`
+- `PWA_BADGE_POLL_INTERVAL_MS` — интервал обновления счетчика badge, по умолчанию 60000 мс
+
+## PWA
+
+Проект переведён на web-first схему: мобильный сценарий теперь развивается как PWA поверх основного портала.
+
+- Установка на телефон и фоновый web push требуют `HTTPS`
+- счетчик непрочитанных на иконке зависит от поддержки браузера
+- серверный слой для PWA использует существующие `/mobile/api/*` endpoints
+
+## Продакшн
+
+В репозитории есть два готовых варианта развертывания:
+
+- прямой внешний контур на одном сервере: [deploy/altair-school/README.md](/Users/aleksandr/Documents/Школьный портал/school-tracker/deploy/altair-school/README.md)
+- текущая схема `VPS -> WireGuard -> школьный сервер`: [deploy/altair-edu/README.md](/Users/aleksandr/Documents/Школьный портал/school-tracker/deploy/altair-edu/README.md)
+
+Для текущего домена `altair-edu.ru` добавлены:
+
+- [deploy/altair-edu/nginx/altair-edu.ru.conf](/Users/aleksandr/Documents/Школьный портал/school-tracker/deploy/altair-edu/nginx/altair-edu.ru.conf)
+- [.env.production.example](/Users/aleksandr/Documents/Школьный портал/school-tracker/.env.production.example)
 
 ## Flask CLI
 
