@@ -1,0 +1,281 @@
+<script>
+(function () {
+  var state = {
+    manifestUrl: {{ pwa_manifest_url | tojson }},
+    serviceWorkerUrl: {{ pwa_service_worker_url | tojson }},
+    notificationsUrl: {{ pwa_notifications_url | tojson }},
+    pushRegisterUrl: {{ pwa_push_register_url | tojson }},
+    badgePollIntervalMs: {{ pwa_badge_poll_interval_ms | tojson }},
+    firebaseConfig: {{ pwa_firebase_config | tojson }},
+    firebaseVapidKey: {{ pwa_firebase_vapid_key | tojson }},
+    firebaseReady: {{ pwa_firebase_ready | tojson }},
+    installPrompt: null,
+    registration: null,
+    lastUnreadCount: null,
+    refreshTimer: null,
+    deviceIdKey: "altair-pwa-device-id-v1",
+    standalone: false,
+  };
+
+  function isStandalone() {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+      return true;
+    }
+    return window.navigator.standalone === true;
+  }
+
+  state.standalone = isStandalone();
+
+  function getDeviceId() {
+    try {
+      var existing = window.localStorage.getItem(state.deviceIdKey);
+      if (existing) return existing;
+      var created = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : "pwa-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+      window.localStorage.setItem(state.deviceIdKey, created);
+      return created;
+    } catch (_) {
+      return "pwa-ephemeral";
+    }
+  }
+
+  function emitStatus() {
+    document.dispatchEvent(new CustomEvent("altair:pwa-status", {
+      detail: window.AltairPwa.getStatus(),
+    }));
+  }
+
+  async function applyBadge(count) {
+    var normalized = Number(count) || 0;
+    state.lastUnreadCount = normalized;
+    if (!("navigator" in window)) {
+      emitStatus();
+      return normalized;
+    }
+    try {
+      if (normalized > 0 && typeof navigator.setAppBadge === "function") {
+        await navigator.setAppBadge(normalized);
+      } else if (normalized <= 0 && typeof navigator.clearAppBadge === "function") {
+        await navigator.clearAppBadge();
+      }
+    } catch (_) {}
+    emitStatus();
+    return normalized;
+  }
+
+  async function refreshBadge() {
+    if (!window.isSecureContext) {
+      emitStatus();
+      return 0;
+    }
+    try {
+      var response = await fetch(state.notificationsUrl, {
+        headers: {"Accept": "application/json"},
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        emitStatus();
+        return state.lastUnreadCount || 0;
+      }
+      var payload = await response.json();
+      var unread = Number(payload && payload.counts && payload.counts.total);
+      if (!Number.isFinite(unread)) {
+        unread = Number(payload && payload.unread) || 0;
+      }
+      return await applyBadge(unread);
+    } catch (_) {
+      emitStatus();
+      return state.lastUnreadCount || 0;
+    }
+  }
+
+  async function registerServiceWorker() {
+    if (!("serviceWorker" in navigator) || !window.isSecureContext) {
+      emitStatus();
+      return null;
+    }
+    if (state.registration) {
+      return state.registration;
+    }
+    try {
+      state.registration = await navigator.serviceWorker.register(state.serviceWorkerUrl, {scope: "/"});
+      navigator.serviceWorker.addEventListener("message", function (event) {
+        var detail = event && event.data ? event.data : {};
+        if (detail && detail.type === "ALTair_PWA_BADGE_SYNC") {
+          applyBadge(detail.unreadCount);
+        }
+        if (detail && detail.type === "ALTair_PWA_REFRESH_BADGE") {
+          refreshBadge();
+        }
+      });
+      emitStatus();
+      return state.registration;
+    } catch (_) {
+      emitStatus();
+      return null;
+    }
+  }
+
+  var firebaseModulesPromise = null;
+  async function loadFirebaseMessaging() {
+    if (!state.firebaseReady) {
+      throw new Error("firebase-not-configured");
+    }
+    if (!firebaseModulesPromise) {
+      firebaseModulesPromise = Promise.all([
+        import("https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging.js"),
+      ]).then(function (modules) {
+        var appModule = modules[0];
+        var messagingModule = modules[1];
+        var app = appModule.initializeApp(state.firebaseConfig, "altair-pwa");
+        return {
+          messaging: messagingModule.getMessaging(app),
+          getToken: messagingModule.getToken,
+          onMessage: messagingModule.onMessage,
+        };
+      });
+    }
+    return firebaseModulesPromise;
+  }
+
+  async function registerWebPush() {
+    if (!state.firebaseReady || !window.isSecureContext || !("Notification" in window)) {
+      emitStatus();
+      return {ok: false, reason: "unsupported"};
+    }
+    if (Notification.permission !== "granted") {
+      emitStatus();
+      return {ok: false, reason: "permission-denied"};
+    }
+    try {
+      var registration = await registerServiceWorker();
+      if (!registration) {
+        return {ok: false, reason: "service-worker-failed"};
+      }
+      var firebase = await loadFirebaseMessaging();
+      var token = await firebase.getToken(firebase.messaging, {
+        vapidKey: state.firebaseVapidKey,
+        serviceWorkerRegistration: registration,
+      });
+      if (!token) {
+        emitStatus();
+        return {ok: false, reason: "empty-token"};
+      }
+      await fetch(state.pushRegisterUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          token: token,
+          platform: "web",
+          device_id: getDeviceId(),
+          app_version: "pwa",
+        }),
+      });
+      if (!state._messageHooked) {
+        firebase.onMessage(firebase.messaging, function (payload) {
+          var unread = payload && payload.data ? payload.data.unread_count : 0;
+          applyBadge(unread);
+        });
+        state._messageHooked = true;
+      }
+      emitStatus();
+      return {ok: true, token: token};
+    } catch (error) {
+      console.warn("PWA push setup failed", error);
+      emitStatus();
+      return {ok: false, reason: "registration-error"};
+    }
+  }
+
+  async function requestPushPermission() {
+    if (!("Notification" in window)) {
+      emitStatus();
+      return {ok: false, reason: "notification-unsupported"};
+    }
+    var permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      emitStatus();
+      return {ok: false, reason: permission};
+    }
+    return registerWebPush();
+  }
+
+  async function showInstallPrompt() {
+    if (!state.installPrompt) {
+      emitStatus();
+      return false;
+    }
+    var prompt = state.installPrompt;
+    state.installPrompt = null;
+    await prompt.prompt();
+    try {
+      await prompt.userChoice;
+    } catch (_) {}
+    emitStatus();
+    return true;
+  }
+
+  function getStatus() {
+    return {
+      secureContext: window.isSecureContext,
+      serviceWorkerSupported: "serviceWorker" in navigator,
+      badgeSupported: typeof navigator.setAppBadge === "function" || typeof navigator.clearAppBadge === "function",
+      notificationSupported: "Notification" in window,
+      notificationPermission: ("Notification" in window) ? Notification.permission : "unsupported",
+      firebaseReady: state.firebaseReady,
+      standalone: isStandalone(),
+      installAvailable: Boolean(state.installPrompt),
+      unreadCount: state.lastUnreadCount || 0,
+    };
+  }
+
+  window.AltairPwa = {
+    state: state,
+    applyBadge: applyBadge,
+    refreshBadge: refreshBadge,
+    registerServiceWorker: registerServiceWorker,
+    registerWebPush: registerWebPush,
+    requestPushPermission: requestPushPermission,
+    showInstallPrompt: showInstallPrompt,
+    getStatus: getStatus,
+  };
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    state.installPrompt = event;
+    emitStatus();
+  });
+
+  window.addEventListener("appinstalled", function () {
+    state.installPrompt = null;
+    state.standalone = true;
+    emitStatus();
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      refreshBadge();
+    }
+  });
+
+  window.addEventListener("focus", function () {
+    refreshBadge();
+  });
+
+  registerServiceWorker().then(function () {
+    refreshBadge();
+    if (state.firebaseReady && "Notification" in window && Notification.permission === "granted") {
+      registerWebPush();
+    }
+    if (!state.refreshTimer) {
+      state.refreshTimer = window.setInterval(refreshBadge, state.badgePollIntervalMs);
+    }
+  });
+})();
+</script>

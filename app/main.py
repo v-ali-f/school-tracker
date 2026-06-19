@@ -1,6 +1,6 @@
 from datetime import date, datetime, time
 
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, jsonify, make_response, redirect, render_template, url_for
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_
 
@@ -28,6 +28,19 @@ def legacy_analytics_dashboard_redirect():
 @login_required
 def legacy_settings_organization_redirect():
     return redirect(url_for("main.dashboard"))
+
+
+@main_bp.route("/service-worker.js")
+def pwa_service_worker():
+    response = make_response(render_template("service_worker.js"))
+    response.headers["Content-Type"] = "application/javascript; charset=utf-8"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@main_bp.route("/healthz")
+def healthz():
+    return jsonify({"ok": True, "service": "school-tracker"})
 
 
 def _dashboard_stats():

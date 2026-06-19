@@ -73,6 +73,34 @@ def register_context_processors(app, has_permission, build_menu_flags):
         )
 
     @app.context_processor
+    def inject_pwa_settings():
+        firebase_config = {
+            "apiKey": current_app.config.get("FIREBASE_WEB_API_KEY") or "",
+            "authDomain": current_app.config.get("FIREBASE_WEB_AUTH_DOMAIN") or "",
+            "projectId": current_app.config.get("FIREBASE_WEB_PROJECT_ID") or "",
+            "storageBucket": current_app.config.get("FIREBASE_WEB_STORAGE_BUCKET") or "",
+            "messagingSenderId": current_app.config.get("FIREBASE_WEB_MESSAGING_SENDER_ID") or "",
+            "appId": current_app.config.get("FIREBASE_WEB_APP_ID") or "",
+        }
+        measurement_id = current_app.config.get("FIREBASE_WEB_MEASUREMENT_ID") or ""
+        if measurement_id:
+            firebase_config["measurementId"] = measurement_id
+        firebase_ready = all(
+            firebase_config.get(key)
+            for key in ("apiKey", "projectId", "messagingSenderId", "appId")
+        ) and bool(current_app.config.get("FIREBASE_WEB_VAPID_KEY"))
+        return dict(
+            pwa_manifest_url=url_for("static", filename="manifest.webmanifest"),
+            pwa_service_worker_url=url_for("main.pwa_service_worker"),
+            pwa_notifications_url=url_for("mobile_api.notifications"),
+            pwa_push_register_url=url_for("mobile_api.register_push_token"),
+            pwa_badge_poll_interval_ms=current_app.config.get("PWA_BADGE_POLL_INTERVAL_MS", 60000),
+            pwa_firebase_config=firebase_config,
+            pwa_firebase_vapid_key=current_app.config.get("FIREBASE_WEB_VAPID_KEY") or "",
+            pwa_firebase_ready=bool(firebase_ready),
+        )
+
+    @app.context_processor
     def inject_task_notifications():
         empty = dict(
             task_unread_notifications=0,
