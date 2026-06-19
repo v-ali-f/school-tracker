@@ -16,7 +16,7 @@
 </a>
 {% endmacro %}
 
-<div class="portal-shell portal-home">
+<div class="portal-shell portal-home portal-home-mobile-upgraded">
 
   {% if preview_role %}
   <div class="alert alert-warning d-flex align-items-center justify-content-between gap-2 mb-3 py-2" role="alert">
@@ -38,7 +38,7 @@
         Рабочее пространство системы сопровождения: быстрый поиск, ежедневные действия и разделы по направлениям.
       </div>
     </div>
-    <div class="portal-actions">
+    <div class="portal-actions portal-home-desktop-actions">
       <a class="portal-btn" href="{{ url_for('drive.index') }}"><i class="bi bi-hdd-network me-1"></i>Диск</a>
       <a class="portal-btn" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-check2-square me-1"></i>Задачи</a>
       {% if current_user.is_authenticated and current_user.role in ['ADMIN', 'DIRECTOR'] %}
@@ -47,8 +47,101 @@
     </div>
   </div>
 
+  <div class="portal-home-mobile-actions" aria-label="Быстрые действия на телефоне">
+    <a class="portal-home-mobile-action" href="{{ url_for('tasks.my_tasks') }}">
+      <i class="bi bi-check2-square"></i>
+      <span>Задачи</span>
+    </a>
+    <a class="portal-home-mobile-action" href="{{ url_for('children.incidents_my') }}">
+      <i class="bi bi-exclamation-circle"></i>
+      <span>Инциденты</span>
+    </a>
+    <a class="portal-home-mobile-action" href="{{ url_for('children.list_children') }}">
+      <i class="bi bi-people"></i>
+      <span>Ученики</span>
+    </a>
+    <a class="portal-home-mobile-action" href="{{ url_for('drive.index') }}">
+      <i class="bi bi-hdd-network"></i>
+      <span>Диск</span>
+    </a>
+  </div>
+
+  <section class="portal-card portal-home-app-panel" aria-label="Режим приложения">
+    <div class="portal-card-head">
+      <div>
+        <h2 class="portal-card-title">Приложение на телефоне</h2>
+        <div class="portal-muted">
+          На главном экране портал работает быстрее, показывает push и ощущается ближе к обычному мобильному приложению.
+        </div>
+      </div>
+      <span class="portal-home-mobile-kicker">PWA</span>
+    </div>
+    <div class="portal-home-app-grid">
+      <a class="portal-home-app-link" href="{{ url_for('tasks.my_tasks') }}">
+        <i class="bi bi-check2-square"></i>
+        <span>Мои задачи</span>
+      </a>
+      <a class="portal-home-app-link" href="{{ url_for('children.incidents_my') }}">
+        <i class="bi bi-exclamation-circle"></i>
+        <span>Инциденты</span>
+      </a>
+      <a class="portal-home-app-link" href="{{ url_for('auth.profile_settings') }}#notifications">
+        <i class="bi bi-bell"></i>
+        <span>Push и badge</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="portal-card portal-home-onboarding" id="pwaOnboardingCard" aria-label="Подключение приложения" hidden>
+    <div class="portal-card-head">
+      <div>
+        <h2 class="portal-card-title">Сделать как приложение</h2>
+        <div class="portal-muted" id="pwaOnboardingText">
+          Установите портал на главный экран и включите уведомления, чтобы он работал как мобильное приложение.
+        </div>
+      </div>
+      <button type="button" class="portal-home-onboarding-dismiss" id="pwaOnboardingDismiss" aria-label="Скрыть подсказку">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="portal-home-onboarding-steps">
+      <div class="portal-home-onboarding-step" id="pwaStepInstall">
+        <span class="portal-home-onboarding-step-num">1</span>
+        <div class="portal-home-onboarding-step-body">
+          <strong>Установить</strong>
+          <span>Добавьте портал на главный экран телефона.</span>
+        </div>
+      </div>
+      <div class="portal-home-onboarding-step" id="pwaStepPush">
+        <span class="portal-home-onboarding-step-num">2</span>
+        <div class="portal-home-onboarding-step-body">
+          <strong>Включить push</strong>
+          <span>Разрешите уведомления, чтобы получать новые события сразу.</span>
+        </div>
+      </div>
+      <div class="portal-home-onboarding-step" id="pwaStepBadge">
+        <span class="portal-home-onboarding-step-num">3</span>
+        <div class="portal-home-onboarding-step-body">
+          <strong>Проверить счётчик</strong>
+          <span>Обновите badge на иконке и убедитесь, что всё работает.</span>
+        </div>
+      </div>
+    </div>
+    <div class="portal-home-onboarding-actions">
+      <button type="button" class="btn btn-primary" id="pwaHomeInstallBtn">
+        <i class="bi bi-download me-1"></i>Установить
+      </button>
+      <button type="button" class="btn btn-outline-primary" id="pwaHomePushBtn">
+        <i class="bi bi-bell me-1"></i>Включить push
+      </button>
+      <button type="button" class="btn btn-outline-secondary" id="pwaHomeBadgeBtn">
+        <i class="bi bi-arrow-repeat me-1"></i>Проверить badge
+      </button>
+    </div>
+  </section>
+
   {% if show_home_summary and show_quick_summary and quick_summary %}
-  <div class="portal-home-stats">
+  <div class="portal-home-stats portal-home-stats-mobile">
     {% for card in quick_summary %}
       {% if card.url %}
       <a class="portal-home-stat" href="{{ card.url }}">
@@ -64,12 +157,13 @@
   {% endif %}
 
   {% if show_home_search %}
-  <section class="portal-card portal-home-search" id="homeSearchWrap" autocomplete="off">
+  <section class="portal-card portal-home-search portal-home-search-mobile" id="homeSearchWrap" autocomplete="off">
     <div class="portal-card-head">
       <div>
         <h2 class="portal-card-title">Поиск ученика по школе</h2>
-        <div class="portal-muted">{{ page.quick_search.description }}</div>
+        <div class="portal-muted portal-home-search-hint">{{ page.quick_search.description }}</div>
       </div>
+      <span class="portal-home-mobile-kicker">Быстрый старт</span>
     </div>
     <div class="portal-home-search-row">
       <div class="portal-home-search-input-wrap">
@@ -90,7 +184,7 @@
   {% endif %}
 
   {% if show_home_quick_links %}
-  <section class="portal-card portal-home-section">
+  <section class="portal-card portal-home-section portal-home-quick-section">
     <div class="portal-card-head">
       <div>
         <h2 class="portal-card-title">Ежедневная работа</h2>
@@ -124,7 +218,7 @@
   {% endif %}
 
   {% if show_home_sections and page.secondary_sections %}
-  <section class="portal-card portal-home-section">
+  <section class="portal-card portal-home-section portal-home-sections-grid">
     <div class="portal-card-head">
       <div>
         <h2 class="portal-card-title">Разделы и сервисы</h2>
@@ -273,6 +367,124 @@
       })
       .catch(() => { dropdown.style.display = 'none'; });
   }
+})();
+</script>
+<script>
+(function () {
+  var storageKey = 'altair-pwa-onboarding-dismissed-v1';
+  var card = document.getElementById('pwaOnboardingCard');
+  if (!card) return;
+
+  var text = document.getElementById('pwaOnboardingText');
+  var dismissBtn = document.getElementById('pwaOnboardingDismiss');
+  var installBtn = document.getElementById('pwaHomeInstallBtn');
+  var pushBtn = document.getElementById('pwaHomePushBtn');
+  var badgeBtn = document.getElementById('pwaHomeBadgeBtn');
+  var stepInstall = document.getElementById('pwaStepInstall');
+  var stepPush = document.getElementById('pwaStepPush');
+  var stepBadge = document.getElementById('pwaStepBadge');
+
+  function readDismissed() {
+    try {
+      return window.localStorage.getItem(storageKey) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function writeDismissed(value) {
+    try {
+      if (value) {
+        window.localStorage.setItem(storageKey, '1');
+      } else {
+        window.localStorage.removeItem(storageKey);
+      }
+    } catch (_) {}
+  }
+
+  function setStepState(node, done) {
+    if (!node) return;
+    node.classList.toggle('is-done', !!done);
+  }
+
+  function renderOnboarding() {
+    if (!window.AltairPwa) return;
+    var status = window.AltairPwa.getStatus();
+    var visible = status.mobileClient && !readDismissed();
+
+    if (status.standalone && status.notificationPermission === 'granted') {
+      visible = false;
+    }
+
+    card.hidden = !visible;
+    if (!visible) return;
+
+    setStepState(stepInstall, status.standalone);
+    setStepState(stepPush, status.notificationPermission === 'granted');
+    setStepState(stepBadge, status.badgeSupported);
+
+    if (text) {
+      if (status.standalone && status.notificationPermission !== 'granted') {
+        text.textContent = 'Приложение уже установлено. Осталось включить push-уведомления и проверить счётчик на иконке.';
+      } else if (status.installAvailable) {
+        text.textContent = 'Портал уже готов к установке. После этого он будет открываться ближе к формату мобильного приложения.';
+      } else if (!status.standalone) {
+        text.textContent = 'Откройте меню браузера и добавьте портал на главный экран, затем включите push-уведомления.';
+      } else {
+        text.textContent = 'Портал уже работает как приложение. Проверьте уведомления и badge на иконке.';
+      }
+    }
+
+    if (installBtn) {
+      installBtn.disabled = !status.installAvailable;
+      installBtn.hidden = status.standalone;
+    }
+    if (pushBtn) {
+      pushBtn.disabled = !status.secureContext || !status.notificationSupported || status.notificationPermission === 'granted';
+    }
+    if (badgeBtn) {
+      badgeBtn.disabled = !status.secureContext;
+    }
+  }
+
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', function () {
+      writeDismissed(true);
+      renderOnboarding();
+    });
+  }
+
+  if (installBtn) {
+    installBtn.addEventListener('click', async function () {
+      if (!window.AltairPwa) return;
+      await window.AltairPwa.showInstallPrompt();
+      writeDismissed(false);
+      renderOnboarding();
+    });
+  }
+
+  if (pushBtn) {
+    pushBtn.addEventListener('click', async function () {
+      if (!window.AltairPwa) return;
+      pushBtn.disabled = true;
+      await window.AltairPwa.requestPushPermission();
+      renderOnboarding();
+      pushBtn.disabled = false;
+    });
+  }
+
+  if (badgeBtn) {
+    badgeBtn.addEventListener('click', async function () {
+      if (!window.AltairPwa) return;
+      badgeBtn.disabled = true;
+      await window.AltairPwa.refreshBadge();
+      renderOnboarding();
+      badgeBtn.disabled = false;
+    });
+  }
+
+  document.addEventListener('altair:pwa-status', renderOnboarding);
+  renderOnboarding();
 })();
 </script>
 {% endblock %}

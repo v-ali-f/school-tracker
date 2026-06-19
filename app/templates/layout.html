@@ -54,10 +54,10 @@
 {% endif %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portal_standard.css') }}?v=20260605_calm_buttons_1">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/altair_theme.css') }}?v=20260615_nav_exit_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/altair_theme.css') }}?v=20260619_mobile_shell_3">
 </head>
 
-<body>
+<body class="{% if current_user.is_authenticated %}portal-authenticated{% endif %}">
 {% set role_labels = {
   'ADMIN': 'Администратор',
   'DIRECTOR': 'Директор',
@@ -80,6 +80,9 @@
   'DEPUTY_DIRECTOR': 'Заместитель директора',
   'SYSTEM': 'Система'
 } %}
+{% set current_endpoint = request.endpoint or '' %}
+{% set show_mobile_incidents = current_user.is_authenticated and (can_incident_add or can_incident_registry_view or can_incident_dashboard_view or current_endpoint.startswith('children.incident')) %}
+{% set show_mobile_children = current_user.is_authenticated and (can_children_registry_view or can_contingent_view or current_endpoint.startswith('children.')) %}
 <nav class="navbar navbar-expand-lg app-navbar">
   <div class="container">
     <div class="altair-navbar-identity">
@@ -110,7 +113,7 @@
 
     <div class="collapse navbar-collapse" id="navbarContent">
       <div class="ms-auto d-flex align-items-center gap-2 flex-wrap justify-content-end app-navbar-actions">
-        <a class="btn btn-app-nav btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house-door me-1"></i>Главная</a>
+        <a class="btn btn-app-nav btn-sm app-desktop-home-btn" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house-door me-1"></i>Главная</a>
         {% if current_user.is_authenticated %}
         <span class="app-navbar-sep d-none d-lg-inline"></span>
         <div class="position-relative" id="navSearchWrap">
@@ -218,6 +221,29 @@
   </div>
 </nav>
 
+{% if current_user.is_authenticated %}
+<section class="app-mode-strip" id="appModeStrip" hidden>
+  <div class="container">
+    <div class="app-mode-strip__inner">
+      <div class="app-mode-strip__copy">
+        <div class="app-mode-strip__eyebrow" id="appModeEyebrow">Мобильный доступ</div>
+        <div class="app-mode-strip__text" id="appModeText">
+          Портал можно открыть как приложение на телефоне.
+        </div>
+      </div>
+      <div class="app-mode-strip__actions">
+        <button type="button" class="btn btn-sm btn-primary" id="appModeInstallAction">
+          <i class="bi bi-download me-1"></i>Установить
+        </button>
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.my_tasks') }}">
+          <i class="bi bi-check2-square me-1"></i>Задачи
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <div class="container my-4 {% if request.path == '/' or request.path.startswith('/documents/registers') %}portal-wide-container{% endif %} {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
 
   {% block breadcrumb %}
@@ -246,6 +272,54 @@
 
   {% block content %}{% endblock %}
 </div>
+
+{% if current_user.is_authenticated %}
+<nav class="app-mobile-dock" aria-label="Быстрая навигация">
+  <a class="app-mobile-dock__item {% if current_endpoint == 'main.dashboard' %}is-active{% endif %}"
+     href="{{ url_for('main.dashboard') }}">
+    <span class="app-mobile-dock__icon"><i class="bi bi-house-door"></i></span>
+    <span class="app-mobile-dock__label">Главная</span>
+  </a>
+
+  {% if show_mobile_incidents %}
+  <a class="app-mobile-dock__item {% if current_endpoint.startswith('children.incident') %}is-active{% endif %}"
+     href="{{ url_for('children.incidents_my') }}">
+    <span class="app-mobile-dock__icon">
+      <i class="bi bi-exclamation-circle"></i>
+      {% if incident_unread_notifications %}
+      <span class="app-mobile-dock__badge">{{ incident_unread_notifications }}</span>
+      {% endif %}
+    </span>
+    <span class="app-mobile-dock__label">Инциденты</span>
+  </a>
+  {% endif %}
+
+  <a class="app-mobile-dock__item {% if current_endpoint.startswith('tasks.') %}is-active{% endif %}"
+     href="{{ url_for('tasks.my_tasks') }}">
+    <span class="app-mobile-dock__icon">
+      <i class="bi bi-check2-square"></i>
+      {% if task_unread_notifications %}
+      <span class="app-mobile-dock__badge">{{ task_unread_notifications }}</span>
+      {% endif %}
+    </span>
+    <span class="app-mobile-dock__label">Задачи</span>
+  </a>
+
+  {% if show_mobile_children %}
+  <a class="app-mobile-dock__item {% if current_endpoint.startswith('children.') and not current_endpoint.startswith('children.incident') %}is-active{% endif %}"
+     href="{{ url_for('children.list_children') }}">
+    <span class="app-mobile-dock__icon"><i class="bi bi-people"></i></span>
+    <span class="app-mobile-dock__label">Ученики</span>
+  </a>
+  {% endif %}
+
+  <a class="app-mobile-dock__item {% if current_endpoint.startswith('auth.profile') %}is-active{% endif %}"
+     href="{{ url_for('auth.profile_settings') }}">
+    <span class="app-mobile-dock__icon"><i class="bi bi-person-circle"></i></span>
+    <span class="app-mobile-dock__label">Профиль</span>
+  </a>
+</nav>
+{% endif %}
 
 <style id="portal-final-calm-controls">
   .container.my-4 h1,

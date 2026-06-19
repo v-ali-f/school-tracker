@@ -636,6 +636,19 @@
   </div>
 </div>
 
+<div class="inc-mobile-summary" aria-label="Сводка по инцидентам">
+  {% for code, label, cnt in tabs %}
+  <a class="inc-mobile-summary-card {% if active_tab == code %}is-active{% endif %}" href="{{ tab_url(code) }}">
+    <span class="inc-mobile-summary-value">{{ cnt }}</span>
+    <span class="inc-mobile-summary-label">{{ label }}</span>
+  </a>
+  {% endfor %}
+  <div class="inc-mobile-summary-card inc-mobile-summary-meta">
+    <span class="inc-mobile-summary-value">{{ total_count or rows|length }}</span>
+    <span class="inc-mobile-summary-label">Всего по фильтру</span>
+  </div>
+</div>
+
 {% if view_mode == 'calendar' and cal_ctx %}
 <div class="card inc-panel">
   <div class="card-body">
@@ -705,10 +718,10 @@
 {# ── Табличная панель (скрыта в режиме «Календарь») ── #}
 {% if view_mode != 'calendar' %}
 <div class="card inc-panel">
-  <div class="card-body pb-2">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div class="card-body pb-2 inc-toolbar-card">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 inc-toolbar-head">
       <span class="section-title">Инциденты</span>
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2 inc-toolbar-actions">
         {# Property-picker: показывает свойства таблицы/списка либо карточки kanban #}
         {% if view_mode == 'kanban' %}
         {# Sort dropdown для kanban (Notion-style): одно свойство → ↑/↓. Без статуса (он = колонки). #}
@@ -926,7 +939,7 @@
           </div>
         </div>
         {% endif %}
-        <span class="text-muted small">
+        <span class="text-muted small inc-toolbar-count">
           {% if total_count is defined and total_pages and total_pages > 1 %}
             {{ rows|length }} из {{ total_count }} · стр. {{ page }} из {{ total_pages }}
           {% else %}
