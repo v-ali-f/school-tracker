@@ -1,0 +1,18 @@
+[Unit]
+Description=School Tracker Portal
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/school-tracker/current
+EnvironmentFile=/srv/school-tracker/shared/.env.production
+ExecStart=/srv/school-tracker/venv/bin/gunicorn -c /srv/school-tracker/current/gunicorn.conf.py wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

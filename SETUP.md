@@ -93,6 +93,10 @@ python run.py
 
 Откройте браузер и перейдите по адресу: **http://localhost:5001**
 
+Для обычной локальной проверки этого достаточно. Для установки PWA на телефон,
+фоновых push-уведомлений и badge-счетчика на иконке нужен внешний адрес по
+**HTTPS** и настроенный Firebase Web Messaging.
+
 ---
 
 ## Тестовые пользователи (для проверки ролей)
@@ -144,6 +148,22 @@ brew install pango cairo libffi
 По умолчанию используется SQLite — файл `app.db` создаётся в папке системы автоматически. Никаких дополнительных серверов баз данных не нужно.
 
 Для продакшн-развёртывания можно переключиться на PostgreSQL — см. `README.md`.
+
+### PWA и push-уведомления
+
+Для полноценной мобильной PWA-версии дополнительно нужны:
+
+- `APP_BASE_URL=https://ваш-домен`
+- `FIREBASE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json`
+- `FIREBASE_WEB_API_KEY`
+- `FIREBASE_WEB_AUTH_DOMAIN`
+- `FIREBASE_WEB_PROJECT_ID`
+- `FIREBASE_WEB_STORAGE_BUCKET`
+- `FIREBASE_WEB_MESSAGING_SENDER_ID`
+- `FIREBASE_WEB_APP_ID`
+- `FIREBASE_WEB_VAPID_KEY`
+
+Без HTTPS браузеры блокируют установку PWA и web push.
 
 ### Папка uploads/
 Здесь хранятся загруженные через систему документы. Папка создана и пустая — это нормально.
