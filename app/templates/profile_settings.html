@@ -124,7 +124,7 @@
           </div>
           <p class="text-muted small mb-3">
             Управляет внешними уведомлениями: MAX-ботом и push-уведомлениями
-            мобильного приложения. Колокольчик внутри портала продолжит работать.
+            приложения / PWA. Колокольчик внутри портала продолжит работать.
           </p>
           {% for code, label, hint in delivery_channels %}
           <label class="card mb-2 notify-mode-card {% if code == current_delivery_channel %}border-primary{% endif %}"
@@ -142,6 +142,39 @@
             </div>
           </label>
           {% endfor %}
+
+          <hr class="my-4">
+
+          <div class="d-flex align-items-center gap-2 mt-2 mb-2">
+            <i class="bi bi-phone text-primary"></i>
+            <h5 class="section-title m-0">PWA на телефоне</h5>
+          </div>
+          <p class="text-muted small mb-3">
+            Здесь можно установить портал на главный экран телефона и включить
+            браузерные push-уведомления. Для установки и фоновых push нужен HTTPS;
+            на обычном адресе вида <code>http://...</code> браузеры это блокируют.
+          </p>
+          <div class="card mb-4">
+            <div class="card-body">
+              <div class="d-flex flex-column flex-md-row gap-3 justify-content-between align-items-md-center">
+                <div>
+                  <div class="fw-semibold mb-1">Статус PWA</div>
+                  <div class="small text-muted" id="pwaStatusText">Проверяем возможности браузера…</div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="pwaInstallBtn">
+                    <i class="bi bi-download me-1"></i>Установить
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" id="pwaPushBtn">
+                    <i class="bi bi-bell me-1"></i>Включить push
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="pwaBadgeRefreshBtn">
+                    <i class="bi bi-arrow-repeat me-1"></i>Обновить счетчик
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <hr class="my-4">
 
@@ -243,6 +276,84 @@
       if (id) history.replaceState(null, '', id);
     });
   });
+
+  var statusText = document.getElementById('pwaStatusText');
+  var installBtn = document.getElementById('pwaInstallBtn');
+  var pushBtn = document.getElementById('pwaPushBtn');
+  var badgeBtn = document.getElementById('pwaBadgeRefreshBtn');
+
+  function renderPwaStatus() {
+    if (!window.AltairPwa || !statusText) return;
+    var status = window.AltairPwa.getStatus();
+    var parts = [];
+    if (!status.secureContext) {
+      parts.push('Открыто без HTTPS: установка и web push будут недоступны.');
+    } else if (status.standalone) {
+      parts.push('Приложение уже установлено на устройство.');
+    } else if (status.installAvailable) {
+      parts.push('Можно установить на главный экран.');
+    } else {
+      parts.push('Браузер открыт в обычной вкладке.');
+    }
+
+    if (!status.notificationSupported) {
+      parts.push('Уведомления браузером не поддерживаются.');
+    } else if (status.notificationPermission === 'granted') {
+      parts.push('Push-разрешение уже выдано.');
+    } else if (status.notificationPermission === 'denied') {
+      parts.push('Push заблокирован в настройках браузера.');
+    } else {
+      parts.push('Push пока не включён.');
+    }
+
+    if (status.badgeSupported) {
+      parts.push('Счетчик на иконке поддерживается браузером.');
+    } else {
+      parts.push('Этот браузер может не показывать badge на иконке.');
+    }
+
+    statusText.textContent = parts.join(' ');
+    if (installBtn) {
+      installBtn.disabled = !status.installAvailable;
+    }
+    if (pushBtn) {
+      pushBtn.disabled = !status.secureContext || !status.notificationSupported;
+    }
+    if (badgeBtn) {
+      badgeBtn.disabled = !status.secureContext;
+    }
+  }
+
+  if (installBtn) {
+    installBtn.addEventListener('click', async function () {
+      if (!window.AltairPwa) return;
+      await window.AltairPwa.showInstallPrompt();
+      renderPwaStatus();
+    });
+  }
+
+  if (pushBtn) {
+    pushBtn.addEventListener('click', async function () {
+      if (!window.AltairPwa) return;
+      pushBtn.disabled = true;
+      await window.AltairPwa.requestPushPermission();
+      renderPwaStatus();
+      pushBtn.disabled = false;
+    });
+  }
+
+  if (badgeBtn) {
+    badgeBtn.addEventListener('click', async function () {
+      if (!window.AltairPwa) return;
+      badgeBtn.disabled = true;
+      await window.AltairPwa.refreshBadge();
+      renderPwaStatus();
+      badgeBtn.disabled = false;
+    });
+  }
+
+  document.addEventListener('altair:pwa-status', renderPwaStatus);
+  renderPwaStatus();
 })();
 </script>
 {% endblock %}

@@ -5,6 +5,11 @@
   <meta charset="utf-8">
   <title>{% block title %}{{ app_display_title }}{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0B5FEA">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Альтаир">
+  <link rel="manifest" href="{{ pwa_manifest_url }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
@@ -567,6 +572,7 @@
   applyFilter('all');
 })();
 </script>
+{% include "_pwa_scripts.html" %}
 {% block scripts %}{% endblock %}
 <script src="{{ url_for('static', filename='js/tasks_light_ui.js') }}?v=20260529v184"></script>
 </body>
