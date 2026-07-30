@@ -4,7 +4,7 @@
 <div class="page-head mb-3">
   <div>
     <div class="page-title">Новый план</div>
-    <div class="page-sub">Учебный год и область планирования</div>
+    <div class="page-sub">Будут автоматически созданы три связанные части: УП, внеурочная деятельность и дополнительное образование</div>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans') }}">Отмена</a>
@@ -28,25 +28,16 @@
     <label class="form-label" for="plan-name">Наименование</label>
     <input class="form-control" id="plan-name" name="name" maxlength="255" required>
   </div>
-  <div class="col-md-5">
-    <label class="form-label" for="plan-kind">Вид плана</label>
-    <select class="form-select" id="plan-kind" name="plan_kind" required>
-      {% for kind in plan_kinds %}
-      <option value="{{ kind }}">{{ plan_kind_labels[kind] }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
+  <div class="col-md-4">
     <label class="form-label" for="plan-level">Уровень образования</label>
-    <select class="form-select" id="plan-level" name="education_level">
+    <select class="form-select" id="plan-level" name="education_level" required>
       <option value="">Выберите</option>
       <option value="NOO">НОО — 1–4 классы</option>
       <option value="OOO">ООО — 5–9 классы</option>
       <option value="SOO">СОО — 10–11 классы</option>
-      <option value="DO">ДО</option>
     </select>
   </div>
-  <div class="col-md-4">
+  <div class="col-md-8">
     <label class="form-label" for="plan-building">Здание</label>
     <select class="form-select" id="plan-building" name="building_id">
       <option value="">Все здания</option>
@@ -59,19 +50,4 @@
     <button class="btn btn-primary" type="submit">Создать</button>
   </div>
 </form>
-{% endblock %}
-{% block workspace_scripts %}
-<script>
-(() => {
-  const form = document.querySelector("[data-plan-form]");
-  const kind = form?.querySelector("[name='plan_kind']");
-  const level = form?.querySelector("[name='education_level']");
-  if (!kind || !level) return;
-  const refresh = () => {
-    level.required = kind.value === "CURRICULUM";
-  };
-  kind.addEventListener("change", refresh);
-  refresh();
-})();
-</script>
 {% endblock %}

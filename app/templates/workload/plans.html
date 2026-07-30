@@ -8,7 +8,7 @@
 <div class="page-head mb-3">
   <div>
     <div class="page-title">Учебные планы</div>
-    <div class="page-sub">Выберите план, чтобы открыть матрицу часов по классам и параллелям</div>
+    <div class="page-sub">Каждый комплект включает учебный план, внеурочную деятельность и дополнительное образование</div>
   </div>
   {% if can_update %}
   <div class="page-actions">
@@ -21,17 +21,7 @@
 
 {% include "workload/_nav.html" %}
 
-<div class="workload-plan-kind-tabs" role="navigation" aria-label="Вид плана">
-  <a class="{% if not selected_plan_kind %}is-active{% endif %}" href="{{ url_for('workload.plans', academic_year_id=selected_academic_year_id) }}">Все</a>
-  {% for code, label in plan_kind_labels.items() %}
-  <a class="{% if selected_plan_kind == code %}is-active{% endif %}" href="{{ url_for('workload.plans', academic_year_id=selected_academic_year_id, plan_kind=code) }}">{{ label }}</a>
-  {% endfor %}
-</div>
-
 <form class="workload-plan-filter" method="get">
-  {% if selected_plan_kind %}
-  <input type="hidden" name="plan_kind" value="{{ selected_plan_kind }}">
-  {% endif %}
   <div>
     <label class="form-label small" for="plan-year-filter">Учебный год</label>
     <select class="form-select form-select-sm" id="plan-year-filter" name="academic_year_id">
@@ -54,8 +44,8 @@
       <tr>
         <th>Учебный год</th>
         <th>Наименование</th>
-        <th>Вид</th>
-        <th>Область</th>
+        <th>Уровень</th>
+        <th>Состав комплекта</th>
         <th class="text-end">Строк</th>
         <th class="text-end">Действие</th>
       </tr>
@@ -67,20 +57,29 @@
         <td>
           <div class="fw-semibold">{{ plan.name }}</div>
         </td>
-        <td>{{ plan_kind_labels.get(plan.plan_kind, plan.plan_kind) }}</td>
         <td>
           {{ plan.education_level or 'Все уровни' }}
           {% if plan.building %}<div class="small text-muted">{{ plan.building.short_name or plan.building.name }}</div>{% endif %}
         </td>
-        <td class="text-end">{{ plan.lines|length }}</td>
+        <td>
+          <span class="workload-plan-bundle-state">
+            <i class="bi bi-book" aria-hidden="true"></i>
+            УП + ВД + ДО
+          </span>
+        </td>
+        {% set line_count = namespace(value=plan.lines|length) %}
+        {% for companion in plan.companion_plans %}
+          {% set line_count.value = line_count.value + companion.lines|length %}
+        {% endfor %}
+        <td class="text-end">{{ line_count.value }}</td>
         <td class="text-end">
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}">
-            <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Матрица
+            <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Открыть
           </a>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="text-center text-muted py-4">Планы ещё не созданы.</td></tr>
+      <tr><td colspan="6" class="text-center text-muted py-4">Учебные планы ещё не созданы.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -280,7 +280,16 @@ def test_plan_bindings_page_reads_snapshot_classes(
     user_id = make_user("ADMIN")
     with app.app_context():
         context = _group_context(user_id)
-        _snapshot(user_id, context["version_id"])
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class_id = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+            .id
+        )
 
     login(user_id)
     response = client.get(
@@ -290,6 +299,13 @@ def test_plan_bindings_page_reads_snapshot_classes(
     assert response.status_code == 200
     assert "Привязка учебных планов".encode() in response.data
     assert "5А".encode() in response.data
+    assert "Иванов Иван".encode() not in response.data
+
+    response = client.get(
+        f"/workload/plan-bindings/?version_id={context['version_id']}"
+        f"&class_id={snapshot_class_id}"
+    )
+    assert response.status_code == 200
     assert "Иванов Иван".encode() in response.data
 
 
@@ -329,6 +345,122 @@ def test_plan_bindings_page_warns_when_population_registry_changed(
     assert response.status_code == 200
     assert "Сводный контингент изменён".encode() in response.data
     assert "Обновить данные".encode() in response.data
+
+
+def test_class_plan_can_be_overridden_for_one_student(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        first_plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        second_plan = EducationPlan(
+            tariff_version_id=context["version_id"],
+            plan_kind="CURRICULUM",
+            name="Профильный учебный план",
+            education_level="OOO",
+            building_id=context["building_id"],
+            scope_code="OOO_PROFILE",
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(second_plan)
+        db.session.commit()
+        class_id = snapshot_class.id
+        first_plan_id = first_plan.id
+        second_plan_id = second_plan.id
+        enrollment_ids = [
+            item.id for item in snapshot_class.enrollments
+        ]
+        version_id = context["version_id"]
+
+    login(user_id)
+    response = client.post(
+        "/workload/plan-bindings/class",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+            "plan_id": first_plan_id,
+        },
+    )
+    assert response.status_code == 302
+
+    with app.app_context():
+        snapshot_class = db.session.get(
+            PopulationSnapshotClass,
+            class_id,
+        )
+        plans = [
+            db.session.get(EducationPlan, first_plan_id),
+            db.session.get(EducationPlan, second_plan_id),
+        ]
+        allocations, _ = class_plan_allocations(
+            snapshot_class,
+            plans,
+        )
+        assert allocations[first_plan_id] == set(enrollment_ids)
+        assert EducationPlanBinding.query.one().binding_mode == "CLASS"
+
+    response = client.post(
+        "/workload/plan-bindings/student",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+            "enrollment_id": enrollment_ids[0],
+            "plan_id": second_plan_id,
+        },
+    )
+    assert response.status_code == 302
+
+    with app.app_context():
+        snapshot_class = db.session.get(
+            PopulationSnapshotClass,
+            class_id,
+        )
+        plans = [
+            db.session.get(EducationPlan, first_plan_id),
+            db.session.get(EducationPlan, second_plan_id),
+        ]
+        allocations, student_plan_ids = class_plan_allocations(
+            snapshot_class,
+            plans,
+        )
+        assert allocations[second_plan_id] == {enrollment_ids[0]}
+        assert allocations[first_plan_id] == {enrollment_ids[1]}
+        assert student_plan_ids[enrollment_ids[0]] == second_plan_id
+        assert {
+            item.binding_mode
+            for item in EducationPlanBinding.query.all()
+        } == {"STUDENTS"}
+
+    page = client.get(
+        f"/workload/plan-bindings/?version_id={version_id}"
+        f"&class_id={class_id}"
+    )
+    assert page.status_code == 200
+    assert "Индивидуальные назначения".encode() in page.data
+    assert "Профильный учебный план".encode() in page.data
 
 
 def test_metagroup_requires_two_source_classes():
@@ -378,7 +510,7 @@ def test_administrator_creates_personal_subgroup(
     assert registry.status_code == 200
     assert "workload_distribution.css" in registry_html
     assert "data-group-select" in registry_html
-    assert "data-group-context" in registry_html
+    assert "data-group-context" not in registry_html
     assert "Математика 5А, группа 1" in registry_html
 
 

@@ -59,7 +59,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_3">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_2">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_control.css') }}?v=20260730_3">
 {% endblock %}
@@ -67,12 +67,9 @@
 {% block breadcrumb %}{% endblock %}
 
 {% block content %}
-<div class="workload-workspace{% if workspace_endpoint == 'workload.plan_matrix' %} workload-workspace--matrix{% endif %}" data-workload-workspace data-active-mode="{{ workspace_mode }}">
+<div class="workload-workspace" data-workload-workspace data-active-mode="{{ workspace_mode }}">
   <header class="workload-context-bar">
     <div class="workload-context-bar__identity">
-      <a class="workload-context-bar__back" href="{{ url_for('workload.index') }}" title="Обзор модуля" aria-label="Обзор модуля">
-        <i class="bi bi-grid-1x2" aria-hidden="true"></i>
-      </a>
       <div class="workload-context-bar__copy">
         <h1>Учебное планирование и нагрузка</h1>
         <div class="workload-context-bar__meta">
@@ -94,14 +91,6 @@
     </div>
 
     <div class="workload-context-bar__actions">
-      <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-toggle="scope" title="Структура" aria-label="Открыть структуру">
-        <i class="bi bi-diagram-3" aria-hidden="true"></i>
-      </button>
-      {% if workspace_endpoint != 'workload.plan_matrix' %}
-      <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-toggle="context" title="Контекст" aria-label="Открыть контекст">
-        <i class="bi bi-layout-sidebar-reverse" aria-hidden="true"></i>
-      </button>
-      {% endif %}
       <div class="dropdown">
         <button class="workload-icon-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Справочники и настройки" aria-label="Справочники и настройки">
           <i class="bi bi-three-dots" aria-hidden="true"></i>
@@ -126,7 +115,7 @@
     </a>
     {% else %}
     <a class="workload-mode {% if workspace_mode == 'hours' %}is-active{% endif %}" href="{{ url_for('workload.plans') }}">
-      <i class="bi bi-table" aria-hidden="true"></i><span>Часы</span>
+      <i class="bi bi-table" aria-hidden="true"></i><span>Учебные планы</span>
     </a>
     <a class="workload-mode {% if workspace_mode == 'bindings' %}is-active{% endif %}" href="{{ url_for('workload.plan_bindings') }}">
       <i class="bi bi-link-45deg" aria-hidden="true"></i><span>Привязка УП</span>
@@ -191,105 +180,14 @@
   {% endif %}
 
   <div class="workload-workspace-grid">
-    <aside class="workload-scope-panel" data-workload-panel="scope" aria-label="Структура учебного планирования">
-      <div class="workload-panel-heading">
-        <span>Структура</span>
-        <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-close title="Закрыть" aria-label="Закрыть структуру">
-          <i class="bi bi-x-lg" aria-hidden="true"></i>
-        </button>
-      </div>
-
-      <nav class="workload-tree">
-        {% if workspace_teacher_self_only %}
-        <div class="workload-tree__group">
-          <div class="workload-tree__label">Нагрузка</div>
-          <a class="workload-tree__item is-current" href="{{ url_for('workload.workload_teacher_detail', user_id=current_user.id) }}"><i class="bi bi-person" aria-hidden="true"></i><span>Моя нагрузка</span></a>
-        </div>
-        {% else %}
-        <div class="workload-tree__group">
-          <div class="workload-tree__label">Учебный год</div>
-          {% if academic_years is defined and academic_years %}
-            {% for year in academic_years %}
-            <a class="workload-tree__item {% if workspace_year and year.id == workspace_year.id %}is-current{% endif %}" href="{{ url_for('workload.plans', academic_year_id=year.id) }}">
-              <i class="bi bi-calendar3" aria-hidden="true"></i><span>{{ year.name }}</span>
-            </a>
-            {% endfor %}
-          {% elif years is defined and years %}
-            {% for year in years %}
-            <a class="workload-tree__item {% if workspace_year and year.id == workspace_year.id %}is-current{% endif %}" href="{{ url_for('workload.plans', academic_year_id=year.id) }}">
-              <i class="bi bi-calendar3" aria-hidden="true"></i><span>{{ year.name }}</span>
-            </a>
-            {% endfor %}
-          {% else %}
-            <span class="workload-tree__item is-current"><i class="bi bi-calendar3" aria-hidden="true"></i><span>{{ workspace_year.name if workspace_year else 'Все годы' }}</span></span>
-          {% endif %}
-        </div>
-
-        <div class="workload-tree__group">
-          <div class="workload-tree__label">Планы</div>
-          <a class="workload-tree__item" href="{{ url_for('workload.plans', plan_kind='CURRICULUM') }}"><i class="bi bi-book" aria-hidden="true"></i><span>Учебный план</span></a>
-          <a class="workload-tree__item" href="{{ url_for('workload.plans', plan_kind='EXTRACURRICULAR') }}"><i class="bi bi-clock" aria-hidden="true"></i><span>Внеурочная деятельность</span></a>
-          <a class="workload-tree__item" href="{{ url_for('workload.plans', plan_kind='ADDITIONAL_EDUCATION') }}"><i class="bi bi-stars" aria-hidden="true"></i><span>Дополнительное образование</span></a>
-        </div>
-
-        <div class="workload-tree__group">
-          <div class="workload-tree__label">Своды</div>
-          <a class="workload-tree__item" href="{{ url_for('workload.workload_teachers') }}"><i class="bi bi-person" aria-hidden="true"></i><span>Преподаватели</span></a>
-          <a class="workload-tree__item" href="{{ url_for('workload.workload_departments') }}"><i class="bi bi-building" aria-hidden="true"></i><span>Кафедры</span></a>
-        </div>
-        {% endif %}
-      </nav>
-    </aside>
-
     <main class="workload-canvas" id="workload-main-canvas">
       {% block workspace_content %}{% endblock %}
     </main>
-
-    {% if workspace_endpoint != 'workload.plan_matrix' %}
-    <aside class="workload-context-panel" data-workload-panel="context" aria-label="Контекст выбранного объекта">
-      <div class="workload-panel-heading">
-        <span>Контекст</span>
-        <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-close title="Закрыть" aria-label="Закрыть контекст">
-          <i class="bi bi-x-lg" aria-hidden="true"></i>
-        </button>
-      </div>
-      {% block workspace_context %}
-      <dl class="workload-context-list">
-        <div><dt>Режим</dt><dd>
-          {% if workspace_mode == 'hours' %}Часы
-          {% elif workspace_mode == 'bindings' %}Привязка УП
-          {% elif workspace_mode == 'groups' %}Группы
-          {% elif workspace_mode == 'metagroups' %}Метагруппы
-          {% elif workspace_mode == 'workload' %}Нагрузка
-          {% elif workspace_mode == 'control' %}Контроль
-          {% else %}Печать и экспорт{% endif %}
-        </dd></div>
-        <div><dt>Учебный год</dt><dd>{{ workspace_year.name if workspace_year else '—' }}</dd></div>
-        {% if workspace_mode != 'hours' %}
-        <div><dt>Версия</dt><dd>{{ workspace_version.version_no if workspace_version else '—' }}</dd></div>
-        {% endif %}
-        {% if plan is defined and plan %}
-        <div><dt>План</dt><dd>{{ plan.name }}</dd></div>
-        {% if workspace_mode != 'hours' %}
-        <div><dt>Статус</dt><dd>{{ workspace_status_labels.get(plan.status, plan.status) }}</dd></div>
-        {% endif %}
-        {% endif %}
-        {% if group is defined and group %}
-        <div><dt>Группа</dt><dd>{{ group.name }}</dd></div>
-        <div><dt>Состав</dt><dd>{{ group.actual_size }}</dd></div>
-        {% endif %}
-      </dl>
-      {% endblock %}
-    </aside>
-    {% endif %}
   </div>
-
-  <button class="workload-panel-backdrop" type="button" data-workload-panel-close aria-label="Закрыть боковую панель"></button>
 </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/workload_workspace.js') }}?v=20260729_1"></script>
   {% block workspace_scripts %}{% endblock %}
 {% endblock %}

@@ -16,6 +16,7 @@ from app.services.education_plan_binding_service import (
     PlanBindingValidationError,
     class_plan_allocations,
     plan_matches_snapshot_class,
+    replace_class_plan_assignments,
     replace_plan_binding_members,
 )
 from app.services.teaching_group_service import (
@@ -98,14 +99,15 @@ def _snapshot_classes(snapshot):
     ).all()
 
 
-def _compatible_plans(version, snapshot_class):
-    if version is None or snapshot_class is None:
+def _curriculum_plans(version):
+    if version is None:
         return []
-    plans = (
+    return (
         EducationPlan.query
         .filter_by(
             tariff_version_id=version.id,
             plan_kind="CURRICULUM",
+            root_plan_id=None,
         )
         .order_by(
             EducationPlan.education_level.asc(),
@@ -113,11 +115,80 @@ def _compatible_plans(version, snapshot_class):
         )
         .all()
     )
+
+
+def _compatible_plans(version, snapshot_class, plans=None):
+    if version is None or snapshot_class is None:
+        return []
+    plans = plans if plans is not None else _curriculum_plans(version)
     return [
         plan
         for plan in plans
         if plan_matches_snapshot_class(plan, snapshot_class)
     ]
+
+
+def _validate_binding_target(version, snapshot_class):
+    if version not in _available_versions():
+        abort(403)
+    snapshot = current_population_snapshot(version.id)
+    if (
+        snapshot is None
+        or snapshot_class.population_snapshot_id != snapshot.id
+    ):
+        abort(400)
+    scope = resolve_workload_scope(current_user)
+    if (
+        not scope.unrestricted
+        and snapshot_class.building_id not in scope.building_ids
+    ):
+        abort(403)
+
+
+def _class_binding_rows(classes, version):
+    all_plans = _curriculum_plans(version)
+    rows = []
+    unassigned_total = 0
+    for snapshot_class in classes:
+        plans = _compatible_plans(version, snapshot_class, all_plans)
+        _, student_plan_ids = class_plan_allocations(
+            snapshot_class,
+            plans,
+        )
+        enrollment_ids = {
+            item.id for item in snapshot_class.enrollments
+        }
+        assigned_count = sum(
+            1 for item in enrollment_ids if item in student_plan_ids
+        )
+        assigned_plan_ids = {
+            student_plan_ids[item]
+            for item in enrollment_ids
+            if item in student_plan_ids
+        }
+        uniform_plan_id = (
+            next(iter(assigned_plan_ids))
+            if (
+                enrollment_ids
+                and assigned_count == len(enrollment_ids)
+                and len(assigned_plan_ids) == 1
+            )
+            else None
+        )
+        unassigned_count = len(enrollment_ids) - assigned_count
+        unassigned_total += unassigned_count
+        rows.append({
+            "snapshot_class": snapshot_class,
+            "plans": plans,
+            "student_plan_ids": student_plan_ids,
+            "assigned_count": assigned_count,
+            "unassigned_count": unassigned_count,
+            "uniform_plan_id": uniform_plan_id,
+            "has_individual_assignments": (
+                assigned_count > 0 and uniform_plan_id is None
+            ),
+        })
+    return rows, all_plans, unassigned_total
 
 
 def register_plan_binding_routes(workload_bp):
@@ -148,13 +219,18 @@ def register_plan_binding_routes(workload_bp):
         selected_class_id = request.args.get("class_id", type=int)
         selected_class = next(
             (item for item in classes if item.id == selected_class_id),
-            classes[0] if classes else None,
+            None,
         )
-        plans = _compatible_plans(version, selected_class)
-        selected_plan_id = request.args.get("plan_id", type=int)
-        selected_plan = next(
-            (item for item in plans if item.id == selected_plan_id),
-            plans[0] if plans else None,
+        class_rows, plans, unassigned_count = _class_binding_rows(
+            classes,
+            version,
+        )
+        class_row_by_id = {
+            item["snapshot_class"].id: item for item in class_rows
+        }
+        selected_class_row = (
+            class_row_by_id.get(selected_class.id)
+            if selected_class else None
         )
 
         enrollments = (
@@ -165,24 +241,6 @@ def register_plan_binding_routes(workload_bp):
             .order_by(PopulationSnapshotEnrollment.fio_snapshot.asc())
             .all()
             if selected_class else []
-        )
-        allocations, student_plan_ids = (
-            class_plan_allocations(selected_class, plans)
-            if selected_class else ({}, {})
-        )
-        plan_by_id = {plan.id: plan for plan in plans}
-        selected_member_ids = (
-            allocations.get(selected_plan.id, set())
-            if selected_plan else set()
-        )
-        plan_counts = {
-            plan.id: len(allocations.get(plan.id, set()))
-            for plan in plans
-        }
-        unassigned_count = sum(
-            1
-            for enrollment in enrollments
-            if enrollment.id not in student_plan_ids
         )
         can_update = (
             version is not None
@@ -199,15 +257,11 @@ def register_plan_binding_routes(workload_bp):
             selected_version=version,
             snapshot=snapshot,
             classes=classes,
+            class_rows=class_rows,
             selected_class=selected_class,
+            selected_class_row=selected_class_row,
             plans=plans,
-            selected_plan=selected_plan,
             enrollments=enrollments,
-            allocations=allocations,
-            student_plan_ids=student_plan_ids,
-            selected_member_ids=selected_member_ids,
-            plan_counts=plan_counts,
-            plan_by_id=plan_by_id,
             unassigned_count=unassigned_count,
             class_count=len(classes),
             registry_status=registry_status,
@@ -243,6 +297,94 @@ def register_plan_binding_routes(workload_bp):
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
+        ))
+
+    @workload_bp.post("/plan-bindings/class")
+    @login_required
+    def plan_bindings_assign_class():
+        _require_bindings_update()
+        version_id = request.form.get("version_id", type=int)
+        class_id = request.form.get("class_id", type=int)
+        plan_id = request.form.get("plan_id", type=int)
+        version = db.session.get(TariffVersion, version_id)
+        snapshot_class = db.session.get(PopulationSnapshotClass, class_id)
+        if version is None or snapshot_class is None:
+            abort(404)
+        _validate_binding_target(version, snapshot_class)
+        plans = _compatible_plans(version, snapshot_class)
+        if plan_id is not None and plan_id not in {item.id for item in plans}:
+            abort(400)
+        assignments = (
+            {item.id: plan_id for item in snapshot_class.enrollments}
+            if plan_id is not None else {}
+        )
+        try:
+            replace_class_plan_assignments(
+                snapshot_class,
+                plans,
+                assignments,
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except PlanBindingValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            flash(
+                f"Учебный план для {snapshot_class.name_snapshot} обновлён.",
+                "success",
+            )
+        return redirect(url_for(
+            "workload.plan_bindings",
+            version_id=version.id,
+            class_id=snapshot_class.id,
+        ))
+
+    @workload_bp.post("/plan-bindings/student")
+    @login_required
+    def plan_bindings_assign_student():
+        _require_bindings_update()
+        version_id = request.form.get("version_id", type=int)
+        class_id = request.form.get("class_id", type=int)
+        enrollment_id = request.form.get("enrollment_id", type=int)
+        plan_id = request.form.get("plan_id", type=int)
+        version = db.session.get(TariffVersion, version_id)
+        snapshot_class = db.session.get(PopulationSnapshotClass, class_id)
+        enrollment = db.session.get(
+            PopulationSnapshotEnrollment,
+            enrollment_id,
+        )
+        if (
+            version is None
+            or snapshot_class is None
+            or enrollment is None
+            or enrollment.population_snapshot_class_id != snapshot_class.id
+        ):
+            abort(404)
+        _validate_binding_target(version, snapshot_class)
+        plans = _compatible_plans(version, snapshot_class)
+        if plan_id is not None and plan_id not in {item.id for item in plans}:
+            abort(400)
+        _, assignments = class_plan_allocations(snapshot_class, plans)
+        if plan_id is None:
+            assignments.pop(enrollment.id, None)
+        else:
+            assignments[enrollment.id] = plan_id
+        try:
+            replace_class_plan_assignments(
+                snapshot_class,
+                plans,
+                assignments,
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except PlanBindingValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        return redirect(url_for(
+            "workload.plan_bindings",
+            version_id=version.id,
+            class_id=snapshot_class.id,
         ))
 
     @workload_bp.post("/plan-bindings/save")

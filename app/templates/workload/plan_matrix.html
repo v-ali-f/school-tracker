@@ -1,5 +1,5 @@
 {% extends "workload/workspace_base.html" %}
-{% block title %}Матрица — {{ plan.name }}{% endblock %}
+{% block title %}Матрица — {{ bundle_root.name }}{% endblock %}
 {% block head_extra %}
   {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260730_16">
@@ -8,20 +8,38 @@
 {% block workspace_content %}
 <div class="page-head mb-3">
   <div>
-    <div class="page-title">{{ plan.name }}</div>
+    <div class="page-title">{{ bundle_root.name }}</div>
     <div class="page-sub">
-      {{ plan_kind_labels[plan.plan_kind] }} · {{ plan.education_level or 'Все уровни' }}
-      {% if plan.building %} · {{ plan.building.short_name or plan.building.name }}{% endif %}
+      {{ bundle_labels[plan.plan_kind] }} · {{ bundle_root.education_level or 'Все уровни' }}
+      {% if bundle_root.building %} · {{ bundle_root.building.short_name or bundle_root.building.name }}{% endif %}
     </div>
   </div>
   <div class="page-actions d-flex gap-1">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans', academic_year_id=plan.tariff_version.tariff_cycle.academic_year_id, plan_kind=plan.plan_kind) }}" title="К списку планов" aria-label="К списку планов">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans', academic_year_id=bundle_root.tariff_version.tariff_cycle.academic_year_id) }}" title="К списку планов" aria-label="К списку планов">
       <i class="bi bi-arrow-left" aria-hidden="true"></i>
     </a>
   </div>
 </div>
 
 {% include "workload/_nav.html" %}
+
+<nav class="workload-plan-bundle-tabs" aria-label="Части комплекта учебного плана">
+  {% for kind in bundle_kinds %}
+  {% set part = bundle_parts.get(kind) %}
+  {% if part %}
+  <a
+    class="{% if plan.plan_kind == kind %}is-active{% endif %}"
+    href="{{ url_for('workload.plan_matrix', plan_id=bundle_root.id, part=kind) }}"
+  >
+    {% if kind == 'CURRICULUM' %}<i class="bi bi-book" aria-hidden="true"></i>
+    {% elif kind == 'EXTRACURRICULAR' %}<i class="bi bi-clock" aria-hidden="true"></i>
+    {% else %}<i class="bi bi-stars" aria-hidden="true"></i>{% endif %}
+    <span>{{ bundle_labels[kind] }}</span>
+    <small>{{ part.lines|length }}</small>
+  </a>
+  {% endif %}
+  {% endfor %}
+</nav>
 
 {% if can_update %}
 <form

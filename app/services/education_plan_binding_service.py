@@ -105,14 +105,106 @@ def replace_plan_binding_members(
             "В списке выбраны ученики из другого класса."
         )
 
+    plans = [
+        item
+        for item in (
+        EducationPlan.query
+        .filter_by(
+            tariff_version_id=plan.tariff_version_id,
+            plan_kind="CURRICULUM",
+        )
+        .all()
+        )
+        if plan_matches_snapshot_class(item, snapshot_class)
+    ]
+    allocations, student_plan_ids = class_plan_allocations(
+        snapshot_class,
+        plans,
+    )
+    current_target_ids = allocations.get(plan.id, set())
+    for enrollment_id in current_target_ids - selected_enrollment_ids:
+        student_plan_ids.pop(enrollment_id, None)
+    for enrollment_id in selected_enrollment_ids:
+        student_plan_ids[enrollment_id] = plan.id
+
+    return replace_class_plan_assignments(
+        snapshot_class,
+        plans,
+        student_plan_ids,
+        user_id=user_id,
+    ).get(plan.id)
+
+
+def replace_class_plan_assignments(
+    snapshot_class,
+    plans,
+    assignment_by_enrollment_id,
+    *,
+    user_id,
+):
+    plans = list(plans)
+    if not plans:
+        raise PlanBindingValidationError(
+            "Для класса нет подходящих учебных планов."
+        )
+    version_ids = {item.tariff_version_id for item in plans}
+    if len(version_ids) != 1:
+        raise PlanBindingValidationError(
+            "Учебные планы относятся к разным версиям."
+        )
+    version_id = next(iter(version_ids))
+    if plans[0].tariff_version.status != "DRAFT":
+        raise PlanBindingValidationError(
+            "Привязки можно изменять только в рабочей версии."
+        )
+    if (
+        snapshot_class.population_snapshot.tariff_version_id
+        != version_id
+    ):
+        raise PlanBindingValidationError(
+            "Учебные планы и класс относятся к разным версиям."
+        )
+    if any(item.plan_kind != "CURRICULUM" for item in plans):
+        raise PlanBindingValidationError(
+            "К классу назначается комплект основного учебного плана."
+        )
+    if any(
+        not plan_matches_snapshot_class(item, snapshot_class)
+        for item in plans
+    ):
+        raise PlanBindingValidationError(
+            "Один из планов не соответствует уровню или зданию класса."
+        )
+
+    all_enrollment_ids = {
+        item.id for item in snapshot_class.enrollments
+    }
+    assignments = {
+        int(enrollment_id): int(plan_id)
+        for enrollment_id, plan_id
+        in dict(assignment_by_enrollment_id).items()
+        if plan_id is not None
+    }
+    unknown_enrollment_ids = set(assignments) - all_enrollment_ids
+    if unknown_enrollment_ids:
+        raise PlanBindingValidationError(
+            "В назначениях есть ученики из другого класса."
+        )
+    plans_by_id = {item.id: item for item in plans}
+    unknown_plan_ids = set(assignments.values()) - set(plans_by_id)
+    if unknown_plan_ids:
+        raise PlanBindingValidationError(
+            "Выбран недоступный учебный план."
+        )
+
     bindings = (
         EducationPlanBinding.query
         .join(EducationPlan)
         .filter(
             EducationPlanBinding.population_snapshot_class_id
             == snapshot_class.id,
-            EducationPlan.tariff_version_id == plan.tariff_version_id,
-            EducationPlan.plan_kind == plan.plan_kind,
+            EducationPlan.tariff_version_id == version_id,
+            EducationPlan.plan_kind == "CURRICULUM",
         )
         .all()
     )
@@ -120,20 +212,16 @@ def replace_plan_binding_members(
         item.education_plan_id: item for item in bindings
     }
     allocations = {
-        item.education_plan_id: effective_binding_member_ids(
-            item,
-            all_enrollment_ids,
-        )
-        for item in bindings
+        plan_id: {
+            enrollment_id
+            for enrollment_id, assigned_plan_id in assignments.items()
+            if assigned_plan_id == plan_id
+        }
+        for plan_id in plans_by_id
     }
 
-    # An individual student has exactly one principal curriculum in a version.
-    for plan_id in list(allocations):
-        if plan_id != plan.id:
-            allocations[plan_id] -= selected_enrollment_ids
-    allocations[plan.id] = selected_enrollment_ids
-
-    for plan_id, member_ids in allocations.items():
+    for plan_id in set(bindings_by_plan_id) | set(allocations):
+        member_ids = allocations.get(plan_id, set())
         binding = bindings_by_plan_id.get(plan_id)
         if not member_ids:
             if binding is not None:
@@ -160,7 +248,7 @@ def replace_plan_binding_members(
         )
         bindings_by_plan_id[plan_id] = binding
 
-    return bindings_by_plan_id.get(plan.id)
+    return bindings_by_plan_id
 
 
 def class_plan_allocations(snapshot_class, plans):
@@ -264,5 +352,6 @@ __all__ = [
     "class_plan_allocations",
     "effective_binding_member_ids",
     "plan_matches_snapshot_class",
+    "replace_class_plan_assignments",
     "replace_plan_binding_members",
 ]

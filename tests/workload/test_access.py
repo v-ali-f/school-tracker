@@ -49,10 +49,10 @@ def test_allowed_roles_can_open_scaffold(app, client, make_user, login, role):
     _enable_module(app)
     login(make_user(role))
 
-    response = client.get("/workload/")
+    response = client.get("/workload/", follow_redirects=True)
 
     assert response.status_code == 200
-    assert "Нагрузка и тарификация".encode() in response.data
+    assert "Учебное планирование и нагрузка".encode() in response.data
 
 
 def test_explicit_module_deny_overrides_default_role_access(

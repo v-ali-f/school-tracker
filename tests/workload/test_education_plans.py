@@ -241,10 +241,26 @@ def test_administrator_can_create_plan(
 
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/matrix")
+    matrix_response = client.get(response.headers["Location"])
+    assert matrix_response.status_code == 200
+    assert "Учебный план".encode() in matrix_response.data
+    assert "Внеурочная деятельность".encode() in matrix_response.data
+    assert "Дополнительное образование".encode() in matrix_response.data
     with app.app_context():
-        plan = EducationPlan.query.one()
-        assert plan.plan_kind == "CURRICULUM"
-        assert plan.tariff_version.status == "DRAFT"
+        plans = EducationPlan.query.order_by(
+            EducationPlan.id.asc()
+        ).all()
+        assert len(plans) == 3
+        root_plan = next(
+            item for item in plans if item.plan_kind == "CURRICULUM"
+        )
+        assert root_plan.root_plan_id is None
+        assert {
+            item.plan_kind
+            for item in plans
+            if item.root_plan_id == root_plan.id
+        } == {"EXTRACURRICULAR", "ADDITIONAL_EDUCATION"}
+        assert root_plan.tariff_version.status == "DRAFT"
 
 
 def test_curriculum_plan_requires_education_level(

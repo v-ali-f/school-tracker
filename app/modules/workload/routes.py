@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
-from app.core.feature_flags import WORKLOAD_WRITE, is_feature_enabled, workload_feature_state
+from app.core.feature_flags import WORKLOAD_WRITE, is_feature_enabled
 from app.models import (
     ACTIVITY_KINDS,
     ACTIVITY_KIND_LABELS,
@@ -23,7 +23,6 @@ from app.services.education_activity_service import (
     normalize_activity_code,
     normalize_activity_name,
 )
-from app.services.workload_integration_service import source_state
 
 from .access import (
     can_access_workload_module,
@@ -38,7 +37,6 @@ from .assignment_routes import register_assignment_routes
 from .tariff_routes import register_tariff_routes
 from .workflow_routes import register_workflow_routes
 from .integration_routes import register_integration_routes
-from .scopes import resolve_workload_scope
 
 
 workload_bp = Blueprint("workload", __name__, url_prefix="/workload")
@@ -68,26 +66,15 @@ def protect_workload_module():
 @workload_bp.get("/")
 @login_required
 def index():
-    scope = resolve_workload_scope(current_user)
-    current_year = AcademicYear.query.filter_by(is_current=True).first()
-    department_source_state = (
-        source_state(current_year.id)
-        if current_year
-        else None
-    )
-    activity_count = EducationActivity.query.filter_by(is_active=True).count()
-    linked_subject_count = Subject.query.filter(
-        Subject.education_activity_id.isnot(None)
-    ).count()
-    return render_template(
-        "workload/index.html",
-        feature_state=workload_feature_state(),
-        scope=scope,
-        activity_count=activity_count,
-        linked_subject_count=linked_subject_count,
-        current_year=current_year,
-        department_source_state=department_source_state,
-    )
+    if (
+        current_user.has_role("TEACHER")
+        and len(current_user.role_codes) == 1
+    ):
+        return redirect(url_for(
+            "workload.workload_teacher_detail",
+            user_id=current_user.id,
+        ))
+    return redirect(url_for("workload.plans"))
 
 
 def _require_catalog_manage():
