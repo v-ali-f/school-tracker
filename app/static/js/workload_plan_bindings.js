@@ -12,8 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!select) return;
 
     select.addEventListener("change", () => {
-      select.disabled = true;
+      if (form.classList.contains("is-saving")) return;
       form.classList.add("is-saving");
+      select.setAttribute("aria-busy", "true");
       if (state) state.textContent = "Сохранение";
       form.submit();
     });

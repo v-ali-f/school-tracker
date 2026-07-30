@@ -15,6 +15,24 @@
 
 <form method="post" class="row g-3" data-plan-form>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="col-12">
+    <label class="form-label" for="plan-source">Создать на основе</label>
+    <select class="form-select" id="plan-source" name="source_plan_id" data-plan-source>
+      <option value="">Новый пустой учебный план</option>
+      {% for source in source_plans %}
+      <option
+        value="{{ source.id }}"
+        data-name="{{ source.name }}"
+        data-level="{{ source.education_level or '' }}"
+        data-building="{{ source.building_id or '' }}"
+        {% if selected_source_plan and selected_source_plan.id == source.id %}selected{% endif %}
+      >
+        {{ source.tariff_version.tariff_cycle.academic_year.name }} · {{ source.name }} · {{ source.education_level }}
+      </option>
+      {% endfor %}
+    </select>
+    <div class="form-text">При выборе готового плана будут скопированы учебный план, внеурочная деятельность и дополнительное образование.</div>
+  </div>
   <div class="col-md-4">
     <label class="form-label" for="plan-year">Учебный год</label>
     <select class="form-select" id="plan-year" name="academic_year_id" required>
@@ -26,15 +44,22 @@
   </div>
   <div class="col-md-8">
     <label class="form-label" for="plan-name">Наименование</label>
-    <input class="form-control" id="plan-name" name="name" maxlength="255" required>
+    <input
+      class="form-control"
+      id="plan-name"
+      name="name"
+      maxlength="255"
+      required
+      value="{{ request.form.get('name', selected_source_plan.name ~ ' (копия)' if selected_source_plan else '') }}"
+    >
   </div>
   <div class="col-md-4">
     <label class="form-label" for="plan-level">Уровень образования</label>
     <select class="form-select" id="plan-level" name="education_level" required>
       <option value="">Выберите</option>
-      <option value="NOO">НОО — 1–4 классы</option>
-      <option value="OOO">ООО — 5–9 классы</option>
-      <option value="SOO">СОО — 10–11 классы</option>
+      <option value="NOO" {% if selected_source_plan and selected_source_plan.education_level == 'NOO' %}selected{% endif %}>НОО — 1–4 классы</option>
+      <option value="OOO" {% if selected_source_plan and selected_source_plan.education_level == 'OOO' %}selected{% endif %}>ООО — 5–9 классы</option>
+      <option value="SOO" {% if selected_source_plan and selected_source_plan.education_level == 'SOO' %}selected{% endif %}>СОО — 10–11 классы</option>
     </select>
   </div>
   <div class="col-md-8">
@@ -42,7 +67,7 @@
     <select class="form-select" id="plan-building" name="building_id">
       <option value="">Все здания</option>
       {% for building in buildings %}
-      <option value="{{ building.id }}">{{ building.short_name or building.name }}</option>
+      <option value="{{ building.id }}" {% if selected_source_plan and selected_source_plan.building_id == building.id %}selected{% endif %}>{{ building.short_name or building.name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -50,4 +75,32 @@
     <button class="btn btn-primary" type="submit">Создать</button>
   </div>
 </form>
+{% endblock %}
+
+{% block workspace_scripts %}
+<script>
+(() => {
+  const source = document.querySelector("[data-plan-source]");
+  const name = document.querySelector("#plan-name");
+  const level = document.querySelector("#plan-level");
+  const building = document.querySelector("#plan-building");
+  if (!source || !name || !level || !building) return;
+
+  let generatedName = "";
+  const refresh = () => {
+    const option = source.selectedOptions[0];
+    const copying = Boolean(source.value);
+    level.disabled = copying;
+    building.disabled = copying;
+    if (!copying) return;
+    level.value = option.dataset.level || "";
+    building.value = option.dataset.building || "";
+    const nextName = `${option.dataset.name} (копия)`;
+    if (!name.value || name.value === generatedName) name.value = nextName;
+    generatedName = nextName;
+  };
+  source.addEventListener("change", refresh);
+  refresh();
+})();
+</script>
 {% endblock %}

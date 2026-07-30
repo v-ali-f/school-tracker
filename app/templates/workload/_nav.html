@@ -3,7 +3,7 @@
     Обзор
   </a>
   <a class="nav-link {% if request.endpoint and request.endpoint.startswith('workload.catalog') %}active{% endif %}" href="{{ url_for('workload.catalog') }}">
-    Каталог дисциплин
+    Предметы и курсы
   </a>
   <a class="nav-link {% if request.endpoint and request.endpoint.startswith('workload.plan') and not request.endpoint.startswith('workload.plan_bindings') %}active{% endif %}" href="{{ url_for('workload.plans') }}">
     Учебные планы

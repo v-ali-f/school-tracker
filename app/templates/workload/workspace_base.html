@@ -59,7 +59,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_4">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_2">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_control.css') }}?v=20260730_3">
 {% endblock %}
@@ -97,7 +97,7 @@
         </button>
         <div class="dropdown-menu dropdown-menu-end workload-utility-menu">
           {% if not workspace_teacher_self_only %}
-          <a class="dropdown-item" href="{{ url_for('workload.catalog') }}"><i class="bi bi-journal-text" aria-hidden="true"></i>Каталог дисциплин</a>
+          <a class="dropdown-item" href="{{ url_for('workload.catalog') }}"><i class="bi bi-journal-text" aria-hidden="true"></i>Предметы и курсы</a>
           <a class="dropdown-item" href="{{ url_for('workload.tariffication') }}"><i class="bi bi-calculator" aria-hidden="true"></i>Тарификация</a>
           {% endif %}
           {% if can('workload.settings.manage') %}

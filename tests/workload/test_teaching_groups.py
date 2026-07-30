@@ -405,6 +405,15 @@ def test_class_plan_can_be_overridden_for_one_student(
         },
     )
     assert response.status_code == 302
+    assert "class_id=" not in response.headers["Location"]
+
+    summary_page = client.get(response.headers["Location"])
+    assert summary_page.status_code == 200
+    assert (
+        f'value="{first_plan_id}" selected'.encode()
+        in summary_page.data
+    )
+    assert "Индивидуальные назначения".encode() not in summary_page.data
 
     with app.app_context():
         snapshot_class = db.session.get(
