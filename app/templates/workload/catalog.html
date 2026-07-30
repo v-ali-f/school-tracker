@@ -8,6 +8,11 @@
   </div>
   {% if can_manage %}
   <div class="page-actions">
+    {% if selected_section == 'SUBJECTS' %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.subjects_import') }}">
+      <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Импорт
+    </a>
+    {% endif %}
     <a class="btn btn-primary btn-sm" href="{{ url_for('workload.catalog_create', section=selected_section, activity_kind=section_config.default_kind) }}">
       <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Добавить
     </a>
@@ -30,7 +35,7 @@
   <input type="hidden" name="section" value="{{ selected_section }}">
   <div class="col-lg-5">
     <label class="form-label small" for="catalog-q">Поиск</label>
-    <input class="form-control form-control-sm" id="catalog-q" name="q" value="{{ search }}" placeholder="Код или наименование">
+    <input class="form-control form-control-sm" id="catalog-q" name="q" value="{{ search }}" placeholder="Название или краткое название">
   </div>
   <div class="col-lg-4">
     <label class="form-label small" for="catalog-kind">Вид</label>
@@ -58,41 +63,40 @@
   <table class="table table-sm align-middle mb-0">
     <thead>
       <tr>
-        <th>Код</th>
-        <th>Наименование</th>
+        <th>Название</th>
+        <th>Краткое название</th>
         <th>Вид</th>
-        <th>Уровень</th>
-        <th>Кафедра</th>
-        <th>Статус</th>
+        <th>Уровни образования</th>
+        <th>Кафедры</th>
         <th class="text-end"></th>
       </tr>
     </thead>
     <tbody>
       {% for activity in activities %}
-      {% set primary_link = activity.department_links|selectattr('is_active')|selectattr('is_primary')|first %}
+      {% set active_links = activity.department_links|selectattr('is_active')|list %}
       <tr>
-        <td class="text-nowrap"><code>{{ activity.code }}</code></td>
-        <td>
-          <div class="fw-semibold">{{ activity.name }}</div>
-          {% if activity.short_name %}<div class="small text-muted">{{ activity.short_name }}</div>{% endif %}
-        </td>
+        <td class="fw-semibold">{{ activity.name }}</td>
+        <td>{{ activity.short_name or '—' }}</td>
         <td>{{ kind_labels.get(activity.activity_kind, activity.activity_kind) }}</td>
-        <td>{{ activity.education_level or '—' }}</td>
-        <td>{{ primary_link.department.name if primary_link else '—' }}</td>
         <td>
-          {% if activity.is_active %}
-          <span class="badge text-bg-success">Действует</span>
-          {% else %}
-          <span class="badge text-bg-secondary">Архив</span>
-          {% endif %}
+          {% for level in activity.education_levels %}
+            {{ education_level_labels[level] }}{% if not loop.last %}, {% endif %}
+          {% else %}—{% endfor %}
+        </td>
+        <td>
+          {% for link in active_links|sort(attribute='department.name') %}
+            {{ link.department.name }}{% if not loop.last %}, {% endif %}
+          {% else %}—{% endfor %}
         </td>
         <td class="text-end">
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('workload.catalog_detail', activity_id=activity.id) }}">Открыть</a>
+          {% if can_manage %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('workload.catalog_edit', activity_id=activity.id) }}">Изменить</a>
+          {% endif %}
         </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="7" class="text-center text-muted py-4">
+        <td colspan="6" class="text-center text-muted py-4">
           {{ section_config.empty if not search and not selected_kind else 'По заданным условиям ничего не найдено.' }}
         </td>
       </tr>

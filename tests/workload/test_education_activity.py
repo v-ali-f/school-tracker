@@ -1,4 +1,5 @@
 from decimal import Decimal
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -260,7 +261,10 @@ def test_administrator_can_create_catalog_item_when_write_is_enabled(
 
     assert response.status_code == 302
     with app.app_context():
-        item = EducationActivity.query.filter_by(code="PRACTICAL_MATH").one()
+        item = EducationActivity.query.filter_by(
+            name="Практическая математика",
+        ).one()
+        assert item.code.startswith("CATALOG_")
         assert item.activity_kind == "COURSE"
         assert item.education_level == "OOO"
 
@@ -306,6 +310,69 @@ def test_catalog_sections_are_separate_and_sorted_alphabetically(
         "/workload/catalog/new?section=EXTRACURRICULAR"
     )
     assert b'value="EXTRACURRICULAR_COURSE" selected' in create_page.data
+
+
+def test_legacy_subject_registry_redirects_to_unified_catalog(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    login(make_user("ADMIN"))
+
+    response = client.get("/subjects?q=математика")
+
+    assert response.status_code == 302
+    location = urlparse(response.headers["Location"])
+    assert location.path == "/workload/catalog/"
+    assert parse_qs(location.query) == {
+        "section": ["SUBJECTS"],
+        "q": ["математика"],
+    }
+
+
+def test_unified_catalog_saves_multiple_levels_departments_and_subject_link(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        first = Department(name="Кафедра начального образования")
+        second = Department(name="Кафедра математики")
+        db.session.add_all((first, second))
+        db.session.commit()
+        department_ids = [first.id, second.id]
+    login(user_id)
+
+    response = client.post(
+        "/workload/catalog/new",
+        data={
+            "section": "SUBJECTS",
+            "name": "Математическая грамотность",
+            "short_name": "Мат. грамотность",
+            "activity_kind": "SUBJECT",
+            "education_levels": ["NOO", "OOO"],
+            "department_ids": [str(item) for item in department_ids],
+        },
+    )
+
+    assert response.status_code == 302
+    assert "section=SUBJECTS" in response.headers["Location"]
+    with app.app_context():
+        activity = EducationActivity.query.filter_by(
+            name="Математическая грамотность",
+        ).one()
+        assert activity.code.startswith("CATALOG_")
+        assert activity.education_levels == ("NOO", "OOO")
+        assert {
+            link.department_id
+            for link in activity.department_links
+            if link.is_active
+        } == set(department_ids)
+        subject = Subject.query.filter_by(
+            education_activity_id=activity.id,
+        ).one()
+        assert subject.name == activity.name
+        assert subject.short_name == activity.short_name
 
 
 def test_teacher_cannot_manage_catalog_even_when_write_flag_is_enabled(

@@ -248,6 +248,41 @@ def sync_activity_from_subject(
     return activity
 
 
+def sync_subject_from_activity(
+    activity: EducationActivity,
+) -> Subject | None:
+    if activity.activity_kind != "SUBJECT":
+        if activity.legacy_subject is not None:
+            raise ValueError(
+                "Учебный предмет нельзя преобразовать в другой вид, "
+                "пока он используется старыми разделами системы."
+            )
+        return None
+
+    subject = activity.legacy_subject
+    if subject is None:
+        subject = (
+            Subject.query
+            .filter(func.lower(Subject.name) == activity.name.lower())
+            .first()
+        )
+        if (
+            subject is not None
+            and subject.education_activity_id not in (None, activity.id)
+        ):
+            raise ValueError(
+                "Предмет с таким названием уже связан с другой записью."
+            )
+        if subject is None:
+            subject = Subject(name=activity.name)
+            db.session.add(subject)
+        subject.education_activity_id = activity.id
+
+    subject.name = activity.name
+    subject.short_name = activity.short_name
+    return subject
+
+
 def get_or_create_subject_with_activity(
     name: str,
     *,
@@ -282,5 +317,6 @@ __all__ = [
     "record_activity_mapping",
     "ensure_activity_for_subject",
     "sync_activity_from_subject",
+    "sync_subject_from_activity",
     "get_or_create_subject_with_activity",
 ]

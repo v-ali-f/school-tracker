@@ -23,6 +23,15 @@ ACTIVITY_KIND_LABELS = {
     "OLYMPIAD_DIRECTION": "Олимпиадное направление",
 }
 
+EDUCATION_LEVELS = ("NOO", "OOO", "SOO", "DO")
+
+EDUCATION_LEVEL_LABELS = {
+    "NOO": "НОО",
+    "OOO": "ООО",
+    "SOO": "СОО",
+    "DO": "Дополнительное образование",
+}
+
 
 class EducationActivity(db.Model):
     __tablename__ = "education_activity"
@@ -100,6 +109,50 @@ class EducationActivity(db.Model):
 
     def __repr__(self):
         return f"<EducationActivity {self.code}:{self.name}>"
+
+    @property
+    def education_levels(self):
+        values = {
+            link.education_level
+            for link in self.level_links
+        }
+        if not values and self.education_level:
+            values.add(self.education_level)
+        return tuple(level for level in EDUCATION_LEVELS if level in values)
+
+
+class EducationActivityLevel(db.Model):
+    __tablename__ = "education_activity_level"
+
+    id = db.Column(db.Integer, primary_key=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    education_level = db.Column(db.String(20), nullable=False, index=True)
+
+    education_activity = db.relationship(
+        "EducationActivity",
+        backref=db.backref(
+            "level_links",
+            lazy=True,
+            cascade="all, delete-orphan",
+        ),
+    )
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "education_level IN ('NOO','OOO','SOO','DO')",
+            name="ck_education_activity_level_code",
+        ),
+        db.UniqueConstraint(
+            "education_activity_id",
+            "education_level",
+            name="uq_education_activity_level",
+        ),
+    )
 
 
 class EducationActivityAlias(db.Model):
@@ -328,7 +381,10 @@ class ExternalActivityMappingLog(db.Model):
 __all__ = [
     "ACTIVITY_KINDS",
     "ACTIVITY_KIND_LABELS",
+    "EDUCATION_LEVELS",
+    "EDUCATION_LEVEL_LABELS",
     "EducationActivity",
+    "EducationActivityLevel",
     "EducationActivityAlias",
     "EducationActivityDepartment",
     "ExternalActivityMappingLog",
