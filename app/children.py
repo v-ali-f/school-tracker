@@ -107,6 +107,10 @@ from io import BytesIO
 from app.core.extensions import db
 from app.core.cache import view_response_cache, make_key
 from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
+from app.services.education_activity_service import (
+    get_or_create_subject_with_activity,
+    sync_activity_from_subject,
+)
 from .models import (
     AcademicYear,
     Building,
@@ -6172,7 +6176,11 @@ def subjects_new():
         flash("Такой предмет уже существует", "warning")
         return redirect(url_for("children.subjects_registry"))
 
-    db.session.add(Subject(name=name, short_name=short_name))
+    get_or_create_subject_with_activity(
+        name,
+        short_name=short_name,
+        created_by_user_id=current_user.id,
+    )
     db.session.commit()
     flash("Предмет добавлен", "success")
     return redirect(url_for("children.subjects_registry"))
@@ -6201,6 +6209,7 @@ def subjects_update(subject_id: int):
 
     subject.name = name
     subject.short_name = short_name
+    sync_activity_from_subject(subject, updated_by_user_id=current_user.id)
     db.session.commit()
     flash("Предмет сохранён", "success")
     return redirect(url_for("children.subjects_registry"))
@@ -6395,12 +6404,14 @@ def subjects_import():
                 skipped += 1
                 continue
 
-            exists = Subject.query.filter(db.func.lower(Subject.name) == name.lower()).first()
-            if exists:
+            _subject, was_created = get_or_create_subject_with_activity(
+                name,
+                short_name=short_name,
+                created_by_user_id=current_user.id,
+            )
+            if not was_created:
                 skipped += 1
                 continue
-
-            db.session.add(Subject(name=name, short_name=short_name))
             created += 1
 
         db.session.commit()

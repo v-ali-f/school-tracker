@@ -1,0 +1,739 @@
+.workload-plan-kind-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--workload-border);
+  border-radius: 6px;
+  background: var(--workload-surface-muted);
+}
+
+.workload-plan-kind-tabs a {
+  min-height: 32px;
+  padding: 7px 10px;
+  flex: 1 0 auto;
+  color: #56637a;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.workload-plan-kind-tabs a:hover,
+.workload-plan-kind-tabs a.is-active {
+  color: #084fbd;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(17, 33, 64, 0.08);
+}
+
+.workload-plan-filter {
+  display: grid;
+  grid-template-columns: minmax(220px, 360px) 34px;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.workload-plan-filter__action .btn {
+  width: 34px;
+  height: 31px;
+  padding: 0;
+}
+
+.workload-plan-registry {
+  border-top: 1px solid var(--workload-border);
+  border-bottom: 1px solid var(--workload-border);
+}
+
+.workload-plan-row:hover > * {
+  background: #f8fbff !important;
+}
+
+.workload-matrix-add-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(230px, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--workload-border);
+  border-bottom: 1px solid var(--workload-border);
+}
+
+.workload-matrix-add-row .form-label {
+  margin-bottom: 3px;
+  color: var(--workload-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workload-matrix-add-row .btn {
+  min-width: 142px;
+}
+
+.workload-plan-matrix-wrap {
+  max-height: 580px;
+  overflow: auto;
+  border: 1px solid var(--workload-border-strong);
+  border-radius: 6px;
+}
+
+.workload-plan-matrix {
+  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--workload-text);
+  font-size: 12px;
+}
+
+.workload-plan-matrix th,
+.workload-plan-matrix td {
+  height: 50px;
+  padding: 0;
+  border-right: 1px solid var(--workload-border);
+  border-bottom: 1px solid var(--workload-border);
+  background: #fff;
+  vertical-align: middle;
+}
+
+.workload-plan-matrix__subject-col {
+  width: 176px;
+}
+
+.workload-plan-matrix__period-col {
+  width: 78px;
+}
+
+.workload-plan-matrix__weekly-col {
+  width: 62px;
+}
+
+.workload-plan-matrix__annual-col {
+  width: 46px;
+}
+
+.workload-plan-matrix__total-col {
+  width: 60px;
+}
+
+.workload-plan-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 34px;
+  padding: 5px 7px;
+  color: #526078;
+  background: #f6f8fb;
+  font-size: 11px;
+  text-align: center;
+}
+
+.workload-plan-matrix thead tr:first-child th {
+  top: 0;
+}
+
+.workload-plan-matrix thead .workload-plan-matrix__units th {
+  top: 34px;
+  z-index: 5;
+  height: 24px;
+  padding: 3px 5px;
+  color: #6f7c90;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workload-plan-matrix thead .workload-plan-matrix__period-head {
+  width: 78px;
+  min-width: 0;
+  padding-right: 3px;
+  padding-left: 3px;
+  text-transform: none;
+}
+
+.workload-plan-matrix__period-head small {
+  display: block;
+  margin-top: 1px;
+  color: #8994a5;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.workload-plan-matrix__subject {
+  left: 0;
+  z-index: 3;
+  width: 176px;
+  min-width: 176px !important;
+  max-width: 176px;
+  padding: 8px 10px !important;
+  position: sticky;
+  text-align: left !important;
+}
+
+.workload-plan-matrix thead .workload-plan-matrix__subject {
+  z-index: 6;
+}
+
+.workload-plan-matrix__subject > span,
+.workload-plan-matrix__subject > small,
+.workload-plan-matrix__scope > span,
+.workload-plan-matrix__scope > small {
+  display: block;
+}
+
+.workload-plan-matrix__subject > span {
+  font-weight: 650;
+}
+
+.workload-plan-matrix__row-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.workload-plan-matrix__row-heading > div {
+  min-width: 0;
+}
+
+.workload-plan-matrix__row-heading span,
+.workload-plan-matrix__row-heading small {
+  display: block;
+}
+
+.workload-plan-matrix__row-heading span {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.workload-plan-matrix__delete-row {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  padding: 0;
+  color: #7d8798;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.workload-plan-matrix__delete-row:hover,
+.workload-plan-matrix__delete-row:focus-visible {
+  color: #b42323;
+  background: #fff1f1;
+  border-color: #f1bcbc;
+  outline: 0;
+}
+
+.workload-plan-matrix__subject > small,
+.workload-plan-matrix__scope > small {
+  margin-top: 2px;
+  color: var(--workload-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.workload-plan-matrix__total {
+  width: 60px;
+  min-width: 60px;
+}
+
+.workload-plan-matrix__scope {
+  min-width: 0 !important;
+}
+
+.workload-plan-matrix .workload-plan-matrix__weekly {
+  width: 62px;
+  min-width: 0 !important;
+}
+
+.workload-plan-matrix .workload-plan-matrix__annual {
+  width: 46px;
+  min-width: 0 !important;
+  padding: 7px 3px !important;
+  color: #30435d;
+  background: #fbfcfe !important;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.workload-plan-matrix__section th {
+  height: 32px;
+  padding: 0 10px;
+  position: relative;
+  left: auto;
+  z-index: 2;
+  color: #31547f;
+  background: #eaf2fd;
+  text-align: left;
+}
+
+.workload-plan-matrix__section th span {
+  font-weight: 700;
+}
+
+.workload-plan-matrix__section th strong {
+  float: right;
+  color: #526b89;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.workload-hour-cell {
+  width: 100%;
+  height: 49px;
+  margin: 0;
+  padding: 2px 4px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 4px;
+  color: var(--workload-text);
+  background: #fff;
+  border: 2px solid transparent;
+  border-radius: 0;
+  text-align: center;
+}
+
+.workload-hour-cell:hover,
+.workload-hour-cell:focus-within {
+  z-index: 1;
+  background: #f2f7ff;
+  border-color: #9fc2f7;
+  outline: 0;
+}
+
+.workload-hour-cell.is-selected {
+  color: #084fbd;
+  background: #edf5ff;
+  border-color: var(--workload-primary);
+}
+
+.workload-hour-cell__weekly,
+.workload-hour-cell__weeks {
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: 0;
+}
+
+.workload-hour-cell__weekly {
+  width: 40px;
+  grid-column: 2;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.workload-hour-cell__weeks {
+  width: 24px;
+  color: var(--workload-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.workload-hour-cell__weekly:focus,
+.workload-hour-cell__weeks:focus {
+  background: #fff;
+  border-bottom-color: var(--workload-primary);
+}
+
+.workload-hour-cell__weekly[readonly],
+.workload-hour-cell__weeks[readonly] {
+  cursor: default;
+}
+
+.workload-hour-cell small {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--workload-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.workload-hour-cell > i {
+  grid-column: 3;
+  grid-row: 1;
+  color: #4e77a8;
+}
+
+.workload-hour-cell--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a4adbc;
+  background: #fafbfd;
+}
+
+.workload-hour-cell--new {
+  color: #526078;
+  background: #fafbfd;
+}
+
+.workload-hour-cell--new:focus-within {
+  color: #084fbd;
+  background: #edf5ff;
+}
+
+.workload-hour-cell.is-saving {
+  background: #f3f7fc;
+  cursor: progress;
+}
+
+.workload-hour-cell.is-save-error {
+  background: #fff1f1;
+  border-color: #c93838;
+}
+
+.workload-plan-matrix .workload-plan-matrix__period-block {
+  min-width: 0;
+  padding: 0 !important;
+}
+
+.workload-period-cell {
+  width: 100%;
+  min-height: 49px;
+  display: grid;
+  margin: 0;
+  background: #fff;
+  border: 0;
+  box-shadow: inset 0 0 0 2px transparent;
+}
+
+.workload-period-cell--with-annual {
+  grid-template-columns: 78fr 78fr 46fr;
+}
+
+.workload-period-cell--two-periods {
+  grid-template-columns: 1fr 1fr;
+}
+
+.workload-period-cell:hover,
+.workload-period-cell:focus-within {
+  background: #f2f7ff;
+  box-shadow: inset 0 0 0 2px #9fc2f7;
+}
+
+.workload-period-cell--new {
+  background: #fafbfd;
+}
+
+.workload-period-cell.is-saving {
+  background: #f3f7fc;
+  cursor: progress;
+}
+
+.workload-period-cell.is-save-error {
+  background: #fff1f1;
+  box-shadow: inset 0 0 0 2px #c93838;
+}
+
+.workload-period-cell__period,
+.workload-period-cell__annual {
+  min-width: 0;
+  min-height: 47px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 3px;
+  padding: 2px;
+  border-right: 1px solid var(--workload-border);
+  text-align: center;
+}
+
+.workload-period-cell > :last-child {
+  border-right: 0;
+}
+
+.workload-period-cell__weekly {
+  width: 31px;
+  min-width: 0;
+  padding: 0;
+  color: var(--workload-text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: 0;
+}
+
+.workload-period-cell__weekly:focus {
+  background: #fff;
+  border-bottom-color: var(--workload-primary);
+}
+
+.workload-period-cell__period small,
+.workload-period-cell__annual small {
+  width: 100%;
+  color: var(--workload-muted);
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.workload-period-cell__period small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.workload-period-cell__period small strong {
+  display: inline;
+  color: #526078;
+  font-size: 10px;
+}
+
+.workload-period-cell__weeks {
+  width: 20px;
+  min-width: 0;
+  padding: 0;
+  color: var(--workload-muted);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: 0;
+}
+
+.workload-period-cell__weeks:focus {
+  color: var(--workload-text);
+  background: #fff;
+  border-bottom-color: var(--workload-primary);
+}
+
+.workload-period-cell__weeks[readonly] {
+  cursor: default;
+}
+
+.workload-period-cell__annual {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  background: #f0f3f7;
+}
+
+.workload-period-cell__annual strong {
+  color: #174f92;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.workload-plan-matrix .workload-plan-matrix__period-totals-cell {
+  padding: 0 !important;
+}
+
+.workload-plan-matrix__period-totals {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  display: grid;
+  text-align: center;
+}
+
+.workload-plan-matrix__period-totals--with-annual {
+  grid-template-columns: 78fr 78fr 46fr;
+}
+
+.workload-plan-matrix__period-totals--two-periods {
+  grid-template-columns: 1fr 1fr;
+}
+
+.workload-plan-matrix__period-totals > span {
+  min-height: 34px;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  padding: 3px 6px;
+  border-right: 1px solid var(--workload-border);
+}
+
+.workload-plan-matrix__period-totals > span:last-child {
+  border-right: 0;
+}
+
+.workload-plan-matrix__period-totals--with-annual > span:last-child {
+  background: #f0f3f7;
+}
+
+.workload-plan-matrix__row-total,
+.workload-plan-matrix__subtotal td,
+.workload-plan-matrix tfoot td {
+  padding: 7px 8px !important;
+  text-align: center;
+}
+
+.workload-plan-matrix__row-total strong,
+.workload-plan-matrix__row-total span,
+.workload-plan-matrix__row-total small,
+.workload-plan-matrix__subtotal strong,
+.workload-plan-matrix__subtotal small,
+.workload-plan-matrix tfoot strong,
+.workload-plan-matrix tfoot small {
+  display: block;
+}
+
+.workload-plan-matrix__row-total span,
+.workload-plan-matrix__row-total small,
+.workload-plan-matrix__subtotal small,
+.workload-plan-matrix tfoot small {
+  color: var(--workload-muted);
+  font-size: 10px;
+}
+
+.workload-plan-matrix__subtotal th,
+.workload-plan-matrix__subtotal td {
+  height: 36px;
+  background: #f7f9fc;
+}
+
+.workload-plan-matrix tfoot th,
+.workload-plan-matrix tfoot td {
+  height: 38px;
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  color: #123e75;
+  background: #eaf2fd;
+}
+
+.workload-plan-matrix tfoot .workload-plan-matrix__subject {
+  z-index: 5;
+}
+
+.workload-plan-matrix .workload-plan-matrix__scope-end {
+  border-right: 2px solid #bdcadd !important;
+}
+
+.workload-plan-matrix thead .workload-plan-matrix__scope-band--alt {
+  background: #edf3fa !important;
+}
+
+.workload-plan-matrix td.workload-plan-matrix__scope-band--alt,
+.workload-plan-matrix .workload-hour-cell.workload-plan-matrix__scope-band--alt,
+.workload-plan-matrix .workload-period-cell.workload-plan-matrix__scope-band--alt {
+  background: #f7faff !important;
+}
+
+.workload-plan-matrix .workload-hour-cell.workload-plan-matrix__scope-band--alt:hover,
+.workload-plan-matrix .workload-hour-cell.workload-plan-matrix__scope-band--alt:focus-within,
+.workload-plan-matrix .workload-period-cell.workload-plan-matrix__scope-band--alt:hover,
+.workload-plan-matrix .workload-period-cell.workload-plan-matrix__scope-band--alt:focus-within {
+  background: #edf5ff !important;
+}
+
+.workload-plan-matrix .workload-plan-matrix__annual {
+  background: #f0f3f7 !important;
+}
+
+.workload-plan-matrix .workload-plan-matrix__row-total,
+.workload-plan-matrix thead .workload-plan-matrix__total {
+  background: #eaf0f7 !important;
+}
+
+.workload-plan-matrix__empty {
+  height: 140px !important;
+  padding: 24px !important;
+  color: var(--workload-muted);
+  text-align: center;
+}
+
+.workload-cell-context {
+  padding: 12px;
+}
+
+.workload-cell-context__empty {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--workload-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.workload-cell-context__empty i {
+  font-size: 24px;
+}
+
+.workload-cell-context__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.workload-cell-context__meta {
+  margin: 4px 0 14px;
+  color: var(--workload-muted);
+  font-size: 11px;
+}
+
+.workload-cell-context__meta span {
+  display: block;
+}
+
+.workload-cell-context__form {
+  display: grid;
+  gap: 11px;
+}
+
+.workload-cell-context__flag {
+  padding: 7px 8px;
+  color: #31547f;
+  background: #eaf2fd;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.workload-cell-context__flag i {
+  margin-right: 5px;
+}
+
+@media (max-width: 767.98px) {
+  .workload-plan-matrix-wrap {
+    max-height: calc(100vh - 340px);
+  }
+
+  .workload-plan-matrix__subject {
+    width: 164px;
+    min-width: 164px !important;
+    max-width: 164px;
+  }
+
+  .workload-matrix-add-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workload-matrix-add-row .btn {
+    width: 100%;
+  }
+}

@@ -42,6 +42,14 @@ from .password_reset import *
 
 from .mobile_push import *
 
+from .education_activity import *
+from .education_plan import *
+from .teaching_group import *
+from .workload_assignment import *
+from .tariff_calculation import *
+from .tariff_workflow import *
+from .workload_integration import *
+
 from app.models_legacy import KnowledgeArticle, IncidentNote, IncidentNoteAttachment
 
 from app.models.drive import DriveItem, FileCollection, FileCollectionTarget, FileCollectionSubmission

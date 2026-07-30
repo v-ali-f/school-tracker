@@ -1,0 +1,89 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Каталог дисциплин{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Каталог дисциплин</div>
+    <div class="page-sub">Единые предметы, курсы и образовательные активности</div>
+  </div>
+  {% if can_manage %}
+  <div class="page-actions">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('workload.catalog_create') }}">
+      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Добавить
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% include "workload/_nav.html" %}
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-lg-5">
+    <label class="form-label small" for="catalog-q">Поиск</label>
+    <input class="form-control form-control-sm" id="catalog-q" name="q" value="{{ search }}" placeholder="Код или наименование">
+  </div>
+  <div class="col-lg-4">
+    <label class="form-label small" for="catalog-kind">Вид</label>
+    <select class="form-select form-select-sm" id="catalog-kind" name="activity_kind">
+      <option value="">Все виды</option>
+      {% for kind in activity_kinds %}
+      <option value="{{ kind }}" {% if selected_kind == kind %}selected{% endif %}>{{ kind_labels[kind] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2">
+    <div class="form-check mb-1">
+      <input class="form-check-input" id="catalog-archived" type="checkbox" name="archived" value="1" {% if show_archived %}checked{% endif %}>
+      <label class="form-check-label small" for="catalog-archived">Показывать архив</label>
+    </div>
+  </div>
+  <div class="col-lg-1">
+    <button class="btn btn-outline-secondary btn-sm w-100" type="submit" title="Применить фильтр">
+      <i class="bi bi-funnel" aria-hidden="true"></i>
+    </button>
+  </div>
+</form>
+
+<div class="table-responsive border-top">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Код</th>
+        <th>Наименование</th>
+        <th>Вид</th>
+        <th>Уровень</th>
+        <th>Кафедра</th>
+        <th>Статус</th>
+        <th class="text-end"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for activity in activities %}
+      {% set primary_link = activity.department_links|selectattr('is_active')|selectattr('is_primary')|first %}
+      <tr>
+        <td class="text-nowrap"><code>{{ activity.code }}</code></td>
+        <td>
+          <div class="fw-semibold">{{ activity.name }}</div>
+          {% if activity.short_name %}<div class="small text-muted">{{ activity.short_name }}</div>{% endif %}
+        </td>
+        <td>{{ kind_labels.get(activity.activity_kind, activity.activity_kind) }}</td>
+        <td>{{ activity.education_level or '—' }}</td>
+        <td>{{ primary_link.department.name if primary_link else '—' }}</td>
+        <td>
+          {% if activity.is_active %}
+          <span class="badge text-bg-success">Действует</span>
+          {% else %}
+          <span class="badge text-bg-secondary">Архив</span>
+          {% endif %}
+        </td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('workload.catalog_detail', activity_id=activity.id) }}">Открыть</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">По заданным условиям ничего не найдено.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

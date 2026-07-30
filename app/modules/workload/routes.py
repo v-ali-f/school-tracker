@@ -1,1 +1,392 @@
-"""Reserved module routes for stabilized v71 architecture."""
+from datetime import date
+from decimal import Decimal, InvalidOperation
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
+
+from app.core.extensions import db
+from app.core.feature_flags import WORKLOAD_WRITE, is_feature_enabled, workload_feature_state
+from app.models import (
+    ACTIVITY_KINDS,
+    ACTIVITY_KIND_LABELS,
+    AcademicYear,
+    Department,
+    EducationActivity,
+    EducationActivityAlias,
+    EducationActivityDepartment,
+    OrganizationSettings,
+    Subject,
+)
+from app.services.education_activity_service import (
+    normalize_activity_code,
+    normalize_activity_name,
+)
+from app.services.workload_integration_service import source_state
+
+from .access import (
+    can_access_workload_module,
+    can_use_workload_permission,
+    require_workload_module,
+    require_workload_write,
+)
+from .plan_routes import register_plan_routes
+from .plan_binding_routes import register_plan_binding_routes
+from .group_routes import register_group_routes
+from .assignment_routes import register_assignment_routes
+from .tariff_routes import register_tariff_routes
+from .workflow_routes import register_workflow_routes
+from .integration_routes import register_integration_routes
+from .scopes import resolve_workload_scope
+
+
+workload_bp = Blueprint("workload", __name__, url_prefix="/workload")
+
+
+@workload_bp.app_template_filter("compact_decimal")
+def compact_decimal(value):
+    """Render stored fixed-scale decimals without insignificant zeroes."""
+    if value is None:
+        return ""
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return str(value)
+    if not number.is_finite():
+        return str(value)
+    return format(number.normalize(), "f").replace(".", ",")
+
+
+@workload_bp.before_request
+def protect_workload_module():
+    require_workload_module()
+    if current_user.is_authenticated and not can_access_workload_module(current_user):
+        abort(403)
+
+
+@workload_bp.get("/")
+@login_required
+def index():
+    scope = resolve_workload_scope(current_user)
+    current_year = AcademicYear.query.filter_by(is_current=True).first()
+    department_source_state = (
+        source_state(current_year.id)
+        if current_year
+        else None
+    )
+    activity_count = EducationActivity.query.filter_by(is_active=True).count()
+    linked_subject_count = Subject.query.filter(
+        Subject.education_activity_id.isnot(None)
+    ).count()
+    return render_template(
+        "workload/index.html",
+        feature_state=workload_feature_state(),
+        scope=scope,
+        activity_count=activity_count,
+        linked_subject_count=linked_subject_count,
+        current_year=current_year,
+        department_source_state=department_source_state,
+    )
+
+
+def _require_catalog_manage():
+    require_workload_write()
+    if not can_use_workload_permission("workload.settings.manage", current_user):
+        abort(403)
+
+
+def _current_organization_id():
+    organization = (
+        OrganizationSettings.query
+        .filter_by(is_active=True)
+        .order_by(OrganizationSettings.id.asc())
+        .first()
+    )
+    return organization.id if organization else None
+
+
+def _parse_date(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _activity_from_form(activity=None):
+    name = " ".join((request.form.get("name") or "").split())
+    code = normalize_activity_code(request.form.get("code"))
+    activity_kind = (request.form.get("activity_kind") or "").strip().upper()
+    education_level = (request.form.get("education_level") or "").strip().upper() or None
+    valid_from = _parse_date(request.form.get("valid_from"))
+    valid_to = _parse_date(request.form.get("valid_to"))
+
+    if not name or not code:
+        raise ValueError("Укажите код и наименование.")
+    if activity_kind not in ACTIVITY_KINDS:
+        raise ValueError("Выберите допустимый вид образовательной активности.")
+    if valid_from and valid_to and valid_to < valid_from:
+        raise ValueError("Дата окончания не может быть раньше даты начала.")
+
+    item = activity or EducationActivity()
+    item.organization_id = _current_organization_id()
+    item.is_global = item.organization_id is None
+    item.code = code
+    item.name = name
+    item.short_name = (request.form.get("short_name") or "").strip() or None
+    item.activity_kind = activity_kind
+    item.education_level = education_level
+    item.is_tariffable = request.form.get("is_tariffable") == "1"
+    item.valid_from = valid_from
+    item.valid_to = valid_to
+    item.updated_by_user_id = current_user.id
+    if activity is None:
+        item.created_by_user_id = current_user.id
+    return item
+
+
+@workload_bp.get("/catalog/")
+@login_required
+def catalog():
+    query = EducationActivity.query
+    search = (request.args.get("q") or "").strip()
+    activity_kind = (request.args.get("activity_kind") or "").strip().upper()
+    show_archived = request.args.get("archived") == "1"
+
+    organization_id = _current_organization_id()
+    if organization_id is None:
+        query = query.filter(EducationActivity.organization_id.is_(None))
+    else:
+        query = query.filter(or_(
+            EducationActivity.organization_id == organization_id,
+            EducationActivity.organization_id.is_(None),
+        ))
+    if not show_archived:
+        query = query.filter(EducationActivity.is_active.is_(True))
+    if activity_kind in ACTIVITY_KINDS:
+        query = query.filter(EducationActivity.activity_kind == activity_kind)
+    if search:
+        pattern = f"%{search.lower()}%"
+        query = query.filter(or_(
+            func.lower(EducationActivity.name).like(pattern),
+            func.lower(EducationActivity.code).like(pattern),
+            func.lower(func.coalesce(EducationActivity.short_name, "")).like(pattern),
+        ))
+
+    activities = query.order_by(
+        EducationActivity.activity_kind.asc(),
+        EducationActivity.name.asc(),
+    ).limit(500).all()
+    can_manage = (
+        is_feature_enabled(WORKLOAD_WRITE)
+        and can_use_workload_permission("workload.settings.manage", current_user)
+    )
+    return render_template(
+        "workload/catalog.html",
+        activities=activities,
+        activity_kinds=ACTIVITY_KINDS,
+        kind_labels=ACTIVITY_KIND_LABELS,
+        selected_kind=activity_kind,
+        search=search,
+        show_archived=show_archived,
+        can_manage=can_manage,
+    )
+
+
+@workload_bp.route("/catalog/new", methods=["GET", "POST"])
+@login_required
+def catalog_create():
+    _require_catalog_manage()
+    if request.method == "POST":
+        try:
+            activity = _activity_from_form()
+            db.session.add(activity)
+            db.session.commit()
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Активность с таким кодом уже существует.", "danger")
+        else:
+            flash("Элемент каталога создан.", "success")
+            return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+    return render_template(
+        "workload/activity_form.html",
+        activity=None,
+        activity_kinds=ACTIVITY_KINDS,
+        kind_labels=ACTIVITY_KIND_LABELS,
+    )
+
+
+@workload_bp.get("/catalog/<int:activity_id>")
+@login_required
+def catalog_detail(activity_id):
+    activity = EducationActivity.query.get_or_404(activity_id)
+    can_manage = (
+        is_feature_enabled(WORKLOAD_WRITE)
+        and can_use_workload_permission("workload.settings.manage", current_user)
+    )
+    return render_template(
+        "workload/activity_detail.html",
+        activity=activity,
+        kind_labels=ACTIVITY_KIND_LABELS,
+        departments=Department.query.order_by(Department.name.asc()).all(),
+        can_manage=can_manage,
+    )
+
+
+@workload_bp.route("/catalog/<int:activity_id>/edit", methods=["GET", "POST"])
+@login_required
+def catalog_edit(activity_id):
+    _require_catalog_manage()
+    activity = EducationActivity.query.get_or_404(activity_id)
+    if request.method == "POST":
+        try:
+            _activity_from_form(activity)
+            db.session.commit()
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Активность с таким кодом уже существует.", "danger")
+        else:
+            flash("Элемент каталога сохранён.", "success")
+            return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+    return render_template(
+        "workload/activity_form.html",
+        activity=activity,
+        activity_kinds=ACTIVITY_KINDS,
+        kind_labels=ACTIVITY_KIND_LABELS,
+    )
+
+
+@workload_bp.post("/catalog/<int:activity_id>/toggle-active")
+@login_required
+def catalog_toggle_active(activity_id):
+    _require_catalog_manage()
+    activity = EducationActivity.query.get_or_404(activity_id)
+    activity.is_active = not activity.is_active
+    activity.updated_by_user_id = current_user.id
+    db.session.commit()
+    flash("Статус элемента каталога изменён.", "success")
+    return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+
+@workload_bp.post("/catalog/<int:activity_id>/aliases")
+@login_required
+def catalog_alias_add(activity_id):
+    _require_catalog_manage()
+    activity = EducationActivity.query.get_or_404(activity_id)
+    alias_value = " ".join((request.form.get("alias") or "").split())
+    source_module = (request.form.get("source_module") or "GENERAL").strip().upper()
+    source_system = (request.form.get("source_system") or "").strip()
+    normalized = normalize_activity_name(alias_value)
+    if not normalized:
+        flash("Укажите вариант наименования.", "danger")
+        return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+    alias = EducationActivityAlias(
+        education_activity_id=activity.id,
+        organization_id=activity.organization_id,
+        alias=alias_value,
+        normalized_alias=normalized,
+        source_module=source_module,
+        source_system=source_system,
+        confirmed_by_user_id=current_user.id,
+        confirmed_at=db.func.now(),
+    )
+    db.session.add(alias)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Такое правило сопоставления уже существует.", "warning")
+    else:
+        flash("Алиас добавлен.", "success")
+    return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+
+@workload_bp.post("/catalog/<int:activity_id>/aliases/<int:alias_id>/toggle")
+@login_required
+def catalog_alias_toggle(activity_id, alias_id):
+    _require_catalog_manage()
+    alias = EducationActivityAlias.query.filter_by(
+        id=alias_id,
+        education_activity_id=activity_id,
+    ).first_or_404()
+    alias.is_active = not alias.is_active
+    db.session.commit()
+    flash("Статус алиаса изменён.", "success")
+    return redirect(url_for("workload.catalog_detail", activity_id=activity_id))
+
+
+@workload_bp.post("/catalog/<int:activity_id>/departments")
+@login_required
+def catalog_department_add(activity_id):
+    _require_catalog_manage()
+    activity = EducationActivity.query.get_or_404(activity_id)
+    department_id = request.form.get("department_id", type=int)
+    department = db.session.get(Department, department_id) if department_id else None
+    if not department:
+        flash("Выберите кафедру.", "danger")
+        return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+    existing = EducationActivityDepartment.query.filter_by(
+        education_activity_id=activity.id,
+        department_id=department.id,
+        is_active=True,
+    ).first()
+    if existing:
+        flash("Кафедра уже связана с элементом каталога.", "warning")
+        return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+    is_primary = request.form.get("is_primary") == "1"
+    if is_primary:
+        EducationActivityDepartment.query.filter_by(
+            education_activity_id=activity.id,
+            is_primary=True,
+            is_active=True,
+        ).update({"is_primary": False})
+    db.session.add(EducationActivityDepartment(
+        education_activity_id=activity.id,
+        department_id=department.id,
+        is_primary=is_primary,
+    ))
+    db.session.commit()
+    flash("Связь с кафедрой добавлена.", "success")
+    return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+
+@workload_bp.post("/catalog/<int:activity_id>/departments/<int:link_id>/toggle")
+@login_required
+def catalog_department_toggle(activity_id, link_id):
+    _require_catalog_manage()
+    link = EducationActivityDepartment.query.filter_by(
+        id=link_id,
+        education_activity_id=activity_id,
+    ).first_or_404()
+    link.is_active = not link.is_active
+    if not link.is_active:
+        link.is_primary = False
+    db.session.commit()
+    flash("Статус связи с кафедрой изменён.", "success")
+    return redirect(url_for("workload.catalog_detail", activity_id=activity_id))
+
+
+register_plan_routes(workload_bp)
+register_plan_binding_routes(workload_bp)
+register_group_routes(workload_bp)
+register_assignment_routes(workload_bp)
+register_tariff_routes(workload_bp)
+register_workflow_routes(workload_bp)
+register_integration_routes(workload_bp)
+
+
+__all__ = ["workload_bp"]

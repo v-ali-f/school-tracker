@@ -1,0 +1,233 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Согласование тарификации{% endblock %}
+{% block workspace_content %}
+<div class="workload-control-page">
+<div class="page-head workload-control-head">
+  <div>
+    <div class="page-title">Проверка и утверждение</div>
+    <div class="page-sub">Последовательные заключения и неизменяемая история решений</div>
+  </div>
+</div>
+{% include "workload/_control_nav.html" %}
+
+<form class="workload-control-filter" method="get">
+  <div>
+    <label class="form-label" for="workflow-version">Учебный год и версия</label>
+    <select class="form-select form-select-sm" id="workflow-version" name="version_id" onchange="this.form.submit()">
+      {% for item in versions %}
+      <option value="{{ item.id }}" {% if version and item.id == version.id %}selected{% endif %}>
+        {{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }} · {{ status_labels[item.status] }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+{% if version %}
+<div class="workload-stage-summary workload-control-summary">
+  <div><span>Версия</span><strong>№ {{ version.version_no }}</strong></div>
+  <div><span>Тип</span><strong>{{ version.version_type }}</strong></div>
+  <div><span>Статус</span><strong>{{ status_labels[version.status] }}</strong></div>
+  <div><span>Начало действия</span><strong>{{ version.effective_from.strftime('%d.%m.%Y') if version.effective_from else 'Не задано' }}</strong></div>
+</div>
+<div class="workload-control-actions">
+    {% if can_start and version.status == 'DRAFT' %}
+    <form method="post" action="{{ url_for('workload.workflow_validate') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="version_id" value="{{ version.id }}">
+      <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Проверить</button>
+    </form>
+    <form method="post" action="{{ url_for('workload.workflow_start') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="version_id" value="{{ version.id }}">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-send me-1" aria-hidden="true"></i>На согласование</button>
+    </form>
+    {% endif %}
+</div>
+
+<section class="workload-control-section" aria-labelledby="validation-title">
+  <div class="workload-section-heading">
+    <h2 id="validation-title">Автоматическая проверка</h2>
+    {% if validation %}<span class="workload-record-status workload-record-status--{{ 'ready' if validation.status == 'PASSED' else 'open' }}">Запуск № {{ validation.run_no }} · {{ validation.status }}</span>{% endif %}
+  </div>
+  {% if validation %}
+  <div class="workload-control-counts">
+    <div class="{% if validation.summary_data.counts.BLOCKER %}has-error{% endif %}"><span>Блокирующие</span><strong>{{ validation.summary_data.counts.BLOCKER }}</strong></div>
+    <div class="{% if validation.summary_data.counts.ERROR %}has-error{% endif %}"><span>Ошибки</span><strong>{{ validation.summary_data.counts.ERROR }}</strong></div>
+    <div class="{% if validation.summary_data.counts.WARNING %}has-warning{% endif %}"><span>Предупреждения</span><strong>{{ validation.summary_data.counts.WARNING }}</strong></div>
+    <div><span>Информация</span><strong>{{ validation.summary_data.counts.INFO }}</strong></div>
+  </div>
+  <div class="table-responsive workload-control-table">
+    <table class="table table-sm align-middle mb-0 workload-stage-table">
+      <thead><tr><th style="width: 110px;">Уровень</th><th style="width: 190px;">Код</th><th>Проблема</th><th>Действие</th></tr></thead>
+      <tbody>
+        {% for issue in validation.issues %}
+        <tr>
+          <td><span class="badge {% if issue.severity in ['BLOCKER', 'ERROR'] %}text-bg-danger{% elif issue.severity == 'WARNING' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ issue.severity }}</span></td>
+          <td class="font-monospace small">{{ issue.rule_code }}</td>
+          <td>{{ issue.message }}</td>
+          <td class="text-muted">{{ issue.remediation or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-3">Нарушений не обнаружено.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-muted border-top border-bottom py-3">Полная проверка ещё не выполнялась.</div>
+  {% endif %}
+</section>
+
+<section class="workload-control-section" aria-labelledby="review-title">
+  <div class="workload-section-heading">
+    <h2 id="review-title">Согласование</h2>
+    {% if cycle %}<span class="small text-muted">Цикл № {{ cycle.round_no }} · {{ cycle.status }}</span>{% endif %}
+  </div>
+  {% if cycle %}
+  <div class="table-responsive workload-control-table">
+    <table class="table table-sm align-middle mb-0 workload-stage-table">
+      <thead><tr><th>Этап</th><th>Состояние</th><th>Проверяющий</th><th>Комментарий</th><th style="width: 310px;"></th></tr></thead>
+      <tbody>
+        {% for stage in ['ACADEMIC', 'HR', 'FINANCE'] %}
+        {% set item = decisions.get(stage) %}
+        <tr>
+          <td class="fw-semibold">{{ stage_labels[stage] }}</td>
+          <td>
+            {% if item %}<span class="badge {% if item.decision == 'APPROVED' %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ item.decision }}</span>
+            {% elif expected_stage == stage %}<span class="badge text-bg-warning">Ожидает заключения</span>
+            {% else %}<span class="text-muted">Не начат</span>{% endif %}
+          </td>
+          <td>{{ item.decided_by.fio if item else '—' }}</td>
+          <td>{{ item.comment if item and item.comment else '—' }}</td>
+          <td>
+            {% if expected_stage == stage and stage_permissions[stage] %}
+            <form class="d-flex gap-2" method="post" action="{{ url_for('workload.workflow_review_decision', cycle_id=cycle.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="review_stage" value="{{ stage }}">
+              <input class="form-control form-control-sm" name="comment" placeholder="Комментарий или причина возврата">
+              <button class="btn btn-outline-success btn-sm" name="decision" value="APPROVED" type="submit" title="Согласовать" aria-label="Согласовать"><i class="bi bi-check-lg" aria-hidden="true"></i></button>
+              <button class="btn btn-outline-danger btn-sm" name="decision" value="CHANGES_REQUESTED" type="submit" title="Вернуть" aria-label="Вернуть"><i class="bi bi-arrow-return-left" aria-hidden="true"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if expected_stage and stage_permissions[expected_stage] %}
+  <form class="row g-2 align-items-end border-top border-bottom py-3 mt-3" method="post" action="{{ url_for('workload.workflow_comment_add', cycle_id=cycle.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="review_stage" value="{{ expected_stage }}">
+    <div class="col-lg-2">
+      <label class="form-label" for="comment-kind">Вид замечания</label>
+      <select class="form-select form-select-sm" id="comment-kind" name="comment_kind"><option value="BLOCKING">Блокирующее</option><option value="RECOMMENDATION">Рекомендация</option></select>
+    </div>
+    <div class="col-lg-8">
+      <label class="form-label" for="comment-text">Замечание</label>
+      <input class="form-control form-control-sm" id="comment-text" name="text" required>
+    </div>
+    <div class="col-auto"><button class="btn btn-outline-secondary btn-sm" type="submit">Добавить</button></div>
+  </form>
+  {% endif %}
+
+  <div class="table-responsive mt-3 workload-control-table">
+    <table class="table table-sm align-middle mb-0 workload-stage-table">
+      <thead><tr><th>Этап</th><th>Вид</th><th>Замечание</th><th>Ответ</th><th>Статус</th><th></th></tr></thead>
+      <tbody>
+        {% for comment in cycle.comments %}
+        <tr>
+          <td>{{ stage_labels[comment.review_stage] }}</td>
+          <td>{{ comment.comment_kind }}</td>
+          <td>{{ comment.text }}</td>
+          <td style="min-width: 280px;">
+            {% if can_answer and comment.status == 'OPEN' %}
+            <form class="d-flex gap-2" method="post" action="{{ url_for('workload.workflow_comment_answer', comment_id=comment.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input class="form-control form-control-sm" name="response_text" required>
+              <button class="btn btn-outline-secondary btn-sm" type="submit">Ответить</button>
+            </form>
+            {% else %}{{ comment.response_text or '—' }}{% endif %}
+          </td>
+          <td>{{ comment.status }}</td>
+          <td>
+            {% if comment.status == 'ANSWERED' and stage_permissions[comment.review_stage] and comment.created_by_user_id == current_user.id %}
+            <form method="post" action="{{ url_for('workload.workflow_comment_close', comment_id=comment.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-success btn-sm" type="submit">Закрыть</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-3">Замечаний нет.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-muted border-top border-bottom py-3">Версия ещё не направлена на согласование.</div>
+  {% endif %}
+</section>
+
+{% if can_approve and version.status == 'APPROVAL' %}
+<section class="workload-control-section workload-control-decision" aria-labelledby="approval-title">
+  <h2 id="approval-title">Решение директора</h2>
+  <form class="row g-2 align-items-end" method="post" action="{{ url_for('workload.workflow_approve', version_id=version.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-lg-2"><label class="form-label" for="effective-from">Действует с</label><input class="form-control form-control-sm" type="date" id="effective-from" name="effective_from" value="{{ version.effective_from or version.tariff_cycle.academic_year.start_date }}" required></div>
+    <div class="col-lg-6"><label class="form-label" for="approval-comment">Комментарий</label><input class="form-control form-control-sm" id="approval-comment" name="comment"></div>
+    <div class="col-auto"><button class="btn btn-success btn-sm" name="decision" value="APPROVED" type="submit">Утвердить</button></div>
+    <div class="col-auto"><button class="btn btn-outline-danger btn-sm" name="decision" value="REJECTED" type="submit">Отклонить</button></div>
+  </form>
+</section>
+{% endif %}
+
+{% if can_approve and version.status == 'APPROVED' %}
+<form class="border-top border-bottom py-3 mb-4" method="post" action="{{ url_for('workload.workflow_activate', version_id=version.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-play-fill me-1" aria-hidden="true"></i>Ввести в действие</button>
+</form>
+{% endif %}
+
+{% if can_approve and version.status in ['APPROVED', 'EFFECTIVE', 'SUPERSEDED'] %}
+<section class="workload-control-section workload-control-decision" aria-labelledby="correction-title">
+  <h2 id="correction-title">Изменение в течение года</h2>
+  <form class="row g-2 align-items-end" method="post" action="{{ url_for('workload.workflow_correction', version_id=version.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-lg-2"><label class="form-label" for="correction-date">Дата изменения</label><input class="form-control form-control-sm" type="date" id="correction-date" name="effective_from" required></div>
+    <div class="col-lg-7"><label class="form-label" for="correction-reason">Основание</label><input class="form-control form-control-sm" id="correction-reason" name="reason_text" required></div>
+    <div class="col-auto"><button class="btn btn-outline-primary btn-sm" type="submit">Создать версию изменения</button></div>
+  </form>
+</section>
+{% endif %}
+{% else %}
+<div class="text-center text-muted border-top border-bottom py-5">Версии тарификации ещё не созданы.</div>
+{% endif %}
+</div>
+{% endblock %}
+{% block workspace_context %}
+{% if version %}
+<div class="workload-record-context">
+  <div class="workload-record-context__title">Версия № {{ version.version_no }}</div>
+  <div class="workload-record-context__subtitle">{{ version.tariff_cycle.academic_year.name }}</div>
+  <dl class="workload-context-list">
+    <div><dt>Статус</dt><dd>{{ status_labels[version.status] }}</dd></div>
+    <div><dt>Проверка</dt><dd>{{ validation.status if validation else 'Не запускалась' }}</dd></div>
+    <div><dt>Следующий этап</dt><dd>{{ stage_labels.get(expected_stage, 'Решение директора' if version.status == 'APPROVAL' else '—') }}</dd></div>
+    <div><dt>Открытые замечания</dt><dd>{{ cycle.comments|selectattr('status', 'ne', 'CLOSED')|list|length if cycle else 0 }}</dd></div>
+  </dl>
+  {% if validation %}
+  <div class="workload-context-hours">
+    <div><span>Блок.</span><strong>{{ validation.summary_data.counts.BLOCKER }}</strong></div>
+    <div><span>Ошибки</span><strong>{{ validation.summary_data.counts.ERROR }}</strong></div>
+    <div><span>Предупр.</span><strong>{{ validation.summary_data.counts.WARNING }}</strong></div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="workload-record-context__empty"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Выберите версию тарификации</span></div>
+{% endif %}
+{% endblock %}

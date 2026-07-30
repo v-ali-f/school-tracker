@@ -35,6 +35,7 @@ DEFAULT_MODULES = [
     ("drive", "Диск"),
     ("documents", "Документы"),
     ("analytics", "Аналитика"),
+    ("workload", "Нагрузка и тарификация"),
 ]
 
 DEFAULT_QUICK_LINKS = [
@@ -69,6 +70,7 @@ MODULE_DESCRIPTIONS = {
     "drive": "Файлы, папки, создание и редактирование документов",
     "documents": "Загруженные файлы и документы учеников",
     "analytics": "Аналитические отчёты и сводные данные",
+    "workload": "Учебные планы, распределение нагрузки и тарификация",
 }
 
 # Описания быстрых кнопок
@@ -105,6 +107,10 @@ MODULE_DEFAULT_ROLES = {
     "drive": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR"},
     "documents": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
     "analytics": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
+    "workload": {
+        "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST",
+        "DEPARTMENT_HEAD", "HR_SPECIALIST", "ECONOMIST", "AUDITOR", "TEACHER",
+    },
 }
 
 
@@ -125,6 +131,11 @@ ROLE_LABELS = {
     "KPP": "КПП (пост охраны)",
     "VIEWER": "Наблюдатель",
     "DEPUTY_DIRECTOR": "Заместитель директора",
+    "DIRECTOR": "Директор",
+    "DEPARTMENT_HEAD": "Руководитель кафедры",
+    "HR_SPECIALIST": "Кадровый специалист",
+    "ECONOMIST": "Экономист / бухгалтер",
+    "AUDITOR": "Аудитор",
     "SENIOR_EDUCATOR": "Старший воспитатель",
     "EDUCATOR": "Воспитатель",
 }
@@ -146,7 +157,11 @@ def _role_choices():
         values = [r[0] for r in roles if r and r[0]]
     except Exception:
         values = []
-    base_roles = ["ADMIN", "METHODIST", "TEACHER", "CLASS_TEACHER", "KPP", "DEPUTY_DIRECTOR", "SENIOR_EDUCATOR", "EDUCATOR"]
+    base_roles = [
+        "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST",
+        "DEPARTMENT_HEAD", "HR_SPECIALIST", "ECONOMIST", "AUDITOR",
+        "TEACHER", "CLASS_TEACHER", "KPP", "SENIOR_EDUCATOR", "EDUCATOR",
+    ]
     for item in base_roles:
         if item not in values:
             values.append(item)

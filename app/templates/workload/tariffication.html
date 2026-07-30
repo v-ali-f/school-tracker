@@ -1,0 +1,136 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Тарификация{% endblock %}
+{% block workspace_content %}
+<div class="workload-control-page">
+<div class="page-head workload-control-head">
+  <div>
+    <div class="page-title">Тарификация</div>
+    <div class="page-sub">Расчёт ставок и оплаты с полной расшифровкой исходных данных</div>
+  </div>
+  <div class="page-actions">
+    {% if can_view_finance %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_settings', version_id=selected_version_id) }}">
+      <i class="bi bi-sliders me-1" aria-hidden="true"></i>Параметры
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% include "workload/_control_nav.html" %}
+
+<form class="workload-control-filter workload-control-filter--two" method="get">
+  <div>
+    <label class="form-label" for="tariff-version">Учебный год и версия</label>
+    <select class="form-select form-select-sm" id="tariff-version" name="version_id" onchange="this.form.submit()">
+      {% for item in versions %}
+      <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>{{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }} · {{ item.status }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if selected_run %}
+  <div>
+    <label class="form-label" for="tariff-run">Запуск расчёта</label>
+    <select class="form-select form-select-sm" id="tariff-run" name="run_id" onchange="this.form.submit()">
+      {% for item in runs %}
+      <option value="{{ item.id }}" {% if item.id == selected_run.id %}selected{% endif %}>№ {{ item.run_no }} · {{ run_status_labels[item.status] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+</form>
+
+{% if can_calculate %}
+<form class="workload-control-command" method="post" action="{{ url_for('workload.tariffication_calculate') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="version_id" value="{{ version.id }}">
+  <div class="col-lg-5">
+    <label class="form-label" for="parameter-set">Набор расчётных параметров</label>
+    <select class="form-select form-select-sm" id="parameter-set" name="parameter_set_id" required>
+      <option value="">Выберите набор</option>
+      {% for item in parameter_sets %}
+      <option value="{{ item.id }}">{{ item.name }} · ученико-час {{ item.student_hour_rate }} {{ item.currency_code }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary btn-sm" type="submit" {% if not parameter_sets %}disabled{% endif %}>
+      <i class="bi bi-calculator me-1" aria-hidden="true"></i>Рассчитать
+    </button>
+  </div>
+  {% if not parameter_sets %}
+  <div class="col-auto small text-muted">
+    Сначала создайте набор параметров.
+  </div>
+  {% endif %}
+</form>
+{% endif %}
+
+{% if selected_run %}
+<div class="workload-stage-summary workload-control-summary workload-control-summary--six">
+  <div><span>Статус</span><strong>{{ run_status_labels[selected_run.status] }}</strong></div>
+  <div><span>Педагогов</span><strong>{{ totals.employee_count }}</strong></div>
+  <div><span>Часов в неделю</span><strong>{{ totals.weekly_hours }}</strong></div>
+  <div><span>Ставок</span><strong>{{ totals.fte }}</strong></div>
+  {% if can_view_finance %}
+  <div><span>Основная оплата</span><strong>{{ '%.2f'|format(totals.base_amount) }} руб.</strong></div>
+  <div><span>Всего</span><strong>{{ '%.2f'|format(totals.total_amount) }} руб.</strong></div>
+  {% endif %}
+</div>
+<div class="workload-control-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_run_detail', run_id=selected_run.id) }}"><i class="bi bi-journal-check me-1" aria-hidden="true"></i>Протокол расчёта</a></div>
+
+{% if selected_run.status == 'FAILED' %}
+<div class="alert alert-danger">
+  Расчёт содержит {{ selected_run.summary_data.error_count }} ошибок. Успешные строки сохранены только для диагностики и не считаются действующим расчётом.
+</div>
+{% endif %}
+
+<div class="table-responsive workload-control-table">
+  <table class="table table-sm align-middle mb-0 workload-stage-table">
+    <thead><tr><th>Педагог</th><th>Дисциплина</th><th>Группа</th><th>Должность</th><th class="text-end">Часы</th><th class="text-end">Норма</th><th class="text-end">Ставка</th>{% if can_view_finance %}<th class="text-end">База</th><th class="text-end">Итого</th>{% endif %}<th class="text-end"></th></tr></thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.employee.fio }}</td>
+        <td>{{ line.education_activity.name }}</td>
+        <td>{{ line.teaching_group.name if line.teaching_group else '—' }}</td>
+        <td><div>{{ line.position_title }}</div><div class="small text-muted">{{ line.position_code }}</div></td>
+        <td class="text-end">{{ line.weekly_hours }}</td>
+        <td class="text-end">{{ line.rate_norm_hours }}</td>
+        <td class="text-end fw-semibold">{{ line.fte_value }}</td>
+        {% if can_view_finance %}
+        <td class="text-end">{{ '%.2f'|format(line.base_amount) }}</td>
+        <td class="text-end fw-semibold">{{ '%.2f'|format(line.total_amount) }}</td>
+        {% endif %}
+        <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_line_detail', line_id=line.id) }}" title="Расшифровка" aria-label="Расшифровка"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 10 if can_view_finance else 8 }}" class="text-center text-muted py-4">Расчётных строк пока нет.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center text-muted border-top py-5">Для выбранной версии расчёт ещё не выполнялся.</div>
+{% endif %}
+</div>
+{% endblock %}
+{% block workspace_context %}
+{% if selected_run %}
+<div class="workload-record-context">
+  <div class="workload-record-context__title">Расчёт № {{ selected_run.run_no }}</div>
+  <div class="workload-record-context__subtitle">{{ run_status_labels[selected_run.status] }} · {{ selected_run.parameter_set.name }}</div>
+  <dl class="workload-context-list">
+    <div><dt>Версия</dt><dd>№ {{ version.version_no }}</dd></div>
+    <div><dt>Алгоритм</dt><dd>{{ selected_run.algorithm_version }}</dd></div>
+    <div><dt>Педагогов</dt><dd>{{ totals.employee_count }}</dd></div>
+    <div><dt>Строк</dt><dd>{{ lines|length }}</dd></div>
+  </dl>
+  <div class="workload-context-hours">
+    <div><span>Часы</span><strong>{{ totals.weekly_hours }}</strong></div>
+    <div><span>Ставки</span><strong>{{ totals.fte }}</strong></div>
+    <div><span>Ошибки</span><strong>{{ selected_run.summary_data.error_count or 0 }}</strong></div>
+  </div>
+</div>
+{% else %}
+<div class="workload-record-context__empty"><i class="bi bi-calculator" aria-hidden="true"></i><span>Выберите версию и выполните расчёт</span></div>
+{% endif %}
+{% endblock %}

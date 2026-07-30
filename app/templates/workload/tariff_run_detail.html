@@ -1,0 +1,49 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Расчёт № {{ run.run_no }}{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Расчёт № {{ run.run_no }}</div>
+    <div class="page-sub">{{ run.tariff_version.tariff_cycle.academic_year.name }} · {{ run.parameter_set.name }} · {{ run_status_labels[run.status] }}</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariffication', version_id=run.tariff_version_id, run_id=run.id) }}">К тарификации</a>
+</div>
+{% include "workload/_control_nav.html" %}
+
+<div class="workload-detail-summary">
+  <div><div class="small text-muted">Алгоритм</div><div class="fw-semibold">{{ run.algorithm_version }}</div></div>
+  <div><div class="small text-muted">Входная ревизия</div><div class="fw-semibold">{{ run.input_revision }}</div></div>
+  <div><div class="small text-muted">Рассчитано строк</div><div class="fw-semibold">{{ run.summary_data.calculated_count or 0 }}</div></div>
+  <div><div class="small text-muted">Ошибок</div><div class="fw-semibold {% if run.summary_data.error_count %}text-danger{% endif %}">{{ run.summary_data.error_count or 0 }}</div></div>
+  <div><div class="small text-muted">Ставок</div><div class="fw-semibold">{{ totals.fte }}</div></div>
+  {% if can_view_finance %}<div><div class="small text-muted">Итого</div><div class="fw-semibold">{{ '%.2f'|format(totals.total_amount) }} руб.</div></div>{% endif %}
+</div>
+
+{% if run.error_text %}
+<section class="mb-4">
+  <h2 class="h6">Ошибки</h2>
+  <pre class="small border-top border-bottom py-3 mb-0 text-danger" style="white-space: pre-wrap">{{ run.error_text }}</pre>
+</section>
+{% endif %}
+
+<div class="table-responsive workload-control-table">
+  <table class="table table-sm align-middle mb-0 workload-stage-table">
+    <thead><tr><th>Педагог</th><th>Дисциплина</th><th>Группа</th><th class="text-end">Часы</th><th class="text-end">Ставка</th>{% if can_view_finance %}<th class="text-end">Итого</th>{% endif %}<th class="text-end"></th></tr></thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.employee.fio }}</td>
+        <td>{{ line.education_activity.name }}</td>
+        <td>{{ line.teaching_group.name if line.teaching_group else '—' }}</td>
+        <td class="text-end">{{ line.weekly_hours }}</td>
+        <td class="text-end">{{ line.fte_value }}</td>
+        {% if can_view_finance %}<td class="text-end fw-semibold">{{ '%.2f'|format(line.total_amount) }}</td>{% endif %}
+        <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_line_detail', line_id=line.id) }}" title="Расшифровка" aria-label="Расшифровка"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 7 if can_view_finance else 6 }}" class="text-center text-muted py-4">Строк нет.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

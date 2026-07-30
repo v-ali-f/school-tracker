@@ -1,0 +1,119 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ plan.name }}{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ plan.name }}</div>
+    <div class="page-sub">
+      {{ plan_kind_labels[plan.plan_kind] }} · {{ plan.tariff_version.tariff_cycle.academic_year.name }} · версия {{ plan.tariff_version.version_no }}
+    </div>
+  </div>
+  <div class="page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}">
+      <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Матрица
+    </a>
+    {% if can_update %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('workload.plan_line_create', plan_id=plan.id) }}">
+      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Добавить строку
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="d-flex flex-wrap align-items-center gap-3 border-top border-bottom py-3 mb-3">
+  <div>
+    <div class="small text-muted">Статус</div>
+    <div class="fw-semibold">{{ plan_status_labels[plan.status] }}</div>
+  </div>
+  <div>
+    <div class="small text-muted">Уровень</div>
+    <div class="fw-semibold">{{ plan.education_level or 'Все уровни' }}</div>
+  </div>
+  <div>
+    <div class="small text-muted">Здание</div>
+    <div class="fw-semibold">
+      {% if plan.building %}{{ plan.building.short_name or plan.building.name }}{% else %}Все здания{% endif %}
+    </div>
+  </div>
+  <div>
+    <div class="small text-muted">Строк</div>
+    <div class="fw-semibold">{{ plan.lines|length }}</div>
+  </div>
+  {% if can_update %}
+  <form class="ms-auto" method="post" action="{{ url_for('workload.plan_change_status', plan_id=plan.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="revision" value="{{ plan.revision }}">
+    {% if plan.status == 'DRAFT' %}
+    <input type="hidden" name="status" value="READY">
+    <button class="btn btn-outline-primary btn-sm" type="submit">Передать на проверку</button>
+    {% elif plan.status == 'READY' %}
+    <input type="hidden" name="status" value="DRAFT">
+    <button class="btn btn-outline-secondary btn-sm" type="submit">Вернуть в черновик</button>
+    {% endif %}
+  </form>
+  {% endif %}
+</div>
+
+<div class="table-responsive border-top">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Дисциплина</th>
+        <th>Часть плана</th>
+        <th>Область</th>
+        <th class="text-end">В неделю</th>
+        <th class="text-end">Недель</th>
+        <th class="text-end">В год</th>
+        <th>Период</th>
+        <th class="text-end"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in plan.lines %}
+      <tr>
+        <td>
+          <div class="fw-semibold">{{ line.education_activity.name }}</div>
+          {% if line.requires_division %}<div class="small text-muted">Деление на группы</div>{% endif %}
+        </td>
+        <td>{{ component_labels.get(line.component_kind, line.component_kind) }}</td>
+        <td>
+          {% for scope in line.scopes %}
+          <div>{{ scope_label(scope) }}</div>
+          {% endfor %}
+        </td>
+        <td class="text-end">{{ line.weekly_hours|compact_decimal if line.weekly_hours is not none else '—' }}</td>
+        <td class="text-end">{{ line.weeks_count|compact_decimal if line.weeks_count is not none else '—' }}</td>
+        <td class="text-end">{{ line.annual_hours|compact_decimal if line.annual_hours is not none else '—' }}</td>
+        <td>
+          {% for period in line.periods %}
+          <div class="text-nowrap">{{ period.date_from.strftime('%d.%m.%Y') }}–{{ period.date_to.strftime('%d.%m.%Y') }}</div>
+          {% else %}
+          <span class="text-muted">Весь год</span>
+          {% endfor %}
+        </td>
+        <td class="text-end">
+          {% if can_update %}
+          <div class="d-inline-flex gap-1">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('workload.plan_line_edit', plan_id=plan.id, line_id=line.id) }}" title="Изменить строку" aria-label="Изменить строку">
+              <i class="bi bi-pencil" aria-hidden="true"></i>
+            </a>
+            <form method="post" action="{{ url_for('workload.plan_line_delete', plan_id=plan.id, line_id=line.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="revision" value="{{ plan.revision }}">
+              <button class="btn btn-sm btn-outline-danger" type="submit" title="Удалить строку" aria-label="Удалить строку">
+                <i class="bi bi-trash" aria-hidden="true"></i>
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">Добавьте первую строку плана.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

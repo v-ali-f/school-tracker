@@ -1,0 +1,143 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Распределение нагрузки{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Распределение нагрузки</div>
+    <div class="page-sub">Плановая потребность, назначения педагогов и незакрытые часы</div>
+  </div>
+  <div class="page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace') }}">
+      <i class="bi bi-layout-split me-1" aria-hidden="true"></i>Рабочее место
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_teachers') }}">
+      <i class="bi bi-people me-1" aria-hidden="true"></i>Преподаватели
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_departments') }}">
+      <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Кафедры
+    </a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="workload-detail-summary">
+  <div><div class="small text-muted">Потребность</div><div class="fw-semibold">{{ totals.weekly }} ч/нед.</div></div>
+  <div><div class="small text-muted">Распределено</div><div class="fw-semibold">{{ totals.allocated }} ч/нед.</div></div>
+  <div><div class="small text-muted">Остаток</div><div class="fw-semibold {% if totals.remaining > 0 %}text-danger{% endif %}">{{ totals.remaining }} ч/нед.</div></div>
+  <div><div class="small text-muted">Позиций</div><div class="fw-semibold">{{ needs|length }}</div></div>
+</div>
+
+{% if can_update %}
+<form class="row g-2 align-items-end mb-3" method="post" action="{{ url_for('workload.assignments_generate') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="col-lg-5">
+    <label class="form-label" for="generate-version">Версия для пересчёта</label>
+    <select class="form-select form-select-sm" id="generate-version" name="version_id" required>
+      <option value="">Выберите версию</option>
+      {% for version in versions %}
+      <option value="{{ version.id }}" {% if version.id == selected_version_id %}selected{% endif %}>
+        {{ version.tariff_cycle.academic_year.name }} · версия {{ version.version_no }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary btn-sm" type="submit">
+      <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Пересчитать потребность
+    </button>
+  </div>
+</form>
+{% endif %}
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-lg-2 col-md-4">
+    <label class="form-label" for="filter-version">Версия</label>
+    <select class="form-select form-select-sm" id="filter-version" name="version_id">
+      <option value="">Все</option>
+      {% for version in versions %}
+      <option value="{{ version.id }}" {% if version.id == selected_version_id %}selected{% endif %}>{{ version.tariff_cycle.academic_year.name }} · {{ version.version_no }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2 col-md-4">
+    <label class="form-label" for="filter-status">Состояние</label>
+    <select class="form-select form-select-sm" id="filter-status" name="status">
+      <option value="">Все</option>
+      {% for code, label in status_labels.items() %}
+      <option value="{{ code }}" {% if code == selected_status %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-3 col-md-4">
+    <label class="form-label" for="filter-department">Кафедра</label>
+    <select class="form-select form-select-sm" id="filter-department" name="department_id">
+      <option value="">Все</option>
+      {% for item in departments %}
+      <option value="{{ item.id }}" {% if item.id == selected_department_id %}selected{% endif %}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2 col-md-4">
+    <label class="form-label" for="filter-building">Здание</label>
+    <select class="form-select form-select-sm" id="filter-building" name="building_id">
+      <option value="">Все</option>
+      {% for item in buildings %}
+      <option value="{{ item.id }}" {% if item.id == selected_building_id %}selected{% endif %}>{{ item.short_name or item.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-lg-2 col-md-4 d-flex align-items-end">
+    <div class="form-check mb-1">
+      <input class="form-check-input" type="checkbox" id="filter-vacancies" name="vacancies" value="1" {% if vacancies_only %}checked{% endif %}>
+      <label class="form-check-label" for="filter-vacancies">Только остаток</label>
+    </div>
+  </div>
+  <div class="col-auto d-flex align-items-end gap-2">
+    <button class="btn btn-outline-primary btn-sm" type="submit">Применить</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignments') }}" title="Сбросить фильтры" aria-label="Сбросить фильтры"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+  </div>
+</form>
+
+<div class="table-responsive border-top">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Дисциплина</th>
+        <th>Группа</th>
+        <th>Кафедра</th>
+        <th>Период</th>
+        <th class="text-end">План</th>
+        <th class="text-end">Назначено</th>
+        <th class="text-end">Остаток</th>
+        <th>Состояние</th>
+        <th class="text-end"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for need in needs %}
+      <tr>
+        <td>
+          <div class="fw-semibold">{{ need.education_activity.name }}</div>
+          <div class="small text-muted">{{ need.teaching_group.source_plan_line.education_plan.plan_kind }}</div>
+        </td>
+        <td>{{ need.teaching_group.name if need.teaching_group else '—' }}</td>
+        <td>{{ need.department.name if need.department else 'Не определена' }}</td>
+        <td class="text-nowrap">{{ need.date_from.strftime('%d.%m.%Y') }}–{{ need.date_to.strftime('%d.%m.%Y') }}</td>
+        <td class="text-end text-nowrap">{{ need.weekly_hours }} ч.</td>
+        <td class="text-end text-nowrap">{{ need.allocated_weekly_hours }} ч.</td>
+        <td class="text-end text-nowrap {% if need.remaining_weekly_hours > 0 %}text-danger fw-semibold{% endif %}">{{ need.remaining_weekly_hours }} ч.</td>
+        <td>{{ status_labels[need.status] }}</td>
+        <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.need_detail', need_id=need.id) }}" title="Открыть" aria-label="Открыть"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-muted py-4">Потребность ещё не рассчитана. Подготовьте группы со статусом «Готова» и выполните пересчёт.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

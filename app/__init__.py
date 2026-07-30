@@ -13,7 +13,7 @@ from app.core import (
 
 from app.cli import register_cli
 
-load_dotenv(override=True)
+load_dotenv()
 
 
 def get_current_year():
@@ -51,58 +51,63 @@ def create_app():
         from app.core.profiler import init_profiler
         from app.core.activity import init_user_activity
         from app.core.page_visit import init_page_visit_logger
-        db.create_all()
-        ensure_branding_columns()
-        ensure_runtime_schema()
+        auto_schema_bootstrap = app.config.get("AUTO_SCHEMA_BOOTSTRAP", True)
+        if auto_schema_bootstrap:
+            db.create_all()
+            ensure_branding_columns()
+            ensure_runtime_schema()
+        else:
+            app.logger.info("Automatic schema bootstrap disabled for migration tooling.")
         init_profiler(app, db.engine)
         init_user_activity(app)
         init_page_visit_logger(app)
-        app.register_blueprint(role_access_admin_bp) 
+        app.register_blueprint(role_access_admin_bp)
         try:
             from app.email_settings_admin import admin_email_settings_bp
             app.register_blueprint(admin_email_settings_bp)
         except Exception as exc:
             app.logger.warning("Email settings admin blueprint registration failed: %s", exc)
 
-        try:
-            ensure_single_active_organization_settings()
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        if auto_schema_bootstrap:
+            try:
+                ensure_single_active_organization_settings()
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
-        try:
-            default_blocks = [
-                ("home_search", "Быстрый поиск", "dashboard", 10),
-                ("home_summary", "Быстрая сводка", "dashboard", 20),
-                ("home_quick_links", "Быстрый доступ", "dashboard", 30),
-                ("home_sections", "Тематические разделы", "dashboard", 40),
-            ]
-            for block_code, title, category, default_order in default_blocks:
-                exists = DashboardBlockCatalog.query.filter_by(block_code=block_code).first()
-                if not exists:
-                    db.session.add(DashboardBlockCatalog(
-                        block_code=block_code,
-                        title=title,
-                        category=category,
-                        default_order=default_order,
-                        is_active=True,
-                    ))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+            try:
+                default_blocks = [
+                    ("home_search", "Быстрый поиск", "dashboard", 10),
+                    ("home_summary", "Быстрая сводка", "dashboard", 20),
+                    ("home_quick_links", "Быстрый доступ", "dashboard", 30),
+                    ("home_sections", "Тематические разделы", "dashboard", 40),
+                ]
+                for block_code, title, category, default_order in default_blocks:
+                    exists = DashboardBlockCatalog.query.filter_by(block_code=block_code).first()
+                    if not exists:
+                        db.session.add(DashboardBlockCatalog(
+                            block_code=block_code,
+                            title=title,
+                            category=category,
+                            default_order=default_order,
+                            is_active=True,
+                        ))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
-        kpp_user = User.query.filter_by(username="KPP").first()
-        if not kpp_user:
-            import secrets as _secrets
-            kpp_password = os.getenv("KPP_INITIAL_PASSWORD") or _secrets.token_urlsafe(12)
-            kpp_user = User(username="KPP", role="KPP", last_name="КПП", first_name="Пост")
-            kpp_user.set_password(kpp_password)
-            db.session.add(kpp_user)
-            db.session.commit()
-            app.logger.warning(
-                "KPP user created. Initial password: %s (store in .env as KPP_INITIAL_PASSWORD to suppress this log)",
-                kpp_password,
-            )
+            kpp_user = User.query.filter_by(username="KPP").first()
+            if not kpp_user:
+                import secrets as _secrets
+                kpp_password = os.getenv("KPP_INITIAL_PASSWORD") or _secrets.token_urlsafe(12)
+                kpp_user = User(username="KPP", role="KPP", last_name="КПП", first_name="Пост")
+                kpp_user.set_password(kpp_password)
+                db.session.add(kpp_user)
+                db.session.commit()
+                app.logger.warning(
+                    "KPP user created. Initial password: %s (store in .env as KPP_INITIAL_PASSWORD to suppress this log)",
+                    kpp_password,
+                )
 
     try:
         from app.scheduler import init_scheduler

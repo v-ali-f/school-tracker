@@ -1,0 +1,48 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Параметры тарификации{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Параметры тарификации</div>
+    <div class="page-sub">Версионируемые нормы и правила без скрытых констант</div>
+  </div>
+  {% if can_manage %}
+  <a class="btn btn-primary btn-sm" href="{{ url_for('workload.tariff_parameter_set_new', version_id=selected_version_id) }}">
+    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Создать набор
+  </a>
+  {% endif %}
+</div>
+{% include "workload/_control_nav.html" %}
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-lg-5">
+    <label class="form-label" for="settings-version">Учебный год и версия</label>
+    <select class="form-select form-select-sm" id="settings-version" name="version_id" onchange="this.form.submit()">
+      {% for item in versions %}
+      <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>{{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }} · {{ item.status }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="table-responsive workload-control-table">
+  <table class="table table-sm align-middle mb-0 workload-stage-table">
+    <thead><tr><th>Набор</th><th>Период</th><th class="text-end">Ученико-час</th><th class="text-end">Периодов</th><th>Округление</th><th>Статус</th><th class="text-end"></th></tr></thead>
+    <tbody>
+      {% for item in parameter_sets %}
+      <tr>
+        <td><div class="fw-semibold">{{ item.name }}</div><div class="small text-muted">{{ item.code }} · редакция {{ item.revision }}</div></td>
+        <td>{{ item.valid_from.strftime('%d.%m.%Y') }}–{{ item.valid_to.strftime('%d.%m.%Y') }}</td>
+        <td class="text-end">{{ item.student_hour_rate }} {{ item.currency_code }}</td>
+        <td class="text-end">{{ item.periods_per_year }}</td>
+        <td>{{ item.rounding_rule }}</td>
+        <td>{{ parameter_status_labels[item.status] }}</td>
+        <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_parameter_set_detail', parameter_set_id=item.id) }}" title="Открыть" aria-label="Открыть"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Для версии ещё нет набора параметров.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

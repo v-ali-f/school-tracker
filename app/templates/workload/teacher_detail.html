@@ -1,0 +1,49 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ employee.fio }} — нагрузка{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ employee.fio }}</div>
+    <div class="page-sub">Персональная расшифровка педагогической нагрузки</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_teachers') }}">К преподавателям</a>
+</div>
+{% include "workload/_nav.html" %}
+
+<div class="workload-detail-summary">
+  <div><div class="small text-muted">Урочная</div><div class="fw-semibold">{{ totals.CURRICULUM }} ч.</div></div>
+  <div><div class="small text-muted">Внеурочная</div><div class="fw-semibold">{{ totals.EXTRACURRICULAR }} ч.</div></div>
+  <div><div class="small text-muted">Допобразование</div><div class="fw-semibold">{{ totals.ADDITIONAL_EDUCATION }} ч.</div></div>
+  <div><div class="small text-muted">Всего</div><div class="fw-semibold">{{ totals.TOTAL }} ч/нед.</div></div>
+  <div><div class="small text-muted">Рассчитано ставок</div><div class="fw-semibold">{{ calculated_fte }}</div></div>
+  {% if can_view_finance %}<div><div class="small text-muted">Расчётная сумма</div><div class="fw-semibold">{{ '%.2f'|format(calculated_amount) }} руб.</div></div>{% endif %}
+</div>
+
+<div class="table-responsive border-top">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Дисциплина</th><th>Класс или группа</th><th>Вид</th><th>Кафедра</th><th>Период</th><th class="text-end">Часов/нед.</th><th class="text-end">Ставка</th>{% if can_view_finance %}<th class="text-end">Сумма</th>{% endif %}<th class="text-end"></th></tr></thead>
+    <tbody>
+      {% for item in assignments %}
+      <tr>
+        <td>{{ item.workload_need.education_activity.name }}</td>
+        <td>{{ item.workload_need.teaching_group.name if item.workload_need.teaching_group else '—' }}</td>
+        <td>{{ assignment_kind_labels[item.assignment_kind] }}</td>
+        <td>{{ item.department.name if item.department else 'Не определена' }}</td>
+        <td class="text-nowrap">{{ item.date_from.strftime('%d.%m.%Y') }}–{{ item.date_to.strftime('%d.%m.%Y') }}</td>
+        <td class="text-end">{{ item.weekly_hours }}</td>
+        {% set tariff_line = tariff_lines.get(item.id) %}
+        <td class="text-end">{{ tariff_line.fte_value if tariff_line else '—' }}</td>
+        {% if can_view_finance %}<td class="text-end">{{ '%.2f'|format(tariff_line.total_amount) if tariff_line else '—' }}</td>{% endif %}
+        <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.need_detail', need_id=item.workload_need_id) }}" title="Открыть основание" aria-label="Открыть основание"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 9 if can_view_finance else 8 }}" class="text-center text-muted py-4">Назначений нет.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

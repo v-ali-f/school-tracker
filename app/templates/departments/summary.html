@@ -11,6 +11,15 @@
   </div>
 </div>
 
+{% if load_source_state %}
+<div class="alert {% if load_source_state.effective_mode == 'INTERNAL' %}alert-success{% elif load_source_state.configured_mode == 'COMPARE' %}alert-warning{% else %}alert-secondary{% endif %} py-2">
+  Нагрузка кафедры:
+  {% if load_source_state.effective_mode == 'INTERNAL' %}утверждённый внутренний источник
+  {% elif load_source_state.configured_mode == 'COMPARE' %}Excel-источник в режиме параллельной сверки
+  {% else %}Excel-источник{% endif %}.
+</div>
+{% endif %}
+
 <div class="card mb-4"><div class="card-body">
   <form method="get" class="row g-2">
     <div class="col-md-3"><select class="form-select" name="academic_year_id" onchange="this.form.submit()"><option value="">Учебный год</option>{% for y in years %}<option value="{{ y.id }}" {% if academic_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>

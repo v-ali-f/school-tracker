@@ -55,6 +55,7 @@
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portal_standard.css') }}?v=20260605_calm_buttons_1">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/altair_theme.css') }}?v=20260619_mobile_shell_3">
+{% block head_extra %}{% endblock %}
 </head>
 
 <body class="{% if current_user.is_authenticated %}portal-authenticated{% endif %}">
