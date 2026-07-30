@@ -109,7 +109,6 @@ from app.core.cache import view_response_cache, make_key
 from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
 from app.services.education_activity_service import (
     get_or_create_subject_with_activity,
-    sync_activity_from_subject,
 )
 from .models import (
     AcademicYear,
@@ -6148,86 +6147,37 @@ def social_passport_summary_export():
 @children_bp.route("/subjects")
 @require_roles("ADMIN")
 def subjects_registry():
-    q = (request.args.get("q") or "").strip().lower()
-
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
-    if q:
-        subjects = [s for s in subjects if q in (s.name or "").lower()]
-
-    return render_template(
-        "subjects_list.html",
-        subjects=subjects,
-        q=q
-    )
+    return redirect(url_for(
+        "workload.catalog",
+        section="SUBJECTS",
+        q=(request.args.get("q") or "").strip(),
+    ))
 
 
 @children_bp.route("/subjects/new", methods=["POST"])
 @require_roles("ADMIN")
 def subjects_new():
-    name = (request.form.get("name") or "").strip()
-    short_name = (request.form.get("short_name") or "").strip() or None
-
-    if not name:
-        flash("Укажите название предмета", "danger")
-        return redirect(url_for("children.subjects_registry"))
-
-    exists = Subject.query.filter(db.func.lower(Subject.name) == name.lower()).first()
-    if exists:
-        flash("Такой предмет уже существует", "warning")
-        return redirect(url_for("children.subjects_registry"))
-
-    get_or_create_subject_with_activity(
-        name,
-        short_name=short_name,
-        created_by_user_id=current_user.id,
-    )
-    db.session.commit()
-    flash("Предмет добавлен", "success")
+    flash("Предметы добавляются только через единый реестр.", "info")
     return redirect(url_for("children.subjects_registry"))
 
 
 @children_bp.route("/subjects/<int:subject_id>/update", methods=["POST"])
 @require_roles("ADMIN")
 def subjects_update(subject_id: int):
-    subject = Subject.query.get_or_404(subject_id)
-
-    name = (request.form.get("name") or "").strip()
-    short_name = (request.form.get("short_name") or "").strip() or None
-
-    if not name:
-        flash("Название предмета не может быть пустым", "danger")
-        return redirect(url_for("children.subjects_registry"))
-
-    exists = (
-        Subject.query
-        .filter(db.func.lower(Subject.name) == name.lower(), Subject.id != subject.id)
-        .first()
-    )
-    if exists:
-        flash("Предмет с таким названием уже существует", "warning")
-        return redirect(url_for("children.subjects_registry"))
-
-    subject.name = name
-    subject.short_name = short_name
-    sync_activity_from_subject(subject, updated_by_user_id=current_user.id)
-    db.session.commit()
-    flash("Предмет сохранён", "success")
+    Subject.query.get_or_404(subject_id)
+    flash("Предметы изменяются только через единый реестр.", "info")
     return redirect(url_for("children.subjects_registry"))
 
 
 @children_bp.route("/subjects/<int:subject_id>/delete", methods=["POST"])
 @require_roles("ADMIN")
 def subjects_delete(subject_id: int):
-    subject = Subject.query.get_or_404(subject_id)
-
-    has_debts = Debt.query.filter_by(subject_id=subject.id).first() is not None
-    if has_debts:
-        flash("Нельзя удалить предмет: он уже используется в задолженностях", "danger")
-        return redirect(url_for("children.subjects_registry"))
-
-    db.session.delete(subject)
-    db.session.commit()
-    flash("Предмет удалён", "success")
+    Subject.query.get_or_404(subject_id)
+    flash(
+        "Предмет нельзя удалить из старого раздела. "
+        "Используйте единый реестр.",
+        "info",
+    )
     return redirect(url_for("children.subjects_registry"))
 
 # =========================================================

@@ -1,5 +1,5 @@
-from datetime import date
 from decimal import Decimal, InvalidOperation
+from uuid import uuid4
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -11,17 +11,19 @@ from app.core.feature_flags import WORKLOAD_WRITE, is_feature_enabled
 from app.models import (
     ACTIVITY_KINDS,
     ACTIVITY_KIND_LABELS,
+    EDUCATION_LEVELS,
+    EDUCATION_LEVEL_LABELS,
     AcademicYear,
     Department,
     EducationActivity,
     EducationActivityAlias,
     EducationActivityDepartment,
+    EducationActivityLevel,
     OrganizationSettings,
-    Subject,
 )
 from app.services.education_activity_service import (
-    normalize_activity_code,
     normalize_activity_name,
+    sync_subject_from_activity,
 )
 
 from .access import (
@@ -67,6 +69,13 @@ CATALOG_SECTIONS = {
         "empty": "В каталоге пока нет записей.",
     },
 }
+
+
+def _catalog_section_for_kind(activity_kind):
+    for code in ("SUBJECTS", "EXTRACURRICULAR", "ADDITIONAL"):
+        if activity_kind in CATALOG_SECTIONS[code]["kinds"]:
+            return code
+    return "ALL"
 
 
 @workload_bp.app_template_filter("compact_decimal")
@@ -120,45 +129,98 @@ def _current_organization_id():
     return organization.id if organization else None
 
 
-def _parse_date(value):
-    value = (value or "").strip()
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        return None
-
-
 def _activity_from_form(activity=None):
     name = " ".join((request.form.get("name") or "").split())
-    code = normalize_activity_code(request.form.get("code"))
     activity_kind = (request.form.get("activity_kind") or "").strip().upper()
-    education_level = (request.form.get("education_level") or "").strip().upper() or None
-    valid_from = _parse_date(request.form.get("valid_from"))
-    valid_to = _parse_date(request.form.get("valid_to"))
+    education_levels = list(dict.fromkeys(
+        value.strip().upper()
+        for value in request.form.getlist("education_levels")
+        if value.strip()
+    ))
+    legacy_level = (
+        (request.form.get("education_level") or "").strip().upper()
+    )
+    if not education_levels and legacy_level:
+        education_levels = [legacy_level]
+    department_values = request.form.getlist("department_ids")
+    try:
+        department_ids = list(dict.fromkeys(
+            int(value) for value in department_values if value
+        ))
+    except ValueError as exc:
+        raise ValueError("Выберите существующие кафедры.") from exc
 
-    if not name or not code:
-        raise ValueError("Укажите код и наименование.")
+    if not name:
+        raise ValueError("Укажите наименование.")
     if activity_kind not in ACTIVITY_KINDS:
         raise ValueError("Выберите допустимый вид образовательной активности.")
-    if valid_from and valid_to and valid_to < valid_from:
-        raise ValueError("Дата окончания не может быть раньше даты начала.")
+    if any(level not in EDUCATION_LEVELS for level in education_levels):
+        raise ValueError("Выберите допустимые уровни образования.")
+    departments = (
+        Department.query
+        .filter(Department.id.in_(department_ids))
+        .order_by(Department.name.asc())
+        .all()
+        if department_ids else []
+    )
+    if len(departments) != len(department_ids):
+        raise ValueError("Одна из выбранных кафедр не найдена.")
 
     item = activity or EducationActivity()
-    item.organization_id = _current_organization_id()
-    item.is_global = item.organization_id is None
-    item.code = code
+    duplicate_query = EducationActivity.query.filter(
+        func.lower(EducationActivity.name) == name.lower(),
+    )
+    if item.id is not None:
+        duplicate_query = duplicate_query.filter(
+            EducationActivity.id != item.id
+        )
+    if duplicate_query.first() is not None:
+        raise ValueError("Элемент с таким наименованием уже существует.")
+    if item.legacy_subject is not None and activity_kind != "SUBJECT":
+        raise ValueError(
+            "Учебный предмет нельзя преобразовать в другой вид, "
+            "пока он используется другими разделами."
+        )
+
+    if activity is None:
+        item.organization_id = _current_organization_id()
+        item.is_global = item.organization_id is None
+        item.code = f"CATALOG_{uuid4().hex[:16].upper()}"
     item.name = name
     item.short_name = (request.form.get("short_name") or "").strip() or None
     item.activity_kind = activity_kind
-    item.education_level = education_level
-    item.is_tariffable = request.form.get("is_tariffable") == "1"
-    item.valid_from = valid_from
-    item.valid_to = valid_to
+    item.education_level = education_levels[0] if education_levels else None
+    item.is_tariffable = True
     item.updated_by_user_id = current_user.id
     if activity is None:
         item.created_by_user_id = current_user.id
+        db.session.add(item)
+    db.session.flush()
+
+    item.level_links[:] = [
+        EducationActivityLevel(education_level=level)
+        for level in education_levels
+    ]
+
+    default_links = {
+        link.department_id: link
+        for link in item.department_links
+        if link.valid_from is None
+    }
+    selected_ids = {department.id for department in departments}
+    primary_id = departments[0].id if departments else None
+    for department_id, link in default_links.items():
+        link.is_active = department_id in selected_ids
+        link.is_primary = department_id == primary_id
+    for department in departments:
+        if department.id not in default_links:
+            db.session.add(EducationActivityDepartment(
+                education_activity_id=item.id,
+                department_id=department.id,
+                is_primary=department.id == primary_id,
+            ))
+
+    sync_subject_from_activity(item)
     return item
 
 
@@ -193,7 +255,6 @@ def catalog():
         pattern = f"%{search.lower()}%"
         query = query.filter(or_(
             func.lower(EducationActivity.name).like(pattern),
-            func.lower(EducationActivity.code).like(pattern),
             func.lower(func.coalesce(EducationActivity.short_name, "")).like(pattern),
         ))
 
@@ -213,6 +274,7 @@ def catalog():
         activities=activities,
         activity_kinds=section_config["kinds"],
         kind_labels=ACTIVITY_KIND_LABELS,
+        education_level_labels=EDUCATION_LEVEL_LABELS,
         catalog_sections=CATALOG_SECTIONS,
         selected_section=section,
         section_config=section_config,
@@ -249,13 +311,19 @@ def catalog_create():
             flash("Активность с таким кодом уже существует.", "danger")
         else:
             flash("Элемент каталога создан.", "success")
-            return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+            return redirect(url_for(
+                "workload.catalog",
+                section=_catalog_section_for_kind(activity.activity_kind),
+            ))
 
     return render_template(
         "workload/activity_form.html",
         activity=None,
-        activity_kinds=ACTIVITY_KINDS,
+        activity_kinds=CATALOG_SECTIONS[section]["kinds"],
         kind_labels=ACTIVITY_KIND_LABELS,
+        education_levels=EDUCATION_LEVELS,
+        education_level_labels=EDUCATION_LEVEL_LABELS,
+        departments=Department.query.order_by(Department.name.asc()).all(),
         selected_kind=default_kind,
         selected_section=section,
     )
@@ -273,6 +341,7 @@ def catalog_detail(activity_id):
         "workload/activity_detail.html",
         activity=activity,
         kind_labels=ACTIVITY_KIND_LABELS,
+        education_level_labels=EDUCATION_LEVEL_LABELS,
         departments=Department.query.order_by(Department.name.asc()).all(),
         can_manage=can_manage,
     )
@@ -295,15 +364,21 @@ def catalog_edit(activity_id):
             flash("Активность с таким кодом уже существует.", "danger")
         else:
             flash("Элемент каталога сохранён.", "success")
-            return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+            return redirect(url_for(
+                "workload.catalog",
+                section=_catalog_section_for_kind(activity.activity_kind),
+            ))
 
     return render_template(
         "workload/activity_form.html",
         activity=activity,
         activity_kinds=ACTIVITY_KINDS,
         kind_labels=ACTIVITY_KIND_LABELS,
+        education_levels=EDUCATION_LEVELS,
+        education_level_labels=EDUCATION_LEVEL_LABELS,
+        departments=Department.query.order_by(Department.name.asc()).all(),
         selected_kind=activity.activity_kind,
-        selected_section="ALL",
+        selected_section=_catalog_section_for_kind(activity.activity_kind),
     )
 
 

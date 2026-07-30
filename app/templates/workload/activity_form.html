@@ -1,13 +1,13 @@
 {% extends "workload/workspace_base.html" %}
-{% block title %}{{ "Редактирование" if activity else "Новая активность" }}{% endblock %}
+{% block title %}{{ "Редактирование" if activity else "Новая запись" }}{% endblock %}
 {% block workspace_content %}
 <div class="page-head mb-3">
   <div>
-    <div class="page-title">{{ "Редактирование" if activity else "Новая активность" }}</div>
-    <div class="page-sub">Единый каталог предметов, курсов и программ</div>
+    <div class="page-title">{{ "Редактирование" if activity else "Новая запись" }}</div>
+    <div class="page-sub">Одна запись используется в учебных планах, кафедрах и других разделах системы</div>
   </div>
   <div class="page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.catalog_detail', activity_id=activity.id) if activity else url_for('workload.catalog', section=selected_section) }}">Отмена</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.catalog', section=selected_section) }}">Отмена</a>
   </div>
 </div>
 
@@ -16,19 +16,15 @@
 <form method="post" class="row g-3">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="section" value="{{ selected_section }}">
-  <div class="col-md-4">
-    <label class="form-label" for="activity-code">Код</label>
-    <input class="form-control" id="activity-code" name="code" maxlength="80" required value="{{ activity.code if activity else '' }}">
-  </div>
-  <div class="col-md-8">
-    <label class="form-label" for="activity-name">Наименование</label>
+  <div class="col-md-6">
+    <label class="form-label" for="activity-name">Название</label>
     <input class="form-control" id="activity-name" name="name" maxlength="255" required value="{{ activity.name if activity else '' }}">
   </div>
-  <div class="col-md-5">
-    <label class="form-label" for="activity-short-name">Краткое наименование</label>
+  <div class="col-md-6">
+    <label class="form-label" for="activity-short-name">Краткое название</label>
     <input class="form-control" id="activity-short-name" name="short_name" maxlength="120" value="{{ activity.short_name if activity and activity.short_name else '' }}">
   </div>
-  <div class="col-md-4">
+  <div class="col-12">
     <label class="form-label" for="activity-kind">Вид</label>
     <select class="form-select" id="activity-kind" name="activity_kind" required>
       {% for kind in activity_kinds %}
@@ -36,29 +32,52 @@
       {% endfor %}
     </select>
   </div>
-  <div class="col-md-3">
-    <label class="form-label" for="activity-level">Уровень</label>
-    <select class="form-select" id="activity-level" name="education_level">
-      <option value="">Не указан</option>
-      {% for level in ("NOO", "OOO", "SOO", "DO") %}
-      <option value="{{ level }}" {% if activity and activity.education_level == level %}selected{% endif %}>{{ level }}</option>
+
+  <fieldset class="col-12">
+    <legend class="form-label mb-2">Уровни образования</legend>
+    <div class="d-flex flex-wrap gap-3">
+      {% for level in education_levels %}
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          id="activity-level-{{ level }}"
+          type="checkbox"
+          name="education_levels"
+          value="{{ level }}"
+          {% if activity and level in activity.education_levels %}checked{% endif %}
+        >
+        <label class="form-check-label" for="activity-level-{{ level }}">{{ education_level_labels[level] }}</label>
+      </div>
       {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label" for="activity-valid-from">Действует с</label>
-    <input class="form-control" id="activity-valid-from" type="date" name="valid_from" value="{{ activity.valid_from.isoformat() if activity and activity.valid_from else '' }}">
-  </div>
-  <div class="col-md-3">
-    <label class="form-label" for="activity-valid-to">Действует по</label>
-    <input class="form-control" id="activity-valid-to" type="date" name="valid_to" value="{{ activity.valid_to.isoformat() if activity and activity.valid_to else '' }}">
-  </div>
-  <div class="col-md-6 d-flex align-items-end">
-    <div class="form-check mb-2">
-      <input class="form-check-input" id="activity-tariffable" type="checkbox" name="is_tariffable" value="1" {% if not activity or activity.is_tariffable %}checked{% endif %}>
-      <label class="form-check-label" for="activity-tariffable">Формирует тарифицируемую нагрузку</label>
     </div>
-  </div>
+  </fieldset>
+
+  <fieldset class="col-12">
+    <legend class="form-label mb-2">Кафедры</legend>
+    {% if departments %}
+    <div class="row g-2">
+      {% for department in departments %}
+      {% set linked = activity and (activity.department_links|selectattr('department_id', 'equalto', department.id)|selectattr('is_active')|list) %}
+      <div class="col-md-6">
+        <div class="form-check">
+          <input
+            class="form-check-input"
+            id="activity-department-{{ department.id }}"
+            type="checkbox"
+            name="department_ids"
+            value="{{ department.id }}"
+            {% if linked %}checked{% endif %}
+          >
+          <label class="form-check-label" for="activity-department-{{ department.id }}">{{ department.name }}</label>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-muted small">Кафедры ещё не созданы.</div>
+    {% endif %}
+  </fieldset>
+
   <div class="col-12 border-top pt-3">
     <button class="btn btn-primary" type="submit">Сохранить</button>
   </div>
