@@ -44,6 +44,10 @@ class AttendanceLate(db.Model):
     school_class = db.relationship("SchoolClass")
     creator = db.relationship("User", foreign_keys=[created_by])
 
+    __table_args__ = (
+        db.Index("ix_attendance_late_date_class", "late_date", "class_id"),
+    )
+
 
 class AttendancePass(db.Model):
     __tablename__ = "attendance_pass"
@@ -94,6 +98,11 @@ class AttendanceImportSession(db.Model):
     importer = db.relationship("User", foreign_keys=[imported_by])
     building = db.relationship("Building", foreign_keys=[building_id])
 
+    __table_args__ = (
+        db.Index("ix_attendance_import_session_imported_at", "imported_at"),
+        db.Index("ix_attendance_import_session_year_month", "period_year", "period_num"),
+    )
+
 
 class AttendanceRawEntry(db.Model):
     __tablename__ = "attendance_raw_entry"
@@ -124,6 +133,15 @@ class AttendanceRawEntry(db.Model):
     )
     child = db.relationship("Child")
     school_class = db.relationship("SchoolClass")
+
+    __table_args__ = (
+        db.Index("ix_attendance_raw_entry_child_entry_date", "child_id", "entry_date"),
+        db.Index(
+            "ix_attendance_raw_entry_entry_date_class",
+            "entry_date",
+            "matched_class_id",
+        ),
+    )
 
 
 _attendance_schema_checked = False

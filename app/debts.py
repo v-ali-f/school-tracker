@@ -3,6 +3,7 @@ from flask import Blueprint, redirect, url_for, request
 from flask_login import login_required, current_user
 from .models import Debt, Subject, Child
 from app.core.extensions import db
+from app.services.education_activity_service import get_or_create_subject_with_activity
 
 debts_bp = Blueprint("debts", __name__)
 
@@ -25,11 +26,10 @@ def new_debt(child_id: int):
     if not subject_name:
         return redirect(url_for("children.child_card", child_id=child_id))
 
-    subject = Subject.query.filter_by(name=subject_name).first()
-    if not subject:
-        subject = Subject(name=subject_name)
-        db.session.add(subject)
-        db.session.flush()
+    subject, _created = get_or_create_subject_with_activity(
+        subject_name,
+        created_by_user_id=current_user.id,
+    )
 
     debt = Debt(
         child_id=child_id,

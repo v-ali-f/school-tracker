@@ -107,6 +107,10 @@ class User(db.Model, UserMixin):
         lazy="joined"
     )
 
+    __table_args__ = (
+        db.Index("ix_user_employment_status", "employment_status"),
+    )
+
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(
             password,
@@ -200,6 +204,8 @@ class SchoolClass(db.Model):
             "name",
             name="uq_school_class_year_building_name"
         ),
+        db.Index("ix_school_class_grade_building", "grade", "building_id"),
+        db.Index("ix_school_class_year_archived", "academic_year_id", "is_archived"),
     )
 
     @property
@@ -266,6 +272,11 @@ class Child(db.Model):
     disability_from = db.Column(db.Date, nullable=True)
     disability_to = db.Column(db.Date, nullable=True)
     disability_ipra = db.Column(db.String(255), nullable=True)
+
+    __table_args__ = (
+        db.Index("ix_child_name_parts", "last_name", "first_name", "middle_name"),
+        db.Index("ix_child_status", "status"),
+    )
 
     # relationships
     debts = db.relationship("Debt", backref="child", lazy=True, cascade="all, delete-orphan")
@@ -377,6 +388,11 @@ class ChildEnrollment(db.Model):
     )
     academic_year = db.relationship("AcademicYear")
     school_class = db.relationship("SchoolClass")
+
+    __table_args__ = (
+        db.Index("ix_child_enrollment_class_status", "school_class_id", "status"),
+        db.Index("ix_child_enrollment_status", "status"),
+    )
 
     def __repr__(self):
         return f"<ChildEnrollment child={self.child_id} class={self.school_class_id}>"
@@ -574,6 +590,19 @@ class Subject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
     short_name = db.Column(db.String(50), nullable=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+        backref=db.backref("legacy_subject", uselist=False),
+    )
 
     def __repr__(self):
         return f"<Subject {self.name}>"
@@ -859,6 +888,11 @@ class ChildEvent(db.Model):
     )
     author = db.relationship("User")
 
+    __table_args__ = (
+        db.Index("ix_child_events_event_type_from_class", "event_type", "from_class"),
+        db.Index("ix_child_events_from_class", "from_class"),
+    )
+
     def __repr__(self):
         return f"<ChildEvent child={self.child_id} type={self.event_type}>"
 
@@ -950,6 +984,10 @@ class Incident(db.Model):
         cascade="all, delete-orphan",
     )
 
+    __table_args__ = (
+        db.Index("ix_incident_status_occurred", "status", occurred_at.desc()),
+    )
+
     @property
     def status_label(self):
         return self.STATUS_LABELS.get(self.status or "new", "Новый")
@@ -967,6 +1005,10 @@ class IncidentAssignee(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), primary_key=True)
     added_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     added_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+    __table_args__ = (
+        db.Index("ix_incident_assignee_user", "user_id"),
+    )
 
 
 class IncidentNote(db.Model):
@@ -1096,6 +1138,15 @@ class IncidentNotification(db.Model):
 
     incident = db.relationship("Incident", foreign_keys=[incident_id])
     user = db.relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        db.Index(
+            "ix_incident_notification_user_unread",
+            "user_id",
+            "is_read",
+            created_at.desc(),
+        ),
+    )
 
 
 # =========================
@@ -1411,7 +1462,13 @@ class OlympiadResult(db.Model):
     status_original = db.Column(db.Text, nullable=True)
     status_group = db.Column(db.String(50), nullable=True, index=True)
     stage_group = db.Column(db.String(50), nullable=True, index=True)
-    is_annulled = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    is_annulled = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default=db.false(),
+        index=True,
+    )
     reason = db.Column(db.Text, nullable=True)
     teacher_binding_status = db.Column(db.String(30), nullable=True, index=True)
     teacher_binding_source = db.Column(db.String(30), nullable=True, index=True)

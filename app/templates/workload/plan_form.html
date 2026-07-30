@@ -1,0 +1,77 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Новый учебный план{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Новый план</div>
+    <div class="page-sub">Учебный год и область планирования</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans') }}">Отмена</a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<form method="post" class="row g-3" data-plan-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="col-md-4">
+    <label class="form-label" for="plan-year">Учебный год</label>
+    <select class="form-select" id="plan-year" name="academic_year_id" required>
+      <option value="">Выберите</option>
+      {% for year in academic_years %}
+      <option value="{{ year.id }}" {% if year.is_current %}selected{% endif %}>{{ year.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-8">
+    <label class="form-label" for="plan-name">Наименование</label>
+    <input class="form-control" id="plan-name" name="name" maxlength="255" required>
+  </div>
+  <div class="col-md-5">
+    <label class="form-label" for="plan-kind">Вид плана</label>
+    <select class="form-select" id="plan-kind" name="plan_kind" required>
+      {% for kind in plan_kinds %}
+      <option value="{{ kind }}">{{ plan_kind_labels[kind] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="plan-level">Уровень образования</label>
+    <select class="form-select" id="plan-level" name="education_level">
+      <option value="">Выберите</option>
+      <option value="NOO">НОО — 1–4 классы</option>
+      <option value="OOO">ООО — 5–9 классы</option>
+      <option value="SOO">СОО — 10–11 классы</option>
+      <option value="DO">ДО</option>
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="plan-building">Здание</label>
+    <select class="form-select" id="plan-building" name="building_id">
+      <option value="">Все здания</option>
+      {% for building in buildings %}
+      <option value="{{ building.id }}">{{ building.short_name or building.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-12 border-top pt-3">
+    <button class="btn btn-primary" type="submit">Создать</button>
+  </div>
+</form>
+{% endblock %}
+{% block workspace_scripts %}
+<script>
+(() => {
+  const form = document.querySelector("[data-plan-form]");
+  const kind = form?.querySelector("[name='plan_kind']");
+  const level = form?.querySelector("[name='education_level']");
+  if (!kind || !level) return;
+  const refresh = () => {
+    level.required = kind.value === "CURRICULUM";
+  };
+  kind.addEventListener("change", refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

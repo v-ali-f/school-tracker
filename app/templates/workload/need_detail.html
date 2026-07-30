@@ -1,0 +1,87 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ need.education_activity.name }} — нагрузка{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ need.education_activity.name }}</div>
+    <div class="page-sub">{{ need.teaching_group.name if need.teaching_group else 'Потребность без группы' }} · {{ need_status_labels[need.status] }}</div>
+  </div>
+  <div class="page-actions d-flex gap-2">
+    {% if can_update %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('workload.assignment_new', need_id=need.id) }}">
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Назначить
+    </a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignments', version_id=need.tariff_version_id) }}">К потребностям</a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="workload-detail-summary">
+  <div><div class="small text-muted">Потребность</div><div class="fw-semibold">{{ need.weekly_hours }} ч/нед. · {{ need.annual_hours }} ч/период</div></div>
+  <div><div class="small text-muted">Распределено</div><div class="fw-semibold">{{ need.allocated_weekly_hours }} ч/нед.</div></div>
+  <div><div class="small text-muted">Остаток</div><div class="fw-semibold {% if need.remaining_weekly_hours > 0 %}text-danger{% endif %}">{{ need.remaining_weekly_hours }} ч/нед.</div></div>
+  <div><div class="small text-muted">Период</div><div class="fw-semibold">{{ need.date_from.strftime('%d.%m.%Y') }}–{{ need.date_to.strftime('%d.%m.%Y') }}</div></div>
+  <div><div class="small text-muted">Кафедра</div><div class="fw-semibold">{{ need.department.name if need.department else 'Не определена' }}</div></div>
+</div>
+
+<section class="mb-4">
+  <h2 class="h6">Основание</h2>
+  <div class="small">
+    {% for source in need.sources %}
+    <a href="{{ url_for('workload.plan_detail', plan_id=source.education_plan_line.education_plan_id) }}">{{ source.education_plan_line.education_plan.name }}</a>
+    · {{ source.source_kind }}
+    · {{ source.source_weekly_hours }} ч/нед.
+    {% endfor %}
+    {% if need.teaching_group %}
+    · <a href="{{ url_for('workload.group_detail', group_id=need.teaching_group.id) }}">{{ need.teaching_group.name }}</a>
+    {% endif %}
+  </div>
+</section>
+
+<section>
+  <h2 class="h6">Назначения</h2>
+  <div class="table-responsive border-top">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Преподаватель</th><th>Вид</th><th>Должность</th><th>Период</th><th class="text-end">Часов/нед.</th><th class="text-end">Часов/период</th><th>Статус</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for item in need.assignments %}
+        <tr class="{% if item.status == 'CANCELLED' %}text-muted{% endif %}">
+          <td>
+            {% if item.employee %}
+            <a href="{{ url_for('workload.workload_teacher_detail', user_id=item.employee.id) }}">{{ item.employee.fio }}</a>
+            {% else %}
+            <span class="text-danger">Вакансия</span>
+            {% endif %}
+          </td>
+          <td>{{ assignment_kind_labels[item.assignment_kind] }}</td>
+          <td>{{ item.position_title or '—' }}</td>
+          <td class="text-nowrap">{{ item.date_from.strftime('%d.%m.%Y') }}–{{ item.date_to.strftime('%d.%m.%Y') }}</td>
+          <td class="text-end">{{ item.weekly_hours }}</td>
+          <td class="text-end">{{ item.annual_hours }}</td>
+          <td>{{ assignment_status_labels[item.status] }}</td>
+          <td class="text-end text-nowrap">
+            {% if can_update and item.status != 'CANCELLED' %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_edit', assignment_id=item.id) }}" title="Изменить" aria-label="Изменить"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+            <form class="d-inline" method="post" action="{{ url_for('workload.assignment_cancel', assignment_id=item.id) }}" onsubmit="return confirm('Отменить назначение?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="revision" value="{{ item.revision }}">
+              <input class="form-control form-control-sm d-inline-block align-middle" style="width: 12rem" name="reason" maxlength="500" placeholder="Основание отмены" aria-label="Основание отмены" required>
+              <button class="btn btn-outline-danger btn-sm" type="submit" title="Отменить" aria-label="Отменить"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Педагоги ещё не назначены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

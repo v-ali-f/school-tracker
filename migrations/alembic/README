@@ -1,0 +1,12 @@
+Single-database configuration for Flask.
+
+Baseline revision: f9487aa87d4f_baseline_current_schema
+Current workload revision: f53c9d7a2e84_department_workload_source_integration
+
+Safety rules:
+
+1. Run migration commands with `AUTO_SCHEMA_BOOTSTRAP=0`.
+2. Never stamp, upgrade, or downgrade a production database before a
+   schema-only comparison and a tested full backup.
+3. Rebuild the complete chain on a separate empty PostgreSQL database before
+   preparing a release.

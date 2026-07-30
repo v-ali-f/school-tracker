@@ -1,0 +1,98 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Документы тарификации{% endblock %}
+{% block workspace_content %}
+<div class="workload-control-page">
+<div class="page-head workload-control-head">
+  <div>
+    <div class="page-title">Документы</div>
+    <div class="page-sub">Версионируемые Word-файлы из расчётного снимка</div>
+  </div>
+</div>
+{% include "workload/_control_nav.html" %}
+
+<form class="workload-control-filter" method="get">
+  <div>
+    <label class="form-label" for="document-version">Учебный год и версия</label>
+    <select class="form-select form-select-sm" id="document-version" name="version_id" onchange="this.form.submit()">
+      {% for item in versions %}
+      <option value="{{ item.id }}" {% if version and item.id == version.id %}selected{% endif %}>{{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }} · {{ item.status }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+{% if version and can_generate %}
+<form class="workload-control-command workload-control-command--document" method="post" action="{{ url_for('workload.tariff_document_generate') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="version_id" value="{{ version.id }}">
+  <div class="col-lg-4">
+    <label class="form-label" for="document-type">Форма</label>
+    <select class="form-select form-select-sm" id="document-type" name="document_type" required>
+      {% for code, label in document_labels.items() %}
+      {% if can_view_finance or code not in ['SUMMARY_TARIFF', 'PERSONAL_TARIFF'] %}<option value="{{ code }}">{{ label }}</option>{% endif %}
+      {% endfor %}
+    </select>
+  </div>
+  {% if can_view_finance %}
+  <div class="col-lg-4">
+    <label class="form-label" for="document-employee">Сотрудник для персонального листа</label>
+    <select class="form-select form-select-sm" id="document-employee" name="employee_user_id">
+      <option value="">Не выбран</option>
+      {% for employee in employees %}<option value="{{ employee.id }}">{{ employee.fio or employee.username }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="col-auto">
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Сформировать</button>
+  </div>
+</form>
+{% endif %}
+
+{% if version %}
+<div class="workload-stage-summary workload-control-summary">
+  <div><span>Версия</span><strong>№ {{ version.version_no }}</strong></div>
+  <div><span>Статус</span><strong>{{ version.status }}</strong></div>
+  <div><span>Документов</span><strong>{{ artifacts|length }}</strong></div>
+  <div><span>Последняя редакция</span><strong>{% if artifacts %}№ {{ artifacts[0].revision_no }}{% else %}—{% endif %}</strong></div>
+</div>
+<div class="table-responsive workload-control-table">
+  <table class="table table-sm align-middle mb-0 workload-stage-table">
+    <thead><tr><th>Документ</th><th>Статус</th><th>Редакция</th><th>Сотрудник</th><th>Создан</th><th>Контрольная сумма</th><th></th></tr></thead>
+    <tbody>
+      {% for artifact in artifacts %}
+      <tr>
+        <td><div class="fw-semibold">{{ document_labels[artifact.document_type] }}</div><div class="small text-muted">{{ artifact.filename }}</div></td>
+        <td><span class="badge {% if artifact.status == 'OFFICIAL' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ artifact.status }}</span></td>
+        <td>№ {{ artifact.revision_no }}</td>
+        <td>{{ artifact.employee.fio if artifact.employee else '—' }}</td>
+        <td>{{ artifact.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td class="font-monospace small">{{ artifact.checksum_sha256[:12] }}…</td>
+        <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_document_download', artifact_id=artifact.id) }}" title="Скачать" aria-label="Скачать"><i class="bi bi-download" aria-hidden="true"></i></a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Документы для версии ещё не формировались.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center text-muted border-top border-bottom py-5">Версии тарификации ещё не созданы.</div>
+{% endif %}
+</div>
+{% endblock %}
+{% block workspace_context %}
+{% if version %}
+<div class="workload-record-context">
+  <div class="workload-record-context__title">Пакет версии № {{ version.version_no }}</div>
+  <div class="workload-record-context__subtitle">{{ version.tariff_cycle.academic_year.name }}</div>
+  <dl class="workload-context-list">
+    <div><dt>Статус версии</dt><dd>{{ version.status }}</dd></div>
+    <div><dt>Сформировано</dt><dd>{{ artifacts|length }}</dd></div>
+    <div><dt>Официальных</dt><dd>{{ artifacts|selectattr('status', 'equalto', 'OFFICIAL')|list|length }}</dd></div>
+    <div><dt>Проектов</dt><dd>{{ artifacts|rejectattr('status', 'equalto', 'OFFICIAL')|list|length }}</dd></div>
+  </dl>
+</div>
+{% else %}
+<div class="workload-record-context__empty"><i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Выберите версию для выпуска документов</span></div>
+{% endif %}
+{% endblock %}

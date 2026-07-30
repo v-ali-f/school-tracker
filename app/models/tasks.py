@@ -68,6 +68,11 @@ class Task(db.Model):
     history_entries = db.relationship('TaskHistory', backref='task', lazy=True, cascade='all, delete-orphan', order_by='TaskHistory.created_at.desc()')
     parent_task = db.relationship('Task', remote_side=[id], backref=db.backref('subtasks', lazy=True, cascade='all'))
 
+    __table_args__ = (
+        db.Index("ix_task_responsible_status", "responsible_user_id", "status"),
+        db.Index("ix_task_status_deadline", "status", "deadline_at"),
+    )
+
     STATUS_NEW = 'Новая'
     STATUS_IN_PROGRESS = 'В работе'
     STATUS_REVIEW = 'На проверке'
@@ -269,6 +274,15 @@ class TaskNotification(db.Model):
 
     task = db.relationship('Task', foreign_keys=[task_id])
     user = db.relationship('User', foreign_keys=[user_id])
+
+    __table_args__ = (
+        db.Index(
+            "ix_task_notification_user_unread",
+            "user_id",
+            "is_read",
+            created_at.desc(),
+        ),
+    )
 
 
 class TaskAutoRule(db.Model):

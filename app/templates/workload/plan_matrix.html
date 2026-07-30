@@ -1,0 +1,465 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Матрица — {{ plan.name }}{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260730_16">
+{% endblock %}
+
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ plan.name }}</div>
+    <div class="page-sub">
+      {{ plan_kind_labels[plan.plan_kind] }} · {{ plan.education_level or 'Все уровни' }}
+      {% if plan.building %} · {{ plan.building.short_name or plan.building.name }}{% endif %}
+    </div>
+  </div>
+  <div class="page-actions d-flex gap-1">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans', academic_year_id=plan.tariff_version.tariff_cycle.academic_year_id, plan_kind=plan.plan_kind) }}" title="К списку планов" aria-label="К списку планов">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>
+    </a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+{% if can_update %}
+<form
+  class="workload-matrix-add-row"
+  method="post"
+  action="{{ url_for('workload.plan_matrix_add_activity', plan_id=plan.id) }}"
+>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="revision" value="{{ plan.revision }}">
+  <div class="workload-matrix-add-row__subject">
+    <label class="form-label" for="matrix-add-activity">Предмет или курс</label>
+    <select class="form-select form-select-sm" id="matrix-add-activity" name="education_activity_id" required>
+      <option value="">Выберите из единого каталога</option>
+      {% for activity in activities %}
+      <option value="{{ activity.id }}">{{ activity.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="form-label" for="matrix-add-component">Часть плана</label>
+    <select class="form-select form-select-sm" id="matrix-add-component" name="component_kind" required>
+      {% for component in component_kinds %}
+      <option value="{{ component }}">{{ component_labels[component] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-primary btn-sm" type="submit">
+    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Добавить строку
+  </button>
+</form>
+{% endif %}
+
+<div class="workload-plan-matrix-wrap">
+  <table class="workload-plan-matrix" data-plan-matrix>
+    <colgroup>
+      <col class="workload-plan-matrix__subject-col">
+      {% for scope in matrix.scope_columns %}
+      {% if scope.period_scheme %}
+        {% for period in scope.period_scheme.periods %}
+        <col class="workload-plan-matrix__period-col">
+        {% endfor %}
+        {% if scope.period_scheme.show_annual %}
+        <col class="workload-plan-matrix__annual-col">
+        {% endif %}
+      {% else %}
+      <col class="workload-plan-matrix__weekly-col">
+      <col class="workload-plan-matrix__annual-col">
+      {% endif %}
+      {% endfor %}
+      <col class="workload-plan-matrix__total-col">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="workload-plan-matrix__subject" rowspan="2">Учебные предметы</th>
+        {% for scope in matrix.scope_columns %}
+        <th class="workload-plan-matrix__scope workload-plan-matrix__scope-end {% if loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}" colspan="{{ scope.column_span }}">{{ scope.label }}</th>
+        {% endfor %}
+        <th class="workload-plan-matrix__total">Всего</th>
+      </tr>
+      <tr class="workload-plan-matrix__units">
+        {% for scope in matrix.scope_columns %}
+        {% set scope_loop = loop %}
+        {% if scope.period_scheme %}
+          {% for period in scope.period_scheme.periods %}
+          <th class="workload-plan-matrix__period-head {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %} {% if loop.last and not scope.period_scheme.show_annual %}workload-plan-matrix__scope-end{% endif %}">
+            {{ period.label }}
+            <small>{{ period.weeks_count|compact_decimal }} нед.</small>
+          </th>
+          {% endfor %}
+          {% if scope.period_scheme.show_annual %}
+          <th class="workload-plan-matrix__annual workload-plan-matrix__scope-end">год.</th>
+          {% endif %}
+        {% else %}
+        <th class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}">нед.</th>
+        <th class="workload-plan-matrix__annual workload-plan-matrix__scope-end">год.</th>
+        {% endif %}
+        {% endfor %}
+        <th class="workload-plan-matrix__annual">год.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set row_counter = namespace(value=0) %}
+      {% for section in matrix.sections %}
+      <tr class="workload-plan-matrix__section">
+        <th colspan="{{ matrix.total_column_count }}">
+          <span>{{ section.label }}</span>
+        </th>
+      </tr>
+      {% for row in section.rows %}
+      <tr data-matrix-row data-section="{{ row.component_kind }}">
+        <th class="workload-plan-matrix__subject">
+          <div class="workload-plan-matrix__row-heading">
+            <div>
+              <span>{{ row.activity.name }}</span>
+              {% if row.profile_code %}<small>{{ row.profile_code }}</small>{% endif %}
+            </div>
+            {% if can_update %}
+            <form
+              method="post"
+              action="{{ url_for('workload.plan_matrix_delete_row', plan_id=plan.id) }}"
+              onsubmit="return confirm('Удалить эту предметную строку из всех классов?');"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="revision" value="{{ plan.revision }}">
+              <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
+              <input type="hidden" name="component_kind" value="{{ row.component_kind }}">
+              <input type="hidden" name="profile_code" value="{{ row.profile_code or '' }}">
+              <button
+                class="workload-plan-matrix__delete-row"
+                type="submit"
+                title="Удалить предметную строку"
+                aria-label="Удалить предметную строку «{{ row.activity.name }}»"
+              >
+                <i class="bi bi-trash" aria-hidden="true"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </th>
+        {% for scope in matrix.scope_columns %}
+        {% set scope_loop = loop %}
+        {% set line = row.cells.get(scope.key) %}
+        {% if scope.period_scheme %}
+        <td
+          class="workload-plan-matrix__period-block workload-plan-matrix__scope-end {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+          colspan="{{ scope.column_span }}"
+        >
+          {% if line or (can_update and scope.kind == 'GRADE') %}
+          <form
+            class="workload-period-cell {% if scope.period_scheme.show_annual %}workload-period-cell--with-annual{% else %}workload-period-cell--two-periods{% endif %} {% if not line %}workload-period-cell--new{% endif %} {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+            method="post"
+            action="{{ url_for('workload.plan_line_update_period_hours', plan_id=plan.id, line_id=line.id) if line else url_for('workload.plan_matrix_create_period_cell', plan_id=plan.id) }}"
+            {% if line %}data-plan-period-cell{% else %}data-plan-period-cell-create{% endif %}
+            data-line-id="{{ line.id if line else '' }}"
+            data-section="{{ row.component_kind }}"
+            data-scope-key="{{ scope.key }}"
+            data-weekly="{{ line.weekly_hours|compact_decimal if line else '' }}"
+            data-annual="{{ line.annual_hours|compact_decimal if line else '' }}"
+            aria-label="{{ row.activity.name }}, {{ scope.label }}"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="revision" value="{{ plan.revision }}">
+            {% if not line %}
+            <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
+            <input type="hidden" name="component_kind" value="{{ row.component_kind }}">
+            <input type="hidden" name="profile_code" value="{{ row.profile_code or '' }}">
+            <input type="hidden" name="sort_order" value="{{ row.sort_order }}">
+            <input type="hidden" name="grade" value="{{ scope.grade }}">
+            {% endif %}
+            {% for period in scope.period_scheme.periods %}
+            {% set period_record = line.periods[loop.index0] if line and line.periods|length > loop.index0 else none %}
+            <div class="workload-period-cell__period">
+              <input
+                class="workload-period-cell__weekly"
+                name="period_{{ loop.index }}_weekly_hours"
+                inputmode="decimal"
+                value="{{ period_record.weekly_hours|compact_decimal if period_record and period_record.weekly_hours else '' }}"
+                placeholder="—"
+                data-period-index="{{ loop.index0 }}"
+                data-weeks="{{ period.weeks_count|compact_decimal }}"
+                aria-label="Часов в неделю: {{ row.activity.name }}, {{ scope.label }}, {{ period.label }}"
+                {% if not can_update %}readonly{% endif %}
+              >
+              <small>
+                <input
+                  class="workload-period-cell__weeks"
+                  name="period_{{ loop.index }}_weeks_count"
+                  inputmode="decimal"
+                  value="{{ period_record.weeks_count|compact_decimal if period_record and period_record.weeks_count is not none else period.weeks_count|compact_decimal }}"
+                  data-period-weeks-index="{{ loop.index0 }}"
+                  aria-label="Учебных недель: {{ row.activity.name }}, {{ scope.label }}, {{ period.label }}"
+                  {% if not can_update %}readonly{% endif %}
+                >
+                <span>недель</span>
+              </small>
+            </div>
+            {% endfor %}
+            {% if scope.period_scheme.show_annual %}
+            <div class="workload-period-cell__annual">
+              <strong data-period-total-annual>{{ line.annual_hours|compact_decimal if line and line.periods else '—' }}</strong>
+            </div>
+            {% endif %}
+          </form>
+          {% else %}
+          <span class="workload-period-cell workload-hour-cell--empty">—</span>
+          {% endif %}
+        </td>
+        {% else %}
+        <td class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}">
+          {% if line %}
+          {% set placeholder_line = line.weekly_hours == 0 and line.annual_hours == 0 %}
+          <form
+            class="workload-hour-cell {% if selected_line and selected_line.id == line.id %}is-selected{% endif %} {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+            method="post"
+            action="{{ url_for('workload.plan_line_update_hours', plan_id=plan.id, line_id=line.id) }}"
+            data-plan-cell
+            data-line-id="{{ line.id }}"
+            data-row-index="{{ row_counter.value }}"
+            data-column-index="{{ loop.index0 }}"
+            data-section="{{ row.component_kind }}"
+            data-scope-key="{{ scope.key }}"
+            data-activity="{{ line.education_activity.name }}"
+            data-component="{{ component_labels.get(line.component_kind, line.component_kind) }}"
+            data-scope="{{ scope.label }}"
+            data-weekly="{{ '' if placeholder_line else line.weekly_hours|compact_decimal }}"
+            data-weeks="{{ line.weeks_count|compact_decimal }}"
+            data-annual="{{ '' if placeholder_line else line.annual_hours|compact_decimal }}"
+            data-division="{{ '1' if line.requires_division else '0' }}"
+            data-edit-url="{{ url_for('workload.plan_line_edit', plan_id=plan.id, line_id=line.id) }}"
+            aria-label="{{ line.education_activity.name }}, {{ scope.label }}"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="revision" value="{{ plan.revision }}">
+            <input type="hidden" name="annual_hours" value="{{ '' if placeholder_line else line.annual_hours|compact_decimal }}">
+            <input
+              class="workload-hour-cell__weekly"
+              name="weekly_hours"
+              inputmode="decimal"
+              value="{{ '' if placeholder_line else line.weekly_hours|compact_decimal }}"
+              placeholder="—"
+              aria-label="Часов в неделю: {{ line.education_activity.name }}, {{ scope.label }}"
+              {% if not can_update %}readonly{% endif %}
+            >
+            <small>
+              <input
+                class="workload-hour-cell__weeks"
+                name="weeks_count"
+                inputmode="decimal"
+                value="{{ line.weeks_count|compact_decimal if line.weeks_count is not none else default_weeks_count|compact_decimal }}"
+                aria-label="Учебных недель: {{ line.education_activity.name }}, {{ scope.label }}"
+                {% if not can_update %}readonly{% endif %}
+              >
+              <span>недель</span>
+            </small>
+            {% if line.requires_division %}
+            <i class="bi bi-people" title="Требуется деление на группы" aria-label="Требуется деление на группы"></i>
+            {% endif %}
+          </form>
+          {% elif can_update and scope.kind == 'GRADE' %}
+          <form
+            class="workload-hour-cell workload-hour-cell--new {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+            method="post"
+            action="{{ url_for('workload.plan_matrix_create_cell', plan_id=plan.id) }}"
+            data-plan-cell-create
+            data-section="{{ row.component_kind }}"
+            data-scope-key="{{ scope.key }}"
+            aria-label="{{ row.activity.name }}, {{ scope.label }}"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="revision" value="{{ plan.revision }}">
+            <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
+            <input type="hidden" name="component_kind" value="{{ row.component_kind }}">
+            <input type="hidden" name="profile_code" value="{{ row.profile_code or '' }}">
+            <input type="hidden" name="sort_order" value="{{ row.sort_order }}">
+            <input type="hidden" name="grade" value="{{ scope.grade }}">
+            <input type="hidden" name="annual_hours" value="">
+            <input
+              class="workload-hour-cell__weekly"
+              name="weekly_hours"
+              inputmode="decimal"
+              value=""
+              placeholder="—"
+              aria-label="Часов в неделю: {{ row.activity.name }}, {{ scope.label }}"
+            >
+            <small>
+              <input
+                class="workload-hour-cell__weeks"
+                name="weeks_count"
+                inputmode="decimal"
+                value="{{ default_weeks_count|compact_decimal }}"
+                aria-label="Учебных недель: {{ row.activity.name }}, {{ scope.label }}"
+              >
+              <span>недель</span>
+            </small>
+          </form>
+          {% else %}
+          <span class="workload-hour-cell workload-hour-cell--empty">—</span>
+          {% endif %}
+        </td>
+        <td class="workload-plan-matrix__annual workload-plan-matrix__scope-end" data-annual-display>
+          {% if line and not placeholder_line %}
+          <strong>{{ line.annual_hours|compact_decimal if line.annual_hours is not none else '—' }}</strong>
+          {% else %}
+          <span>—</span>
+          {% endif %}
+        </td>
+        {% endif %}
+        {% endfor %}
+        <td class="workload-plan-matrix__row-total" data-row-total-annual>
+          <strong>{{ row.annual_total|compact_decimal }}</strong>
+        </td>
+      </tr>
+      {% set row_counter.value = row_counter.value + 1 %}
+      {% endfor %}
+      <tr class="workload-plan-matrix__subtotal">
+        <th class="workload-plan-matrix__subject">Итого по разделу</th>
+        {% for scope in matrix.scope_columns %}
+        {% set scope_loop = loop %}
+        {% if scope.period_scheme %}
+        <td
+          class="workload-plan-matrix__period-totals-cell workload-plan-matrix__scope-end {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+          colspan="{{ scope.column_span }}"
+        >
+          <div
+            class="workload-plan-matrix__period-totals {% if scope.period_scheme.show_annual %}workload-plan-matrix__period-totals--with-annual{% else %}workload-plan-matrix__period-totals--two-periods{% endif %}"
+            data-section-period-totals="{{ section.component_kind }}"
+            data-scope-key="{{ scope.key }}"
+          >
+          {% for period in scope.period_scheme.periods %}
+          <span>
+            <strong data-period-total-weekly="{{ loop.index0 }}">0</strong>
+          </span>
+          {% endfor %}
+          {% if scope.period_scheme.show_annual %}
+          <span>
+            <strong data-period-scope-annual>{{ section.scope_totals[scope.key].annual|compact_decimal }}</strong>
+          </span>
+          {% endif %}
+          </div>
+        </td>
+        {% else %}
+        <td class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}" data-section-total-weekly="{{ section.component_kind }}" data-scope-key="{{ scope.key }}">
+          <strong>{{ section.scope_totals[scope.key].weekly|compact_decimal }}</strong>
+        </td>
+        <td class="workload-plan-matrix__annual workload-plan-matrix__scope-end" data-section-total-annual="{{ section.component_kind }}" data-scope-key="{{ scope.key }}">
+          <strong>{{ section.scope_totals[scope.key].annual|compact_decimal }}</strong>
+        </td>
+        {% endif %}
+        {% endfor %}
+        <td class="workload-plan-matrix__annual" data-section-grand-annual="{{ section.component_kind }}"><strong>{{ section.annual_total|compact_decimal }}</strong></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="{{ matrix.total_column_count }}" class="workload-plan-matrix__empty">
+          Выберите предмет выше, чтобы добавить первую строку сразу для всех параллелей.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    {% if matrix.sections %}
+    <tfoot>
+      <tr>
+        <th class="workload-plan-matrix__subject">Всего по плану</th>
+        {% for scope in matrix.scope_columns %}
+        {% set scope_loop = loop %}
+        {% if scope.period_scheme %}
+        <td
+          class="workload-plan-matrix__period-totals-cell workload-plan-matrix__scope-end {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+          colspan="{{ scope.column_span }}"
+        >
+          <div
+            class="workload-plan-matrix__period-totals {% if scope.period_scheme.show_annual %}workload-plan-matrix__period-totals--with-annual{% else %}workload-plan-matrix__period-totals--two-periods{% endif %}"
+            data-plan-period-totals
+            data-scope-key="{{ scope.key }}"
+          >
+          {% for period in scope.period_scheme.periods %}
+          <span>
+            <strong data-period-total-weekly="{{ loop.index0 }}">0</strong>
+          </span>
+          {% endfor %}
+          {% if scope.period_scheme.show_annual %}
+          <span>
+            <strong data-period-scope-annual>{{ matrix.scope_totals[scope.key].annual|compact_decimal }}</strong>
+          </span>
+          {% endif %}
+          </div>
+        </td>
+        {% else %}
+        <td class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}" data-plan-scope-weekly data-scope-key="{{ scope.key }}">
+          <strong>{{ matrix.scope_totals[scope.key].weekly|compact_decimal }}</strong>
+        </td>
+        <td class="workload-plan-matrix__annual workload-plan-matrix__scope-end" data-plan-scope-annual data-scope-key="{{ scope.key }}">
+          <strong>{{ matrix.scope_totals[scope.key].annual|compact_decimal }}</strong>
+        </td>
+        {% endif %}
+        {% endfor %}
+        <td class="workload-plan-matrix__annual" data-plan-grand-annual><strong>{{ matrix.annual_total|compact_decimal }}</strong></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endblock %}
+
+{% block workspace_context %}
+<div
+  class="workload-cell-context"
+  data-plan-cell-context
+  data-update-url-template="{{ url_for('workload.plan_line_update_hours', plan_id=plan.id, line_id=0) }}"
+>
+  <div class="workload-cell-context__empty" data-cell-empty {% if selected_line %}hidden{% endif %}>
+    <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+    <span>Выберите заполненную ячейку</span>
+  </div>
+  <div data-cell-details {% if not selected_line %}hidden{% endif %}>
+    <div class="workload-cell-context__title" data-cell-activity>{{ selected_line.education_activity.name if selected_line else '—' }}</div>
+    <div class="workload-cell-context__meta">
+      <span data-cell-component>{{ component_labels.get(selected_line.component_kind, selected_line.component_kind) if selected_line else '—' }}</span>
+      <span data-cell-scope>{{ selected_scope_label or '—' }}</span>
+    </div>
+
+    <form
+      class="workload-cell-context__form"
+      method="post"
+      action="{{ url_for('workload.plan_line_update_hours', plan_id=plan.id, line_id=selected_line.id) if selected_line else '' }}"
+      data-cell-form
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="revision" value="{{ plan.revision }}">
+      <div>
+        <label class="form-label" for="matrix-weekly-hours">Часов в неделю</label>
+        <input class="form-control form-control-sm" id="matrix-weekly-hours" name="weekly_hours" inputmode="decimal" value="{{ selected_line.weekly_hours|compact_decimal if selected_line else '' }}" {% if not can_update %}disabled{% endif %}>
+      </div>
+      <div>
+        <label class="form-label" for="matrix-weeks-count">Учебных недель</label>
+        <input class="form-control form-control-sm" id="matrix-weeks-count" name="weeks_count" inputmode="decimal" value="{{ selected_line.weeks_count|compact_decimal if selected_line else '' }}" {% if not can_update %}disabled{% endif %}>
+      </div>
+      <div>
+        <label class="form-label" for="matrix-annual-hours">Часов в год</label>
+        <input class="form-control form-control-sm" id="matrix-annual-hours" name="annual_hours" inputmode="decimal" value="{{ selected_line.annual_hours|compact_decimal if selected_line else '' }}" {% if not can_update %}disabled{% endif %}>
+        <div class="form-text" data-cell-formula>Рассчитывается по неделям и недельным часам.</div>
+      </div>
+      <div class="workload-cell-context__flag" data-cell-division {% if not selected_line or not selected_line.requires_division %}hidden{% endif %}>
+        <i class="bi bi-people" aria-hidden="true"></i>Требуется деление на группы
+      </div>
+      {% if can_update %}
+      <button class="btn btn-primary btn-sm w-100" type="submit" data-cell-save {% if not selected_line %}disabled{% endif %}>
+        <i class="bi bi-check2 me-1" aria-hidden="true"></i>Сохранить часы
+      </button>
+      {% endif %}
+      <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('workload.plan_line_edit', plan_id=plan.id, line_id=selected_line.id) if selected_line else '#' }}" data-cell-edit>
+        <i class="bi bi-sliders me-1" aria-hidden="true"></i>Все параметры строки
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block workspace_scripts %}
+<script src="{{ url_for('static', filename='js/workload_plan_matrix.js') }}?v=20260730_12"></script>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ activity.name }}{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ activity.name }}</div>
+    <div class="page-sub"><code>{{ activity.code }}</code> · {{ kind_labels.get(activity.activity_kind, activity.activity_kind) }}</div>
+  </div>
+  {% if can_manage %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.catalog_edit', activity_id=activity.id) }}">
+      <i class="bi bi-pencil me-1" aria-hidden="true"></i>Изменить
+    </a>
+    <form method="post" action="{{ url_for('workload.catalog_toggle_active', activity_id=activity.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">{{ "В архив" if activity.is_active else "Восстановить" }}</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="table-responsive border-top border-bottom mb-4">
+  <table class="table table-sm align-middle mb-0">
+    <tbody>
+      <tr><th class="fw-normal text-muted" style="width: 240px;">Краткое наименование</th><td>{{ activity.short_name or '—' }}</td></tr>
+      <tr><th class="fw-normal text-muted">Уровень образования</th><td>{{ activity.education_level or '—' }}</td></tr>
+      <tr><th class="fw-normal text-muted">Тарифицируется</th><td>{{ "Да" if activity.is_tariffable else "Нет" }}</td></tr>
+      <tr><th class="fw-normal text-muted">Период</th><td>{{ activity.valid_from.strftime('%d.%m.%Y') if activity.valid_from else 'без ограничения' }} — {{ activity.valid_to.strftime('%d.%m.%Y') if activity.valid_to else 'без ограничения' }}</td></tr>
+      <tr><th class="fw-normal text-muted">Старый реестр предметов</th><td>{{ activity.legacy_subject.name if activity.legacy_subject else 'Не связан' }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="h6 mb-0">Алиасы импорта</h2>
+  </div>
+  {% if can_manage %}
+  <form class="row g-2 align-items-end mb-3" method="post" action="{{ url_for('workload.catalog_alias_add', activity_id=activity.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-lg-5">
+      <label class="form-label small" for="alias-value">Вариант наименования</label>
+      <input class="form-control form-control-sm" id="alias-value" name="alias" required>
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label small" for="alias-module">Модуль</label>
+      <select class="form-select form-select-sm" id="alias-module" name="source_module">
+        {% for module in ("GENERAL", "MCKO", "OLYMPIAD", "CONTROL_WORK", "IMPORT") %}
+        <option value="{{ module }}">{{ module }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label small" for="alias-system">Источник</label>
+      <input class="form-control form-control-sm" id="alias-system" name="source_system">
+    </div>
+    <div class="col-lg-1">
+      <button class="btn btn-primary btn-sm w-100" type="submit" title="Добавить алиас"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+    </div>
+  </form>
+  {% endif %}
+  <div class="table-responsive border-top">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Наименование</th><th>Модуль</th><th>Источник</th><th>Статус</th><th></th></tr></thead>
+      <tbody>
+        {% for alias in activity.aliases|sort(attribute='alias') %}
+        <tr>
+          <td>{{ alias.alias }}</td>
+          <td>{{ alias.source_module }}</td>
+          <td>{{ alias.source_system or '—' }}</td>
+          <td>{{ "Действует" if alias.is_active else "Архив" }}</td>
+          <td class="text-end">
+            {% if can_manage %}
+            <form method="post" action="{{ url_for('workload.catalog_alias_toggle', activity_id=activity.id, alias_id=alias.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-secondary" type="submit">{{ "Отключить" if alias.is_active else "Включить" }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Алиасы не заданы.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2 class="h6 mb-2">Кафедры</h2>
+  {% if can_manage %}
+  <form class="row g-2 align-items-end mb-3" method="post" action="{{ url_for('workload.catalog_department_add', activity_id=activity.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-lg-7">
+      <label class="form-label small" for="activity-department">Кафедра</label>
+      <select class="form-select form-select-sm" id="activity-department" name="department_id" required>
+        <option value="">Выберите кафедру</option>
+        {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-3">
+      <div class="form-check mb-1">
+        <input class="form-check-input" id="department-primary" type="checkbox" name="is_primary" value="1">
+        <label class="form-check-label small" for="department-primary">Основная кафедра</label>
+      </div>
+    </div>
+    <div class="col-lg-2">
+      <button class="btn btn-primary btn-sm w-100" type="submit">Добавить</button>
+    </div>
+  </form>
+  {% endif %}
+  <div class="table-responsive border-top">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Кафедра</th><th>Тип связи</th><th>Статус</th><th></th></tr></thead>
+      <tbody>
+        {% for link in activity.department_links|sort(attribute='department.name') %}
+        <tr>
+          <td>{{ link.department.name }}</td>
+          <td>{{ "Основная" if link.is_primary else "Дополнительная" }}</td>
+          <td>{{ "Действует" if link.is_active else "Архив" }}</td>
+          <td class="text-end">
+            {% if can_manage %}
+            <form method="post" action="{{ url_for('workload.catalog_department_toggle', activity_id=activity.id, link_id=link.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-secondary" type="submit">{{ "Отключить" if link.is_active else "Включить" }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-3">Кафедры не назначены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

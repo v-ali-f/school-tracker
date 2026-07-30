@@ -1,0 +1,37 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Нагрузка по кафедрам{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Нагрузка по кафедрам</div>
+    <div class="page-sub">Свод проектной потребности без замены действующей Excel-тарификации</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignments') }}">К распределению</a>
+</div>
+{% include "workload/_nav.html" %}
+
+<div class="table-responsive border-top">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Кафедра</th><th class="text-end">Потребностей</th><th class="text-end">Преподавателей</th><th class="text-end">План</th><th class="text-end">Назначено</th><th class="text-end">Остаток</th><th>Состояние</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="fw-semibold">{{ row.department.name if row.department else 'Кафедра не определена' }}</td>
+        <td class="text-end">{{ row.needs|length }}</td>
+        <td class="text-end">{{ row.teacher_count }}</td>
+        <td class="text-end">{{ row.weekly }} ч.</td>
+        <td class="text-end">{{ row.allocated }} ч.</td>
+        <td class="text-end {% if row.remaining > 0 %}text-danger fw-semibold{% endif %}">{{ row.remaining }} ч.</td>
+        <td>{{ 'Распределено' if row.remaining == 0 else 'Требует распределения' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Потребность по кафедрам ещё не рассчитана.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

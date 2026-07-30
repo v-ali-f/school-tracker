@@ -1,0 +1,28 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Новый набор параметров{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Новый набор параметров</div>
+    <div class="page-sub">{{ version.tariff_cycle.academic_year.name }} · версия {{ version.version_no }}</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_settings', version_id=version.id) }}">Отмена</a>
+</div>
+{% include "workload/_control_nav.html" %}
+
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="version_id" value="{{ version.id }}">
+  <div class="row g-3">
+    <div class="col-lg-3"><label class="form-label" for="parameter-code">Код</label><input class="form-control" id="parameter-code" name="code" value="BASE_{{ version.tariff_cycle.academic_year.name|replace('/', '_') }}" required></div>
+    <div class="col-lg-5"><label class="form-label" for="parameter-name">Название</label><input class="form-control" id="parameter-name" name="name" value="Основные параметры {{ version.tariff_cycle.academic_year.name }}" required></div>
+    <div class="col-lg-2"><label class="form-label" for="valid-from">Действует с</label><input class="form-control" id="valid-from" type="date" name="valid_from" value="{{ defaults.valid_from.isoformat() }}" required></div>
+    <div class="col-lg-2"><label class="form-label" for="valid-to">Действует по</label><input class="form-control" id="valid-to" type="date" name="valid_to" value="{{ defaults.valid_to.isoformat() }}" required></div>
+    <div class="col-lg-3"><label class="form-label" for="student-hour-rate">Стоимость ученико-часа</label><input class="form-control" id="student-hour-rate" name="student_hour_rate" inputmode="decimal" placeholder="Например, 37,00" required></div>
+    <div class="col-lg-3"><label class="form-label" for="periods-per-year">Расчётных периодов в году</label><input class="form-control" id="periods-per-year" name="periods_per_year" inputmode="decimal" value="{{ defaults.periods_per_year }}" required></div>
+    <div class="col-lg-3"><label class="form-label" for="rounding-rule">Округление</label><select class="form-select" id="rounding-rule" name="rounding_rule">{% for code in rounding_rules %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></div>
+    <div class="col-lg-3"><label class="form-label" for="currency-code">Валюта</label><input class="form-control" id="currency-code" name="currency_code" value="RUB" maxlength="3" required></div>
+  </div>
+  <div class="mt-4"><button class="btn btn-primary" type="submit">Создать набор</button></div>
+</form>
+{% endblock %}

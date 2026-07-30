@@ -11,6 +11,11 @@ CLASS_TEACHER = "CLASS_TEACHER"
 PSYCHOLOGIST = "PSYCHOLOGIST"
 SOCIAL_PEDAGOG = "SOCIAL_PEDAGOG"
 METHODIST = "METHODIST"
+DEPUTY_DIRECTOR = "DEPUTY_DIRECTOR"
+DEPARTMENT_HEAD = "DEPARTMENT_HEAD"
+HR_SPECIALIST = "HR_SPECIALIST"
+ECONOMIST = "ECONOMIST"
+AUDITOR = "AUDITOR"
 
 
 # =========================================================
@@ -201,6 +206,55 @@ PERMISSIONS = {
     "olympiad_department_summary_view": {
         ADMIN, METHODIST, TEACHER, CLASS_TEACHER
     },
+
+    # Workload and tariffication. Route guards also enforce feature flags,
+    # module visibility and a data scope.
+    "workload.read": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST, DEPARTMENT_HEAD,
+        HR_SPECIALIST, ECONOMIST, AUDITOR,
+    },
+    "workload.self.read": {
+        TEACHER,
+    },
+    "workload.plan.update": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST,
+    },
+    "workload.plan_bindings.update": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST,
+    },
+    "workload.groups.update": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST,
+    },
+    "workload.assignments.update": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST, DEPARTMENT_HEAD,
+    },
+    "workload.finance.read": {
+        ADMIN, DIRECTOR, ECONOMIST, AUDITOR,
+    },
+    "workload.calculate": {
+        ADMIN, DIRECTOR, ECONOMIST,
+    },
+    "workload.review.academic": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST,
+    },
+    "workload.review.hr": {
+        ADMIN, DIRECTOR, HR_SPECIALIST,
+    },
+    "workload.review.finance": {
+        ADMIN, DIRECTOR, ECONOMIST,
+    },
+    "workload.approve": {
+        ADMIN, DIRECTOR,
+    },
+    "workload.documents.generate": {
+        ADMIN, DIRECTOR, DEPUTY_DIRECTOR, HR_SPECIALIST, ECONOMIST,
+    },
+    "workload.audit.read": {
+        ADMIN, DIRECTOR, AUDITOR,
+    },
+    "workload.settings.manage": {
+        ADMIN,
+    },
 }
 
 
@@ -311,7 +365,6 @@ def is_class_teacher_of_class(school_class, user=None) -> bool:
 # =========================================================
 # CHILD CARD RIGHTS
 # =========================================================
-DEPUTY_DIRECTOR = "DEPUTY_DIRECTOR"
 
 
 def can_view_child_basic(child, user=None) -> bool:

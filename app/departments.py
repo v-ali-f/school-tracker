@@ -13,6 +13,12 @@ from openpyxl import load_workbook
 from sqlalchemy import func
 
 from app.core.extensions import db
+from app.services.education_activity_service import get_or_create_subject_with_activity
+from app.services.workload_integration_service import (
+    department_teacher_ids,
+    internal_department_load_rows,
+    source_state,
+)
 from .models import (
     Building,
     ControlWork,
@@ -187,11 +193,8 @@ def _ensure_default_departments():
                 dep.description = item.get("description")
                 changed = True
         for subject_name in item.get("subject_names", []):
-            subject = Subject.query.filter(func.lower(Subject.name) == subject_name.lower()).first()
-            if not subject:
-                subject = Subject(name=subject_name)
-                db.session.add(subject)
-                db.session.flush()
+            subject, subject_created = get_or_create_subject_with_activity(subject_name)
+            if subject_created:
                 changed = True
             exists = DepartmentSubject.query.filter_by(department_id=dep.id, subject_id=subject.id).first()
             if not exists:
@@ -231,6 +234,12 @@ def _teacher_ids_for_department(dep: Department, building_id=None):
     if building_id:
         loads = loads.filter_by(building_id=building_id)
     return sorted({x.teacher_id for x in loads if x.teacher_id})
+
+
+def _legacy_load_writes_allowed(academic_year_id):
+    if not academic_year_id:
+        return True
+    return source_state(academic_year_id).configured_mode == "LEGACY"
 
 
 def _department_for_load(subject_name: Optional[str], grade: Optional[int]):
@@ -622,9 +631,10 @@ def _parse_excel_loads(file_storage):
         subject_text = item["subject_text"]
         subject = subjects.get(subject_text.lower())
         if not subject:
-            subject = Subject(name=subject_text)
-            db.session.add(subject)
-            db.session.flush()
+            subject, _created = get_or_create_subject_with_activity(
+                subject_text,
+                created_by_user_id=getattr(current_user, "id", None),
+            )
             subjects[subject_text.lower()] = subject
             updated += 1
         load = TeacherLoad(
@@ -842,6 +852,14 @@ def loads():
     if request.method == "POST":
         if not is_admin(current_user):
             abort(403)
+        current_year = AcademicYear.query.filter_by(is_current=True).first()
+        if current_year and not _legacy_load_writes_allowed(current_year.id):
+            flash(
+                "Excel-источник за текущий год зафиксирован для сверки. "
+                "Сначала верните режим «Excel-источник».",
+                "danger",
+            )
+            return redirect(url_for("departments.loads"))
         f = request.files.get("file")
         if not f or not f.filename:
             flash("Выберите Excel-файл нагрузки.", "danger")
@@ -858,27 +876,41 @@ def loads():
     subject_id = request.args.get("subject_id", type=int)
     teacher_id = request.args.get("teacher_id", type=int)
 
-    query = TeacherLoad.query
     teacher_view_only = current_user.role in {TEACHER, CLASS_TEACHER}
     if teacher_view_only:
         teacher_id = current_user.id
-    if academic_year_id:
-        query = query.filter(db.or_(TeacherLoad.academic_year_id == academic_year_id, TeacherLoad.academic_year_id.is_(None)))
-    if department_id:
-        query = query.filter_by(department_id=department_id)
-    if subject_id:
-        query = query.filter_by(subject_id=subject_id)
-    if teacher_id:
-        query = query.filter_by(teacher_id=teacher_id)
-    if q:
-        query = query.join(User, User.id == TeacherLoad.teacher_id).filter(
-            db.or_(
-                func.lower(TeacherLoad.subject_name).contains(q),
-                func.lower(TeacherLoad.class_name).contains(q),
-                func.lower(User.last_name + ' ' + func.coalesce(User.first_name, '') + ' ' + func.coalesce(User.middle_name, '')).contains(q),
-            )
+    load_source_state = (
+        source_state(academic_year_id)
+        if academic_year_id
+        else None
+    )
+    if load_source_state and load_source_state.effective_mode == "INTERNAL":
+        rows = internal_department_load_rows(
+            load_source_state.tariff_version,
+            department_id=department_id,
+            subject_id=subject_id,
+            teacher_id=teacher_id,
+            query_text=q,
         )
-    rows = query.order_by(TeacherLoad.subject_name.asc(), TeacherLoad.class_name.asc()).all()
+    else:
+        query = TeacherLoad.query
+        if academic_year_id:
+            query = query.filter(db.or_(TeacherLoad.academic_year_id == academic_year_id, TeacherLoad.academic_year_id.is_(None)))
+        if department_id:
+            query = query.filter_by(department_id=department_id)
+        if subject_id:
+            query = query.filter_by(subject_id=subject_id)
+        if teacher_id:
+            query = query.filter_by(teacher_id=teacher_id)
+        if q:
+            query = query.join(User, User.id == TeacherLoad.teacher_id).filter(
+                db.or_(
+                    func.lower(TeacherLoad.subject_name).contains(q),
+                    func.lower(TeacherLoad.class_name).contains(q),
+                    func.lower(User.last_name + ' ' + func.coalesce(User.first_name, '') + ' ' + func.coalesce(User.middle_name, '')).contains(q),
+                )
+            )
+        rows = query.order_by(TeacherLoad.subject_name.asc(), TeacherLoad.class_name.asc()).all()
 
     teacher_hours = defaultdict(float)
     for item in rows:
@@ -906,6 +938,7 @@ def loads():
         academic_year_id=academic_year_id,
         olympiad_stats=olympiad_stats,
         diagnostics_stats=diagnostics_stats,
+        load_source_state=load_source_state,
     )
 
 
@@ -925,6 +958,13 @@ def load_new():
     grade = _extract_grade_from_class_text(class_name)
     dep = _department_for_load(subject.name, grade)
     current_year = AcademicYear.query.filter_by(is_current=True).first()
+    if current_year and not _legacy_load_writes_allowed(current_year.id):
+        flash(
+            "Ручное изменение Excel-нагрузки заблокировано в режиме сверки "
+            "или внутреннего источника.",
+            "danger",
+        )
+        return redirect(url_for("departments.loads"))
     retention_until = None
     if current_year and current_year.end_date:
         try:
@@ -958,6 +998,12 @@ def load_update(load_id):
     if not is_admin(current_user):
         abort(403)
     load = TeacherLoad.query.get_or_404(load_id)
+    if (
+        load.academic_year_id
+        and not _legacy_load_writes_allowed(load.academic_year_id)
+    ):
+        flash("Excel-нагрузка за этот год доступна только для чтения.", "danger")
+        return redirect(url_for("departments.loads"))
     load.class_name = (request.form.get("class_name") or "").strip() or None
     load.group_name = (request.form.get("group_name") or "").strip() or None
     load.hours = request.form.get("hours", type=float) or 0
@@ -976,6 +1022,12 @@ def load_delete(load_id):
     if not is_admin(current_user):
         abort(403)
     load = TeacherLoad.query.get_or_404(load_id)
+    if (
+        load.academic_year_id
+        and not _legacy_load_writes_allowed(load.academic_year_id)
+    ):
+        flash("Excel-нагрузка за этот год доступна только для чтения.", "danger")
+        return redirect(url_for("departments.loads"))
     db.session.delete(load)
     db.session.commit()
     flash("Строка нагрузки удалена.", "success")
@@ -1140,12 +1192,22 @@ def summary():
     deps = _load_departments_for_user()
     selected_dep_id = request.args.get("department_id", type=int)
     selected_teacher_id = _teacher_scope_user_id()
-    if current_user.role in {TEACHER, CLASS_TEACHER}:
-        deps = [d for d in deps if TeacherLoad.query.filter_by(department_id=d.id, teacher_id=current_user.id).first()]
-
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
+    load_source_state = (
+        source_state(academic_year_id)
+        if academic_year_id
+        else None
+    )
+    if current_user.role in {TEACHER, CLASS_TEACHER}:
+        deps = [
+            department for department in deps
+            if current_user.id in department_teacher_ids(
+                academic_year_id,
+                department.id,
+            )
+        ]
     dep = None
     if selected_dep_id:
         dep = Department.query.get_or_404(selected_dep_id)
@@ -1166,12 +1228,11 @@ def summary():
     building_id = request.args.get("building_id", type=int)
 
     if dep:
-        teacher_ids_q = TeacherLoad.query.filter_by(department_id=dep.id)
-        if building_id:
-            teacher_ids_q = teacher_ids_q.filter_by(building_id=building_id)
-        if academic_year_id:
-            teacher_ids_q = teacher_ids_q.filter(db.or_(TeacherLoad.academic_year_id == academic_year_id, TeacherLoad.academic_year_id.is_(None)))
-        teacher_ids = sorted({x.teacher_id for x in teacher_ids_q.all() if x.teacher_id})
+        teacher_ids = department_teacher_ids(
+            academic_year_id,
+            dep.id,
+            building_id=building_id,
+        )
         if current_user.role in {TEACHER, CLASS_TEACHER}:
             teacher_ids = [x for x in teacher_ids if x == current_user.id]
         teacher_rows = User.query.filter(User.id.in_(teacher_ids)).order_by(User.last_name.asc(), User.first_name.asc()).all() if teacher_ids else []
@@ -1207,6 +1268,7 @@ def summary():
         academic_year_id=academic_year_id,
         olympiad_stats=olympiad_stats,
         diagnostics_stats=diagnostics_stats,
+        load_source_state=load_source_state,
     )
 
 

@@ -1,9 +1,11 @@
 {% extends "layout.html" %}
 {% block content %}
+{% set legacy_writable = not load_source_state or load_source_state.configured_mode == 'LEGACY' %}
+{% set internal_source = load_source_state and load_source_state.effective_mode == 'INTERNAL' %}
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">Нагрузка учителей</h1>
-    <div class="page-sub">{% if teacher_view_only %}В этом разделе учитель видит только свою нагрузку.{% else %}Импорт нагрузки, распределение по кафедрам и ручная корректировка.{% endif %}</div>
+    <div class="page-sub">{% if teacher_view_only %}В этом разделе учитель видит только свою нагрузку.{% elif internal_source %}Утверждённая нагрузка из модуля тарификации.{% else %}Архивный Excel-источник и ручная корректировка.{% endif %}</div>
   </div>
   <div class="page-actions">
     {% if not teacher_view_only %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary') }}">Свод</a>{% endif %}
@@ -11,7 +13,22 @@
   </div>
 </div>
 
-{% if is_admin %}
+{% if load_source_state %}
+<div class="alert {% if internal_source %}alert-success{% elif load_source_state.configured_mode == 'COMPARE' %}alert-warning{% else %}alert-secondary{% endif %} d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <strong>Источник:</strong>
+    {% if internal_source %}утверждённая внутренняя нагрузка
+    {% elif load_source_state.configured_mode == 'COMPARE' %}Excel, зафиксированный для параллельной сверки
+    {% else %}Excel-импорт{% endif %}.
+    {% if load_source_state.configured_mode == 'INTERNAL' and not load_source_state.flag_enabled %}
+    Аварийный feature flag временно вернул чтение к Excel.
+    {% endif %}
+  </div>
+  {% if is_admin %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.integration', academic_year_id=academic_year_id) }}">Настроить</a>{% endif %}
+</div>
+{% endif %}
+
+{% if is_admin and legacy_writable %}
 <div class="card mb-4"><div class="card-body">
   <form method="post" enctype="multipart/form-data" class="row g-2">
     <div class="col-md-9"><input class="form-control" type="file" name="file" accept=".xlsx,.xlsm,.xltx,.xltm" required></div>
@@ -39,7 +56,7 @@
       </div>
     </div></div>
   </div>
-  {% if is_admin %}
+  {% if is_admin and legacy_writable %}
   <div class="col-lg-8">
     <div class="card h-100"><div class="card-body">
       <h5 class="section-title">Добавить нагрузку вручную</h5>
@@ -59,18 +76,18 @@
 
 <div class="card"><div class="table-responsive">
 <table class="table table-striped align-middle mb-0">
-  <thead><tr><th>Учитель</th><th>Год</th><th>Предмет</th><th>Кафедра</th><th>Классы</th><th>Группа</th><th>Тип</th><th class="text-end">Часы</th>{% if is_admin %}<th class="text-end">Действия</th>{% endif %}</tr></thead>
+  <thead><tr><th>Учитель</th><th>Год</th><th>Предмет</th><th>Кафедра</th><th>Классы</th><th>Группа</th><th>Тип</th><th class="text-end">Часы</th>{% if is_admin and legacy_writable %}<th class="text-end">Действия</th>{% endif %}</tr></thead>
   <tbody>
     {% for row in rows %}
     <tr>
       <td>{{ row.teacher.fio if row.teacher else '—' }}<div class="small text-muted">{{ row.building_name or (row.building.name if row.building else '') }}</div></td>
       <td>{{ row.academic_year.name if row.academic_year else "—" }}</td><td>{{ row.subject_name }}</td>
       <td>{{ row.department.name if row.department else 'Не определена' }}</td>
-      <td>{% if is_admin %}<form method="post" action="{{ url_for('departments.load_update', load_id=row.id) }}" class="d-flex gap-2"><input class="form-control form-control-sm" name="class_name" value="{{ row.class_name or '' }}">{% else %}{{ row.class_name or '—' }}{% endif %}</td>
-      <td>{% if is_admin %}<input class="form-control form-control-sm" name="group_name" value="{{ row.group_name or '' }}">{% else %}{{ row.group_name or '—' }}{% endif %}</td>
+      <td>{% if is_admin and legacy_writable %}<form method="post" action="{{ url_for('departments.load_update', load_id=row.id) }}" class="d-flex gap-2"><input class="form-control form-control-sm" name="class_name" value="{{ row.class_name or '' }}">{% else %}{{ row.class_name or '—' }}{% endif %}</td>
+      <td>{% if is_admin and legacy_writable %}<input class="form-control form-control-sm" name="group_name" value="{{ row.group_name or '' }}">{% else %}{{ row.group_name or '—' }}{% endif %}</td>
       <td>{% if row.is_meta_group %}<span class="badge text-bg-warning">Мета-группа</span>{% elif row.is_whole_class %}<span class="badge text-bg-light border">Весь класс</span>{% else %}<span class="badge text-bg-secondary">Группа</span>{% endif %}</td>
-      <td class="text-end">{% if is_admin %}<input class="form-control form-control-sm text-end" type="number" step="0.1" name="hours" value="{{ row.hours or 0 }}">{% else %}{{ '%.1f'|format(row.hours or 0) }}{% endif %}</td>
-      {% if is_admin %}<td class="text-end"><button class="btn btn-sm btn-primary" type="submit">Сохранить</button></form><form method="post" action="{{ url_for('departments.load_delete', load_id=row.id) }}" class="d-inline" onsubmit="return confirm('Удалить строку нагрузки?');"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td>{% endif %}
+      <td class="text-end">{% if is_admin and legacy_writable %}<input class="form-control form-control-sm text-end" type="number" step="0.1" name="hours" value="{{ row.hours or 0 }}">{% else %}{{ '%.1f'|format(row.hours or 0) }}{% endif %}</td>
+      {% if is_admin and legacy_writable %}<td class="text-end"><button class="btn btn-sm btn-primary" type="submit">Сохранить</button></form><form method="post" action="{{ url_for('departments.load_delete', load_id=row.id) }}" class="d-inline" onsubmit="return confirm('Удалить строку нагрузки?');"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td>{% endif %}
     </tr>
     {% else %}
     <tr><td colspan="9" class="text-muted">Нагрузка пока не загружена.</td></tr>

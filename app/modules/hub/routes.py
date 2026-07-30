@@ -2,6 +2,8 @@ from flask import Blueprint, abort, current_app, render_template, request, url_f
 from flask_login import current_user, login_required
 
 from app.permissions import has_permission, has_any_role, has_role
+from app.core.feature_flags import WORKLOAD_MODULE, is_feature_enabled
+from app.modules.workload.access import can_access_workload_module
 
 hub_bp = Blueprint("hub", __name__, url_prefix="/hub")
 
@@ -84,6 +86,7 @@ ICON_MAP = {
     "Настройка предметных кафедр": ("bi-sliders", "accent-blue"),
     "Свод по кафедрам": ("bi-diagram-3", "accent-blue"),
     "Нагрузка учителей": ("bi-person-lines-fill", "accent-blue"),
+    "Нагрузка и тарификация": ("bi-calculator", "accent-blue"),
     "Аналитика по кафедрам": ("bi-bar-chart-line", "accent-blue"),
     "Список диагностик": ("bi-clipboard-check", "accent-orange"),
     "Импорт результатов": ("bi-upload", "accent-orange"),
@@ -459,6 +462,15 @@ def _main_page_config():
             },
         ]),
         "secondary_sections": _materialize([
+            {
+                "title": "Нагрузка и тарификация",
+                "description": "Учебное планирование, распределение нагрузки и тарификация.",
+                "endpoint": "workload.index",
+                "visible_if": lambda: (
+                    is_feature_enabled(WORKLOAD_MODULE)
+                    and can_access_workload_module(current_user)
+                ),
+            },
             {
                 "title": "Кафедры",
                 "description": "Предметные кафедры, сводки и нагрузка педагогов.",
@@ -943,6 +955,7 @@ def _filter_page_sections_by_modules(page, module_codes):
         "familiarizations.index": "familiarizations",
         "familiarizations.my": "familiarizations",
         "appeals.index": "appeals",
+        "workload.index": "workload",
     }
 
     def keep(item):
@@ -950,6 +963,11 @@ def _filter_page_sections_by_modules(page, module_codes):
         module_key = endpoint_to_module.get(endpoint)
         if not module_key:
             return True
+        if module_key == "workload":
+            return (
+                is_feature_enabled(WORKLOAD_MODULE)
+                and can_access_workload_module(current_user)
+            )
         return module_key in module_codes
 
     for key in ("primary_sections", "secondary_sections", "admin_sections"):

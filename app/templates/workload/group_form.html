@@ -1,0 +1,192 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ 'Редактирование группы' if group else 'Новая группа' }}{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ 'Редактирование группы' if group else 'Новая группа' }}</div>
+    <div class="page-sub">Группа создаётся из строки учебного плана и снимка контингента.</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.group_detail', group_id=group.id) if group else url_for('workload.groups') }}">Отмена</a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+{% if not plan_lines %}
+<div class="alert alert-warning">Сначала создайте хотя бы одну строку учебного плана.</div>
+{% elif not snapshot %}
+<div class="alert alert-warning">
+  Для рабочей версии ещё нет снимка контингента. Вернитесь в реестр групп и сформируйте снимок.
+</div>
+{% endif %}
+
+<form method="post" class="row g-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if group %}<input type="hidden" name="revision" value="{{ group.revision }}">{% endif %}
+
+  <div class="col-12">
+    <label class="form-label" for="group-plan-line">Строка учебного плана</label>
+    {% if group %}
+    <input type="hidden" name="source_plan_line_id" value="{{ selected_plan_line.id }}">
+    <input class="form-control" value="{{ selected_plan_line.education_activity.name }} · {{ selected_plan_line.education_plan.name }}" readonly>
+    {% else %}
+    <select class="form-select" id="group-plan-line" name="source_plan_line_id" required>
+      {% for line in plan_lines %}
+      <option value="{{ line.id }}" {% if selected_plan_line and selected_plan_line.id == line.id %}selected{% endif %}>
+        {{ line.education_activity.name }} · {{ line.education_plan.name }} · {{ line.education_plan.tariff_version.tariff_cycle.academic_year.name }}
+      </option>
+      {% endfor %}
+    </select>
+    <div class="form-text">При смене строки страница обновится, чтобы показать правильный снимок контингента.</div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label" for="group-type">Тип группы</label>
+    <select class="form-select" id="group-type" name="group_type" required>
+      {% for item in group_types %}
+      <option value="{{ item }}" {% if group and group.group_type == item %}selected{% endif %}>{{ group_type_labels[item] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="group-code">Код</label>
+    <input class="form-control" id="group-code" name="code" maxlength="80" required value="{{ group.code if group else '' }}">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="group-name">Название</label>
+    <input class="form-control" id="group-name" name="name" maxlength="255" required value="{{ group.name if group else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="composition-mode">Ведение состава</label>
+    <select class="form-select" id="composition-mode" name="composition_mode" required>
+      {% for item in composition_modes %}
+      <option value="{{ item }}" {% if group and group.composition_mode == item %}selected{% endif %}>{{ composition_mode_labels[item] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="planned-size">Плановая численность</label>
+    <input class="form-control" id="planned-size" type="number" min="0" name="planned_size" value="{{ group.planned_size if group and group.planned_size is not none else '' }}">
+  </div>
+  <div class="col-md-2" id="actual-size-field">
+    <label class="form-label" for="actual-size">Фактическая численность</label>
+    <input class="form-control" id="actual-size" type="number" min="0" name="actual_size" value="{{ group.actual_size if group and group.composition_mode == 'COUNT_ONLY' else '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="valid-from">Начало</label>
+    <input class="form-control" id="valid-from" type="date" name="valid_from" required value="{{ group.valid_from.isoformat() if group else (selected_plan_line.education_plan.tariff_version.tariff_cycle.academic_year.start_date.isoformat() if selected_plan_line and selected_plan_line.education_plan.tariff_version.tariff_cycle.academic_year.start_date else '') }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="valid-to">Окончание</label>
+    <input class="form-control" id="valid-to" type="date" name="valid_to" required value="{{ group.valid_to.isoformat() if group else (selected_plan_line.education_plan.tariff_version.tariff_cycle.academic_year.end_date.isoformat() if selected_plan_line and selected_plan_line.education_plan.tariff_version.tariff_cycle.academic_year.end_date else '') }}">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="group-building">Здание</label>
+    <select class="form-select" id="group-building" name="building_id">
+      <option value="">Не указано</option>
+      {% for building in buildings %}
+      <option value="{{ building.id }}" {% if group and group.building_id == building.id %}selected{% endif %}>{{ building.short_name or building.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="group-department">Кафедра</label>
+    <select class="form-select" id="group-department" name="department_id">
+      <option value="">Не указана</option>
+      {% for department in departments %}
+      <option value="{{ department.id }}" {% if group and group.department_id == department.id %}selected{% endif %}>{{ department.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-12 border-top pt-3">
+    <div class="fw-semibold">Исходные классы</div>
+    <div class="small text-muted">Для подгруппы выбирается один класс, для метагруппы — не менее двух.</div>
+  </div>
+  {% for snapshot_class in snapshot_classes %}
+  <div class="col-md-3">
+    <div class="form-check">
+      <input class="form-check-input source-class-checkbox" id="snapshot-class-{{ snapshot_class.id }}" type="checkbox" name="snapshot_class_ids" value="{{ snapshot_class.id }}" {% if snapshot_class.id in selected_class_ids %}checked{% endif %}>
+      <label class="form-check-label" for="snapshot-class-{{ snapshot_class.id }}">
+        {{ snapshot_class.name_snapshot }} <span class="text-muted">({{ snapshot_class.student_count }})</span>
+      </label>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12 text-muted">В снимке нет классов.</div>
+  {% endfor %}
+
+  <div class="col-12 border-top pt-3" id="member-section">
+    <div class="fw-semibold">Поимённый состав</div>
+    <div class="small text-muted">Для целого класса можно не отмечать учеников: система включит весь класс автоматически.</div>
+  </div>
+  <div class="col-12" id="member-table">
+    <div class="table-responsive border-top">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th></th><th>Обучающийся</th><th>Исходный класс</th></tr></thead>
+        <tbody>
+          {% for enrollment in snapshot_enrollments %}
+          <tr data-member-class="{{ enrollment.population_snapshot_class_id }}">
+            <td style="width: 40px">
+              <input class="form-check-input" id="member-{{ enrollment.id }}" type="checkbox" name="snapshot_enrollment_ids" value="{{ enrollment.id }}" {% if enrollment.id in selected_member_ids %}checked{% endif %}>
+            </td>
+            <td><label for="member-{{ enrollment.id }}">{{ enrollment.fio_snapshot }}</label></td>
+            <td>{{ enrollment.population_snapshot_class.name_snapshot }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-center text-muted py-3">В снимке нет активных зачислений.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-12 border-top pt-3">
+    <button class="btn btn-primary" type="submit" {% if not snapshot %}disabled{% endif %}>{{ 'Сохранить' if group else 'Создать группу' }}</button>
+  </div>
+</form>
+
+<script>
+(() => {
+  const planLine = document.getElementById("group-plan-line");
+  const mode = document.getElementById("composition-mode");
+  const actualField = document.getElementById("actual-size-field");
+  const memberSection = document.getElementById("member-section");
+  const memberTable = document.getElementById("member-table");
+  const classCheckboxes = document.querySelectorAll(".source-class-checkbox");
+  const memberRows = document.querySelectorAll("[data-member-class]");
+
+  const refreshComposition = () => {
+    const personal = mode.value === "PERSONAL";
+    actualField.hidden = personal;
+    memberSection.hidden = !personal;
+    memberTable.hidden = !personal;
+  };
+  const refreshMembers = () => {
+    const selected = new Set(
+      Array.from(classCheckboxes)
+        .filter((item) => item.checked)
+        .map((item) => item.value)
+    );
+    memberRows.forEach((row) => {
+      row.hidden = selected.size > 0 && !selected.has(row.dataset.memberClass);
+    });
+  };
+  if (planLine) {
+    planLine.addEventListener("change", () => {
+      window.location.href = `{{ url_for('workload.group_create') }}?plan_line_id=${planLine.value}`;
+    });
+  }
+  mode.addEventListener("change", refreshComposition);
+  classCheckboxes.forEach((item) => item.addEventListener("change", refreshMembers));
+  refreshComposition();
+  refreshMembers();
+})();
+</script>
+{% endblock %}

@@ -97,6 +97,36 @@ class SystemMailSettings(db.Model):
     updated_by = db.relationship('User', foreign_keys=[updated_by_user_id])
 
 
+class SystemEmailSettings(db.Model):
+    """Legacy admin SMTP settings table managed by Alembic metadata."""
+
+    __tablename__ = "system_email_settings"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    smtp_enabled = db.Column(db.Boolean, nullable=True, default=False, server_default=db.false())
+    smtp_host = db.Column(db.String(255), nullable=True)
+    smtp_port = db.Column(db.Integer, nullable=True, default=465, server_default="465")
+    smtp_use_ssl = db.Column(db.Boolean, nullable=True, default=True, server_default=db.true())
+    smtp_use_tls = db.Column(db.Boolean, nullable=True, default=False, server_default=db.false())
+    smtp_username = db.Column(db.String(255), nullable=True)
+    smtp_password = db.Column(db.Text, nullable=True)
+    mail_sender_email = db.Column(db.String(255), nullable=True)
+    mail_sender_name = db.Column(db.String(255), nullable=True)
+    task_email_notifications_enabled = db.Column(
+        db.Boolean, nullable=True, default=True, server_default=db.true()
+    )
+    task_comment_email_enabled = db.Column(
+        db.Boolean, nullable=True, default=True, server_default=db.true()
+    )
+    task_deadline_email_enabled = db.Column(
+        db.Boolean, nullable=True, default=True, server_default=db.true()
+    )
+    email_last_test_at = db.Column(db.String(64), nullable=True)
+    email_last_test_status = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.String(64), nullable=True)
+    updated_at = db.Column(db.String(64), nullable=True)
+
+
 class MailSettingsLog(db.Model):
     __tablename__ = "mail_settings_log"
 

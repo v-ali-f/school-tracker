@@ -1,0 +1,55 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Нагрузка и тарификация{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Нагрузка и тарификация</div>
+    <div class="page-sub">Подготовка данных модуля</div>
+  </div>
+  <div class="page-actions">
+    <span class="badge text-bg-secondary">Локальная разработка</span>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="border-top border-bottom py-4">
+  <div class="d-flex align-items-center gap-3">
+    <span class="d-inline-flex align-items-center justify-content-center rounded border" style="width: 40px; height: 40px;">
+      <i class="bi bi-calculator" aria-hidden="true"></i>
+    </span>
+    <div>
+      <div class="fw-semibold">Сквозной контур модуля подключён</div>
+      <div class="small text-muted">Планы, группы, нагрузка, расчёт, согласование и безопасная передача в кафедры используют версионируемые данные.</div>
+    </div>
+  </div>
+</div>
+
+<div class="table-responsive mt-3">
+  <table class="table table-sm align-middle mb-0">
+    <tbody>
+      <tr>
+        <th class="fw-normal text-muted" style="width: 260px;">Элементов каталога</th>
+        <td class="fw-semibold">{{ activity_count }}</td>
+      </tr>
+      <tr>
+        <th class="fw-normal text-muted">Связано со старым реестром предметов</th>
+        <td class="fw-semibold">{{ linked_subject_count }}</td>
+      </tr>
+      <tr>
+        <th class="fw-normal text-muted">Источник кафедральной нагрузки</th>
+        <td>
+          {% if department_source_state and department_source_state.effective_mode == 'INTERNAL' %}
+          Утверждённая внутренняя нагрузка
+          {% elif department_source_state and department_source_state.configured_mode == 'COMPARE' %}
+          Excel, параллельная сверка
+          {% else %}
+          Excel-источник
+          {% endif %}
+          {% if current_year %}<span class="text-muted">· {{ current_year.name }}</span>{% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% set control_endpoint = request.endpoint or '' %}
+<nav class="workload-segmented-nav workload-control-nav" aria-label="Контроль и выпуск тарификации">
+  <a class="{% if control_endpoint.startswith('workload.workflow') %}is-active{% endif %}" href="{{ url_for('workload.workflow', version_id=version.id if version is defined and version else none) }}">
+    <i class="bi bi-shield-check" aria-hidden="true"></i><span>Проверка</span>
+  </a>
+  <a class="{% if control_endpoint == 'workload.tariffication' or control_endpoint.startswith('workload.tariff_run') or control_endpoint.startswith('workload.tariff_line') %}is-active{% endif %}" href="{{ url_for('workload.tariffication', version_id=version.id if version is defined and version else none) }}">
+    <i class="bi bi-calculator" aria-hidden="true"></i><span>Тарификация</span>
+  </a>
+  {% if can('workload.finance.read') %}
+  <a class="{% if control_endpoint.startswith('workload.tariff_settings') or control_endpoint.startswith('workload.tariff_parameter') %}is-active{% endif %}" href="{{ url_for('workload.tariff_settings', version_id=version.id if version is defined and version else none) }}">
+    <i class="bi bi-sliders" aria-hidden="true"></i><span>Параметры</span>
+  </a>
+  {% endif %}
+  <a class="{% if control_endpoint.startswith('workload.tariff_document') %}is-active{% endif %}" href="{{ url_for('workload.tariff_documents', version_id=version.id if version is defined and version else none) }}">
+    <i class="bi bi-file-earmark-text" aria-hidden="true"></i><span>Документы</span>
+  </a>
+  {% if can('workload.settings.manage') %}
+  <a class="{% if control_endpoint.startswith('workload.integration') %}is-active{% endif %}" href="{{ url_for('workload.integration', academic_year_id=academic_year.id if academic_year is defined and academic_year else none) }}">
+    <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>Источник кафедр</span>
+  </a>
+  {% endif %}
+</nav>

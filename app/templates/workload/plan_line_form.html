@@ -1,0 +1,158 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ 'Редактирование строки' if line else 'Новая строка плана' }}{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ 'Редактирование строки' if line else 'Новая строка плана' }}</div>
+    <div class="page-sub">{{ plan.name }}</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plan_detail', plan_id=plan.id) }}">Отмена</a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<form method="post" class="row g-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="revision" value="{{ plan.revision }}">
+  <div class="col-md-7">
+    <label class="form-label" for="line-activity">Дисциплина или курс</label>
+    <select class="form-select" id="line-activity" name="education_activity_id" required>
+      <option value="">Выберите из каталога</option>
+      {% for activity in activities %}
+      <option value="{{ activity.id }}" {% if line and line.education_activity_id == activity.id %}selected{% endif %}>{{ activity.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-5">
+    <label class="form-label" for="line-component">Часть плана</label>
+    <select class="form-select" id="line-component" name="component_kind" required>
+      {% for component in component_kinds %}
+      <option value="{{ component }}" {% if line and line.component_kind == component %}selected{% endif %}>{{ component_labels[component] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="line-weekly">Часов в неделю</label>
+    <input class="form-control" id="line-weekly" name="weekly_hours" inputmode="decimal" placeholder="Например, 5 или 1,5" value="{{ line.weekly_hours|compact_decimal if line and line.weekly_hours is not none else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="line-weeks">Учебных недель</label>
+    <input class="form-control" id="line-weeks" name="weeks_count" inputmode="decimal" placeholder="Например, 34" value="{{ line.weeks_count|compact_decimal if line and line.weeks_count is not none else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="line-annual">Часов в год</label>
+    <input class="form-control" id="line-annual" name="annual_hours" inputmode="decimal" placeholder="Рассчитается автоматически" value="{{ line.annual_hours|compact_decimal if line and line.annual_hours is not none else '' }}">
+    <div class="form-text">Рассчитывается автоматически, если заполнены часы в неделю и недели.</div>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="line-profile">Профиль строки</label>
+    <input class="form-control" id="line-profile" name="profile_code" maxlength="80" value="{{ line.profile_code if line and line.profile_code else '' }}">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label" for="line-order">Порядок</label>
+    <input class="form-control" id="line-order" type="number" name="sort_order" value="{{ line.sort_order if line else 100 }}">
+  </div>
+  <div class="col-12">
+    <div class="form-check">
+      <input class="form-check-input" id="line-division" type="checkbox" name="requires_division" value="1" {% if line and line.requires_division %}checked{% endif %}>
+      <label class="form-check-label" for="line-division">Требуется деление на группы</label>
+    </div>
+  </div>
+
+  <div class="col-12 border-top pt-3">
+    <div class="fw-semibold mb-2">Целевая область</div>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="scope-kind">Тип области</label>
+    <select class="form-select" id="scope-kind" name="scope_kind" required>
+      {% for kind in scope_kinds %}
+      <option value="{{ kind }}" {% if current_scope and current_scope.scope_kind == kind %}selected{% endif %}>{{ scope_labels[kind] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3" data-scope-field="CLASS">
+    <label class="form-label" for="scope-class">Класс</label>
+    <select class="form-select" id="scope-class" name="school_class_id">
+      <option value="">Выберите</option>
+      {% for school_class in classes %}
+      <option value="{{ school_class.id }}" {% if current_scope and current_scope.school_class_id == school_class.id %}selected{% endif %}>{{ school_class.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2" data-scope-field="GRADE">
+    <label class="form-label" for="scope-grade">Параллель</label>
+    <input class="form-control" id="scope-grade" type="number" min="1" max="11" name="grade" value="{{ current_scope.grade if current_scope and current_scope.grade is not none else '' }}">
+  </div>
+  <div class="col-md-4" data-scope-field="PROFILE">
+    <label class="form-label" for="scope-profile">Профиль или направление</label>
+    <input class="form-control" id="scope-profile" name="scope_profile_code" maxlength="80" value="{{ current_scope.profile_code if current_scope and current_scope.profile_code else '' }}">
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="scope-building">Здание области</label>
+    <select class="form-select" id="scope-building" name="scope_building_id">
+      <option value="">Не указано</option>
+      {% for building in buildings %}
+      <option value="{{ building.id }}" {% if current_scope and current_scope.building_id == building.id %}selected{% endif %}>{{ building.short_name or building.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-12 border-top pt-3">
+    <div class="fw-semibold mb-2">Период реализации</div>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="period-from">Начало</label>
+    <input class="form-control" id="period-from" type="date" name="date_from" value="{{ current_period.date_from.isoformat() if current_period else '' }}">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="period-to">Окончание</label>
+    <input class="form-control" id="period-to" type="date" name="date_to" value="{{ current_period.date_to.isoformat() if current_period else '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="period-weeks">Недель</label>
+    <input class="form-control" id="period-weeks" name="period_weeks_count" inputmode="decimal" value="{{ current_period.weeks_count if current_period and current_period.weeks_count is not none else '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="period-weekly">Часов в неделю</label>
+    <input class="form-control" id="period-weekly" name="period_weekly_hours" inputmode="decimal" value="{{ current_period.weekly_hours if current_period and current_period.weekly_hours is not none else '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label" for="period-annual">Часов за период</label>
+    <input class="form-control" id="period-annual" name="period_annual_hours" inputmode="decimal" value="{{ current_period.annual_hours if current_period and current_period.annual_hours is not none else '' }}">
+  </div>
+  <div class="col-12 border-top pt-3">
+    <button class="btn btn-primary" type="submit">{{ 'Сохранить' if line else 'Добавить строку' }}</button>
+  </div>
+</form>
+
+<script>
+(() => {
+  const selector = document.getElementById("scope-kind");
+  const fields = document.querySelectorAll("[data-scope-field]");
+  const weekly = document.getElementById("line-weekly");
+  const weeks = document.getElementById("line-weeks");
+  const annual = document.getElementById("line-annual");
+  const refresh = () => {
+    fields.forEach((field) => {
+      field.hidden = field.dataset.scopeField !== selector.value;
+    });
+  };
+  const calculateAnnual = () => {
+    const weeklyValue = Number.parseFloat(weekly.value.replace(",", "."));
+    const weeksValue = Number.parseFloat(weeks.value.replace(",", "."));
+    const canCalculate = Number.isFinite(weeklyValue) && Number.isFinite(weeksValue);
+    annual.readOnly = canCalculate;
+    if (canCalculate) {
+      annual.value = (weeklyValue * weeksValue).toFixed(3).replace(".", ",");
+    }
+  };
+  selector.addEventListener("change", refresh);
+  weekly.addEventListener("input", calculateAnnual);
+  weeks.addEventListener("input", calculateAnnual);
+  refresh();
+  calculateAnnual();
+})();
+</script>
+{% endblock %}

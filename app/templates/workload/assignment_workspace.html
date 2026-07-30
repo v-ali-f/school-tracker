@@ -1,0 +1,186 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Распределение нагрузки{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Распределение нагрузки</div>
+    <div class="page-sub">Плановые часы, назначения преподавателей и незакрытый остаток</div>
+  </div>
+  <div class="page-actions d-flex gap-1">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignments') }}" title="Расширенный реестр" aria-label="Расширенный реестр">
+      <i class="bi bi-list-ul" aria-hidden="true"></i>
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_teachers') }}">
+      <i class="bi bi-people me-1" aria-hidden="true"></i>Преподаватели
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_departments') }}">
+      <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Кафедры
+    </a>
+  </div>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="workload-stage-summary" aria-label="Состояние распределения">
+  <div><span>Потребность</span><strong>{{ totals.weekly }} ч</strong></div>
+  <div><span>Назначено</span><strong>{{ totals.allocated }} ч</strong></div>
+  <div class="{% if totals.remaining > 0 %}has-warning{% endif %}"><span>Не распределено</span><strong>{{ totals.remaining }} ч</strong></div>
+  <div><span>Преподавателей</span><strong>{{ teacher_rows|length }}</strong></div>
+</div>
+
+<form class="workload-compact-filters workload-assignment-filters" method="get">
+  <div>
+    <label class="form-label" for="workspace-version">Учебный год и версия</label>
+    <select class="form-select form-select-sm" id="workspace-version" name="version_id">
+      {% for item in versions %}
+      <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>
+        {{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="form-label" for="workspace-department">Кафедра</label>
+    <select class="form-select form-select-sm" id="workspace-department" name="department_id">
+      <option value="">Все доступные кафедры</option>
+      {% for item in departments %}
+      <option value="{{ item.id }}" {% if item.id == selected_department_id %}selected{% endif %}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-outline-secondary btn-sm" type="submit" title="Применить фильтр" aria-label="Применить фильтр">
+    <i class="bi bi-funnel" aria-hidden="true"></i>
+  </button>
+</form>
+
+<div class="table-responsive workload-stage-table">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Дисциплина и группа</th>
+        <th>Кафедра</th>
+        <th>Преподаватели</th>
+        <th class="text-end">План</th>
+        <th class="text-end">Назначено</th>
+        <th class="text-end">Остаток</th>
+        <th>Состояние</th>
+        <th class="text-end"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for need in needs %}
+      <tr class="{% if selected_need and selected_need.id == need.id %}is-selected{% endif %}">
+        <td>
+          <button
+            class="workload-record-select"
+            type="button"
+            data-need-select
+            data-need-id="{{ need.id }}"
+            data-activity="{{ need.education_activity.name }}"
+            data-group="{{ need.teaching_group.name if need.teaching_group else 'Без группы' }}"
+            data-department="{{ need.department.name if need.department else 'Не определена' }}"
+            data-building="{{ need.building.short_name or need.building.name if need.building else 'Не указано' }}"
+            data-period="{{ need.date_from.strftime('%d.%m.%Y') }}–{{ need.date_to.strftime('%d.%m.%Y') }}"
+            data-weekly="{{ need.weekly_hours }}"
+            data-allocated="{{ need.allocated_weekly_hours }}"
+            data-remaining="{{ need.remaining_weekly_hours }}"
+            data-status="{{ need_status_labels[need.status] }}"
+            data-status-code="{{ need.status }}"
+            data-assignees="{% for item in need.active_assignments if item.assignment_kind != 'VACANCY' %}{{ item.employee.fio if item.employee else '—' }}{% if not loop.last %}, {% endif %}{% endfor %}"
+            data-detail-url="{{ url_for('workload.need_detail', need_id=need.id) }}"
+            data-assign-url="{{ url_for('workload.assignment_new', need_id=need.id) }}"
+            aria-pressed="{{ 'true' if selected_need and selected_need.id == need.id else 'false' }}"
+          >
+            <span>{{ need.education_activity.name }}</span>
+            <small>{{ need.teaching_group.name if need.teaching_group else 'Без группы' }}</small>
+          </button>
+        </td>
+        <td>{{ need.department.name if need.department else 'Не определена' }}</td>
+        <td>
+          {% for item in need.active_assignments if item.assignment_kind != 'VACANCY' %}
+          <span class="workload-source-chip">{{ item.employee.fio if item.employee else '—' }}</span>
+          {% else %}<span class="text-muted">Не назначены</span>{% endfor %}
+        </td>
+        <td class="text-end">{{ need.weekly_hours }}</td>
+        <td class="text-end">{{ need.allocated_weekly_hours }}</td>
+        <td class="text-end {% if need.remaining_weekly_hours > 0 %}workload-hours-warning{% endif %}">{{ need.remaining_weekly_hours }}</td>
+        <td><span class="workload-record-status workload-record-status--{{ need.status|lower }}">{{ need_status_labels[need.status] }}</span></td>
+        <td class="text-end">
+          <a class="workload-row-link" href="{{ url_for('workload.assignment_new', need_id=need.id) if can_update and need.remaining_weekly_hours > 0 else url_for('workload.need_detail', need_id=need.id) }}" title="{{ 'Назначить преподавателя' if can_update and need.remaining_weekly_hours > 0 else 'Открыть потребность' }}" aria-label="{{ 'Назначить преподавателя' if can_update and need.remaining_weekly_hours > 0 else 'Открыть потребность' }}">
+            <i class="bi {{ 'bi-person-plus' if can_update and need.remaining_weekly_hours > 0 else 'bi-chevron-right' }}" aria-hidden="true"></i>
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">Потребности ещё не рассчитаны.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<section class="workload-secondary-register" aria-labelledby="teacher-load-summary">
+  <div class="workload-section-heading">
+    <h2 id="teacher-load-summary">Нагрузка преподавателей</h2>
+    <a href="{{ url_for('workload.workload_teachers') }}">Полный реестр</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Преподаватель</th><th>Кафедры</th><th class="text-end">Урочная</th><th class="text-end">Внеурочная</th><th class="text-end">Допобразование</th><th class="text-end">Всего</th></tr></thead>
+      <tbody>
+        {% for row in teacher_rows %}
+        <tr>
+          <td><a href="{{ url_for('workload.workload_teacher_detail', user_id=row.employee.id) }}">{{ row.employee.fio }}</a></td>
+          <td>{{ row.departments|join(', ') or 'Не определена' }}</td>
+          <td class="text-end">{{ row.totals.CURRICULUM }}</td>
+          <td class="text-end">{{ row.totals.EXTRACURRICULAR }}</td>
+          <td class="text-end">{{ row.totals.ADDITIONAL_EDUCATION }}</td>
+          <td class="text-end fw-semibold">{{ row.totals.TOTAL }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-3">Назначений преподавателям пока нет.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block workspace_context %}
+<div class="workload-record-context" data-need-context>
+  <div class="workload-record-context__empty" data-record-empty {% if selected_need %}hidden{% endif %}>
+    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+    <span>Выберите строку потребности</span>
+  </div>
+  <div data-record-details {% if not selected_need %}hidden{% endif %}>
+    <div class="workload-record-context__title" data-need-activity>{{ selected_need.education_activity.name if selected_need else '—' }}</div>
+    <div class="workload-record-context__subtitle" data-need-group>{{ selected_need.teaching_group.name if selected_need and selected_need.teaching_group else 'Без группы' }}</div>
+    <div class="workload-context-hours">
+      <div><span>План</span><strong data-need-weekly>{{ selected_need.weekly_hours if selected_need else '—' }}</strong></div>
+      <div><span>Назначено</span><strong data-need-allocated>{{ selected_need.allocated_weekly_hours if selected_need else '—' }}</strong></div>
+      <div><span>Остаток</span><strong data-need-remaining>{{ selected_need.remaining_weekly_hours if selected_need else '—' }}</strong></div>
+    </div>
+    <dl class="workload-context-list">
+      <div><dt>Преподаватели</dt><dd data-need-assignees>{% if selected_need %}{% for item in selected_need.active_assignments if item.assignment_kind != 'VACANCY' %}{{ item.employee.fio if item.employee else '—' }}{% if not loop.last %}, {% endif %}{% else %}Не назначены{% endfor %}{% else %}—{% endif %}</dd></div>
+      <div><dt>Кафедра</dt><dd data-need-department>{{ selected_need.department.name if selected_need and selected_need.department else 'Не определена' }}</dd></div>
+      <div><dt>Здание</dt><dd data-need-building>{{ selected_need.building.short_name or selected_need.building.name if selected_need and selected_need.building else 'Не указано' }}</dd></div>
+      <div><dt>Период</dt><dd data-need-period>{{ selected_need.date_from.strftime('%d.%m.%Y') ~ '–' ~ selected_need.date_to.strftime('%d.%m.%Y') if selected_need else '—' }}</dd></div>
+      <div><dt>Состояние</dt><dd data-need-status>{{ need_status_labels[selected_need.status] if selected_need else '—' }}</dd></div>
+    </dl>
+    <div class="workload-record-context__actions">
+      {% if can_update %}
+      <a class="btn btn-primary btn-sm w-100" href="{{ url_for('workload.assignment_new', need_id=selected_need.id) if selected_need else '#' }}" data-need-assign>Назначить преподавателя</a>
+      {% endif %}
+      <a class="btn btn-outline-secondary btn-sm w-100" href="{{ url_for('workload.need_detail', need_id=selected_need.id) if selected_need else '#' }}" data-need-open>Открыть назначения</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block workspace_scripts %}
+<script src="{{ url_for('static', filename='js/workload_distribution.js') }}?v=20260730_1"></script>
+{% endblock %}

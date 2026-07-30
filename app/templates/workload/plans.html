@@ -1,0 +1,88 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Учебные планы{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Учебные планы</div>
+    <div class="page-sub">Выберите план, чтобы открыть матрицу часов по классам и параллелям</div>
+  </div>
+  {% if can_update %}
+  <div class="page-actions">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('workload.plan_create') }}">
+      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Создать план
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% include "workload/_nav.html" %}
+
+<div class="workload-plan-kind-tabs" role="navigation" aria-label="Вид плана">
+  <a class="{% if not selected_plan_kind %}is-active{% endif %}" href="{{ url_for('workload.plans', academic_year_id=selected_academic_year_id) }}">Все</a>
+  {% for code, label in plan_kind_labels.items() %}
+  <a class="{% if selected_plan_kind == code %}is-active{% endif %}" href="{{ url_for('workload.plans', academic_year_id=selected_academic_year_id, plan_kind=code) }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<form class="workload-plan-filter" method="get">
+  {% if selected_plan_kind %}
+  <input type="hidden" name="plan_kind" value="{{ selected_plan_kind }}">
+  {% endif %}
+  <div>
+    <label class="form-label small" for="plan-year-filter">Учебный год</label>
+    <select class="form-select form-select-sm" id="plan-year-filter" name="academic_year_id">
+      <option value="">Все учебные годы</option>
+      {% for year in academic_years %}
+      <option value="{{ year.id }}" {% if selected_academic_year_id == year.id %}selected{% endif %}>{{ year.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="workload-plan-filter__action">
+    <button class="btn btn-outline-secondary btn-sm" type="submit" title="Применить фильтр" aria-label="Применить фильтр">
+      <i class="bi bi-funnel" aria-hidden="true"></i>
+    </button>
+  </div>
+</form>
+
+<div class="table-responsive workload-plan-registry">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Учебный год</th>
+        <th>Наименование</th>
+        <th>Вид</th>
+        <th>Область</th>
+        <th class="text-end">Строк</th>
+        <th class="text-end">Действие</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for plan in plans %}
+      <tr class="workload-plan-row">
+        <td class="text-nowrap">{{ plan.tariff_version.tariff_cycle.academic_year.name }}</td>
+        <td>
+          <div class="fw-semibold">{{ plan.name }}</div>
+        </td>
+        <td>{{ plan_kind_labels.get(plan.plan_kind, plan.plan_kind) }}</td>
+        <td>
+          {{ plan.education_level or 'Все уровни' }}
+          {% if plan.building %}<div class="small text-muted">{{ plan.building.short_name or plan.building.name }}</div>{% endif %}
+        </td>
+        <td class="text-end">{{ plan.lines|length }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}">
+            <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Матрица
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">Планы ещё не созданы.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

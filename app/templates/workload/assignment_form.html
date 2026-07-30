@@ -1,0 +1,125 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}{{ 'Изменение назначения' if assignment else 'Новое назначение' }}{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">{{ 'Изменение назначения' if assignment else 'Новое назначение' }}</div>
+    <div class="page-sub">{{ need.education_activity.name }} · {{ need.teaching_group.name if need.teaching_group else 'без группы' }} · остаток {{ need.remaining_weekly_hours }} ч/нед.</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.need_detail', need_id=need.id) }}">Отмена</a>
+</div>
+
+{% include "workload/_nav.html" %}
+
+<form method="post" id="assignment-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if assignment %}<input type="hidden" name="revision" value="{{ assignment.revision }}">{% endif %}
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <label class="form-label" for="assignment-kind">Вид назначения</label>
+      <select class="form-select" id="assignment-kind" name="assignment_kind" required>
+        {% for code in assignment_kinds %}
+        <option value="{{ code }}" {% if (assignment and assignment.assignment_kind == code) or (not assignment and code == 'MAIN') %}selected{% endif %}>{{ assignment_kind_labels[code] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-5" id="employee-field">
+      <label class="form-label" for="employee-user">Преподаватель</label>
+      <select class="form-select" id="employee-user" name="employee_user_id">
+        <option value="">Выберите сотрудника</option>
+        {% for employee in employees %}
+        <option value="{{ employee.id }}" {% if assignment and assignment.employee_user_id == employee.id %}selected{% endif %}>{{ employee.fio }}{% if employee.username %} · {{ employee.username }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label" for="position-code">Код должности</label>
+      <input class="form-control" id="position-code" name="position_code" maxlength="80" value="{{ assignment.position_code if assignment else 'TEACHER' }}" required>
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label" for="position-title">Должность</label>
+      <input class="form-control" id="position-title" name="position_title" maxlength="180" value="{{ assignment.position_title if assignment else 'Учитель' }}">
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label" for="weekly-hours">Часов в неделю</label>
+      <input class="form-control" id="weekly-hours" name="weekly_hours" inputmode="decimal" value="{{ assignment.weekly_hours if assignment else need.remaining_weekly_hours }}" required>
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label" for="annual-hours">Часов за период</label>
+      <input class="form-control" id="annual-hours" name="annual_hours" inputmode="decimal" value="{{ assignment.annual_hours if assignment else '' }}" placeholder="Рассчитается автоматически">
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label" for="date-from">Действует с</label>
+      <input class="form-control" id="date-from" type="date" name="date_from" min="{{ need.date_from.isoformat() }}" max="{{ need.date_to.isoformat() }}" value="{{ assignment.date_from.isoformat() if assignment else need.date_from.isoformat() }}" required>
+    </div>
+    <div class="col-lg-3">
+      <label class="form-label" for="date-to">Действует по</label>
+      <input class="form-control" id="date-to" type="date" name="date_to" min="{{ need.date_from.isoformat() }}" max="{{ need.date_to.isoformat() }}" value="{{ assignment.date_to.isoformat() if assignment else need.date_to.isoformat() }}" required>
+    </div>
+    <div class="col-lg-4">
+      <label class="form-label" for="department">Кафедра</label>
+      <select class="form-select" id="department" name="department_id">
+        <option value="">Определить по дисциплине</option>
+        {% for item in departments %}
+        <option value="{{ item.id }}" {% if (assignment and assignment.department_id == item.id) or (not assignment and need.department_id == item.id) %}selected{% endif %}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-4">
+      <label class="form-label" for="building">Здание</label>
+      <select class="form-select" id="building" name="building_id">
+        <option value="">Не указано</option>
+        {% for item in buildings %}
+        <option value="{{ item.id }}" {% if (assignment and assignment.building_id == item.id) or (not assignment and need.building_id == item.id) %}selected{% endif %}>{{ item.short_name or item.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if assignment %}
+    <div class="col-lg-4">
+      <label class="form-label" for="reason">Основание изменения</label>
+      <input class="form-control" id="reason" name="reason" maxlength="500" placeholder="Что изменилось и почему" required>
+    </div>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary" type="submit">Сохранить назначение</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('workload.need_detail', need_id=need.id) }}">Отмена</a>
+  </div>
+</form>
+
+<script>
+(() => {
+  const kind = document.getElementById("assignment-kind");
+  const employeeField = document.getElementById("employee-field");
+  const employee = document.getElementById("employee-user");
+  const weekly = document.getElementById("weekly-hours");
+  const annual = document.getElementById("annual-hours");
+  const needWeekly = Number("{{ need.weekly_hours }}");
+  const needAnnual = Number("{{ need.annual_hours }}");
+  let annualEdited = {{ 'true' if assignment else 'false' }};
+
+  function syncEmployee() {
+    const vacancy = kind.value === "VACANCY";
+    employeeField.classList.toggle("d-none", vacancy);
+    employee.required = !vacancy;
+    if (vacancy) employee.value = "";
+  }
+  function syncAnnual() {
+    if (annualEdited || !needWeekly || !needAnnual) return;
+    const value = Number(String(weekly.value).replace(",", "."));
+    annual.value = Number.isFinite(value)
+      ? (value * needAnnual / needWeekly).toFixed(3)
+      : "";
+  }
+  kind.addEventListener("change", syncEmployee);
+  weekly.addEventListener("input", syncAnnual);
+  annual.addEventListener("input", () => { annualEdited = annual.value !== ""; });
+  syncEmployee();
+  syncAnnual();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,295 @@
+{% extends "layout.html" %}
+
+{% set workspace_endpoint = request.endpoint or '' %}
+{% set workspace_teacher_self_only = current_user.has_role('TEACHER') and current_user.role_codes|length == 1 %}
+{% set workspace_status_labels = {
+  'DRAFT': 'Черновик',
+  'VALIDATION': 'Проверка',
+  'APPROVAL': 'Согласование',
+  'APPROVED': 'Утверждена',
+  'EFFECTIVE': 'Действует',
+  'SUPERSEDED': 'Заменена',
+  'ARCHIVED': 'Архив',
+  'READY': 'Готов',
+  'LOCKED': 'Заблокирован'
+} %}
+{% if workspace_endpoint.startswith('workload.plan_bindings') %}
+  {% set workspace_mode = 'bindings' %}
+{% elif workspace_endpoint.startswith('workload.group') %}
+  {% if request.args.get('group_type') == 'METAGROUP' or (group is defined and group and group.group_type == 'METAGROUP') %}
+    {% set workspace_mode = 'metagroups' %}
+  {% else %}
+    {% set workspace_mode = 'groups' %}
+  {% endif %}
+{% elif workspace_endpoint.startswith('workload.assignment') or workspace_endpoint.startswith('workload.need_') or workspace_endpoint.startswith('workload.workload_') %}
+  {% set workspace_mode = 'workload' %}
+{% elif workspace_endpoint.startswith('workload.workflow') or workspace_endpoint.startswith('workload.integration') or workspace_endpoint == 'workload.tariffication' or workspace_endpoint.startswith('workload.tariff_') and not workspace_endpoint.startswith('workload.tariff_document') %}
+  {% set workspace_mode = 'control' %}
+{% elif workspace_endpoint.startswith('workload.tariff_document') %}
+  {% set workspace_mode = 'export' %}
+{% else %}
+  {% set workspace_mode = 'hours' %}
+{% endif %}
+
+{% set workspace_year = none %}
+{% set workspace_version = none %}
+{% if plan is defined and plan %}
+  {% set workspace_year = plan.tariff_version.tariff_cycle.academic_year %}
+  {% set workspace_version = plan.tariff_version %}
+{% elif version is defined and version %}
+  {% set workspace_year = version.tariff_cycle.academic_year %}
+  {% set workspace_version = version %}
+{% elif selected_version is defined and selected_version %}
+  {% set workspace_year = selected_version.tariff_cycle.academic_year %}
+  {% set workspace_version = selected_version %}
+{% elif group is defined and group %}
+  {% set workspace_year = group.tariff_version.tariff_cycle.academic_year %}
+  {% set workspace_version = group.tariff_version %}
+{% elif need is defined and need %}
+  {% set workspace_year = need.tariff_version.tariff_cycle.academic_year %}
+  {% set workspace_version = need.tariff_version %}
+{% elif selected_need is defined and selected_need %}
+  {% set workspace_year = selected_need.tariff_version.tariff_cycle.academic_year %}
+  {% set workspace_version = selected_need.tariff_version %}
+{% elif academic_year is defined and academic_year %}
+  {% set workspace_year = academic_year %}
+{% elif current_year is defined and current_year %}
+  {% set workspace_year = current_year %}
+{% endif %}
+
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260730_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_control.css') }}?v=20260730_3">
+{% endblock %}
+
+{% block breadcrumb %}{% endblock %}
+
+{% block content %}
+<div class="workload-workspace{% if workspace_endpoint == 'workload.plan_matrix' %} workload-workspace--matrix{% endif %}" data-workload-workspace data-active-mode="{{ workspace_mode }}">
+  <header class="workload-context-bar">
+    <div class="workload-context-bar__identity">
+      <a class="workload-context-bar__back" href="{{ url_for('workload.index') }}" title="Обзор модуля" aria-label="Обзор модуля">
+        <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+      </a>
+      <div class="workload-context-bar__copy">
+        <h1>Учебное планирование и нагрузка</h1>
+        <div class="workload-context-bar__meta">
+          <span>
+            <i class="bi bi-calendar3" aria-hidden="true"></i>
+            {{ workspace_year.name if workspace_year else 'Учебный год не выбран' }}
+          </span>
+          {% if workspace_version and workspace_mode != 'hours' %}
+          <span>
+            <i class="bi bi-layers" aria-hidden="true"></i>
+            Версия {{ workspace_version.version_no }}
+          </span>
+          <span class="workload-status workload-status--{{ workspace_version.status|lower }}">
+            {{ workspace_status_labels.get(workspace_version.status, workspace_version.status) }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="workload-context-bar__actions">
+      <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-toggle="scope" title="Структура" aria-label="Открыть структуру">
+        <i class="bi bi-diagram-3" aria-hidden="true"></i>
+      </button>
+      {% if workspace_endpoint != 'workload.plan_matrix' %}
+      <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-toggle="context" title="Контекст" aria-label="Открыть контекст">
+        <i class="bi bi-layout-sidebar-reverse" aria-hidden="true"></i>
+      </button>
+      {% endif %}
+      <div class="dropdown">
+        <button class="workload-icon-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Справочники и настройки" aria-label="Справочники и настройки">
+          <i class="bi bi-three-dots" aria-hidden="true"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end workload-utility-menu">
+          {% if not workspace_teacher_self_only %}
+          <a class="dropdown-item" href="{{ url_for('workload.catalog') }}"><i class="bi bi-journal-text" aria-hidden="true"></i>Каталог дисциплин</a>
+          <a class="dropdown-item" href="{{ url_for('workload.tariffication') }}"><i class="bi bi-calculator" aria-hidden="true"></i>Тарификация</a>
+          {% endif %}
+          {% if can('workload.settings.manage') %}
+          <a class="dropdown-item" href="{{ url_for('workload.integration') }}"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Интеграция</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="workload-mode-bar" aria-label="Режим рабочего пространства">
+    {% if workspace_teacher_self_only %}
+    <a class="workload-mode is-active" href="{{ url_for('workload.workload_teacher_detail', user_id=current_user.id) }}">
+      <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Моя нагрузка</span>
+    </a>
+    {% else %}
+    <a class="workload-mode {% if workspace_mode == 'hours' %}is-active{% endif %}" href="{{ url_for('workload.plans') }}">
+      <i class="bi bi-table" aria-hidden="true"></i><span>Часы</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'bindings' %}is-active{% endif %}" href="{{ url_for('workload.plan_bindings') }}">
+      <i class="bi bi-link-45deg" aria-hidden="true"></i><span>Привязка УП</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'groups' %}is-active{% endif %}" href="{{ url_for('workload.groups') }}">
+      <i class="bi bi-people" aria-hidden="true"></i><span>Группы</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'metagroups' %}is-active{% endif %}" href="{{ url_for('workload.groups', group_type='METAGROUP') }}">
+      <i class="bi bi-intersect" aria-hidden="true"></i><span>Метагруппы</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'workload' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace') }}">
+      <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Нагрузка</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'control' %}is-active{% endif %}" href="{{ url_for('workload.workflow') }}">
+      <i class="bi bi-check2-square" aria-hidden="true"></i><span>Контроль</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'export' %}is-active{% endif %}" href="{{ url_for('workload.tariff_documents') }}">
+      <i class="bi bi-printer" aria-hidden="true"></i><span>Печать и экспорт</span>
+    </a>
+    {% endif %}
+  </nav>
+
+  {% if workspace_mode == 'bindings' %}
+  <section class="workload-indicators" aria-label="Состояние привязки учебных планов">
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Классов</span>
+      <strong>{{ class_count if class_count is defined else '—' }}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Планов для класса</span>
+      <strong>{{ plans|length if plans is defined else '—' }}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Без учебного плана</span>
+      <strong>{{ unassigned_count if unassigned_count is defined else '—' }}</strong>
+    </div>
+    <div class="workload-indicator workload-indicator--state">
+      <span class="workload-indicator__label">Контингент</span>
+      <strong>{% if snapshot is defined and snapshot %}{{ snapshot.snapshot_date.strftime('%d.%m.%Y') }}{% else %}Не загружен{% endif %}</strong>
+    </div>
+  </section>
+  {% elif workspace_mode != 'hours' %}
+  <section class="workload-indicators" aria-label="Состояние рабочего пространства">
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Нераспределено</span>
+      <strong>{% if needs is defined %}{{ needs|sum(attribute='remaining_weekly_hours') }} ч{% else %}—{% endif %}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Ошибки</span>
+      <strong>{% if validation_issues is defined %}{{ validation_issues|selectattr('severity', 'in', ['BLOCKER', 'ERROR'])|list|length }}{% else %}—{% endif %}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Пустые группы</span>
+      <strong>{% if groups is defined %}{{ groups|selectattr('actual_size', 'equalto', 0)|list|length }}{% else %}—{% endif %}</strong>
+    </div>
+    <div class="workload-indicator workload-indicator--state">
+      <span class="workload-indicator__label">Готовность</span>
+      {% set readiness_status = workspace_version.status if workspace_version else (plan.status if plan is defined and plan else none) %}
+      <strong>{{ workspace_status_labels.get(readiness_status, readiness_status) if readiness_status else 'Не определена' }}</strong>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="workload-workspace-grid">
+    <aside class="workload-scope-panel" data-workload-panel="scope" aria-label="Структура учебного планирования">
+      <div class="workload-panel-heading">
+        <span>Структура</span>
+        <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-close title="Закрыть" aria-label="Закрыть структуру">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <nav class="workload-tree">
+        {% if workspace_teacher_self_only %}
+        <div class="workload-tree__group">
+          <div class="workload-tree__label">Нагрузка</div>
+          <a class="workload-tree__item is-current" href="{{ url_for('workload.workload_teacher_detail', user_id=current_user.id) }}"><i class="bi bi-person" aria-hidden="true"></i><span>Моя нагрузка</span></a>
+        </div>
+        {% else %}
+        <div class="workload-tree__group">
+          <div class="workload-tree__label">Учебный год</div>
+          {% if academic_years is defined and academic_years %}
+            {% for year in academic_years %}
+            <a class="workload-tree__item {% if workspace_year and year.id == workspace_year.id %}is-current{% endif %}" href="{{ url_for('workload.plans', academic_year_id=year.id) }}">
+              <i class="bi bi-calendar3" aria-hidden="true"></i><span>{{ year.name }}</span>
+            </a>
+            {% endfor %}
+          {% elif years is defined and years %}
+            {% for year in years %}
+            <a class="workload-tree__item {% if workspace_year and year.id == workspace_year.id %}is-current{% endif %}" href="{{ url_for('workload.plans', academic_year_id=year.id) }}">
+              <i class="bi bi-calendar3" aria-hidden="true"></i><span>{{ year.name }}</span>
+            </a>
+            {% endfor %}
+          {% else %}
+            <span class="workload-tree__item is-current"><i class="bi bi-calendar3" aria-hidden="true"></i><span>{{ workspace_year.name if workspace_year else 'Все годы' }}</span></span>
+          {% endif %}
+        </div>
+
+        <div class="workload-tree__group">
+          <div class="workload-tree__label">Планы</div>
+          <a class="workload-tree__item" href="{{ url_for('workload.plans', plan_kind='CURRICULUM') }}"><i class="bi bi-book" aria-hidden="true"></i><span>Учебный план</span></a>
+          <a class="workload-tree__item" href="{{ url_for('workload.plans', plan_kind='EXTRACURRICULAR') }}"><i class="bi bi-clock" aria-hidden="true"></i><span>Внеурочная деятельность</span></a>
+          <a class="workload-tree__item" href="{{ url_for('workload.plans', plan_kind='ADDITIONAL_EDUCATION') }}"><i class="bi bi-stars" aria-hidden="true"></i><span>Дополнительное образование</span></a>
+        </div>
+
+        <div class="workload-tree__group">
+          <div class="workload-tree__label">Своды</div>
+          <a class="workload-tree__item" href="{{ url_for('workload.workload_teachers') }}"><i class="bi bi-person" aria-hidden="true"></i><span>Преподаватели</span></a>
+          <a class="workload-tree__item" href="{{ url_for('workload.workload_departments') }}"><i class="bi bi-building" aria-hidden="true"></i><span>Кафедры</span></a>
+        </div>
+        {% endif %}
+      </nav>
+    </aside>
+
+    <main class="workload-canvas" id="workload-main-canvas">
+      {% block workspace_content %}{% endblock %}
+    </main>
+
+    {% if workspace_endpoint != 'workload.plan_matrix' %}
+    <aside class="workload-context-panel" data-workload-panel="context" aria-label="Контекст выбранного объекта">
+      <div class="workload-panel-heading">
+        <span>Контекст</span>
+        <button class="workload-icon-button workload-mobile-only" type="button" data-workload-panel-close title="Закрыть" aria-label="Закрыть контекст">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+      {% block workspace_context %}
+      <dl class="workload-context-list">
+        <div><dt>Режим</dt><dd>
+          {% if workspace_mode == 'hours' %}Часы
+          {% elif workspace_mode == 'bindings' %}Привязка УП
+          {% elif workspace_mode == 'groups' %}Группы
+          {% elif workspace_mode == 'metagroups' %}Метагруппы
+          {% elif workspace_mode == 'workload' %}Нагрузка
+          {% elif workspace_mode == 'control' %}Контроль
+          {% else %}Печать и экспорт{% endif %}
+        </dd></div>
+        <div><dt>Учебный год</dt><dd>{{ workspace_year.name if workspace_year else '—' }}</dd></div>
+        {% if workspace_mode != 'hours' %}
+        <div><dt>Версия</dt><dd>{{ workspace_version.version_no if workspace_version else '—' }}</dd></div>
+        {% endif %}
+        {% if plan is defined and plan %}
+        <div><dt>План</dt><dd>{{ plan.name }}</dd></div>
+        {% if workspace_mode != 'hours' %}
+        <div><dt>Статус</dt><dd>{{ workspace_status_labels.get(plan.status, plan.status) }}</dd></div>
+        {% endif %}
+        {% endif %}
+        {% if group is defined and group %}
+        <div><dt>Группа</dt><dd>{{ group.name }}</dd></div>
+        <div><dt>Состав</dt><dd>{{ group.actual_size }}</dd></div>
+        {% endif %}
+      </dl>
+      {% endblock %}
+    </aside>
+    {% endif %}
+  </div>
+
+  <button class="workload-panel-backdrop" type="button" data-workload-panel-close aria-label="Закрыть боковую панель"></button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/workload_workspace.js') }}?v=20260729_1"></script>
+  {% block workspace_scripts %}{% endblock %}
+{% endblock %}

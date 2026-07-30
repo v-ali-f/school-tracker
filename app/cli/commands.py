@@ -59,6 +59,7 @@ def register_cli(app):
     @with_appcontext
     def seed_initial_data_command():
         from app.models import Role, Department, Subject, AcademicYear
+        from app.services.education_activity_service import get_or_create_subject_with_activity
         try:
             created = []
             role_codes = [("ADMIN", "Администратор"), ("MANAGEMENT", "Администрация"), ("TEACHER", "Учитель"), ("CURATOR", "Куратор"), ("VIEWER", "Наблюдатель")]
@@ -72,7 +73,7 @@ def register_cli(app):
                     created.append(f"department:{dep_name}")
             for subj_name in ["Математика", "Русский язык", "Литература", "Информатика", "Физика", "Биология", "История", "Английский язык"]:
                 if not Subject.query.filter_by(name=subj_name).first():
-                    db.session.add(Subject(name=subj_name))
+                    get_or_create_subject_with_activity(subj_name)
                     created.append(f"subject:{subj_name}")
             if not AcademicYear.query.filter_by(is_current=True).first():
                 db.session.add(AcademicYear(name="2025/2026", is_current=True))
