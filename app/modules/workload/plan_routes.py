@@ -28,7 +28,6 @@ from app.models import (
     PLAN_COMPONENT_LABELS,
     PLAN_COMPONENT_KINDS,
     PLAN_KIND_LABELS,
-    PLAN_KINDS,
     PLAN_SCOPE_KINDS,
     PLAN_SCOPE_LABELS,
     PLAN_STATUS_LABELS,
@@ -38,13 +37,18 @@ from app.models import (
 )
 from app.services.education_plan_service import (
     ACTIVITY_KINDS_BY_PLAN,
+    PLAN_BUNDLE_KINDS,
+    PLAN_BUNDLE_LABELS,
     PLAN_COMPONENTS_BY_KIND,
     PlanValidationError,
     calculate_annual_hours,
     change_plan_status,
+    create_plan_bundle,
     ensure_draft_tariff_version,
     line_scope_key,
     parse_decimal,
+    plan_bundle_parts,
+    plan_bundle_root,
     plan_scope_code,
     plans_visible_in_buildings,
     require_plan_editable,
@@ -696,6 +700,10 @@ def register_plan_routes(workload_bp):
         _require_plan_read()
         scope = resolve_workload_scope(current_user)
         query = EducationPlan.query.join(TariffVersion).join(TariffCycle)
+        query = query.filter(
+            EducationPlan.plan_kind == "CURRICULUM",
+            EducationPlan.root_plan_id.is_(None),
+        )
         organization_id = _current_organization_id()
         if organization_id is None:
             query = query.filter(TariffCycle.organization_id.is_(None))
@@ -707,17 +715,13 @@ def register_plan_routes(workload_bp):
             query = plans_visible_in_buildings(query, scope.building_ids)
 
         academic_year_id = request.args.get("academic_year_id", type=int)
-        plan_kind = (request.args.get("plan_kind") or "").strip().upper()
         if academic_year_id:
             query = query.filter(
                 TariffCycle.academic_year_id == academic_year_id
             )
-        if plan_kind in PLAN_KINDS:
-            query = query.filter(EducationPlan.plan_kind == plan_kind)
 
         items = query.order_by(
             TariffCycle.academic_year_id.desc(),
-            EducationPlan.plan_kind.asc(),
             EducationPlan.name.asc(),
         ).all()
         can_update = (
@@ -734,8 +738,6 @@ def register_plan_routes(workload_bp):
                 AcademicYear.name.desc()
             ).all(),
             selected_academic_year_id=academic_year_id,
-            selected_plan_kind=plan_kind,
-            plan_kind_labels=PLAN_KIND_LABELS,
             plan_status_labels=PLAN_STATUS_LABELS,
             can_update=can_update,
         )
@@ -752,9 +754,6 @@ def register_plan_routes(workload_bp):
             academic_year = (
                 db.session.get(AcademicYear, academic_year_id)
                 if academic_year_id else None
-            )
-            plan_kind = (
-                (request.form.get("plan_kind") or "").strip().upper()
             )
             name = " ".join((request.form.get("name") or "").split())
             education_level = (
@@ -773,12 +772,7 @@ def register_plan_routes(workload_bp):
                     raise PlanValidationError(
                         "Нельзя создать план в закрытом учебном году."
                     )
-                if plan_kind not in PLAN_KINDS:
-                    raise PlanValidationError("Выберите вид плана.")
-                if (
-                    plan_kind == "CURRICULUM"
-                    and education_level not in PLAN_LEVEL_GRADES
-                ):
+                if education_level not in PLAN_LEVEL_GRADES:
                     raise PlanValidationError(
                         "Для учебного плана выберите уровень НОО, ООО или СОО."
                     )
@@ -796,7 +790,7 @@ def register_plan_routes(workload_bp):
                 )
                 plan = EducationPlan(
                     tariff_version_id=version.id,
-                    plan_kind=plan_kind,
+                    plan_kind="CURRICULUM",
                     name=name,
                     education_level=education_level,
                     building_id=building_id,
@@ -809,6 +803,8 @@ def register_plan_routes(workload_bp):
                     updated_by_user_id=current_user.id,
                 )
                 db.session.add(plan)
+                db.session.flush()
+                create_plan_bundle(plan, user_id=current_user.id)
                 db.session.commit()
             except PlanValidationError as exc:
                 db.session.rollback()
@@ -831,8 +827,6 @@ def register_plan_routes(workload_bp):
                 AcademicYear.name.desc()
             ).all(),
             buildings=Building.query.order_by(Building.name.asc()).all(),
-            plan_kinds=PLAN_KINDS,
-            plan_kind_labels=PLAN_KIND_LABELS,
         )
 
     @workload_bp.get("/plans/<int:plan_id>")
@@ -1617,7 +1611,15 @@ def register_plan_routes(workload_bp):
     @workload_bp.get("/plans/<int:plan_id>/matrix")
     @login_required
     def plan_matrix(plan_id):
-        plan = _get_plan(plan_id)
+        requested_plan = _get_plan(plan_id)
+        bundle_root = plan_bundle_root(requested_plan)
+        bundle_parts = plan_bundle_parts(bundle_root)
+        requested_part = (
+            (request.args.get("part") or requested_plan.plan_kind)
+            .strip()
+            .upper()
+        )
+        plan = bundle_parts.get(requested_part, bundle_root)
         matrix = _build_plan_matrix(plan)
         selected_line_id = request.args.get("selected_line_id", type=int)
         selected_line = next(
@@ -1638,6 +1640,10 @@ def register_plan_routes(workload_bp):
         return render_template(
             "workload/plan_matrix.html",
             plan=plan,
+            bundle_root=bundle_root,
+            bundle_parts=bundle_parts,
+            bundle_kinds=PLAN_BUNDLE_KINDS,
+            bundle_labels=PLAN_BUNDLE_LABELS,
             matrix=matrix,
             selected_line=selected_line,
             selected_scope_label=selected_scope_label,

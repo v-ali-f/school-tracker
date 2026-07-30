@@ -33,6 +33,18 @@ ACTIVITY_KINDS_BY_PLAN = {
     },
 }
 
+PLAN_BUNDLE_KINDS = (
+    "CURRICULUM",
+    "EXTRACURRICULAR",
+    "ADDITIONAL_EDUCATION",
+)
+
+PLAN_BUNDLE_LABELS = {
+    "CURRICULUM": "Учебный план",
+    "EXTRACURRICULAR": "Внеурочная деятельность",
+    "ADDITIONAL_EDUCATION": "Дополнительное образование",
+}
+
 
 class PlanValidationError(ValueError):
     pass
@@ -164,6 +176,49 @@ def ensure_draft_tariff_version(
             comment="Создание рабочей версии для планирования.",
         ))
     return cycle, version
+
+
+def create_plan_bundle(root_plan, *, user_id):
+    if root_plan.plan_kind != "CURRICULUM" or root_plan.root_plan_id is not None:
+        raise PlanValidationError(
+            "Комплект можно создать только для основного учебного плана."
+        )
+    if root_plan.id is None:
+        db.session.flush()
+
+    parts = {"CURRICULUM": root_plan}
+    for plan_kind in PLAN_BUNDLE_KINDS[1:]:
+        companion = EducationPlan(
+            tariff_version_id=root_plan.tariff_version_id,
+            root_plan_id=root_plan.id,
+            plan_kind=plan_kind,
+            name=(
+                f"{root_plan.name} · {PLAN_BUNDLE_LABELS[plan_kind]}"
+            )[:255],
+            education_level=root_plan.education_level,
+            building_id=root_plan.building_id,
+            scope_code=root_plan.scope_code,
+            status=root_plan.status,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(companion)
+        parts[plan_kind] = companion
+    return parts
+
+
+def plan_bundle_root(plan):
+    return plan.root_plan or plan
+
+
+def plan_bundle_parts(plan):
+    root = plan_bundle_root(plan)
+    parts = {"CURRICULUM": root}
+    parts.update({
+        companion.plan_kind: companion
+        for companion in root.companion_plans
+    })
+    return parts
 
 
 def require_plan_editable(plan, *, expected_revision=None):
@@ -321,6 +376,8 @@ def plans_visible_in_buildings(query, building_ids):
 __all__ = [
     "PLAN_COMPONENTS_BY_KIND",
     "ACTIVITY_KINDS_BY_PLAN",
+    "PLAN_BUNDLE_KINDS",
+    "PLAN_BUNDLE_LABELS",
     "PlanValidationError",
     "PlanLockedError",
     "ConcurrentPlanUpdateError",
@@ -328,6 +385,9 @@ __all__ = [
     "line_scope_key",
     "parse_decimal",
     "ensure_draft_tariff_version",
+    "create_plan_bundle",
+    "plan_bundle_root",
+    "plan_bundle_parts",
     "require_plan_editable",
     "validate_line_values",
     "validate_period_range",

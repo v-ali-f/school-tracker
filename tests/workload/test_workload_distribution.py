@@ -363,7 +363,7 @@ def test_admin_creates_assignment_through_route(
     assert workspace_response.status_code == 200
     assert "workload_distribution.css" in workspace_html
     assert "data-need-select" in workspace_html
-    assert "data-need-context" in workspace_html
+    assert "data-need-context" not in workspace_html
     assert "Не распределено" in workspace_html
     assert 'name="version_id"' in workspace_html
     assert "2026/2027 · версия 1" in workspace_html
@@ -994,7 +994,8 @@ def test_workflow_routes_and_permissions(app, client, make_user, login):
     assert documents_page.status_code == 200
     documents_html = documents_page.get_data(as_text=True)
     assert "workload-control-nav" in documents_html
-    assert "Пакет версии" in documents_html
+    assert "workload-control-summary" in documents_html
+    assert "Пакет версии" not in documents_html
 
     login(deputy_id)
     forbidden = client.post(

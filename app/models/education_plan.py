@@ -275,6 +275,12 @@ class EducationPlan(db.Model):
         nullable=False,
         index=True,
     )
+    root_plan_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_plan.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     plan_kind = db.Column(db.String(40), nullable=False, index=True)
     name = db.Column(db.String(255), nullable=False)
     education_level = db.Column(db.String(20), nullable=True, index=True)
@@ -307,6 +313,16 @@ class EducationPlan(db.Model):
         "TariffVersion",
         backref=db.backref("plans", lazy=True, cascade="all, delete-orphan"),
     )
+    root_plan = db.relationship(
+        "EducationPlan",
+        remote_side=[id],
+        foreign_keys=[root_plan_id],
+        backref=db.backref(
+            "companion_plans",
+            lazy=True,
+            cascade="all, delete-orphan",
+        ),
+    )
     building = db.relationship("Building")
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
     updated_by = db.relationship("User", foreign_keys=[updated_by_user_id])
@@ -320,6 +336,10 @@ class EducationPlan(db.Model):
             "status IN ('DRAFT','READY','LOCKED')",
             name="ck_education_plan_status",
         ),
+        db.CheckConstraint(
+            "root_plan_id IS NULL OR plan_kind <> 'CURRICULUM'",
+            name="ck_education_plan_companion_kind",
+        ),
         db.CheckConstraint("revision > 0", name="ck_education_plan_revision"),
         db.UniqueConstraint(
             "tariff_version_id",
@@ -332,6 +352,14 @@ class EducationPlan(db.Model):
             "ix_education_plan_version_kind",
             "tariff_version_id",
             "plan_kind",
+        ),
+        db.Index(
+            "uq_education_plan_root_kind",
+            "root_plan_id",
+            "plan_kind",
+            unique=True,
+            postgresql_where=db.text("root_plan_id IS NOT NULL"),
+            sqlite_where=db.text("root_plan_id IS NOT NULL"),
         ),
     )
 

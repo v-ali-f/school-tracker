@@ -9,19 +9,25 @@ def test_workload_pages_use_shared_workspace_shell(
 
     response = client.get("/workload/")
 
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/workload/plans/")
+    response = client.get(response.headers["Location"])
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert 'data-workload-workspace' in html
     assert 'data-active-mode="hours"' in html
     assert "Учебное планирование и нагрузка" in html
-    assert "Часы" in html
+    assert "Учебные планы" in html
+    assert "Структура" not in html
+    assert "Контекст" not in html
+    assert "data-workload-panel-toggle" not in html
     assert "Группы" in html
     assert "Метагруппы" in html
     assert "Нагрузка" in html
     assert "Контроль" in html
     assert "Печать и экспорт" in html
     assert "workload_workspace.css" in html
-    assert "workload_workspace.js" in html
+    assert "workload_workspace.js" not in html
 
 
 def test_metagroup_filter_selects_metagroup_workspace_mode(

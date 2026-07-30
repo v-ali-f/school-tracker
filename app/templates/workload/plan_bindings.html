@@ -2,7 +2,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260730_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260730_3">
 {% endblock %}
 
 {% block workspace_content %}
@@ -10,10 +10,11 @@
   <header class="plan-binding-heading">
     <div>
       <h2>Привязка учебных планов</h2>
-      <p>{{ selected_class.name_snapshot if selected_class else 'Класс не выбран' }}</p>
+      <p>Назначьте комплект УП классу целиком или измените план отдельного ученика</p>
     </div>
     {% if selected_version and can_update %}
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
       <button class="workload-icon-button" type="submit" title="Обновить данные из сводного контингента" aria-label="Обновить данные из сводного контингента">
         <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
@@ -33,17 +34,6 @@
         {% endfor %}
       </select>
     </label>
-    <label>
-      <span>Класс</span>
-      <select class="form-select form-select-sm" name="class_id" data-plan-binding-filter {% if not classes %}disabled{% endif %}>
-        {% for item in classes %}
-        <option value="{{ item.id }}" {% if selected_class and item.id == selected_class.id %}selected{% endif %}>
-          {{ item.name_snapshot }} · {{ item.student_count }} уч.
-        </option>
-        {% endfor %}
-      </select>
-    </label>
-    <button class="btn btn-outline-secondary btn-sm" type="submit">Показать</button>
   </form>
 
   {% if registry_status.is_stale %}
@@ -58,6 +48,7 @@
     </div>
     {% if can_update %}
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
       <button class="btn btn-primary btn-sm" type="submit">
         <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
@@ -79,149 +70,170 @@
     <strong>Контингент ещё не загружен</strong>
     {% if can_update %}
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
       <button class="btn btn-primary btn-sm" type="submit">
-        <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
         Загрузить из сводного контингента
       </button>
     </form>
     {% endif %}
   </div>
-  {% elif not selected_class %}
+  {% elif not class_rows %}
   <div class="plan-binding-empty">
     {% if registry_status.class_count %}
     <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
     <strong>Контингент изменён. Обновите данные для привязки учебных планов</strong>
-    {% if can_update %}
-    <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
-      <input type="hidden" name="version_id" value="{{ selected_version.id }}">
-      <button class="btn btn-primary btn-sm" type="submit">Обновить данные</button>
-    </form>
-    {% endif %}
     {% else %}
     <i class="bi bi-building-x" aria-hidden="true"></i>
     <strong>В сводном контингенте нет доступных классов</strong>
     {% endif %}
   </div>
-  {% elif not plans %}
-  <div class="plan-binding-empty">
-    <i class="bi bi-journal-x" aria-hidden="true"></i>
-    <strong>Для {{ selected_class.name_snapshot }} нет подходящих учебных планов</strong>
-  </div>
   {% else %}
-  <nav class="plan-binding-plan-tabs" aria-label="Учебные планы класса">
-    {% for item in plans %}
-    <a class="{% if selected_plan and item.id == selected_plan.id %}is-active{% endif %}"
-       href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, class_id=selected_class.id, plan_id=item.id) }}">
-      <span>{{ item.name }}</span>
-      <small>{{ plan_counts.get(item.id, 0) }}</small>
-    </a>
-    {% endfor %}
-  </nav>
+  <div class="plan-binding-summary">
+    <span><strong>{{ class_count }}</strong> классов</span>
+    <span><strong>{{ plans|length }}</strong> комплектов УП</span>
+    <span><strong>{{ unassigned_count }}</strong> учеников без УП</span>
+  </div>
 
-  <form method="post" action="{{ url_for('workload.plan_bindings_save') }}" data-plan-binding-form>
-    <input type="hidden" name="version_id" value="{{ selected_version.id }}">
-    <input type="hidden" name="class_id" value="{{ selected_class.id }}">
-    <input type="hidden" name="plan_id" value="{{ selected_plan.id }}">
+  <div class="table-responsive plan-binding-class-table-wrap">
+    <table class="table table-sm align-middle plan-binding-class-table">
+      <thead>
+        <tr>
+          <th class="plan-binding-class-table__toggle" aria-label="Состав класса"></th>
+          <th>Класс</th>
+          <th>Здание</th>
+          <th class="text-center">Учеников</th>
+          <th class="text-center">Назначено</th>
+          <th>Учебный план</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in class_rows %}
+        {% set school_class = row.snapshot_class %}
+        {% set is_expanded = selected_class and selected_class.id == school_class.id %}
+        <tr class="plan-binding-class-row{% if is_expanded %} is-expanded{% endif %}">
+          <td class="text-center">
+            <a
+              class="plan-binding-expand"
+              href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, class_id=school_class.id) if not is_expanded else url_for('workload.plan_bindings', version_id=selected_version.id) }}"
+              title="{{ 'Свернуть учеников' if is_expanded else 'Показать учеников' }}"
+              aria-label="{{ 'Свернуть учеников' if is_expanded else 'Показать учеников' }} {{ school_class.name_snapshot }}"
+            >
+              <i class="bi bi-chevron-{{ 'up' if is_expanded else 'down' }}" aria-hidden="true"></i>
+            </a>
+          </td>
+          <td>
+            <a
+              class="plan-binding-class-name"
+              href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, class_id=school_class.id) }}"
+            >{{ school_class.name_snapshot }}</a>
+          </td>
+          <td>{{ school_class.building_name_snapshot or '—' }}</td>
+          <td class="text-center">{{ school_class.student_count }}</td>
+          <td class="text-center">
+            <span class="{% if row.unassigned_count %}plan-binding-count--warning{% else %}plan-binding-count--complete{% endif %}">
+              {{ row.assigned_count }} / {{ school_class.student_count }}
+            </span>
+          </td>
+          <td>
+            {% if row.plans %}
+            <form
+              class="plan-binding-assignment"
+              method="post"
+              action="{{ url_for('workload.plan_bindings_assign_class') }}"
+              data-plan-assignment-form
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+              <input type="hidden" name="class_id" value="{{ school_class.id }}">
+              <select
+                class="form-select form-select-sm"
+                name="plan_id"
+                aria-label="Учебный план класса {{ school_class.name_snapshot }}"
+                {% if not can_update %}disabled{% endif %}
+                data-plan-assignment-select
+              >
+                <option value="" {% if not row.uniform_plan_id %}selected{% endif %}>
+                  {{ 'Индивидуальные назначения' if row.has_individual_assignments else 'Не назначен' }}
+                </option>
+                {% for plan in row.plans %}
+                <option value="{{ plan.id }}" {% if row.uniform_plan_id == plan.id %}selected{% endif %}>{{ plan.name }}</option>
+                {% endfor %}
+              </select>
+              <span class="plan-binding-assignment__state" aria-live="polite"></span>
+            </form>
+            {% else %}
+            <span class="plan-binding-no-plan">Нет УП для уровня класса</span>
+            {% endif %}
+          </td>
+        </tr>
 
-    <div class="plan-binding-toolbar">
-      <label class="plan-binding-select-all">
-        <input class="form-check-input" type="checkbox" data-plan-binding-select-all>
-        <span>Весь класс</span>
-      </label>
-      <label class="plan-binding-search">
-        <i class="bi bi-search" aria-hidden="true"></i>
-        <input type="search" placeholder="Найти ученика" aria-label="Найти ученика" data-plan-binding-search>
-      </label>
-      <div class="plan-binding-selected-count">
-        Выбрано: <strong data-plan-binding-selected-count>{{ selected_member_ids|length }}</strong>
-      </div>
-      {% if can_update %}
-      <button class="btn btn-primary btn-sm" type="submit">
-        <i class="bi bi-check2" aria-hidden="true"></i>
-        Сохранить
-      </button>
-      {% endif %}
-    </div>
-
-    <div class="table-responsive plan-binding-table-wrap">
-      <table class="table table-sm align-middle plan-binding-table">
-        <colgroup>
-          <col class="plan-binding-table__check">
-          <col class="plan-binding-table__number">
-          <col>
-          <col class="plan-binding-table__current">
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col" aria-label="Выбор"></th>
-            <th scope="col">№</th>
-            <th scope="col">Ученик</th>
-            <th scope="col">Текущий учебный план</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for enrollment in enrollments %}
-          {% set current_plan_id = student_plan_ids.get(enrollment.id) %}
-          <tr data-plan-binding-row data-search-value="{{ enrollment.fio_snapshot|lower }}">
-            <td>
-              <input class="form-check-input"
-                     type="checkbox"
-                     name="snapshot_enrollment_ids"
-                     value="{{ enrollment.id }}"
-                     {% if enrollment.id in selected_member_ids %}checked{% endif %}
-                     {% if not can_update %}disabled{% endif %}
-                     data-plan-binding-member>
-            </td>
-            <td>{{ loop.index }}</td>
-            <td><strong>{{ enrollment.fio_snapshot }}</strong></td>
-            <td>
-              {% if current_plan_id %}
-              <span class="plan-binding-current{% if selected_plan and current_plan_id == selected_plan.id %} is-selected{% endif %}">
-                {{ plan_by_id[current_plan_id].name }}
-              </span>
-              {% else %}
-              <span class="plan-binding-unassigned">Не назначен</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="4" class="text-center text-muted py-4">В классе нет учеников</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </form>
+        {% if is_expanded %}
+        <tr class="plan-binding-students-row">
+          <td colspan="6">
+            <div class="plan-binding-students">
+              <div class="plan-binding-students__head">
+                <strong>Ученики {{ school_class.name_snapshot }}</strong>
+                <span>План можно изменить индивидуально</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th class="text-center">№</th>
+                    <th>Ученик</th>
+                    <th>Учебный план</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for enrollment in enrollments %}
+                  {% set current_plan_id = selected_class_row.student_plan_ids.get(enrollment.id) %}
+                  <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td>{{ enrollment.fio_snapshot }}</td>
+                    <td>
+                      <form
+                        class="plan-binding-assignment"
+                        method="post"
+                        action="{{ url_for('workload.plan_bindings_assign_student') }}"
+                        data-plan-assignment-form
+                      >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+                        <input type="hidden" name="class_id" value="{{ school_class.id }}">
+                        <input type="hidden" name="enrollment_id" value="{{ enrollment.id }}">
+                        <select
+                          class="form-select form-select-sm"
+                          name="plan_id"
+                          aria-label="Учебный план ученика {{ enrollment.fio_snapshot }}"
+                          {% if not can_update %}disabled{% endif %}
+                          data-plan-assignment-select
+                        >
+                          <option value="" {% if not current_plan_id %}selected{% endif %}>Не назначен</option>
+                          {% for plan in row.plans %}
+                          <option value="{{ plan.id }}" {% if current_plan_id == plan.id %}selected{% endif %}>{{ plan.name }}</option>
+                          {% endfor %}
+                        </select>
+                        <span class="plan-binding-assignment__state" aria-live="polite"></span>
+                      </form>
+                    </td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="3" class="text-center text-muted">В классе нет учеников</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% endif %}
 </section>
 {% endblock %}
 
-{% block workspace_context %}
-<div class="workload-record-context">
-  {% if selected_class %}
-  <div class="workload-record-context__title">
-    <span>Класс</span>
-    <h3>{{ selected_class.name_snapshot }}</h3>
-  </div>
-  <dl class="workload-context-list">
-    <div><dt>Параллель</dt><dd>{{ selected_class.grade_snapshot }}</dd></div>
-    <div><dt>Здание</dt><dd>{{ selected_class.building_name_snapshot or 'Не указано' }}</dd></div>
-    <div><dt>Учеников</dt><dd>{{ selected_class.student_count }}</dd></div>
-    <div><dt>Назначено</dt><dd>{{ selected_class.student_count - unassigned_count }}</dd></div>
-    <div><dt>Без УП</dt><dd>{{ unassigned_count }}</dd></div>
-    <div><dt>Снимок</dt><dd>№ {{ snapshot.revision_no if snapshot else '—' }}</dd></div>
-  </dl>
-  {% else %}
-  <div class="workload-record-context__empty">
-    <i class="bi bi-link-45deg" aria-hidden="true"></i>
-    <span>Выберите класс</span>
-  </div>
-  {% endif %}
-</div>
-{% endblock %}
-
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260730_1"></script>
+<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260730_2"></script>
 {% endblock %}
