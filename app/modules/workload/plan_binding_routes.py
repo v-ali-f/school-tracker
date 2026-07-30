@@ -22,6 +22,7 @@ from app.services.teaching_group_service import (
     GroupValidationError,
     build_population_snapshot,
     current_population_snapshot,
+    population_registry_status,
 )
 
 from .access import can_use_workload_permission, require_workload_write
@@ -133,6 +134,16 @@ def register_plan_binding_routes(workload_bp):
             current_population_snapshot(version.id)
             if version else None
         )
+        registry_status = (
+            population_registry_status(version, snapshot)
+            if version else {
+                "class_count": 0,
+                "student_count": 0,
+                "snapshot_class_count": 0,
+                "snapshot_student_count": 0,
+                "is_stale": False,
+            }
+        )
         classes = _snapshot_classes(snapshot)
         selected_class_id = request.args.get("class_id", type=int)
         selected_class = next(
@@ -199,6 +210,7 @@ def register_plan_binding_routes(workload_bp):
             plan_by_id=plan_by_id,
             unassigned_count=unassigned_count,
             class_count=len(classes),
+            registry_status=registry_status,
             can_update=can_update,
             academic_years=AcademicYear.query.order_by(
                 AcademicYear.start_date.desc()

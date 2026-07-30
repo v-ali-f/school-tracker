@@ -2,7 +2,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260730_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260730_2">
 {% endblock %}
 
 {% block workspace_content %}
@@ -46,6 +46,28 @@
     <button class="btn btn-outline-secondary btn-sm" type="submit">Показать</button>
   </form>
 
+  {% if registry_status.is_stale %}
+  <div class="plan-binding-registry-warning" role="status">
+    <div>
+      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+      <span>
+        Сводный контингент изменён:
+        {{ registry_status.class_count }} классов,
+        {{ registry_status.student_count }} учеников.
+      </span>
+    </div>
+    {% if can_update %}
+    <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
+      <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+      <button class="btn btn-primary btn-sm" type="submit">
+        <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+        Обновить данные
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if not selected_version %}
   <div class="plan-binding-empty">
     <i class="bi bi-calendar-x" aria-hidden="true"></i>
@@ -67,8 +89,19 @@
   </div>
   {% elif not selected_class %}
   <div class="plan-binding-empty">
+    {% if registry_status.class_count %}
+    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+    <strong>Контингент изменён. Обновите данные для привязки учебных планов</strong>
+    {% if can_update %}
+    <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
+      <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+      <button class="btn btn-primary btn-sm" type="submit">Обновить данные</button>
+    </form>
+    {% endif %}
+    {% else %}
     <i class="bi bi-building-x" aria-hidden="true"></i>
     <strong>В сводном контингенте нет доступных классов</strong>
+    {% endif %}
   </div>
   {% elif not plans %}
   <div class="plan-binding-empty">
