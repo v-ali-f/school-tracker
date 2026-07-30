@@ -36,6 +36,7 @@ from app.services.teaching_group_service import (
     build_population_snapshot,
     change_group_status,
     group_coverage,
+    population_registry_status,
     validate_group_sources,
 )
 
@@ -290,6 +291,44 @@ def test_plan_bindings_page_reads_snapshot_classes(
     assert "Привязка учебных планов".encode() in response.data
     assert "5А".encode() in response.data
     assert "Иванов Иван".encode() in response.data
+
+
+def test_plan_bindings_page_warns_when_population_registry_changed(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        db.session.add(SchoolClass(
+            academic_year_id=context["year_id"],
+            building_id=context["building_id"],
+            name="5В",
+            grade=5,
+            letter="В",
+        ))
+        db.session.commit()
+
+        version = db.session.get(TariffVersion, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        registry_status = population_registry_status(version, snapshot)
+        assert registry_status["is_stale"] is True
+        assert registry_status["class_count"] == 3
+        assert registry_status["snapshot_class_count"] == 2
+
+    login(user_id)
+    response = client.get(
+        f"/workload/plan-bindings/?version_id={context['version_id']}"
+    )
+
+    assert response.status_code == 200
+    assert "Сводный контингент изменён".encode() in response.data
+    assert "Обновить данные".encode() in response.data
 
 
 def test_metagroup_requires_two_source_classes():

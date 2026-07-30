@@ -62,6 +62,67 @@ def current_population_snapshot(tariff_version_id):
     )
 
 
+def population_registry_status(tariff_version, snapshot=None):
+    academic_year_id = tariff_version.tariff_cycle.academic_year_id
+    class_count = (
+        db.session.query(db.func.count(SchoolClass.id))
+        .filter(
+            SchoolClass.academic_year_id == academic_year_id,
+            SchoolClass.is_archived.is_(False),
+        )
+        .scalar()
+        or 0
+    )
+    student_count = (
+        db.session.query(db.func.count(ChildEnrollment.id))
+        .join(
+            SchoolClass,
+            SchoolClass.id == ChildEnrollment.school_class_id,
+        )
+        .filter(
+            ChildEnrollment.academic_year_id == academic_year_id,
+            ChildEnrollment.status == "ACTIVE",
+            ChildEnrollment.ended_at.is_(None),
+            SchoolClass.academic_year_id == academic_year_id,
+            SchoolClass.is_archived.is_(False),
+        )
+        .scalar()
+        or 0
+    )
+
+    snapshot_class_count = 0
+    snapshot_student_count = 0
+    if snapshot is not None:
+        snapshot_class_count, snapshot_student_count = (
+            db.session.query(
+                db.func.count(PopulationSnapshotClass.id),
+                db.func.coalesce(
+                    db.func.sum(PopulationSnapshotClass.student_count),
+                    0,
+                ),
+            )
+            .filter(
+                PopulationSnapshotClass.population_snapshot_id
+                == snapshot.id
+            )
+            .one()
+        )
+
+    return {
+        "class_count": int(class_count),
+        "student_count": int(student_count),
+        "snapshot_class_count": int(snapshot_class_count),
+        "snapshot_student_count": int(snapshot_student_count),
+        "is_stale": (
+            snapshot is not None
+            and (
+                class_count != snapshot_class_count
+                or student_count != snapshot_student_count
+            )
+        ),
+    }
+
+
 def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
     if tariff_version.status != "DRAFT":
         raise GroupLockedError(
@@ -528,6 +589,7 @@ __all__ = [
     "build_population_snapshot",
     "change_group_status",
     "current_population_snapshot",
+    "population_registry_status",
     "group_coverage",
     "normalize_group_code",
     "plan_line_for_group",
