@@ -4,8 +4,11 @@ from decimal import Decimal, InvalidOperation
 from app.core.extensions import db
 from app.models import (
     EducationPlan,
+    EducationPlanLine,
     EducationPlanLinePeriod,
+    EducationPlanLineScope,
     PLAN_COMPONENT_KINDS,
+    SchoolClass,
     TariffCycle,
     TariffVersion,
     TariffVersionStatusHistory,
@@ -221,6 +224,107 @@ def plan_bundle_parts(plan):
     return parts
 
 
+def clone_plan_bundle(source_plan, target_plan, *, user_id):
+    source_root = plan_bundle_root(source_plan)
+    target_root = plan_bundle_root(target_plan)
+    if source_root.plan_kind != "CURRICULUM":
+        raise PlanValidationError(
+            "Копировать можно только комплект учебного плана."
+        )
+    if target_root.plan_kind != "CURRICULUM":
+        raise PlanValidationError(
+            "Целевой комплект учебного плана создан некорректно."
+        )
+    if source_root.education_level != target_root.education_level:
+        raise PlanValidationError(
+            "Исходный и новый планы должны относиться к одному уровню."
+        )
+
+    source_parts = plan_bundle_parts(source_root)
+    target_parts = plan_bundle_parts(target_root)
+    source_year = source_root.tariff_version.tariff_cycle.academic_year
+    target_year = target_root.tariff_version.tariff_cycle.academic_year
+
+    for plan_kind in PLAN_BUNDLE_KINDS:
+        source_part = source_parts.get(plan_kind)
+        target_part = target_parts.get(plan_kind)
+        if source_part is None or target_part is None:
+            continue
+        for old_line in source_part.lines:
+            new_line = EducationPlanLine(
+                education_plan_id=target_part.id,
+                education_activity_id=old_line.education_activity_id,
+                component_kind=old_line.component_kind,
+                weekly_hours=old_line.weekly_hours,
+                weeks_count=old_line.weeks_count,
+                annual_hours=old_line.annual_hours,
+                requires_division=old_line.requires_division,
+                profile_code=old_line.profile_code,
+                source_line_id=old_line.id,
+                sort_order=old_line.sort_order,
+                created_by_user_id=user_id,
+                updated_by_user_id=user_id,
+            )
+            db.session.add(new_line)
+            db.session.flush()
+
+            for old_scope in old_line.scopes:
+                school_class_id = None
+                building_id = old_scope.building_id
+                if old_scope.scope_kind == "CLASS":
+                    source_class = old_scope.school_class
+                    target_class = (
+                        SchoolClass.query
+                        .filter_by(
+                            academic_year_id=target_year.id,
+                            name=source_class.name,
+                            grade=source_class.grade,
+                            building_id=source_class.building_id,
+                            is_archived=False,
+                        )
+                        .first()
+                    )
+                    if target_class is None:
+                        raise PlanValidationError(
+                            "Не найден класс "
+                            f"«{source_class.name}» в учебном году "
+                            f"{target_year.name}."
+                        )
+                    school_class_id = target_class.id
+                    building_id = target_class.building_id
+                new_line.scopes.append(EducationPlanLineScope(
+                    scope_kind=old_scope.scope_kind,
+                    school_class_id=school_class_id,
+                    grade=old_scope.grade,
+                    profile_code=old_scope.profile_code,
+                    building_id=building_id,
+                    scope_key=line_scope_key(
+                        old_scope.scope_kind,
+                        school_class_id=school_class_id,
+                        grade=old_scope.grade,
+                        profile_code=old_scope.profile_code,
+                        building_id=building_id,
+                    ),
+                ))
+
+            for old_period in old_line.periods:
+                from_offset = (
+                    old_period.date_from - source_year.start_date
+                )
+                to_offset = old_period.date_to - source_year.start_date
+                new_line.periods.append(EducationPlanLinePeriod(
+                    date_from=target_year.start_date + from_offset,
+                    date_to=min(
+                        target_year.start_date + to_offset,
+                        target_year.end_date,
+                    ),
+                    weeks_count=old_period.weeks_count,
+                    weekly_hours=old_period.weekly_hours,
+                    annual_hours=old_period.annual_hours,
+                ))
+    return target_root
+
+
 def require_plan_editable(plan, *, expected_revision=None):
     if plan.tariff_version.status != "DRAFT":
         raise PlanLockedError(
@@ -386,6 +490,7 @@ __all__ = [
     "parse_decimal",
     "ensure_draft_tariff_version",
     "create_plan_bundle",
+    "clone_plan_bundle",
     "plan_bundle_root",
     "plan_bundle_parts",
     "require_plan_editable",

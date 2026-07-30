@@ -337,7 +337,6 @@ def register_plan_binding_routes(workload_bp):
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
-            class_id=snapshot_class.id,
         ))
 
     @workload_bp.post("/plan-bindings/student")

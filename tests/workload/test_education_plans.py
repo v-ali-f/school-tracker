@@ -19,6 +19,7 @@ from app.services.education_plan_service import (
     calculate_annual_hours,
     ensure_draft_tariff_version,
     line_scope_key,
+    plan_bundle_parts,
     plan_scope_code,
     validate_line_values,
     validate_period_range,
@@ -261,6 +262,114 @@ def test_administrator_can_create_plan(
             if item.root_plan_id == root_plan.id
         } == {"EXTRACURRICULAR", "ADDITIONAL_EDUCATION"}
         assert root_plan.tariff_version.status == "DRAFT"
+
+
+def test_administrator_can_create_plan_from_existing_bundle(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        source_year = _academic_year()
+        target_year = AcademicYear(
+            name="2027/2028",
+            is_current=False,
+            start_date=date(2027, 9, 1),
+            end_date=date(2028, 8, 31),
+        )
+        db.session.add(target_year)
+        db.session.commit()
+        source_year_id = source_year.id
+        target_year_id = target_year.id
+    login(user_id)
+
+    source_response = client.post(
+        "/workload/plans/new",
+        data={
+            "academic_year_id": source_year_id,
+            "name": "Исходный комплект",
+            "education_level": "OOO",
+        },
+    )
+    assert source_response.status_code == 302
+
+    with app.app_context():
+        source = EducationPlan.query.filter_by(
+            name="Исходный комплект",
+            plan_kind="CURRICULUM",
+        ).one()
+        parts = plan_bundle_parts(source)
+        activities = {
+            "CURRICULUM": _activity("ALGEBRA", "Алгебра", "SUBJECT"),
+            "EXTRACURRICULAR": _activity(
+                "FUNCTIONAL_LITERACY",
+                "Функциональная грамотность",
+                "EXTRACURRICULAR_COURSE",
+            ),
+            "ADDITIONAL_EDUCATION": _activity(
+                "ROBOTICS",
+                "Робототехника",
+                "ADDITIONAL_PROGRAM",
+            ),
+        }
+        components = {
+            "CURRICULUM": "MANDATORY",
+            "EXTRACURRICULAR": "EXTRACURRICULAR",
+            "ADDITIONAL_EDUCATION": "ADDITIONAL",
+        }
+        source_line_ids = {}
+        for plan_kind, part in parts.items():
+            line = EducationPlanLine(
+                education_plan_id=part.id,
+                education_activity_id=activities[plan_kind].id,
+                component_kind=components[plan_kind],
+                weekly_hours=Decimal("1"),
+                weeks_count=Decimal("34"),
+                annual_hours=Decimal("34"),
+                sort_order=100,
+                created_by_user_id=user_id,
+                updated_by_user_id=user_id,
+            )
+            line.scopes.append(EducationPlanLineScope(
+                scope_kind="GRADE",
+                grade=5,
+                scope_key=line_scope_key("GRADE", grade=5),
+            ))
+            db.session.add(line)
+            db.session.flush()
+            source_line_ids[plan_kind] = line.id
+        db.session.commit()
+        source_id = source.id
+
+    copy_response = client.post(
+        "/workload/plans/new",
+        data={
+            "academic_year_id": target_year_id,
+            "source_plan_id": source_id,
+            "name": "Копия комплекта",
+        },
+    )
+    assert copy_response.status_code == 302
+
+    with app.app_context():
+        copied = EducationPlan.query.filter_by(
+            name="Копия комплекта",
+            plan_kind="CURRICULUM",
+        ).one()
+        copied_parts = plan_bundle_parts(copied)
+        assert set(copied_parts) == {
+            "CURRICULUM",
+            "EXTRACURRICULAR",
+            "ADDITIONAL_EDUCATION",
+        }
+        for plan_kind, part in copied_parts.items():
+            assert len(part.lines) == 1
+            assert part.lines[0].source_line_id == source_line_ids[plan_kind]
+            assert part.lines[0].scopes[0].grade == 5
 
 
 def test_curriculum_plan_requires_education_level(

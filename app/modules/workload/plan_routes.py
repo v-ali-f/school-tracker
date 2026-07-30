@@ -43,6 +43,7 @@ from app.services.education_plan_service import (
     PlanValidationError,
     calculate_annual_hours,
     change_plan_status,
+    clone_plan_bundle,
     create_plan_bundle,
     ensure_draft_tariff_version,
     line_scope_key,
@@ -194,6 +195,27 @@ def _available_classes(plan):
     return query.order_by(
         SchoolClass.grade.asc(),
         SchoolClass.name.asc(),
+    ).all()
+
+
+def _plan_source_options():
+    query = EducationPlan.query.join(TariffVersion).join(TariffCycle).filter(
+        EducationPlan.plan_kind == "CURRICULUM",
+        EducationPlan.root_plan_id.is_(None),
+    )
+    organization_id = _current_organization_id()
+    if organization_id is None:
+        query = query.filter(TariffCycle.organization_id.is_(None))
+    else:
+        query = query.filter(
+            TariffCycle.organization_id == organization_id
+        )
+    scope = resolve_workload_scope(current_user)
+    if not scope.unrestricted:
+        query = plans_visible_in_buildings(query, scope.building_ids)
+    return query.order_by(
+        TariffCycle.academic_year_id.desc(),
+        EducationPlan.name.asc(),
     ).all()
 
 
@@ -746,6 +768,11 @@ def register_plan_routes(workload_bp):
     @login_required
     def plan_create():
         _require_plan_update()
+        source_plan_id = request.values.get("source_plan_id", type=int)
+        source_plan = (
+            plan_bundle_root(_get_plan(source_plan_id))
+            if source_plan_id else None
+        )
         if request.method == "POST":
             academic_year_id = request.form.get(
                 "academic_year_id",
@@ -761,6 +788,9 @@ def register_plan_routes(workload_bp):
                 or None
             )
             building_id = request.form.get("building_id", type=int)
+            if source_plan is not None:
+                education_level = source_plan.education_level
+                building_id = source_plan.building_id
             building = (
                 db.session.get(Building, building_id)
                 if building_id else None
@@ -805,6 +835,13 @@ def register_plan_routes(workload_bp):
                 db.session.add(plan)
                 db.session.flush()
                 create_plan_bundle(plan, user_id=current_user.id)
+                if source_plan is not None:
+                    db.session.flush()
+                    clone_plan_bundle(
+                        source_plan,
+                        plan,
+                        user_id=current_user.id,
+                    )
                 db.session.commit()
             except PlanValidationError as exc:
                 db.session.rollback()
@@ -827,6 +864,8 @@ def register_plan_routes(workload_bp):
                 AcademicYear.name.desc()
             ).all(),
             buildings=Building.query.order_by(Building.name.asc()).all(),
+            source_plans=_plan_source_options(),
+            selected_source_plan=source_plan,
         )
 
     @workload_bp.get("/plans/<int:plan_id>")

@@ -1,14 +1,14 @@
 {% extends "workload/workspace_base.html" %}
-{% block title %}Каталог дисциплин{% endblock %}
+{% block title %}Предметы и курсы{% endblock %}
 {% block workspace_content %}
 <div class="page-head mb-3">
   <div>
-    <div class="page-title">Каталог дисциплин</div>
-    <div class="page-sub">Единые предметы, курсы и образовательные активности</div>
+    <div class="page-title">Предметы и курсы</div>
+    <div class="page-sub">Единый каталог для учебных планов, внеурочной деятельности и дополнительного образования</div>
   </div>
   {% if can_manage %}
   <div class="page-actions">
-    <a class="btn btn-primary btn-sm" href="{{ url_for('workload.catalog_create') }}">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('workload.catalog_create', section=selected_section, activity_kind=section_config.default_kind) }}">
       <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Добавить
     </a>
   </div>
@@ -17,7 +17,17 @@
 
 {% include "workload/_nav.html" %}
 
+<nav class="workload-segmented-nav mb-3" aria-label="Раздел каталога">
+  {% for code, item in catalog_sections.items() %}
+  <a
+    class="{% if selected_section == code %}is-active{% endif %}"
+    href="{{ url_for('workload.catalog', section=code) }}"
+  >{{ item.label }}</a>
+  {% endfor %}
+</nav>
+
 <form class="row g-2 align-items-end mb-3" method="get">
+  <input type="hidden" name="section" value="{{ selected_section }}">
   <div class="col-lg-5">
     <label class="form-label small" for="catalog-q">Поиск</label>
     <input class="form-control form-control-sm" id="catalog-q" name="q" value="{{ search }}" placeholder="Код или наименование">
@@ -81,7 +91,11 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="text-center text-muted py-4">По заданным условиям ничего не найдено.</td></tr>
+      <tr>
+        <td colspan="7" class="text-center text-muted py-4">
+          {{ section_config.empty if not search and not selected_kind else 'По заданным условиям ничего не найдено.' }}
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

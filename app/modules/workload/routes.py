@@ -41,6 +41,33 @@ from .integration_routes import register_integration_routes
 
 workload_bp = Blueprint("workload", __name__, url_prefix="/workload")
 
+CATALOG_SECTIONS = {
+    "SUBJECTS": {
+        "label": "Учебные предметы и курсы",
+        "kinds": ("SUBJECT", "COURSE", "MODULE"),
+        "default_kind": "SUBJECT",
+        "empty": "Учебные предметы и курсы ещё не добавлены.",
+    },
+    "EXTRACURRICULAR": {
+        "label": "Внеурочная деятельность",
+        "kinds": ("EXTRACURRICULAR_COURSE",),
+        "default_kind": "EXTRACURRICULAR_COURSE",
+        "empty": "Курсы внеурочной деятельности ещё не добавлены.",
+    },
+    "ADDITIONAL": {
+        "label": "Дополнительное образование",
+        "kinds": ("ADDITIONAL_PROGRAM", "CLUB_OR_SECTION"),
+        "default_kind": "ADDITIONAL_PROGRAM",
+        "empty": "Программы дополнительного образования ещё не добавлены.",
+    },
+    "ALL": {
+        "label": "Весь каталог",
+        "kinds": ACTIVITY_KINDS,
+        "default_kind": "SUBJECT",
+        "empty": "В каталоге пока нет записей.",
+    },
+}
+
 
 @workload_bp.app_template_filter("compact_decimal")
 def compact_decimal(value):
@@ -140,6 +167,10 @@ def _activity_from_form(activity=None):
 def catalog():
     query = EducationActivity.query
     search = (request.args.get("q") or "").strip()
+    section = (request.args.get("section") or "SUBJECTS").strip().upper()
+    if section not in CATALOG_SECTIONS:
+        section = "SUBJECTS"
+    section_config = CATALOG_SECTIONS[section]
     activity_kind = (request.args.get("activity_kind") or "").strip().upper()
     show_archived = request.args.get("archived") == "1"
 
@@ -153,7 +184,10 @@ def catalog():
         ))
     if not show_archived:
         query = query.filter(EducationActivity.is_active.is_(True))
-    if activity_kind in ACTIVITY_KINDS:
+    query = query.filter(
+        EducationActivity.activity_kind.in_(section_config["kinds"])
+    )
+    if activity_kind in section_config["kinds"]:
         query = query.filter(EducationActivity.activity_kind == activity_kind)
     if search:
         pattern = f"%{search.lower()}%"
@@ -163,10 +197,13 @@ def catalog():
             func.lower(func.coalesce(EducationActivity.short_name, "")).like(pattern),
         ))
 
-    activities = query.order_by(
-        EducationActivity.activity_kind.asc(),
-        EducationActivity.name.asc(),
-    ).limit(500).all()
+    activities = query.order_by(EducationActivity.id.asc()).limit(500).all()
+    activities.sort(
+        key=lambda item: (
+            " ".join(item.name.casefold().split()),
+            item.id,
+        )
+    )
     can_manage = (
         is_feature_enabled(WORKLOAD_WRITE)
         and can_use_workload_permission("workload.settings.manage", current_user)
@@ -174,8 +211,11 @@ def catalog():
     return render_template(
         "workload/catalog.html",
         activities=activities,
-        activity_kinds=ACTIVITY_KINDS,
+        activity_kinds=section_config["kinds"],
         kind_labels=ACTIVITY_KIND_LABELS,
+        catalog_sections=CATALOG_SECTIONS,
+        selected_section=section,
+        section_config=section_config,
         selected_kind=activity_kind,
         search=search,
         show_archived=show_archived,
@@ -187,6 +227,15 @@ def catalog():
 @login_required
 def catalog_create():
     _require_catalog_manage()
+    section = (request.values.get("section") or "SUBJECTS").strip().upper()
+    if section not in CATALOG_SECTIONS:
+        section = "SUBJECTS"
+    default_kind = (
+        (request.values.get("activity_kind") or "").strip().upper()
+        or CATALOG_SECTIONS[section]["default_kind"]
+    )
+    if default_kind not in ACTIVITY_KINDS:
+        default_kind = CATALOG_SECTIONS[section]["default_kind"]
     if request.method == "POST":
         try:
             activity = _activity_from_form()
@@ -207,6 +256,8 @@ def catalog_create():
         activity=None,
         activity_kinds=ACTIVITY_KINDS,
         kind_labels=ACTIVITY_KIND_LABELS,
+        selected_kind=default_kind,
+        selected_section=section,
     )
 
 
@@ -251,6 +302,8 @@ def catalog_edit(activity_id):
         activity=activity,
         activity_kinds=ACTIVITY_KINDS,
         kind_labels=ACTIVITY_KIND_LABELS,
+        selected_kind=activity.activity_kind,
+        selected_section="ALL",
     )
 
 

@@ -265,6 +265,49 @@ def test_administrator_can_create_catalog_item_when_write_is_enabled(
         assert item.education_level == "OOO"
 
 
+def test_catalog_sections_are_separate_and_sorted_alphabetically(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        _global_activity("RUSSIAN", "Русский язык")
+        _global_activity("ALGEBRA", "Алгебра")
+        extracurricular = _global_activity(
+            "FUNCTIONAL_LITERACY",
+            "Функциональная грамотность",
+        )
+        extracurricular.activity_kind = "EXTRACURRICULAR_COURSE"
+        additional = _global_activity("ROBOTICS", "Робототехника")
+        additional.activity_kind = "ADDITIONAL_PROGRAM"
+        db.session.commit()
+    login(user_id)
+
+    subjects = client.get("/workload/catalog/?section=SUBJECTS")
+    assert subjects.status_code == 200
+    assert subjects.data.index("Алгебра".encode()) < subjects.data.index(
+        "Русский язык".encode()
+    )
+    assert "Функциональная грамотность".encode() not in subjects.data
+    assert "Робототехника".encode() not in subjects.data
+
+    extracurricular_page = client.get(
+        "/workload/catalog/?section=EXTRACURRICULAR"
+    )
+    assert "Функциональная грамотность".encode() in extracurricular_page.data
+    assert "Алгебра".encode() not in extracurricular_page.data
+
+    additional_page = client.get("/workload/catalog/?section=ADDITIONAL")
+    assert "Робототехника".encode() in additional_page.data
+    assert "Алгебра".encode() not in additional_page.data
+
+    create_page = client.get(
+        "/workload/catalog/new?section=EXTRACURRICULAR"
+    )
+    assert b'value="EXTRACURRICULAR_COURSE" selected' in create_page.data
+
+
 def test_teacher_cannot_manage_catalog_even_when_write_flag_is_enabled(
     app, client, make_user, login
 ):
