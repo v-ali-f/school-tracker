@@ -13,7 +13,13 @@ from openpyxl import load_workbook
 from sqlalchemy import func
 
 from app.core.extensions import db
-from app.services.education_activity_service import get_or_create_subject_with_activity
+from app.services.education_activity_service import (
+    assign_subject_activity,
+    get_or_create_subject_with_activity,
+    get_subject_activity,
+    list_subject_activities,
+    replace_activity_departments,
+)
 from app.services.workload_integration_service import (
     department_teacher_ids,
     internal_department_load_rows,
@@ -198,7 +204,14 @@ def _ensure_default_departments():
                 changed = True
             exists = DepartmentSubject.query.filter_by(department_id=dep.id, subject_id=subject.id).first()
             if not exists:
-                db.session.add(DepartmentSubject(department_id=dep.id, subject_id=subject.id))
+                db.session.add(DepartmentSubject(
+                    department_id=dep.id,
+                    subject_id=subject.id,
+                    education_activity_id=subject.education_activity_id,
+                ))
+                changed = True
+            elif not exists.education_activity_id:
+                exists.education_activity_id = subject.education_activity_id
                 changed = True
     if changed:
         db.session.commit()
@@ -250,7 +263,14 @@ def _department_for_load(subject_name: Optional[str], grade: Optional[int]):
     for dep in Department.query.order_by(Department.id.asc()).all():
         if dep.code == "primary":
             continue
-        names = {_normalize_subject_name(link.subject.name if link.subject else "") for link in dep.subject_links}
+        names = {
+            _normalize_subject_name(
+                link.education_activity.name
+                if link.education_activity
+                else (link.subject.name if link.subject else "")
+            )
+            for link in dep.subject_links
+        }
         if normalized in names:
             if dep.code == "philology" and grade and grade < 5:
                 continue
@@ -640,6 +660,7 @@ def _parse_excel_loads(file_storage):
         load = TeacherLoad(
             teacher_id=item["teacher"].id,
             subject_id=subject.id,
+            education_activity_id=subject.education_activity_id,
             academic_year_id=current_year.id if current_year else None,
             subject_name=subject.name,
             class_name=item["class_text"],
@@ -766,7 +787,7 @@ def settings():
 
     departments = Department.query.order_by(Department.name.asc()).all()
     users = User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     buildings = Building.query.order_by(Building.name.asc()).all()
     return render_template("departments/settings.html", departments=departments, users=users, subjects=subjects, buildings=buildings)
 
@@ -779,13 +800,22 @@ def settings_update(department_id):
     dep = Department.query.get_or_404(department_id)
     dep.name = (request.form.get("name") or dep.name).strip()
     dep.description = (request.form.get("description") or "").strip() or None
-    selected_subject_ids = {int(x) for x in request.form.getlist("subject_ids") if str(x).isdigit()}
-    existing = {x.subject_id for x in dep.subject_links}
-    for link in list(dep.subject_links):
-        if link.subject_id not in selected_subject_ids:
-            db.session.delete(link)
-    for subject_id in selected_subject_ids - existing:
-        db.session.add(DepartmentSubject(department_id=dep.id, subject_id=subject_id))
+    selected_activity_ids = {
+        int(x)
+        for x in request.form.getlist("subject_ids")
+        if str(x).isdigit()
+    }
+    for activity in list_subject_activities(include_inactive=True):
+        current_ids = {
+            link.department_id
+            for link in activity.department_links
+            if link.is_active and link.valid_from is None
+        }
+        if activity.id in selected_activity_ids:
+            current_ids.add(dep.id)
+        else:
+            current_ids.discard(dep.id)
+        replace_activity_departments(activity, current_ids)
     db.session.commit()
     _rebind_all_loads_to_departments()
     flash("Настройки кафедры сохранены.", "success")
@@ -899,7 +929,7 @@ def loads():
         if department_id:
             query = query.filter_by(department_id=department_id)
         if subject_id:
-            query = query.filter_by(subject_id=subject_id)
+            query = query.filter_by(education_activity_id=subject_id)
         if teacher_id:
             query = query.filter_by(teacher_id=teacher_id)
         if q:
@@ -925,7 +955,7 @@ def loads():
         "departments/loads.html",
         rows=rows,
         departments=Department.query.order_by(Department.name.asc()).all(),
-        subjects=Subject.query.order_by(Subject.name.asc()).all(),
+        subjects=list_subject_activities(),
         teachers=([current_user] if current_user.role in {TEACHER, CLASS_TEACHER} else User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()),
         teacher_view_only=teacher_view_only,
         teacher_hours=sorted(teacher_hours.items()),
@@ -954,9 +984,11 @@ def load_new():
     hours = request.form.get("hours", type=float) or 0
     building_id = request.form.get("building_id", type=int)
     teacher = User.query.get_or_404(teacher_id)
-    subject = Subject.query.get_or_404(subject_id)
+    activity = get_subject_activity(subject_id)
+    if activity is None:
+        abort(404)
     grade = _extract_grade_from_class_text(class_name)
-    dep = _department_for_load(subject.name, grade)
+    dep = _department_for_load(activity.name, grade)
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     if current_year and not _legacy_load_writes_allowed(current_year.id):
         flash(
@@ -971,11 +1003,9 @@ def load_new():
             retention_until = current_year.end_date.replace(year=current_year.end_date.year + 7)
         except Exception:
             retention_until = None
-    db.session.add(TeacherLoad(
+    load = TeacherLoad(
         teacher_id=teacher.id,
-        subject_id=subject.id,
         academic_year_id=current_year.id if current_year else None,
-        subject_name=subject.name,
         class_name=class_name,
         group_name=group_name,
         hours=hours,
@@ -986,7 +1016,9 @@ def load_new():
         is_meta_group=bool(class_name and any(sep in class_name for sep in [",", ";", "/", "+"])),
         department_id=dep.id if dep else None,
         retention_until=retention_until,
-    ))
+    )
+    assign_subject_activity(load, activity)
+    db.session.add(load)
     db.session.commit()
     flash("Нагрузка добавлена.", "success")
     return redirect(url_for("departments.loads"))
@@ -1039,9 +1071,16 @@ def load_delete(load_id):
 def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
     teacher_ids = teacher_ids or []
     subject_names = {
-        _normalize_subject_name(link.subject.name if link.subject else "")
+        _normalize_subject_name(
+            link.education_activity.name
+            if link.education_activity
+            else (link.subject.name if link.subject else "")
+        )
         for link in getattr(dep, "subject_links", [])
-        if getattr(link, "subject", None) and getattr(link.subject, "name", None)
+        if (
+            getattr(link, "education_activity", None)
+            or getattr(link, "subject", None)
+        )
     }
 
     results = (
@@ -1290,16 +1329,21 @@ def add_mcko():
             retention_until = current_year.end_date.replace(year=current_year.end_date.year + 7)
         except Exception:
             retention_until = None
-    db.session.add(TeacherMckoResult(
+    result = TeacherMckoResult(
         teacher_id=teacher_id,
-        subject_id=subject_id,
         academic_year_id=current_year.id if current_year else None,
         passed_at=passed_at,
         expires_at=(passed_at + timedelta(days=365*3)) if passed_at else None,
         level=level,
         result_text=result_text,
         retention_until=retention_until,
-    ))
+    )
+    if subject_id:
+        activity = get_subject_activity(subject_id)
+        if activity is None:
+            abort(404)
+        assign_subject_activity(result, activity)
+    db.session.add(result)
     db.session.commit()
     flash("Результат МЦКО сохранён.", "success")
     return redirect(url_for("departments.summary", department_id=request.form.get("department_id"), teacher_id=teacher_id))

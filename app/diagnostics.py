@@ -18,12 +18,16 @@ from app.models import (
     DiagnosticTaskResult,
     DiagnosticTeacherBinding,
     SchoolClass,
-    Subject,
     TeacherLoad,
     User,
 )
 from app.models_legacy import DepartmentLeader
 from app.permissions import has_role
+from app.services.education_activity_service import (
+    assign_subject_activity,
+    get_subject_activity,
+    list_subject_activities,
+)
 from app.modules.diagnostics.services.import_service import apply_preview, build_preview, build_report, load_preview, save_preview
 from app.modules.diagnostics.repositories import get_department_choices, get_kes_rows_for_session, get_subject_choices, get_task_rows_for_results, get_teacher_choices
 from app.modules.diagnostics.services.analytics_service import LEVEL_COLORS, LEVEL_ORDER, aggregate_results as modular_aggregate_results, build_tasks_table
@@ -286,24 +290,7 @@ def _normalized_level_label(result: DiagnosticResult, session: DiagnosticSession
 
 
 def _subject_choices() -> list[str]:
-    names = []
-    try:
-        names.extend([s.name for s in Subject.query.order_by(Subject.name.asc()).all() if getattr(s, "name", None)])
-    except Exception:
-        pass
-    try:
-        names.extend([x[0] for x in db.session.query(DiagnosticSession.subject).filter(DiagnosticSession.subject.isnot(None)).distinct().all() if x and x[0]])
-    except Exception:
-        pass
-    unique = []
-    seen = set()
-    for name in names:
-        value = str(name).strip()
-        key = value.lower()
-        if value and key not in seen:
-            unique.append(value)
-            seen.add(key)
-    return unique
+    return [item.name for item in list_subject_activities()]
 
 
 # ------------------------------------------------------------
@@ -669,15 +656,22 @@ def index():
 def create():
     _ensure_can_manage()
     years = AcademicYear.query.order_by(AcademicYear.name.desc()).all()
-    subjects = _subject_choices()
+    subjects = list_subject_activities()
     if request.method == "POST":
-        subject_value = (request.form.get("subject") or request.form.get("subject_custom") or "").strip() or None
-        if subject_value == "__custom__":
-            subject_value = (request.form.get("subject_custom") or "").strip() or None
+        activity = get_subject_activity(
+            request.form.get("education_activity_id", type=int)
+        )
+        if activity is None:
+            flash("Выберите предмет из единого каталога.", "danger")
+            return render_template(
+                "diagnostics/diagnostics_form.html",
+                years=years,
+                subjects=subjects,
+                session_obj=None,
+            )
         session = DiagnosticSession(
             title=(request.form.get("title") or "").strip() or "Новая диагностика",
             diagnostic_type=(request.form.get("diagnostic_type") or "MCKO").strip(),
-            subject=subject_value,
             parallel=request.form.get("parallel", type=int),
             date_main=_parse_date(request.form.get("date_main")),
             date_reserve=_parse_date(request.form.get("date_reserve")),
@@ -685,6 +679,7 @@ def create():
             status="draft",
             created_by=current_user.id,
         )
+        assign_subject_activity(session, activity)
         db.session.add(session)
         db.session.commit()
         flash("Карточка диагностики создана.", "success")
@@ -698,14 +693,22 @@ def edit(session_id: int):
     _ensure_can_manage()
     session = DiagnosticSession.query.get_or_404(session_id)
     years = AcademicYear.query.order_by(AcademicYear.name.desc()).all()
-    subjects = _subject_choices()
+    subjects = list_subject_activities()
     if request.method == "POST":
-        subject_value = (request.form.get("subject") or request.form.get("subject_custom") or "").strip() or None
-        if subject_value == "__custom__":
-            subject_value = (request.form.get("subject_custom") or "").strip() or None
+        activity = get_subject_activity(
+            request.form.get("education_activity_id", type=int)
+        )
+        if activity is None:
+            flash("Выберите предмет из единого каталога.", "danger")
+            return render_template(
+                "diagnostics/diagnostics_form.html",
+                years=years,
+                subjects=subjects,
+                session_obj=session,
+            )
         session.title = (request.form.get("title") or "").strip() or session.title
         session.diagnostic_type = (request.form.get("diagnostic_type") or session.diagnostic_type or "MCKO").strip()
-        session.subject = subject_value
+        assign_subject_activity(session, activity)
         session.parallel = request.form.get("parallel", type=int)
         session.date_main = _parse_date(request.form.get("date_main"))
         session.date_reserve = _parse_date(request.form.get("date_reserve"))

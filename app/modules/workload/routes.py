@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.services.education_activity_service import (
     normalize_activity_name,
+    replace_activity_departments,
     sync_subject_from_activity,
 )
 
@@ -202,25 +203,11 @@ def _activity_from_form(activity=None):
         for level in education_levels
     ]
 
-    default_links = {
-        link.department_id: link
-        for link in item.department_links
-        if link.valid_from is None
-    }
-    selected_ids = {department.id for department in departments}
-    primary_id = departments[0].id if departments else None
-    for department_id, link in default_links.items():
-        link.is_active = department_id in selected_ids
-        link.is_primary = department_id == primary_id
-    for department in departments:
-        if department.id not in default_links:
-            db.session.add(EducationActivityDepartment(
-                education_activity_id=item.id,
-                department_id=department.id,
-                is_primary=department.id == primary_id,
-            ))
-
     sync_subject_from_activity(item)
+    replace_activity_departments(
+        item,
+        [department.id for department in departments],
+    )
     return item
 
 

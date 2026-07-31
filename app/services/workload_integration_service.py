@@ -8,6 +8,7 @@ from flask import current_app
 from app.core.extensions import db
 from app.models import (
     AcademicYear,
+    EducationActivity,
     OrganizationSettings,
     Subject,
     TariffCalculationRun,
@@ -253,12 +254,14 @@ def internal_department_load_rows(
     if building_id:
         query = query.filter(TariffLine.building_id == building_id)
     if subject_id:
-        subject = db.session.get(Subject, subject_id)
-        if not subject or not subject.education_activity_id:
+        activity = db.session.get(EducationActivity, subject_id)
+        if activity is None or activity.activity_kind != "SUBJECT":
+            subject = db.session.get(Subject, subject_id)
+            activity = subject.education_activity if subject else None
+        if activity is None:
             return []
         query = query.filter(
-            TariffLine.education_activity_id
-            == subject.education_activity_id
+            TariffLine.education_activity_id == activity.id
         )
 
     lines = query.order_by(

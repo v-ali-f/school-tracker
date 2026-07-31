@@ -644,10 +644,20 @@ class DepartmentSubject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     department_id = db.Column(db.Integer, db.ForeignKey("department.id"), nullable=False, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=False, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=True, index=True)
 
     department = db.relationship("Department", backref=db.backref("subject_links", cascade="all, delete-orphan", lazy=True))
     subject = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
 
     __table_args__ = (db.UniqueConstraint("department_id", "subject_id", name="uq_department_subject"),)
 
@@ -658,6 +668,12 @@ class TeacherLoad(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=True, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=True, index=True)
     department_id = db.Column(db.Integer, db.ForeignKey("department.id"), nullable=True, index=True)
     academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=True, index=True)
@@ -680,6 +696,10 @@ class TeacherLoad(db.Model):
     teacher = db.relationship("User", foreign_keys=[teacher_id])
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
     subject = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
     department = db.relationship("Department", foreign_keys=[department_id])
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
@@ -692,6 +712,12 @@ class TeacherMckoResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=True, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=True, index=True)
     passed_at = db.Column(db.Date, nullable=True)
     expires_at = db.Column(db.Date, nullable=True)
@@ -703,6 +729,10 @@ class TeacherMckoResult(db.Model):
 
     teacher = db.relationship("User", foreign_keys=[teacher_id])
     subject = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
 
     @property
@@ -739,6 +769,12 @@ class Debt(db.Model):
 
     child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=False, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
 
     detected_date = db.Column(db.Date, nullable=False, default=date.today)
     due_date = db.Column(db.Date, nullable=True)
@@ -751,6 +787,10 @@ class Debt(db.Model):
 
     closed_by = db.relationship("User", foreign_keys=[closed_by_user_id])
     subject = db.relationship("Subject")
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
 
     def __repr__(self):
         return f"<Debt child={self.child_id} subject={self.subject_id}>"
@@ -1176,6 +1216,12 @@ class ControlWork(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=False, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     work_kind = db.Column(db.String(50), nullable=False, default=WORK_KIND_CONTROL, server_default=WORK_KIND_CONTROL)
     theme = db.Column(db.String(255), nullable=False)
     work_date = db.Column(db.Date, nullable=True)
@@ -1203,6 +1249,10 @@ class ControlWork(db.Model):
     creator = db.relationship("User", foreign_keys=[created_by])
     updater = db.relationship("User", foreign_keys=[updated_by])
     subject_ref = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
     tasks = db.relationship("ControlWorkTask", backref="control_work", lazy=True, cascade="all, delete-orphan")
     assignments = db.relationship("ControlWorkAssignment", backref="control_work", lazy=True, cascade="all, delete-orphan")
@@ -1419,6 +1469,12 @@ class OlympiadImportSession(db.Model):
     academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=True, index=True)
     stage = db.Column(db.String(30), nullable=False, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=True, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     subject_name = db.Column(db.String(255), nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey("department.id"), nullable=True, index=True)
     source_file_name = db.Column(db.String(255), nullable=True)
@@ -1437,6 +1493,10 @@ class OlympiadImportSession(db.Model):
 
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
     subject = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     department = db.relationship("Department", foreign_keys=[department_id])
     importer = db.relationship("User", foreign_keys=[imported_by])
 
@@ -1451,6 +1511,12 @@ class OlympiadResult(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
     department_id = db.Column(db.Integer, db.ForeignKey("department.id"), nullable=True, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=True, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     subject_name = db.Column(db.String(255), nullable=True)
     stage = db.Column(db.String(30), nullable=False, index=True)
     class_study_text = db.Column(db.String(50), nullable=True)
@@ -1493,6 +1559,10 @@ class OlympiadResult(db.Model):
     teacher = db.relationship("User", foreign_keys=[teacher_id])
     department = db.relationship("Department", foreign_keys=[department_id])
     subject = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
     creator = db.relationship("User", foreign_keys=[created_by])
     import_session = db.relationship("OlympiadImportSession", foreign_keys=[import_session_id], backref=db.backref("results", lazy=True))
@@ -1539,6 +1609,12 @@ class OlympiadSubjectMapping(db.Model):
     olympiad_subject_name = db.Column(db.String(255), nullable=False, index=True)
     olympiad_name = db.Column(db.String(255), nullable=True, index=True)
     subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=False, index=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     linked_subject_ids = db.Column(db.Text, nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey("department.id"), nullable=True, index=True)
     grade_from = db.Column(db.Integer, nullable=True)
@@ -1550,6 +1626,10 @@ class OlympiadSubjectMapping(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     subject = db.relationship("Subject", foreign_keys=[subject_id])
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     department = db.relationship("Department", foreign_keys=[department_id])
 
     def linked_subject_id_list(self):
