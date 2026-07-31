@@ -9,6 +9,7 @@ from app.services.education_plan_binding_service import (
 )
 from app.services.education_plan_service import (
     PLAN_BUNDLE_KINDS,
+    PLAN_BUNDLE_LABELS,
     plan_bundle_parts,
 )
 
@@ -158,11 +159,13 @@ def build_class_plan_matrix(snapshot, plans, education_level):
                 if not _line_matches_snapshot_class(line, snapshot_class):
                     continue
                 row_key = (
+                    plan_kind,
                     line.component_kind,
                     line.education_activity_id,
                     line.profile_code or "",
                 )
                 row = row_map.setdefault(row_key, {
+                    "plan_kind": plan_kind,
                     "component_kind": line.component_kind,
                     "activity": line.education_activity,
                     "profile_code": line.profile_code,
@@ -184,7 +187,10 @@ def build_class_plan_matrix(snapshot, plans, education_level):
                     "hours": hours,
                 }
                 if hours is not None:
-                    section_column_totals[line.component_kind][
+                    section_column_totals[(
+                        plan_kind,
+                        line.component_kind,
+                    )][
                         column["key"]
                     ] += hours
                     column_totals[column["key"]] += hours
@@ -200,14 +206,24 @@ def build_class_plan_matrix(snapshot, plans, education_level):
     )
     section_map = {}
     for row in rows:
-        section = section_map.setdefault(row["component_kind"], {
+        section_key = (row["plan_kind"], row["component_kind"])
+        section_label = (
+            PLAN_COMPONENT_LABELS.get(
+                row["component_kind"],
+                row["component_kind"],
+            )
+            if row["plan_kind"] == "CURRICULUM"
+            else PLAN_BUNDLE_LABELS.get(
+                row["plan_kind"],
+                row["component_kind"],
+            )
+        )
+        section = section_map.setdefault(section_key, {
+            "plan_kind": row["plan_kind"],
             "component_kind": row["component_kind"],
-            "label": PLAN_COMPONENT_LABELS.get(
-                row["component_kind"],
-                row["component_kind"],
-            ),
+            "label": section_label,
             "rows": [],
-            "column_totals": section_column_totals[row["component_kind"]],
+            "column_totals": section_column_totals[section_key],
         })
         section["rows"].append(row)
 

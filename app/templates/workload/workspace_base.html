@@ -13,7 +13,9 @@
   'READY': 'Готов',
   'LOCKED': 'Заблокирован'
 } %}
-{% if workspace_endpoint.startswith('workload.plan_bindings') %}
+{% if workspace_endpoint.startswith('workload.plan_bindings_matrix') %}
+  {% set workspace_mode = 'class_matrix' %}
+{% elif workspace_endpoint.startswith('workload.plan_bindings') %}
   {% set workspace_mode = 'bindings' %}
 {% elif workspace_endpoint.startswith('workload.group') %}
   {% if request.args.get('group_type') == 'METAGROUP' or (group is defined and group and group.group_type == 'METAGROUP') %}
@@ -120,6 +122,9 @@
     <a class="workload-mode {% if workspace_mode == 'bindings' %}is-active{% endif %}" href="{{ url_for('workload.plan_bindings') }}">
       <i class="bi bi-link-45deg" aria-hidden="true"></i><span>Привязка УП</span>
     </a>
+    <a class="workload-mode {% if workspace_mode == 'class_matrix' %}is-active{% endif %}" href="{{ url_for('workload.plan_bindings_matrix') }}">
+      <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span>Свод по классам</span>
+    </a>
     <a class="workload-mode {% if workspace_mode == 'groups' %}is-active{% endif %}" href="{{ url_for('workload.groups') }}">
       <i class="bi bi-people" aria-hidden="true"></i><span>Группы</span>
     </a>
@@ -129,16 +134,10 @@
     <a class="workload-mode {% if workspace_mode == 'workload' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace') }}">
       <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Нагрузка</span>
     </a>
-    <a class="workload-mode {% if workspace_mode == 'control' %}is-active{% endif %}" href="{{ url_for('workload.workflow') }}">
-      <i class="bi bi-check2-square" aria-hidden="true"></i><span>Контроль</span>
-    </a>
-    <a class="workload-mode {% if workspace_mode == 'export' %}is-active{% endif %}" href="{{ url_for('workload.tariff_documents') }}">
-      <i class="bi bi-printer" aria-hidden="true"></i><span>Печать и экспорт</span>
-    </a>
     {% endif %}
   </nav>
 
-  {% if workspace_mode == 'bindings' %}
+  {% if workspace_mode in ['bindings', 'class_matrix'] %}
   <section class="workload-indicators" aria-label="Состояние привязки учебных планов">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Классов</span>

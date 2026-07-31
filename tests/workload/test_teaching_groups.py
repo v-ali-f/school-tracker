@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from decimal import Decimal
+from io import BytesIO
 
 import pytest
+from openpyxl import load_workbook
 
 from app.core.extensions import db
 from app.models import (
@@ -363,6 +365,33 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert 'data-activity-name="Математика"'.encode() in response.data
     assert "ч/нед.".encode() in response.data
     assert "Без УП".encode() in response.data
+    assert "Свод по классам".encode() in response.data
+    assert "Excel".encode() in response.data
+    assert "PDF".encode() in response.data
+
+    xlsx_response = client.get(
+        f"/workload/plan-bindings/matrix/export.xlsx"
+        f"?version_id={version_id}&level=OOO"
+    )
+    assert xlsx_response.status_code == 200
+    assert xlsx_response.data.startswith(b"PK")
+    workbook = load_workbook(BytesIO(xlsx_response.data), data_only=True)
+    sheet = workbook["OOO"]
+    values = [
+        cell.value
+        for row in sheet.iter_rows()
+        for cell in row
+        if cell.value is not None
+    ]
+    assert "Свод учебных планов по классам" in values
+    assert "Математика" in values
+
+    pdf_response = client.get(
+        f"/workload/plan-bindings/matrix/export.pdf"
+        f"?version_id={version_id}&level=OOO"
+    )
+    assert pdf_response.status_code == 200
+    assert pdf_response.data.startswith(b"%PDF")
 
 
 def test_class_plan_matrix_splits_class_between_two_plans(
@@ -456,6 +485,135 @@ def test_class_plan_matrix_splits_class_between_two_plans(
     assert 'data-plan-name="Основной учебный план"'.encode() in response.data
     assert 'data-plan-name="Профильный учебный план"'.encode() in response.data
     assert response.data.count("1 уч. · ч/нед.".encode()) >= 2
+
+
+def test_class_plan_matrix_places_all_bundle_parts_on_one_sheet(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        root_plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        extracurricular = EducationActivity(
+            code="FUNCTIONAL_LITERACY",
+            name="Функциональная грамотность",
+            activity_kind="EXTRACURRICULAR_COURSE",
+            is_global=True,
+            is_tariffable=True,
+            is_active=True,
+        )
+        additional = EducationActivity(
+            code="ROBOTICS",
+            name="Робототехника",
+            activity_kind="ADDITIONAL_PROGRAM",
+            is_global=True,
+            is_tariffable=True,
+            is_active=True,
+        )
+        db.session.add_all([extracurricular, additional])
+        db.session.flush()
+        for plan_kind, component, activity, hours in (
+            (
+                "EXTRACURRICULAR",
+                "EXTRACURRICULAR",
+                extracurricular,
+                Decimal("1"),
+            ),
+            (
+                "ADDITIONAL_EDUCATION",
+                "ADDITIONAL",
+                additional,
+                Decimal("2"),
+            ),
+        ):
+            companion = EducationPlan(
+                tariff_version_id=context["version_id"],
+                root_plan_id=root_plan.id,
+                plan_kind=plan_kind,
+                name=f"{root_plan.name} · {plan_kind}",
+                education_level="OOO",
+                building_id=context["building_id"],
+                scope_code=root_plan.scope_code,
+                status="DRAFT",
+                created_by_user_id=user_id,
+                updated_by_user_id=user_id,
+            )
+            db.session.add(companion)
+            db.session.flush()
+            line = EducationPlanLine(
+                education_plan_id=companion.id,
+                education_activity_id=activity.id,
+                component_kind=component,
+                weekly_hours=hours,
+                weeks_count=Decimal("34"),
+                annual_hours=hours * Decimal("34"),
+                sort_order=10,
+                created_by_user_id=user_id,
+                updated_by_user_id=user_id,
+            )
+            db.session.add(line)
+            db.session.flush()
+            db.session.add(EducationPlanLineScope(
+                education_plan_line_id=line.id,
+                scope_kind="GRADE",
+                grade=5,
+                building_id=context["building_id"],
+                scope_key=line_scope_key(
+                    "GRADE",
+                    grade=5,
+                    building_id=context["building_id"],
+                ),
+            ))
+        replace_plan_binding_members(
+            root_plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+        version_id = context["version_id"]
+
+    login(user_id)
+    response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO"
+    )
+
+    assert response.status_code == 200
+    mandatory_index = response.data.index("Обязательная часть".encode())
+    extracurricular_index = response.data.index(
+        "Внеурочная деятельность".encode()
+    )
+    additional_index = response.data.index(
+        "Дополнительное образование".encode()
+    )
+    assert mandatory_index < extracurricular_index < additional_index
+    assert 'data-activity-name="Математика"'.encode() in response.data
+    assert (
+        'data-activity-name="Функциональная грамотность"'.encode()
+        in response.data
+    )
+    assert 'data-activity-name="Робототехника"'.encode() in response.data
 
 
 def test_class_plan_matrix_uses_first_period_on_september_first():
