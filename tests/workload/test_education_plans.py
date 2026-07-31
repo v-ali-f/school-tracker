@@ -264,6 +264,26 @@ def test_administrator_can_create_plan(
         assert root_plan.tariff_version.status == "DRAFT"
 
 
+def test_plan_registry_omits_redundant_bundle_column(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        _plan(user_id)
+    login(user_id)
+
+    response = client.get("/workload/plans/")
+
+    assert response.status_code == 200
+    assert "Состав комплекта".encode() not in response.data
+    assert "УП + ВД + ДО".encode() not in response.data
+
+
 def test_administrator_can_create_plan_from_existing_bundle(
     app,
     client,
@@ -1021,6 +1041,67 @@ def test_matrix_can_delete_an_entire_subject_row(
     with app.app_context():
         assert EducationPlanLine.query.count() == 0
         assert db.session.get(EducationPlan, plan_id).revision == 3
+
+
+def test_matrix_can_reorder_subject_rows(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        plan_id, math_id = _plan(user_id)
+        biology_id = _activity("BIOLOGY", "Биология").id
+        db.session.commit()
+    login(user_id)
+    for revision, activity_id in ((1, math_id), (2, biology_id)):
+        response = client.post(
+            f"/workload/plans/{plan_id}/matrix/activities",
+            data={
+                "revision": str(revision),
+                "education_activity_id": str(activity_id),
+                "component_kind": "MANDATORY",
+            },
+        )
+        assert response.status_code == 302
+
+    response = client.post(
+        f"/workload/plans/{plan_id}/matrix/rows/reorder",
+        data={
+            "revision": "3",
+            "education_activity_id": str(biology_id),
+            "component_kind": "MANDATORY",
+            "profile_code": "",
+            "direction": "up",
+        },
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        biology_lines = EducationPlanLine.query.filter_by(
+            education_plan_id=plan_id,
+            education_activity_id=biology_id,
+        ).all()
+        math_lines = EducationPlanLine.query.filter_by(
+            education_plan_id=plan_id,
+            education_activity_id=math_id,
+        ).all()
+        assert {line.sort_order for line in biology_lines} == {10}
+        assert {line.sort_order for line in math_lines} == {20}
+        assert db.session.get(EducationPlan, plan_id).revision == 4
+
+    matrix_response = client.get(f"/workload/plans/{plan_id}/matrix")
+    assert matrix_response.status_code == 200
+    assert matrix_response.data.index(
+        'data-activity-name="Биология"'.encode()
+    ) < matrix_response.data.index(
+        'data-activity-name="Математика"'.encode()
+    )
+    assert "Переместить «Биология» ниже".encode() in matrix_response.data
+    assert "Переместить «Математика» выше".encode() in matrix_response.data
 
 
 def test_matrix_preserves_only_significant_decimal_places(
