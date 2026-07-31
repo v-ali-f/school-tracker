@@ -174,22 +174,33 @@
 }
 
 .plan-binding-assignment {
-  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
   margin: 0;
 }
 
-.plan-binding-assignment.is-saving .form-select {
-  padding-right: 84px;
+.plan-binding-assignment.is-saving .form-select,
+.plan-binding-assignment.is-saving button {
   background-color: #f7f9fc;
 }
 
 .plan-binding-assignment__state {
-  position: absolute;
-  top: 50%;
-  right: 28px;
+  grid-column: 1 / -1;
+  min-height: 12px;
   color: var(--workload-muted);
   font-size: 9px;
-  transform: translateY(-50%);
+  line-height: 1.2;
+  text-align: right;
+}
+
+.plan-binding-assignment [data-plan-assignment-submit] {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
 }
 
 .plan-binding-no-plan {

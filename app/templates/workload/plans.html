@@ -57,7 +57,7 @@
           <div class="fw-semibold">{{ plan.name }}</div>
         </td>
         <td>
-          {{ plan.education_level or 'Все уровни' }}
+          {{ plan.education_level|education_level_label }}
           {% if plan.building %}<div class="small text-muted">{{ plan.building.short_name or plan.building.name }}</div>{% endif %}
         </td>
         {% set line_count = namespace(value=plan.lines|length) %}
@@ -76,6 +76,16 @@
           >
             <i class="bi bi-copy" aria-hidden="true"></i>
           </a>
+          <button
+            class="btn btn-sm btn-outline-danger"
+            type="button"
+            title="Удалить учебный план"
+            aria-label="Удалить учебный план {{ plan.name }}"
+            data-bs-toggle="modal"
+            data-bs-target="#delete-plan-{{ plan.id }}"
+          >
+            <i class="bi bi-trash" aria-hidden="true"></i>
+          </button>
           {% endif %}
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}">
             <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Открыть
@@ -89,4 +99,50 @@
     </tbody>
   </table>
 </div>
+
+{% if can_update %}
+  {% for plan in plans %}
+  <div
+    class="modal fade"
+    id="delete-plan-{{ plan.id }}"
+    tabindex="-1"
+    aria-labelledby="delete-plan-title-{{ plan.id }}"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-6" id="delete-plan-title-{{ plan.id }}">Удалить учебный план?</h2>
+          <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">
+            Будет удалён комплект «{{ plan.name }}»: основной учебный план,
+            внеурочная деятельность и дополнительное образование.
+          </p>
+          {% set binding_count = plan.class_bindings|length %}
+          {% if binding_count %}
+          <div class="alert alert-warning mb-0">
+            К плану привязано классов: <strong>{{ binding_count }}</strong>.
+            Привязки удалятся, а классы и ученики останутся без учебного плана.
+          </div>
+          {% else %}
+          <p class="text-muted mb-0">Привязанных классов нет.</p>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-dismiss="modal">Отмена</button>
+          <form method="post" action="{{ url_for('workload.plan_delete', plan_id=plan.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="revision" value="{{ plan.revision }}">
+            <button class="btn btn-danger btn-sm" type="submit">
+              <i class="bi bi-trash me-1" aria-hidden="true"></i>Удалить
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
 {% endblock %}

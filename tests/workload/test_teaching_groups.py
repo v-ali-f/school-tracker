@@ -26,6 +26,7 @@ from app.models import (
     TeachingGroupHistory,
 )
 from app.services.education_plan_service import (
+    create_plan_bundle,
     ensure_draft_tariff_version,
     line_scope_key,
     plan_scope_code,
@@ -800,6 +801,129 @@ def test_class_plan_can_be_overridden_for_one_student(
     assert page.status_code == 200
     assert "Индивидуальные назначения".encode() in page.data
     assert "Профильный учебный план".encode() in page.data
+
+
+def test_class_plan_assignment_returns_json_without_page_reload(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        plan_id = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        ).education_plan_id
+        class_id = snapshot_class.id
+        student_count = len(snapshot_class.enrollments)
+        version_id = context["version_id"]
+
+    login(user_id)
+    page = client.get(
+        f"/workload/plan-bindings/?version_id={version_id}"
+    )
+    assert page.status_code == 200
+    assert "Сохранить учебный план класса".encode() in page.data
+
+    response = client.post(
+        "/workload/plan-bindings/class",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+            "plan_id": plan_id,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "message": "Учебный план для 5А сохранён.",
+        "assigned_count": student_count,
+        "student_count": student_count,
+    }
+
+
+def test_deleting_plan_removes_bindings_but_keeps_class_and_students(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        create_plan_bundle(plan, user_id=user_id)
+        replace_plan_binding_members(
+            plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+        plan_id = plan.id
+        revision = plan.revision
+        snapshot_class_id = snapshot_class.id
+        enrollment_ids = {
+            item.id for item in snapshot_class.enrollments
+        }
+
+    login(user_id)
+    registry = client.get("/workload/plans/")
+    assert registry.status_code == 200
+    assert "К плану привязано классов:".encode() in registry.data
+
+    response = client.post(
+        f"/workload/plans/{plan_id}/delete",
+        data={"revision": revision},
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(EducationPlan, plan_id) is None
+        assert EducationPlan.query.count() == 0
+        assert EducationPlanBinding.query.count() == 0
+        assert (
+            db.session.get(PopulationSnapshotClass, snapshot_class_id)
+            is not None
+        )
+        assert {
+            item.id
+            for item in PopulationSnapshotEnrollment.query.filter(
+                PopulationSnapshotEnrollment.id.in_(enrollment_ids)
+            ).all()
+        } == enrollment_ids
 
 
 def test_metagroup_requires_two_source_classes():

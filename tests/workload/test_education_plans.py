@@ -282,6 +282,9 @@ def test_plan_registry_omits_redundant_bundle_column(
     assert response.status_code == 200
     assert "Состав комплекта".encode() not in response.data
     assert "УП + ВД + ДО".encode() not in response.data
+    assert "ООО".encode() in response.data
+    assert "OOO".encode() not in response.data
+    assert "Удалить учебный план".encode() in response.data
 
 
 def test_administrator_can_create_plan_from_existing_bundle(

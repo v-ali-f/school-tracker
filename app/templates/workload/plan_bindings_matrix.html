@@ -55,7 +55,7 @@
         class="{% if selected_level == level %}is-active{% endif %}"
         href="{{ url_for('workload.plan_bindings_matrix', version_id=selected_version.id if selected_version else none, level=level) }}"
       >
-        <span>{{ level }}</span>
+        <span>{{ level|education_level_label }}</span>
         <small>{{ level_counts[level] }} кл.</small>
       </a>
       {% endfor %}
@@ -164,5 +164,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260730_3"></script>
+<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260801_1"></script>
 {% endblock %}

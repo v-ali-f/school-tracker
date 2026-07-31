@@ -10,7 +10,7 @@
   <div>
     <div class="page-title">{{ bundle_root.name }}</div>
     <div class="page-sub">
-      {{ bundle_labels[plan.plan_kind] }} · {{ bundle_root.education_level or 'Все уровни' }}
+      {{ bundle_labels[plan.plan_kind] }} · {{ bundle_root.education_level|education_level_label }}
       {% if bundle_root.building %} · {{ bundle_root.building.short_name or bundle_root.building.name }}{% endif %}
     </div>
   </div>

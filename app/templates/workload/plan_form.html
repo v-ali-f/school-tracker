@@ -27,7 +27,7 @@
         data-building="{{ source.building_id or '' }}"
         {% if selected_source_plan and selected_source_plan.id == source.id %}selected{% endif %}
       >
-        {{ source.tariff_version.tariff_cycle.academic_year.name }} · {{ source.name }} · {{ source.education_level }}
+        {{ source.tariff_version.tariff_cycle.academic_year.name }} · {{ source.name }} · {{ source.education_level|education_level_label }}
       </option>
       {% endfor %}
     </select>
