@@ -21,11 +21,15 @@ from .models import (
     OlympiadResult,
     OlympiadSubjectMapping,
     OlympiadUnmatchedRow,
-    Subject,
     TeacherLoad,
     User,
 )
 from .permissions import CLASS_TEACHER, METHODIST, TEACHER, has_permission
+from app.services.education_activity_service import (
+    assign_subject_activity,
+    get_subject_activity,
+    list_subject_activities,
+)
 from .services.olympiad_import_service import execute_import, extract_unique_subjects, filter_school_rows, preview_import, read_excel, read_zip, ensure_olympiad_result_schema
 from .services.olympiad_matcher import find_department_for_row, find_teacher_for_row
 from .services.olympiad_normalization import STATUS_LABELS, STAGE_LABELS, normalize_olympiad_stage, normalize_olympiad_status, stage_badge, stage_label, status_label
@@ -35,9 +39,9 @@ olympiads_bp = Blueprint("olympiads", __name__, url_prefix="/olympiads")
 STAGES = ["школьный", "муниципальный", "региональный", "заключительный"]
 
 
-def _mapping_linked_subject_ids_from_form():
+def _mapping_linked_activity_ids_from_form():
     values = []
-    for raw in request.form.getlist("linked_subject_ids"):
+    for raw in request.form.getlist("linked_activity_ids"):
         if str(raw).isdigit():
             values.append(int(raw))
     primary = request.form.get("subject_id", type=int)
@@ -59,20 +63,19 @@ def _mapping_grade_label(row):
 
 
 def _mapping_linked_subject_names(row):
-    ids = []
-    for raw in str(getattr(row, "linked_subject_ids", None) or "").replace(";", ",").split(","):
-        raw = str(raw).strip()
-        if raw.isdigit():
-            ids.append(int(raw))
+    ids = row.linked_education_activity_id_list()
     names = []
     seen = set()
-    for subject_id in ids:
-        subject = Subject.query.get(subject_id)
-        if subject and subject.name and subject.name not in seen:
-            names.append(subject.name)
-            seen.add(subject.name)
-    if row.subject and row.subject.name not in seen:
-        names.insert(0, row.subject.name)
+    for activity_id in ids:
+        activity = get_subject_activity(activity_id)
+        if activity and activity.name and activity.name not in seen:
+            names.append(activity.name)
+            seen.add(activity.name)
+    if (
+        row.education_activity
+        and row.education_activity.name not in seen
+    ):
+        names.insert(0, row.education_activity.name)
     return names
 
 
@@ -154,7 +157,7 @@ def _subject_teachers(subject_id=None, academic_year_id=None, department_id=None
         return []
     q = db.session.query(User).join(TeacherLoad, TeacherLoad.teacher_id == User.id).filter(
         TeacherLoad.is_archived.is_(False),
-        TeacherLoad.subject_id == subject_id,
+        TeacherLoad.education_activity_id == subject_id,
     )
     if academic_year_id:
         q = q.filter((TeacherLoad.academic_year_id == academic_year_id) | (TeacherLoad.academic_year_id.is_(None)))
@@ -164,7 +167,11 @@ def _subject_teachers(subject_id=None, academic_year_id=None, department_id=None
 
 
 def _teacher_options_for_result(result: OlympiadResult):
-    return _subject_teachers(result.subject_id, result.academic_year_id, result.department_id)
+    return _subject_teachers(
+        result.subject_catalog_id,
+        result.academic_year_id,
+        result.department_id,
+    )
 
 def _apply_manual_binding(rows, teacher_id):
     teacher = User.query.get(teacher_id) if teacher_id else None
@@ -173,10 +180,13 @@ def _apply_manual_binding(rows, teacher_id):
         row.teacher_binding_status = "manual" if teacher_id else "unassigned"
         row.teacher_binding_source = "manual_bulk" if teacher_id else "unassigned"
         row.teacher_binding_reason = "Учитель назначен массово" if teacher_id else "Учитель снят массово"
-        if teacher_id and row.subject_id and row.academic_year_id:
+        if teacher_id and row.education_activity_id and row.academic_year_id:
             load_q = TeacherLoad.query.filter_by(teacher_id=teacher_id, academic_year_id=row.academic_year_id, is_archived=False)
-            if row.subject_id:
-                load_q = load_q.filter((TeacherLoad.subject_id == row.subject_id) | (db.func.lower(db.func.coalesce(TeacherLoad.subject_name, '')) == db.func.lower(row.subject.name if row.subject else row.subject_name or '')))
+            if row.education_activity_id:
+                load_q = load_q.filter(
+                    TeacherLoad.education_activity_id
+                    == row.education_activity_id
+                )
             best = load_q.order_by(TeacherLoad.hours.desc(), TeacherLoad.id.desc()).first()
             if best and best.department_id:
                 row.department_id = best.department_id
@@ -190,7 +200,7 @@ def _apply_auto_binding(row, overwrite_manual=False):
     if row.teacher_binding_source in {"manual", "manual_bulk", "manual_single"} and not overwrite_manual:
         return False
     payload = {
-        "subject": row.subject_name or (row.subject.name if row.subject else ""),
+        "subject": row.resolved_subject_name,
         "class_study": row.class_study_text or (row.school_class.name if row.school_class else ""),
         "class_participation": row.class_participation_text or "",
     }
@@ -223,7 +233,7 @@ def _binding_groups_query(academic_year_id=None, stage=None, subject_id=None, de
     if stage:
         q = q.filter(OlympiadResult.stage == stage)
     if subject_id:
-        q = q.filter(OlympiadResult.subject_id == subject_id)
+        q = q.filter(OlympiadResult.education_activity_id == subject_id)
     if department_id:
         q = q.filter(OlympiadResult.department_id == department_id)
     if status:
@@ -239,7 +249,13 @@ def _binding_groups_query(academic_year_id=None, stage=None, subject_id=None, de
             continue
         if class_name and cls != class_name:
             continue
-        key = (row.academic_year_id, row.stage or "", row.subject_id or 0, row.subject_name or "", cls)
+        key = (
+            row.academic_year_id,
+            row.stage or "",
+            row.subject_catalog_id or 0,
+            row.resolved_subject_name,
+            cls,
+        )
         groups.setdefault(key, []).append(row)
     return groups
 
@@ -294,6 +310,7 @@ def registry():
     rows_q = OlympiadResult.query.options(
         joinedload(OlympiadResult.child),
         joinedload(OlympiadResult.teacher),
+        joinedload(OlympiadResult.education_activity),
         joinedload(OlympiadResult.subject),
         joinedload(OlympiadResult.school_class),
         joinedload(OlympiadResult.department),
@@ -303,7 +320,9 @@ def registry():
     if stage:
         rows_q = rows_q.filter(OlympiadResult.stage == stage)
     if subject_id:
-        rows_q = rows_q.filter(OlympiadResult.subject_id == subject_id)
+        rows_q = rows_q.filter(
+            OlympiadResult.education_activity_id == subject_id
+        )
     if teacher_id:
         rows_q = rows_q.filter(OlympiadResult.teacher_id == teacher_id)
     if department_id:
@@ -333,7 +352,11 @@ def registry():
     _teacher_cache = {}
     teacher_options_by_result = {}
     for row in rows:
-        cache_key = (row.subject_id, row.academic_year_id, row.department_id)
+        cache_key = (
+            row.subject_catalog_id,
+            row.academic_year_id,
+            row.department_id,
+        )
         if cache_key not in _teacher_cache:
             _teacher_cache[cache_key] = _teacher_options_for_result(row)
         teacher_options_by_result[row.id] = _teacher_cache[cache_key]
@@ -342,7 +365,7 @@ def registry():
         rows=rows,
         teacher_options_by_result=teacher_options_by_result,
         years=AcademicYear.query.order_by(AcademicYear.name.desc()).all(),
-        subjects=Subject.query.order_by(Subject.name.asc()).all(),
+        subjects=list_subject_activities(),
         teachers=User.query.order_by(User.last_name.asc(), User.first_name.asc()).all(),
         departments=_allowed_departments(),
         stages=STAGES,
@@ -377,7 +400,7 @@ def assign_teacher(result_id: int):
         result.teacher_binding_reason = "Учитель назначен вручную"
         load = TeacherLoad.query.filter_by(
             teacher_id=teacher_id,
-            subject_id=result.subject_id,
+            education_activity_id=result.education_activity_id,
             academic_year_id=result.academic_year_id,
             is_archived=False,
         )
@@ -393,7 +416,11 @@ def assign_teacher(result_id: int):
         result.teacher_binding_reason = "Учитель снят вручную"
     db.session.commit()
     flash("Учитель по результату обновлён.", "success")
-    return redirect(url_for("olympiads.registry", academic_year_id=result.academic_year_id, subject_id=result.subject_id))
+    return redirect(url_for(
+        "olympiads.registry",
+        academic_year_id=result.academic_year_id,
+        subject_id=result.subject_catalog_id,
+    ))
 
 
 @olympiads_bp.route("/bulk-assign-teacher", methods=["POST"])
@@ -411,10 +438,10 @@ def bulk_assign_teacher():
         row.teacher_binding_status = "manual" if teacher_id else "unassigned"
         row.teacher_binding_source = "manual_bulk" if teacher_id else "unassigned"
         row.teacher_binding_reason = "Учитель назначен массово" if teacher_id else "Учитель снят массово"
-        if teacher_id and row.subject_id and row.academic_year_id:
+        if teacher_id and row.education_activity_id and row.academic_year_id:
             load = TeacherLoad.query.filter_by(
                 teacher_id=teacher_id,
-                subject_id=row.subject_id,
+                education_activity_id=row.education_activity_id,
                 academic_year_id=row.academic_year_id,
                 is_archived=False,
             ).order_by(TeacherLoad.hours.desc(), TeacherLoad.id.desc()).first()
@@ -501,7 +528,7 @@ def import_view():
         }
         session["olympiad_import_preview"] = payload
 
-        subject = Subject.query.get(subject_id) if subject_id else None
+        subject = get_subject_activity(subject_id)
         teacher = User.query.get(selected_teacher_id) if selected_teacher_id else None
         department = Department.query.get(department_id) if department_id else None
         return render_template(
@@ -529,7 +556,7 @@ def import_view():
     return render_template(
         "olympiad_import.html",
         years=AcademicYear.query.order_by(AcademicYear.name.desc()).all(),
-        subjects=Subject.query.order_by(Subject.name.asc()).all(),
+        subjects=list_subject_activities(),
         departments=_allowed_departments(),
         stages=STAGES,
         current_year=current_year,
@@ -562,7 +589,7 @@ def import_commit():
         flash("Нет данных для импорта. Сначала загрузите файл.", "warning")
         return redirect(url_for("olympiads.import_view"))
 
-    subject = Subject.query.get(payload.get("subject_id")) if payload.get("subject_id") else None
+    subject = get_subject_activity(payload.get("subject_id"))
     import_session = execute_import(
         rows,
         academic_year_id=payload.get("academic_year_id"),
@@ -628,7 +655,7 @@ def department_registry():
     if academic_year_id:
         q = q.filter(OlympiadResult.academic_year_id == academic_year_id)
     if subject_id:
-        q = q.filter(OlympiadResult.subject_id == subject_id)
+        q = q.filter(OlympiadResult.education_activity_id == subject_id)
     if stage:
         q = q.filter(OlympiadResult.stage == stage)
     rows = q.order_by(OlympiadResult.created_at.desc()).limit(500).all()
@@ -649,7 +676,7 @@ def department_registry():
         teachers=teachers,
         departments=_allowed_departments(),
         years=AcademicYear.query.order_by(AcademicYear.name.desc()).all(),
-        subjects=Subject.query.order_by(Subject.name.asc()).all(),
+        subjects=list_subject_activities(),
         stages=STAGES,
         department_id=department_id,
         academic_year_id=academic_year_id,
@@ -769,14 +796,18 @@ def teacher_binding():
         reason_set = {r.teacher_binding_reason or "" for r in rows}
         grade = sample.school_class.grade if sample.school_class else None
         options = []
-        if sample.subject_id:
-            options = _subject_teachers(sample.subject_id, sample.academic_year_id, sample.department_id)
+        if sample.education_activity_id:
+            options = _subject_teachers(
+                sample.education_activity_id,
+                sample.academic_year_id,
+                sample.department_id,
+            )
         if not options:
             options = User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()
         groups.append({
             "year": sample.academic_year.name if sample.academic_year else "—",
             "stage": sample.stage or "—",
-            "subject": sample.subject.name if sample.subject else (sample.subject_name or "—"),
+            "subject": sample.resolved_subject_name,
             "class_name": cls,
             "parallel": grade,
             "count": len(rows),
@@ -793,7 +824,7 @@ def teacher_binding():
         "olympiad_teacher_binding.html",
         groups=groups,
         years=AcademicYear.query.order_by(AcademicYear.name.desc()).all(),
-        subjects=Subject.query.order_by(Subject.name.asc()).all(),
+        subjects=list_subject_activities(),
         departments=_allowed_departments(),
         teachers=User.query.order_by(User.last_name.asc(), User.first_name.asc()).all(),
         stages=STAGES,
@@ -893,7 +924,7 @@ def settings():
         grade_from = request.form.get("grade_from", type=int)
         grade_to = request.form.get("grade_to", type=int)
         priority = request.form.get("priority", type=int) or 100
-        linked_subject_ids = _mapping_linked_subject_ids_from_form()
+        linked_activity_ids = _mapping_linked_activity_ids_from_form()
         comment = (request.form.get("comment") or "").strip() or None
         is_active = bool(request.form.get("is_active"))
 
@@ -905,7 +936,7 @@ def settings():
             duplicate_q = OlympiadSubjectMapping.query.filter(
                 OlympiadSubjectMapping.olympiad_subject_name == olympiad_subject_name,
                 OlympiadSubjectMapping.olympiad_name == olympiad_name,
-                OlympiadSubjectMapping.subject_id == subject_id,
+                OlympiadSubjectMapping.education_activity_id == subject_id,
                 OlympiadSubjectMapping.department_id == department_id,
                 OlympiadSubjectMapping.grade_from == grade_from,
                 OlympiadSubjectMapping.grade_to == grade_to,
@@ -925,8 +956,12 @@ def settings():
 
             row.olympiad_name = olympiad_name
             row.olympiad_subject_name = olympiad_subject_name
-            row.subject_id = subject_id
-            row.linked_subject_ids = linked_subject_ids
+            activity = get_subject_activity(subject_id)
+            if activity is None:
+                flash("Выберите предмет из единого каталога.", "danger")
+                return redirect(url_for("olympiads.settings"))
+            assign_subject_activity(row, activity)
+            row.linked_education_activity_ids = linked_activity_ids
             row.department_id = department_id
             row.grade_from = grade_from
             row.grade_to = grade_to
@@ -952,7 +987,7 @@ def settings():
     return render_template(
         "olympiad_settings.html",
         mappings=mappings,
-        subjects=Subject.query.order_by(Subject.name.asc()).all(),
+        subjects=list_subject_activities(),
         departments=Department.query.order_by(Department.name.asc()).all(),
         stages=STAGES,
         mapping_grade_label=_mapping_grade_label,

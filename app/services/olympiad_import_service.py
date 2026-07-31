@@ -10,6 +10,10 @@ from typing import Iterable, List
 from openpyxl import load_workbook
 
 from app.core.extensions import db
+from app.services.education_activity_service import (
+    assign_subject_activity,
+    get_subject_activity,
+)
 from ..models import OlympiadImportSession, OlympiadResult, OlympiadUnmatchedRow
 from .olympiad_normalization import (
     normalize_olympiad_stage,
@@ -210,7 +214,7 @@ def find_existing_result(child_id, subject_id, academic_year_id, stage=None, sco
         return None
     q = OlympiadResult.query.filter(
         OlympiadResult.child_id == child_id,
-        OlympiadResult.subject_id == subject_id,
+        OlympiadResult.education_activity_id == subject_id,
         OlympiadResult.academic_year_id == academic_year_id,
         OlympiadResult.is_archived.is_(False),
     )
@@ -245,7 +249,11 @@ def preview_import(rows: List[dict], academic_year_id=None, stage=None, subject_
         ) if child and subject else (None, None)
         if load and not department:
             department, _ = find_department_for_row(row, teacher_load=load, subject=subject, subject_department=mapped_department, selected_department_id=selected_department_id)
-        row_subject_id = subject.id if subject else subject_id
+        row_subject_id = (
+            subject.education_activity_id
+            if subject and subject.education_activity_id
+            else subject_id
+        )
         raw_status = str(row.get("status") or "").strip()
         status_group = normalize_olympiad_status(raw_status, row.get("reason"))
         existing = find_existing_result(
@@ -289,7 +297,6 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
     session = OlympiadImportSession(
         academic_year_id=academic_year_id,
         stage=stage,
-        subject_id=subject_id,
         subject_name=subject_name,
         department_id=selected_department_id,
         source_file_name=rows[0].get("source_file_name") if rows else None,
@@ -298,6 +305,9 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
         school_rows=len(rows),
         status="DONE",
     )
+    selected_activity = get_subject_activity(subject_id)
+    if selected_activity:
+        assign_subject_activity(session, selected_activity)
     db.session.add(session)
     db.session.flush()
 
@@ -320,7 +330,11 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
             ) if child and subject else (None, None)
             if load and not department:
                 department, _ = find_department_for_row(row, teacher_load=load, subject=subject, subject_department=mapped_department, selected_department_id=selected_department_id)
-            resolved_subject_id = subject.id if subject else subject_id
+            resolved_subject_id = (
+                subject.education_activity_id
+                if subject and subject.education_activity_id
+                else subject_id
+            )
             row_hash = build_row_hash(row, academic_year_id, stage, resolved_subject_id)
             existing_by_hash = OlympiadResult.query.filter_by(source_row_hash=row_hash).first()
             if existing_by_hash:
@@ -390,7 +404,6 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
                 teacher_binding_source=binding_source,
                 teacher_binding_reason=binding_reason,
                 department_id=department.id if department else selected_department_id,
-                subject_id=resolved_subject_id,
                 subject_name=(subject.name if subject else (row.get("subject") or subject_name)),
                 stage=stage,
                 stage_group=normalized_stage_group,
@@ -416,6 +429,11 @@ def execute_import(rows: List[dict], *, academic_year_id: int, stage: str, subje
                 import_session_id=session.id,
                 created_by=imported_by,
             )
+            if subject and subject.education_activity_id:
+                assign_subject_activity(
+                    result,
+                    subject.education_activity_id,
+                )
             db.session.add(result)
             created_rows += 1
         except Exception:

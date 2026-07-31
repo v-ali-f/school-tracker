@@ -12,10 +12,15 @@ from ..models import (
     ChildEnrollment,
     Department,
     DepartmentSubject,
+    EducationActivity,
     OlympiadSubjectMapping,
     SchoolClass,
-    Subject,
     TeacherLoad,
+)
+from app.services.education_activity_service import (
+    get_subject_activity,
+    resolve_education_activity,
+    sync_subject_from_activity,
 )
 
 
@@ -89,16 +94,8 @@ def _mapping_grade_matches(mapping, grade: Optional[int]) -> bool:
     return True
 
 
-def _mapping_subject_ids(mapping) -> List[int]:
-    values = []
-    linked = getattr(mapping, "linked_subject_ids", None)
-    for raw in str(linked or "").replace(';', ',').split(','):
-        raw = str(raw).strip()
-        if raw.isdigit():
-            values.append(int(raw))
-    subject_id = getattr(mapping, "subject_id", None)
-    if subject_id and subject_id not in values:
-        values.insert(0, subject_id)
+def _mapping_activity_ids(mapping) -> List[int]:
+    values = mapping.linked_education_activity_id_list()
     seen = set()
     result = []
     for item in values:
@@ -110,10 +107,10 @@ def _mapping_subject_ids(mapping) -> List[int]:
 
 def _subject_names_for_mapping(mapping) -> List[str]:
     names = []
-    for subject_id in _mapping_subject_ids(mapping):
-        subject = Subject.query.get(subject_id)
-        if subject and subject.name:
-            names.append(subject.name)
+    for activity_id in _mapping_activity_ids(mapping):
+        activity = get_subject_activity(activity_id)
+        if activity and activity.name:
+            names.append(activity.name)
     return names
 
 
@@ -140,31 +137,49 @@ def _subject_by_name(subject_name: str, grade: Optional[int] = None):
         return None, None, None
     norm = _norm_lower(subject_name)
     mapping = _find_mapping_for_subject_name(subject_name, grade=grade)
-    if mapping and mapping.subject:
-        return mapping.subject, mapping.department, mapping
+    if mapping and mapping.education_activity:
+        subject = sync_subject_from_activity(mapping.education_activity)
+        return subject, mapping.department, mapping
 
-    exact = Subject.query.filter(func.lower(Subject.name) == norm).first()
-    if exact:
-        dep_link = DepartmentSubject.query.filter_by(subject_id=exact.id).first()
-        return exact, dep_link.department if dep_link else None, None
-
-    partial = Subject.query.filter(func.lower(Subject.name).like(f"%{norm}%")).first()
-    if partial:
-        dep_link = DepartmentSubject.query.filter_by(subject_id=partial.id).first()
-        return partial, dep_link.department if dep_link else None, None
-
-    for subj in Subject.query.order_by(Subject.name.asc()).all():
-        subj_norm = _norm_lower(subj.name)
-        if subj_norm in norm or norm in subj_norm:
-            dep_link = DepartmentSubject.query.filter_by(subject_id=subj.id).first()
-            return subj, dep_link.department if dep_link else None, None
+    match = resolve_education_activity(
+        subject_name,
+        source_module="OLYMPIAD",
+    )
+    activity = match.activity
+    if activity is None:
+        activity = EducationActivity.query.filter(
+            EducationActivity.activity_kind == "SUBJECT",
+            EducationActivity.is_active.is_(True),
+            func.lower(EducationActivity.name).like(f"%{norm}%"),
+        ).order_by(EducationActivity.name.asc()).first()
+    if activity is None:
+        for item in EducationActivity.query.filter(
+            EducationActivity.activity_kind == "SUBJECT",
+            EducationActivity.is_active.is_(True),
+        ).order_by(EducationActivity.name.asc()).all():
+            item_norm = _norm_lower(item.name)
+            if item_norm in norm or norm in item_norm:
+                activity = item
+                break
+    if activity:
+        subject = sync_subject_from_activity(activity)
+        dep_link = DepartmentSubject.query.filter_by(
+            education_activity_id=activity.id,
+        ).first()
+        return subject, dep_link.department if dep_link else None, None
     return None, None, None
 
 
 def find_subject_for_row(row: dict, manual_subject_id: Optional[int] = None):
     if manual_subject_id:
-        subject = Subject.query.get(manual_subject_id)
-        dep_link = DepartmentSubject.query.filter_by(subject_id=manual_subject_id).first() if subject else None
+        activity = get_subject_activity(manual_subject_id)
+        subject = sync_subject_from_activity(activity) if activity else None
+        dep_link = (
+            DepartmentSubject.query.filter_by(
+                education_activity_id=manual_subject_id,
+            ).first()
+            if subject else None
+        )
         return subject, dep_link.department if dep_link else None, None
     raw_subject = _get_row_value(row, "subject", "subject_name", "raw_subject", default="")
     grade = parse_grade(_get_row_value(row, "class_study", "class_study_text", "class_participation", default=""))
@@ -271,8 +286,11 @@ def find_teacher_for_row(
             academic_year_id=academic_year_id,
             is_archived=False,
         )
-        if subject:
-            load = load.filter((TeacherLoad.subject_id == subject.id) | (func.lower(func.coalesce(TeacherLoad.subject_name, '')) == subject.name.lower()))
+        if subject and subject.education_activity_id:
+            load = load.filter(
+                TeacherLoad.education_activity_id
+                == subject.education_activity_id
+            )
         if department:
             load = load.filter((TeacherLoad.department_id == department.id) | (TeacherLoad.department_id.is_(None)))
         best = load.order_by(TeacherLoad.hours.desc(), TeacherLoad.id.desc()).first()
@@ -293,12 +311,16 @@ def find_teacher_for_row(
 
     raw_subject = _get_row_value(row, "subject", "subject_name", "raw_subject", default="")
     mapping = _find_mapping_for_subject_name(str(raw_subject or ""), grade=grade)
-    subject_ids = [subject.id] if subject and subject.id else []
+    activity_ids = (
+        [subject.education_activity_id]
+        if subject and subject.education_activity_id
+        else []
+    )
     subject_names = [subject.name] if subject and subject.name else []
     if mapping:
-        for subject_id in _mapping_subject_ids(mapping):
-            if subject_id not in subject_ids:
-                subject_ids.append(subject_id)
+        for activity_id in _mapping_activity_ids(mapping):
+            if activity_id not in activity_ids:
+                activity_ids.append(activity_id)
         for item in _subject_names_for_mapping(mapping):
             if item not in subject_names:
                 subject_names.append(item)
@@ -306,8 +328,8 @@ def find_teacher_for_row(
             department = mapping.department
 
     filters = []
-    if subject_ids:
-        filters.append(TeacherLoad.subject_id.in_(subject_ids))
+    if activity_ids:
+        filters.append(TeacherLoad.education_activity_id.in_(activity_ids))
     lowered_names = [normalize_text(name).lower() for name in subject_names if name]
     for name in lowered_names:
         filters.append(func.lower(func.coalesce(TeacherLoad.subject_name, "")) == name)
@@ -367,7 +389,9 @@ def find_department_for_row(row: dict, teacher_load=None, subject=None, subject_
     if subject_department:
         return subject_department, None
     if subject:
-        ds = DepartmentSubject.query.filter_by(subject_id=subject.id).first()
+        ds = DepartmentSubject.query.filter_by(
+            education_activity_id=subject.education_activity_id,
+        ).first()
         if ds and ds.department:
             return ds.department, None
     return None, "Кафедра не определена"

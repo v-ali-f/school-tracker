@@ -4,7 +4,8 @@ from datetime import datetime
 from flask import Blueprint, render_template, request
 from flask_login import login_required
 
-from .models import AcademicYear, ControlWork, ControlWorkAssignment, ControlWorkResult, SchoolClass, Subject, User
+from .models import AcademicYear, ControlWork, ControlWorkAssignment, ControlWorkResult, SchoolClass, User
+from app.services.education_activity_service import list_subject_activities
 from .permissions import has_permission
 
 academic_bp = Blueprint("academic", __name__)
@@ -33,7 +34,7 @@ def _performance_label(value):
 
 def _filters():
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     current_year = _current_year()
     selected_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     selected_subject_id = request.args.get("subject_id", type=int)
@@ -60,7 +61,9 @@ def _base_rows(selected_year_id=None, selected_subject_id=None, selected_grade=N
     if selected_year_id:
         query = query.filter(ControlWork.academic_year_id == selected_year_id)
     if selected_subject_id:
-        query = query.filter(ControlWork.subject_id == selected_subject_id)
+        query = query.filter(
+            ControlWork.education_activity_id == selected_subject_id
+        )
     if selected_grade:
         query = query.filter(SchoolClass.grade == selected_grade)
     if selected_class_id:
@@ -97,7 +100,7 @@ def build_academic_dataset(selected_year_id=None, selected_subject_id=None, sele
         if mark in mark_counts:
             mark_counts[mark] += 1
 
-        subject_key = work.subject_id or 0
+        subject_key = work.subject_catalog_id or 0
         subject_stats[subject_key]["subject_name"] = work.subject_name
         subject_stats[subject_key]["results"] += 1
         subject_stats[subject_key]["classes"].add(school_class.name)
@@ -115,7 +118,7 @@ def build_academic_dataset(selected_year_id=None, selected_subject_id=None, sele
         if mark is not None:
             class_stats[class_key]["marks"].append(mark)
 
-        pair_key = (school_class.id, work.subject_id or 0)
+        pair_key = (school_class.id, work.subject_catalog_id or 0)
         pair_stats[pair_key]["class_name"] = school_class.name
         pair_stats[pair_key]["subject_name"] = work.subject_name
         pair_stats[pair_key]["results"] += 1

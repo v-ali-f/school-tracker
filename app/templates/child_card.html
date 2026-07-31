@@ -954,7 +954,7 @@
             <tbody>
               {% for d in open_debts %}
                 <tr>
-                  <td>{{ d.subject.name if d.subject else ('ID ' ~ d.subject_id) }}</td>
+                  <td>{{ d.subject_name }}</td>
                   <td>{% if d.detected_date %}{{ d.detected_date.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
                   <td>{% if d.due_date %}{{ d.due_date.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
                   <td>{% if d.created_at %}{{ d.created_at.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
@@ -990,7 +990,7 @@
             <tbody>
               {% for d in closed_debts %}
                 <tr>
-                  <td>{{ d.subject.name if d.subject else ('ID ' ~ d.subject_id) }}</td>
+                  <td>{{ d.subject_name }}</td>
                   <td>{% if d.closed_at %}{{ d.closed_at.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
                   <td class="text-end">
                     {% if can_edit_debts %}
@@ -1338,7 +1338,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <option value="">— без привязки —</option>
               {% for d in (open_debts or []) %}
                 <option value="{{ d.id }}">
-                  {{ d.subject.name if d.subject else ('ID ' ~ d.subject_id) }}
+                  {{ d.subject_name }}
                   {% if d.due_date %}(до {{ d.due_date.strftime("%d.%m.%Y") }}){% endif %}
                 </option>
               {% endfor %}
@@ -1513,7 +1513,7 @@ document.addEventListener("change", function(e){
     </div>
     <div class="mt-3">
       <h6>Олимпиады / ВСОШ</h6>
-      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Балл</th><th>Статус</th><th>Причина</th><th>Учитель</th><th>Кафедра</th></tr></thead><tbody>{% for r in olympiad_results %}<tr class="{% if r.is_annulled or r.status_group == 'annulled' %}table-danger{% endif %}"><td>{{ r.academic_year.name if r.academic_year else '—' }}</td><td>{{ r.stage or '—' }}</td><td>{{ r.subject.name if r.subject else (r.subject_name or '—') }}</td><td>{{ r.score if r.score is not none else '—' }}</td><td>{% if r.status_group == 'winner' %}<span class="badge text-bg-success">Победитель</span>{% elif r.status_group == 'prize' %}<span class="badge text-bg-primary">Призёр</span>{% elif r.status_group == 'annulled' or r.is_annulled %}<span class="badge text-bg-danger">Аннулировано</span>{% else %}{{ r.status or '—' }}{% endif %}</td><td class="small">{% if r.status_group == 'annulled' %}{{ r.status_original or r.reason or '—' }}{% else %}{{ r.reason or '—' }}{% endif %}</td><td>{{ r.teacher.fio if r.teacher else '—' }}</td><td>{{ r.department.name if r.department else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="text-muted">Олимпиадных результатов пока нет</td></tr>{% endfor %}</tbody></table></div>
+      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Балл</th><th>Статус</th><th>Причина</th><th>Учитель</th><th>Кафедра</th></tr></thead><tbody>{% for r in olympiad_results %}<tr class="{% if r.is_annulled or r.status_group == 'annulled' %}table-danger{% endif %}"><td>{{ r.academic_year.name if r.academic_year else '—' }}</td><td>{{ r.stage or '—' }}</td><td>{{ r.resolved_subject_name }}</td><td>{{ r.score if r.score is not none else '—' }}</td><td>{% if r.status_group == 'winner' %}<span class="badge text-bg-success">Победитель</span>{% elif r.status_group == 'prize' %}<span class="badge text-bg-primary">Призёр</span>{% elif r.status_group == 'annulled' or r.is_annulled %}<span class="badge text-bg-danger">Аннулировано</span>{% else %}{{ r.status or '—' }}{% endif %}</td><td class="small">{% if r.status_group == 'annulled' %}{{ r.status_original or r.reason or '—' }}{% else %}{{ r.reason or '—' }}{% endif %}</td><td>{{ r.teacher.fio if r.teacher else '—' }}</td><td>{{ r.department.name if r.department else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="text-muted">Олимпиадных результатов пока нет</td></tr>{% endfor %}</tbody></table></div>
     </div>
     <div class="mt-3">
       <h6>Контрольные результаты (последние)</h6>

@@ -19,7 +19,7 @@
       <div class="col-12"><input class="form-control" name="olympiad_name" placeholder="Олимпиада (необязательно)"></div>
       <div class="col-12"><input class="form-control" name="olympiad_subject_name" placeholder="Олимпиадный предмет" required></div>
       <div class="col-12"><select class="form-select" name="subject_id" required><option value="">Основной предмет нагрузки</option>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
-      <div class="col-12"><select class="form-select" name="linked_subject_ids" multiple size="8">{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select><div class="form-text">Можно выбрать несколько предметов нагрузки для одной записи.</div></div>
+      <div class="col-12"><select class="form-select" name="linked_activity_ids" multiple size="8">{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select><div class="form-text">Можно выбрать несколько предметов из единого каталога для одной записи.</div></div>
       <div class="col-md-6"><input class="form-control" type="number" min="1" max="11" name="grade_from" placeholder="Параллель с"></div>
       <div class="col-md-6"><input class="form-control" type="number" min="1" max="11" name="grade_to" placeholder="Параллель по"></div>
       <div class="col-md-6"><select class="form-select" name="department_id"><option value="">Кафедра</option>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></div>

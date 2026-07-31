@@ -7,7 +7,7 @@
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.view_control_work', work_id=work.id, **return_args) }}">К карточке</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_registry', academic_year_id=work.academic_year_id, subject_id=work.subject_id, **return_args) }}">Реестр</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_registry', academic_year_id=work.academic_year_id, subject_id=work.subject_catalog_id, **return_args) }}">Реестр</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_work_report_export_pdf', work_id=work.id, **return_args) }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_work_report_export', work_id=work.id, **return_args) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
   </div>
