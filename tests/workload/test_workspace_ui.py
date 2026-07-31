@@ -18,14 +18,16 @@ def test_workload_pages_use_shared_workspace_shell(
     assert 'data-active-mode="hours"' in html
     assert "Учебное планирование и нагрузка" in html
     assert "Учебные планы" in html
+    assert "Привязка УП" in html
+    assert "Свод по классам" in html
     assert "Структура" not in html
     assert "Контекст" not in html
     assert "data-workload-panel-toggle" not in html
     assert "Группы" in html
     assert "Метагруппы" in html
     assert "Нагрузка" in html
-    assert "Контроль" in html
-    assert "Печать и экспорт" in html
+    assert "Контроль" not in html
+    assert "Печать и экспорт" not in html
     assert "workload_workspace.css" in html
     assert "workload_workspace.js" not in html
 

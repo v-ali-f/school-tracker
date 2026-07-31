@@ -23,8 +23,6 @@
     {% endif %}
   </header>
 
-  {% include "workload/_plan_binding_views.html" %}
-
   <form class="plan-binding-filters" method="get" action="{{ url_for('workload.plan_bindings') }}" data-plan-binding-filters>
     <label>
       <span>Учебный год</span>

@@ -24,9 +24,20 @@
   font-size: 12px;
 }
 
-.plan-binding-view-nav {
-  max-width: 520px;
-  margin: 12px 0;
+.class-plan-heading__actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.class-plan-heading__actions .btn {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .class-plan-toolbar {
@@ -317,6 +328,15 @@
 }
 
 @media (max-width: 800px) {
+  .class-plan-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .class-plan-heading__actions {
+    align-self: flex-end;
+  }
+
   .class-plan-toolbar,
   .class-plan-caption {
     align-items: stretch;

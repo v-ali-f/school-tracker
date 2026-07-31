@@ -1,4 +1,12 @@
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import (
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from app.core.extensions import db
@@ -23,6 +31,10 @@ from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_GRADES,
     EDUCATION_LEVEL_LABELS,
     build_class_plan_matrix,
+)
+from app.services.class_plan_matrix_export_service import (
+    build_class_plan_matrix_pdf,
+    build_class_plan_matrix_xlsx,
 )
 from app.services.teaching_group_service import (
     GroupValidationError,
@@ -196,6 +208,66 @@ def _class_binding_rows(classes, version):
     return rows, all_plans, unassigned_total
 
 
+def _matrix_context(version_id, requested_level):
+    versions = _available_versions()
+    version = _selected_version(versions, version_id)
+    snapshot = (
+        current_population_snapshot(version.id)
+        if version else None
+    )
+    registry_status = (
+        population_registry_status(version, snapshot)
+        if version else {
+            "class_count": 0,
+            "student_count": 0,
+            "snapshot_class_count": 0,
+            "snapshot_student_count": 0,
+            "is_stale": False,
+        }
+    )
+    classes = _snapshot_classes(snapshot)
+    plans = _curriculum_plans(version)
+    _, _, unassigned_count = _class_binding_rows(classes, version)
+    level_counts = {
+        level: sum(
+            1
+            for item in classes
+            if item.grade_snapshot in grades
+        )
+        for level, grades in EDUCATION_LEVEL_GRADES.items()
+    }
+    selected_level = (requested_level or "").strip().upper()
+    if selected_level not in EDUCATION_LEVEL_GRADES:
+        selected_level = next(
+            (
+                level
+                for level in EDUCATION_LEVEL_GRADES
+                if level_counts[level]
+            ),
+            "NOO",
+        )
+    return {
+        "versions": versions,
+        "selected_version": version,
+        "snapshot": snapshot,
+        "plans": plans,
+        "matrix": build_class_plan_matrix(
+            snapshot,
+            plans,
+            selected_level,
+        ),
+        "selected_level": selected_level,
+        "level_labels": EDUCATION_LEVEL_LABELS,
+        "level_counts": level_counts,
+        "class_count": len(classes),
+        "unassigned_count": unassigned_count,
+        "registry_status": registry_status,
+        "academic_years": AcademicYear.query.order_by(
+            AcademicYear.start_date.desc()
+        ).all(),
+    }
+
+
 def register_plan_binding_routes(workload_bp):
     @workload_bp.get("/plan-bindings/")
     @login_required
@@ -280,69 +352,70 @@ def register_plan_binding_routes(workload_bp):
     @login_required
     def plan_bindings_matrix():
         _require_bindings_read()
-        versions = _available_versions()
-        version = _selected_version(
-            versions,
+        context = _matrix_context(
             request.args.get("version_id", type=int),
-        )
-        snapshot = (
-            current_population_snapshot(version.id)
-            if version else None
-        )
-        registry_status = (
-            population_registry_status(version, snapshot)
-            if version else {
-                "class_count": 0,
-                "student_count": 0,
-                "snapshot_class_count": 0,
-                "snapshot_student_count": 0,
-                "is_stale": False,
-            }
-        )
-        classes = _snapshot_classes(snapshot)
-        plans = _curriculum_plans(version)
-        _, _, unassigned_count = _class_binding_rows(classes, version)
-        level_counts = {
-            level: sum(
-                1
-                for item in classes
-                if item.grade_snapshot in grades
-            )
-            for level, grades in EDUCATION_LEVEL_GRADES.items()
-        }
-        selected_level = (
-            request.args.get("level") or ""
-        ).strip().upper()
-        if selected_level not in EDUCATION_LEVEL_GRADES:
-            selected_level = next(
-                (
-                    level
-                    for level in EDUCATION_LEVEL_GRADES
-                    if level_counts[level]
-                ),
-                "NOO",
-            )
-        matrix = build_class_plan_matrix(
-            snapshot,
-            plans,
-            selected_level,
+            request.args.get("level"),
         )
         return render_template(
             "workload/plan_bindings_matrix.html",
-            versions=versions,
-            selected_version=version,
-            snapshot=snapshot,
-            plans=plans,
-            matrix=matrix,
-            selected_level=selected_level,
-            level_labels=EDUCATION_LEVEL_LABELS,
-            level_counts=level_counts,
-            class_count=len(classes),
-            unassigned_count=unassigned_count,
-            registry_status=registry_status,
-            academic_years=AcademicYear.query.order_by(
-                AcademicYear.start_date.desc()
-            ).all(),
+            **context,
+        )
+
+    @workload_bp.get("/plan-bindings/matrix/export.xlsx")
+    @login_required
+    def plan_bindings_matrix_export_xlsx():
+        _require_bindings_read()
+        context = _matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+        )
+        version = context["selected_version"]
+        if version is None:
+            abort(404)
+        year_name = version.tariff_cycle.academic_year.name
+        stream = build_class_plan_matrix_xlsx(
+            context["matrix"],
+            year_name,
+        )
+        return send_file(
+            stream,
+            as_attachment=True,
+            download_name=(
+                f"Altair_class_plan_summary_"
+                f"{year_name.replace('/', '-')}_"
+                f"{context['selected_level']}.xlsx"
+            ),
+            mimetype=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+        )
+
+    @workload_bp.get("/plan-bindings/matrix/export.pdf")
+    @login_required
+    def plan_bindings_matrix_export_pdf():
+        _require_bindings_read()
+        context = _matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+        )
+        version = context["selected_version"]
+        if version is None:
+            abort(404)
+        year_name = version.tariff_cycle.academic_year.name
+        stream = build_class_plan_matrix_pdf(
+            context["matrix"],
+            year_name,
+        )
+        return send_file(
+            stream,
+            as_attachment=True,
+            download_name=(
+                f"Altair_class_plan_summary_"
+                f"{year_name.replace('/', '-')}_"
+                f"{context['selected_level']}.pdf"
+            ),
+            mimetype="application/pdf",
         )
 
     @workload_bp.post("/plan-bindings/snapshot/refresh")

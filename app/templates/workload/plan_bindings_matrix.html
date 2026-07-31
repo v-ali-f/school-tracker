@@ -14,9 +14,25 @@
       <h2>Свод учебных планов по классам</h2>
       <p>Часы назначенных УП в разрезе фактических классов и профильных групп</p>
     </div>
+    {% if selected_version %}
+    <div class="class-plan-heading__actions" aria-label="Выгрузка свода">
+      <a
+        class="btn btn-outline-success btn-sm"
+        href="{{ url_for('workload.plan_bindings_matrix_export_xlsx', version_id=selected_version.id, level=selected_level) }}"
+      >
+        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+        Excel
+      </a>
+      <a
+        class="btn btn-outline-danger btn-sm"
+        href="{{ url_for('workload.plan_bindings_matrix_export_pdf', version_id=selected_version.id, level=selected_level) }}"
+      >
+        <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+        PDF
+      </a>
+    </div>
+    {% endif %}
   </header>
-
-  {% include "workload/_plan_binding_views.html" %}
 
   <div class="class-plan-toolbar">
     <form method="get" action="{{ url_for('workload.plan_bindings_matrix') }}" data-plan-binding-filters>
