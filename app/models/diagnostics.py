@@ -11,6 +11,12 @@ class DiagnosticSession(db.Model):
     title = db.Column(db.String(255), nullable=False)
     diagnostic_type = db.Column(db.String(30), nullable=False, default="MCKO")
     subject = db.Column(db.String(120), nullable=True)
+    education_activity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_activity.id"),
+        nullable=True,
+        index=True,
+    )
     parallel = db.Column(db.Integer, nullable=True)
     date_main = db.Column(db.Date, nullable=True)
     date_reserve = db.Column(db.Date, nullable=True)
@@ -21,6 +27,10 @@ class DiagnosticSession(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     academic_year = db.relationship("AcademicYear")
+    education_activity = db.relationship(
+        "EducationActivity",
+        foreign_keys=[education_activity_id],
+    )
     author = db.relationship("User")
 
 

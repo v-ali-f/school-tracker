@@ -8,8 +8,11 @@ from sqlalchemy import func, or_
 
 from app.core.extensions import db
 from app.models import (
+    Department,
+    DepartmentSubject,
     EducationActivity,
     EducationActivityAlias,
+    EducationActivityDepartment,
     ExternalActivityMappingLog,
     Subject,
 )
@@ -283,6 +286,133 @@ def sync_subject_from_activity(
     return subject
 
 
+def subject_activity_query(*, include_inactive: bool = False):
+    query = EducationActivity.query.filter(
+        EducationActivity.activity_kind == "SUBJECT",
+    )
+    if not include_inactive:
+        query = query.filter(EducationActivity.is_active.is_(True))
+    return query
+
+
+def list_subject_activities(*, include_inactive: bool = False):
+    return subject_activity_query(
+        include_inactive=include_inactive,
+    ).order_by(
+        func.lower(EducationActivity.name).asc(),
+        EducationActivity.id.asc(),
+    ).all()
+
+
+def get_subject_activity(activity_id: int | None) -> EducationActivity | None:
+    if not activity_id:
+        return None
+    return subject_activity_query(include_inactive=True).filter_by(
+        id=activity_id,
+    ).first()
+
+
+def assign_subject_activity(target, activity: EducationActivity | int):
+    if isinstance(activity, int):
+        activity = get_subject_activity(activity)
+    if activity is None or activity.activity_kind != "SUBJECT":
+        raise ValueError("Выбранная запись не является учебным предметом.")
+
+    subject = sync_subject_from_activity(activity)
+    db.session.flush()
+    target.education_activity_id = activity.id
+    if hasattr(target, "subject_id"):
+        target.subject_id = subject.id
+    if hasattr(target, "subject_name"):
+        target.subject_name = activity.name
+    if target.__class__.__name__ == "DiagnosticSession":
+        target.subject = activity.name
+    return activity
+
+
+def sync_legacy_department_subject_links(
+    activity: EducationActivity,
+    department_ids=None,
+):
+    if activity.activity_kind != "SUBJECT":
+        return
+    subject = sync_subject_from_activity(activity)
+    db.session.flush()
+    desired_department_ids = (
+        {int(value) for value in department_ids}
+        if department_ids is not None
+        else {
+            link.department_id
+            for link in activity.department_links
+            if link.is_active and link.valid_from is None
+        }
+    )
+    existing = DepartmentSubject.query.filter_by(
+        subject_id=subject.id,
+    ).all()
+    existing_by_department = {link.department_id: link for link in existing}
+    for department_id, link in existing_by_department.items():
+        if department_id not in desired_department_ids:
+            db.session.delete(link)
+        elif link.education_activity_id != activity.id:
+            link.education_activity_id = activity.id
+    for department_id in desired_department_ids - set(existing_by_department):
+        db.session.add(DepartmentSubject(
+            department_id=department_id,
+            subject_id=subject.id,
+            education_activity_id=activity.id,
+        ))
+
+
+def replace_activity_departments(
+    activity: EducationActivity,
+    department_ids,
+):
+    unique_ids = list(dict.fromkeys(int(value) for value in department_ids))
+    departments = (
+        Department.query
+        .filter(Department.id.in_(unique_ids))
+        .order_by(func.lower(Department.name).asc(), Department.id.asc())
+        .all()
+        if unique_ids else []
+    )
+    if len(departments) != len(unique_ids):
+        raise ValueError("Одна из выбранных кафедр не найдена.")
+
+    selected_ids = {department.id for department in departments}
+    default_links = {
+        link.department_id: link
+        for link in activity.department_links
+        if link.valid_from is None
+    }
+    existing_primary_id = next(
+        (
+            link.department_id
+            for link in default_links.values()
+            if link.is_primary and link.department_id in selected_ids
+        ),
+        None,
+    )
+    primary_id = (
+        existing_primary_id
+        if existing_primary_id is not None
+        else (departments[0].id if departments else None)
+    )
+    for department_id, link in default_links.items():
+        link.is_active = department_id in selected_ids
+        link.is_primary = department_id == primary_id
+    for department in departments:
+        if department.id not in default_links:
+            db.session.add(EducationActivityDepartment(
+                education_activity_id=activity.id,
+                department_id=department.id,
+                is_primary=department.id == primary_id,
+            ))
+    db.session.flush()
+    sync_legacy_department_subject_links(activity, selected_ids)
+    return departments
+
+
 def get_or_create_subject_with_activity(
     name: str,
     *,
@@ -318,5 +448,11 @@ __all__ = [
     "ensure_activity_for_subject",
     "sync_activity_from_subject",
     "sync_subject_from_activity",
+    "subject_activity_query",
+    "list_subject_activities",
+    "get_subject_activity",
+    "assign_subject_activity",
+    "sync_legacy_department_subject_links",
+    "replace_activity_departments",
     "get_or_create_subject_with_activity",
 ]

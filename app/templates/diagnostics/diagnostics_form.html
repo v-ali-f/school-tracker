@@ -24,16 +24,15 @@
       <input class="form-control" type="number" name="parallel" value="{{ session_obj.parallel if is_edit and session_obj.parallel is not none else '' }}">
     </div>
 
-        {% set current_subject = session_obj.subject if is_edit and session_obj.subject else '' %}
     <div class="col-md-6">
       <label class="form-label">Предмет</label>
-      <input class="form-control" name="subject" list="diagnostic-subject-options" placeholder="Начните вводить или выберите предмет" value="{{ current_subject }}">
-      <datalist id="diagnostic-subject-options">
-        {% for subject_name in subjects or [] %}
-          <option value="{{ subject_name }}"></option>
+      <select class="form-select" name="education_activity_id" required>
+        <option value="">Выберите из единого каталога</option>
+        {% for subject in subjects or [] %}
+          <option value="{{ subject.id }}" {% if is_edit and session_obj.education_activity_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
         {% endfor %}
-      </datalist>
-      <div class="form-text">Можно выбрать предмет из перечня или ввести вручную.</div>
+      </select>
+      <div class="form-text">Новый предмет сначала добавляется в единый реестр предметов и курсов.</div>
     </div>
     <div class="col-md-3">
       <label class="form-label">Основной день</label>

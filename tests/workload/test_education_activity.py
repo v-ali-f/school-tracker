@@ -7,21 +7,29 @@ from sqlalchemy.exc import IntegrityError
 from app.core.extensions import db
 from app.models import (
     Department,
+    DepartmentSubject,
+    DiagnosticSession,
     EducationActivity,
     EducationActivityAlias,
     EducationActivityDepartment,
     ExternalActivityMappingLog,
     OrganizationSettings,
     Subject,
+    TeacherLoad,
+    TeacherMckoResult,
+    User,
 )
 from app.services.education_activity_service import (
     AMBIGUOUS,
     MATCHED,
     UNMATCHED,
+    assign_subject_activity,
     get_or_create_subject_with_activity,
+    list_subject_activities,
     normalize_activity_code,
     normalize_activity_name,
     record_activity_mapping,
+    replace_activity_departments,
     resolve_education_activity,
 )
 
@@ -228,6 +236,42 @@ def test_activity_has_only_one_current_primary_department(app):
         db.session.rollback()
 
 
+def test_replacing_departments_preserves_existing_primary_department(app):
+    with app.app_context():
+        activity = _global_activity("PHYSICS", "Физика")
+        first = Department(name="Альтернативная кафедра")
+        primary = Department(name="Основная кафедра")
+        third = Department(name="Третья кафедра")
+        db.session.add_all((first, primary, third))
+        db.session.flush()
+        db.session.add_all((
+            EducationActivityDepartment(
+                education_activity_id=activity.id,
+                department_id=first.id,
+                is_primary=False,
+            ),
+            EducationActivityDepartment(
+                education_activity_id=activity.id,
+                department_id=primary.id,
+                is_primary=True,
+            ),
+        ))
+        db.session.commit()
+
+        replace_activity_departments(
+            activity,
+            [first.id, primary.id, third.id],
+        )
+        db.session.commit()
+
+        current_primary = next(
+            link
+            for link in activity.department_links
+            if link.is_active and link.is_primary
+        )
+        assert current_primary.department_id == primary.id
+
+
 def test_catalog_write_requires_separate_feature_flag(
     app, client, make_user, login
 ):
@@ -373,6 +417,83 @@ def test_unified_catalog_saves_multiple_levels_departments_and_subject_link(
         ).one()
         assert subject.name == activity.name
         assert subject.short_name == activity.short_name
+        assert {
+            link.department_id
+            for link in DepartmentSubject.query.filter_by(
+                education_activity_id=activity.id,
+            ).all()
+        } == set(department_ids)
+
+
+def test_canonical_activity_assignment_keeps_transition_links_consistent(app):
+    with app.app_context():
+        activity = _global_activity("MATHEMATICS", "Математика")
+        department = Department(name="Кафедра математики")
+        teacher = User(username="canonical-subject-teacher", role="TEACHER")
+        teacher.set_password("local-test-password")
+        db.session.add_all((department, teacher))
+        db.session.flush()
+
+        department_link = DepartmentSubject(department_id=department.id)
+        teacher_load = TeacherLoad(teacher_id=teacher.id, hours=5)
+        mcko_result = TeacherMckoResult(teacher_id=teacher.id)
+        diagnostic = DiagnosticSession(
+            title="МЦКО по математике",
+            diagnostic_type="MCKO",
+        )
+        for target in (
+            department_link,
+            teacher_load,
+            mcko_result,
+            diagnostic,
+        ):
+            assign_subject_activity(target, activity)
+            db.session.add(target)
+        db.session.commit()
+
+        subject = Subject.query.filter_by(
+            education_activity_id=activity.id,
+        ).one()
+        assert department_link.education_activity_id == activity.id
+        assert department_link.subject_id == subject.id
+        assert teacher_load.education_activity_id == activity.id
+        assert teacher_load.subject_id == subject.id
+        assert teacher_load.subject_name == activity.name
+        assert mcko_result.education_activity_id == activity.id
+        assert mcko_result.subject_id == subject.id
+        assert diagnostic.education_activity_id == activity.id
+        assert diagnostic.subject == activity.name
+
+
+def test_subject_activity_list_is_the_only_alphabetical_selector_source(app):
+    with app.app_context():
+        _global_activity("RUSSIAN", "Русский язык")
+        _global_activity("ALGEBRA", "Алгебра")
+        course = _global_activity("ROBOTICS", "Робототехника")
+        course.activity_kind = "ADDITIONAL_PROGRAM"
+        db.session.commit()
+
+        assert [item.name for item in list_subject_activities()] == [
+            "Алгебра",
+            "Русский язык",
+        ]
+
+
+def test_diagnostic_form_uses_canonical_activity_selector(
+    app, client, make_user, login
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        _global_activity("PHYSICS", "Физика")
+        db.session.commit()
+    login(user_id)
+
+    response = client.get("/diagnostics/new")
+
+    assert response.status_code == 200
+    assert b'name="education_activity_id"' in response.data
+    assert b'name="subject"' not in response.data
+    assert "Физика".encode() in response.data
 
 
 def test_teacher_cannot_manage_catalog_even_when_write_flag_is_enabled(

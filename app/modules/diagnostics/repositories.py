@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models import DiagnosticKesResult, DiagnosticResult, DiagnosticSession, DiagnosticTaskResult, Department, Subject, User
+from app.models import DiagnosticKesResult, DiagnosticResult, DiagnosticSession, DiagnosticTaskResult, Department, EducationActivity, User
 
 
 def get_visible_results_query():
@@ -24,21 +24,13 @@ def get_kes_rows_for_session(session_id: int | None):
 
 
 def get_subject_choices():
-    values = []
-    for item in Subject.query.order_by(Subject.name.asc()).all():
-        if getattr(item, "name", None):
-            values.append(item.name)
-    for row in DiagnosticSession.query.filter(DiagnosticSession.subject.isnot(None)).distinct(DiagnosticSession.subject).all():
-        if getattr(row, "subject", None):
-            values.append(row.subject)
-    unique = []
-    seen = set()
-    for value in values:
-        key = str(value).strip().lower()
-        if key and key not in seen:
-            unique.append(str(value).strip())
-            seen.add(key)
-    return unique
+    return [
+        item.name
+        for item in EducationActivity.query.filter_by(
+            activity_kind="SUBJECT",
+            is_active=True,
+        ).order_by(EducationActivity.name.asc()).all()
+    ]
 
 
 def get_teacher_choices():

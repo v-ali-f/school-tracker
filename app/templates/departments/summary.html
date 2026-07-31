@@ -103,7 +103,7 @@
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2">
       <input type="hidden" name="department_id" value="{{ dep.id }}">
       <div class="col-md-4"><select class="form-select" name="teacher_id">{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
-      <div class="col-md-3"><select class="form-select" name="subject_id"><option value="">Предмет</option>{% for link in dep.subject_links %}<option value="{{ link.subject_id }}">{{ link.subject.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><select class="form-select" name="subject_id"><option value="">Предмет</option>{% for link in dep.subject_links %}{% if link.education_activity %}<option value="{{ link.education_activity_id }}">{{ link.education_activity.name }}</option>{% endif %}{% endfor %}</select></div>
       <div class="col-md-2"><input class="form-control" type="date" name="passed_at"></div>
       <div class="col-md-3"><input class="form-control" name="result_text" placeholder="Результат / балл"></div>
       <div class="col-md-12 d-grid"><button class="btn btn-outline-primary">Добавить результат МЦКО</button></div>

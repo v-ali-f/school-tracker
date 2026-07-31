@@ -47,7 +47,7 @@
         </div>
         <div class="col-12">
           <label class="form-label">Предметы кафедры</label>
-          {% set selected = dep.subject_links | map(attribute='subject_id') | list %}
+          {% set selected = dep.subject_links | map(attribute='education_activity_id') | list %}
           <div class="border rounded p-3 bg-light" style="max-height: 280px; overflow:auto;">
             <div class="row">
               {% for subject in subjects %}
@@ -122,7 +122,7 @@
           {% if dep.subject_links %}
             <div class="d-flex flex-wrap gap-2">
               {% for link in dep.subject_links %}
-                <span class="badge text-bg-light border">{{ link.subject.name if link.subject else '—' }}</span>
+                <span class="badge text-bg-light border">{{ link.education_activity.name if link.education_activity else (link.subject.name if link.subject else '—') }}</span>
               {% endfor %}
             </div>
           {% else %}
