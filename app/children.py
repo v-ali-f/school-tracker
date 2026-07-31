@@ -109,8 +109,8 @@ from app.core.cache import view_response_cache, make_key
 from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
 from app.services.education_activity_service import (
     assign_subject_activity,
+    get_or_create_subject_activity,
     get_subject_activity,
-    get_or_create_subject_with_activity,
     list_subject_activities,
 )
 from .models import (
@@ -6372,7 +6372,7 @@ def subjects_import():
                 skipped += 1
                 continue
 
-            _subject, was_created = get_or_create_subject_with_activity(
+            _activity, was_created = get_or_create_subject_activity(
                 name,
                 short_name=short_name,
                 created_by_user_id=current_user.id,

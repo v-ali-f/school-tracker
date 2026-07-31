@@ -442,6 +442,46 @@ def get_or_create_subject_with_activity(
     return subject, created
 
 
+def get_or_create_subject_activity(
+    name: str,
+    *,
+    short_name: str | None = None,
+    created_by_user_id: int | None = None,
+) -> tuple[EducationActivity, bool]:
+    """Return the canonical subject while keeping the legacy adapter in sync."""
+    clean_name = " ".join(str(name or "").split())
+    if not clean_name:
+        raise ValueError("Subject name is required")
+
+    activities = (
+        subject_activity_query(include_inactive=True)
+        .filter(func.lower(EducationActivity.name) == clean_name.lower())
+        .order_by(EducationActivity.id.asc())
+        .all()
+    )
+    if len(activities) > 1:
+        raise ValueError(
+            f"В едином каталоге найдено несколько предметов «{clean_name}»."
+        )
+    if activities:
+        activity = activities[0]
+        if short_name and not activity.short_name:
+            activity.short_name = short_name.strip() or None
+        sync_subject_from_activity(activity)
+        db.session.flush()
+        return activity, False
+
+    subject, created = get_or_create_subject_with_activity(
+        clean_name,
+        short_name=short_name,
+        created_by_user_id=created_by_user_id,
+    )
+    return ensure_activity_for_subject(
+        subject,
+        created_by_user_id=created_by_user_id,
+    ), created
+
+
 __all__ = [
     "MATCHED",
     "AMBIGUOUS",
@@ -461,4 +501,5 @@ __all__ = [
     "sync_legacy_department_subject_links",
     "replace_activity_departments",
     "get_or_create_subject_with_activity",
+    "get_or_create_subject_activity",
 ]

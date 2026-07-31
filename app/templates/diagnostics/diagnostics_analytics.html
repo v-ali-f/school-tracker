@@ -124,10 +124,10 @@
 
         <div class="col-lg-2 col-md-6">
           <label class="form-label">Предмет</label>
-          <select class="form-select" name="subject">
+          <select class="form-select" name="subject_id">
             <option value="">Все</option>
             {% for subject in subject_options %}
-              <option value="{{ subject }}" {% if subject_filter == subject %}selected{% endif %}>{{ subject }}</option>
+              <option value="{{ subject.id }}" {% if selected_subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>
             {% endfor %}
           </select>
         </div>

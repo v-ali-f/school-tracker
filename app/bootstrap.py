@@ -315,7 +315,12 @@ def ensure_runtime_schema():
 
 def seed_olympiad_subject_mappings(app):
     try:
-        from app.models import DepartmentSubject, OlympiadSubjectMapping, Subject
+        from app.models import (
+            DepartmentSubject,
+            EducationActivity,
+            OlympiadSubjectMapping,
+        )
+        from app.services.education_activity_service import assign_subject_activity
     except Exception:
         logger.exception("bootstrap: failed to import olympiad-mapping models for seeding")
         return 0
@@ -349,24 +354,35 @@ def seed_olympiad_subject_mappings(app):
         def norm(v):
             return " ".join(str(v or "").replace("ё", "е").replace("Ё", "Е").split()).strip().lower()
 
-        subjects = Subject.query.all()
-        subjects_by_name = {norm(s.name): s for s in subjects}
+        activities = (
+            EducationActivity.query
+            .filter(
+                EducationActivity.activity_kind == "SUBJECT",
+                EducationActivity.is_active.is_(True),
+            )
+            .all()
+        )
+        activities_by_name = {norm(item.name): item for item in activities}
 
-        def match_subject(raw_school_subjects: str):
+        def match_activity(raw_school_subjects: str):
             variants = [
                 norm(part)
                 for part in str(raw_school_subjects or "").replace(";", ",").split(",")
                 if norm(part)
             ]
             for item in variants:
-                if item in subjects_by_name:
-                    return subjects_by_name[item]
+                if item in activities_by_name:
+                    return activities_by_name[item]
 
             for item in variants:
-                for subj in subjects:
-                    subj_norm = norm(subj.name)
-                    if subj_norm == item or subj_norm in item or item in subj_norm:
-                        return subj
+                for activity in activities:
+                    activity_norm = norm(activity.name)
+                    if (
+                        activity_norm == item
+                        or activity_norm in item
+                        or item in activity_norm
+                    ):
+                        return activity
             return None
 
         created = 0
@@ -380,11 +396,13 @@ def seed_olympiad_subject_mappings(app):
             if not olympiad_name or not school_subjects:
                 continue
 
-            subject = match_subject(school_subjects)
-            if not subject:
+            activity = match_activity(school_subjects)
+            if not activity:
                 continue
 
-            dep_link = DepartmentSubject.query.filter_by(subject_id=subject.id).first()
+            dep_link = DepartmentSubject.query.filter_by(
+                education_activity_id=activity.id,
+            ).first()
             mapping = OlympiadSubjectMapping.query.filter_by(
                 olympiad_subject_name=olympiad_name
             ).first()
@@ -393,11 +411,11 @@ def seed_olympiad_subject_mappings(app):
 
             mapping = OlympiadSubjectMapping(
                 olympiad_subject_name=olympiad_name,
-                subject_id=subject.id,
                 department_id=dep_link.department_id if dep_link else None,
                 comment=f"Базовая загрузка из перечня ВСОШ: {school_subjects}",
                 is_active=True,
             )
+            assign_subject_activity(mapping, activity)
             db.session.add(mapping)
             created += 1
 

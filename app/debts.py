@@ -1,9 +1,14 @@
 from datetime import datetime
-from flask import Blueprint, redirect, url_for, request
+from flask import Blueprint, flash, redirect, url_for, request
 from flask_login import login_required, current_user
-from .models import Debt, Subject, Child
+from .models import Debt, Child
 from app.core.extensions import db
-from app.services.education_activity_service import get_or_create_subject_with_activity
+from app.services.education_activity_service import (
+    MATCHED,
+    assign_subject_activity,
+    get_subject_activity,
+    resolve_education_activity,
+)
 
 debts_bp = Blueprint("debts", __name__)
 
@@ -18,28 +23,31 @@ def parse_date(value: str):
 def new_debt(child_id: int):
     Child.query.get_or_404(child_id)
 
+    activity = get_subject_activity(
+        request.form.get("education_activity_id", type=int)
+    )
     subject_name = (request.form.get("subject") or "").strip()
+    if activity is None and subject_name:
+        match = resolve_education_activity(
+            subject_name,
+            source_module="DEBT",
+        )
+        if match.status == MATCHED:
+            activity = match.activity
     detected_date = parse_date(request.form.get("detected_date"))
     due_date = parse_date(request.form.get("due_date"))
-    comment = (request.form.get("comment") or "").strip() or None
 
-    if not subject_name:
+    if activity is None:
+        flash("Выберите предмет из единого реестра.", "warning")
         return redirect(url_for("children.child_card", child_id=child_id))
-
-    subject, _created = get_or_create_subject_with_activity(
-        subject_name,
-        created_by_user_id=current_user.id,
-    )
 
     debt = Debt(
         child_id=child_id,
-        subject_id=subject.id,
         detected_date=detected_date or datetime.today().date(),
         due_date=due_date,
         status="OPEN",
-        comment=comment,
-        responsible_user_id=current_user.id
     )
+    assign_subject_activity(debt, activity)
     db.session.add(debt)
     db.session.commit()
     return redirect(url_for("children.child_card", child_id=child_id))
@@ -49,6 +57,7 @@ def new_debt(child_id: int):
 def close_debt(debt_id: int):
     debt = Debt.query.get_or_404(debt_id)
     debt.status = "CLOSED"
-    debt.closed_date = datetime.today().date()
+    debt.closed_at = datetime.utcnow()
+    debt.closed_by_user_id = current_user.id
     db.session.commit()
     return redirect(url_for("children.child_card", child_id=debt.child_id))
