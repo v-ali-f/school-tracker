@@ -29,7 +29,10 @@ from app.services.education_activity_service import (
     list_subject_activities,
 )
 from app.modules.diagnostics.services.import_service import apply_preview, build_preview, build_report, load_preview, save_preview
-from app.modules.diagnostics.repositories import get_department_choices, get_kes_rows_for_session, get_subject_choices, get_task_rows_for_results, get_teacher_choices
+from app.modules.diagnostics.repositories import (
+    get_kes_rows_for_session,
+    get_task_rows_for_results,
+)
 from app.modules.diagnostics.services.analytics_service import LEVEL_COLORS, LEVEL_ORDER, aggregate_results as modular_aggregate_results, build_tasks_table
 
 
@@ -289,10 +292,6 @@ def _normalized_level_label(result: DiagnosticResult, session: DiagnosticSession
     return "Без уровня"
 
 
-def _subject_choices() -> list[str]:
-    return [item.name for item in list_subject_activities()]
-
-
 # ------------------------------------------------------------
 # ACCESS HELPERS
 # ------------------------------------------------------------
@@ -464,7 +463,19 @@ def _is_group_subject(subject_name: str, matches: list[TeacherLoad]) -> bool:
 
 def _match_teacher_loads(current_year: AcademicYear | None, result: DiagnosticResult, all_loads: list[TeacherLoad]):
     session = result.session
-    subject_name = (session.subject or "").strip() if session else ""
+    subject_activity_id = (
+        session.education_activity_id
+        if session
+        else None
+    )
+    subject_name = (
+        (
+            session.education_activity.name
+            if session and session.education_activity
+            else session.subject
+        )
+        or ""
+    ).strip() if session else ""
     class_name = (result.class_name_raw or (result.school_class.name if result.school_class else "") or "").strip()
     result_year_id = session.academic_year_id if session and session.academic_year_id else (current_year.id if current_year else None)
 
@@ -476,7 +487,9 @@ def _match_teacher_loads(current_year: AcademicYear | None, result: DiagnosticRe
             continue
 
         same_subject = True
-        if subject_name and load.subject_name:
+        if subject_activity_id:
+            same_subject = load.education_activity_id == subject_activity_id
+        elif subject_name and load.subject_name:
             same_subject = _norm(load.subject_name) == _norm(subject_name)
         elif subject_name and getattr(load, "subject", None) and getattr(load.subject, "name", None):
             same_subject = _norm(load.subject.name) == _norm(subject_name)
@@ -572,12 +585,12 @@ def _task_success_percent(task_rows: list[DiagnosticTaskResult]) -> float | None
 def index():
     academic_year_id = request.args.get("academic_year_id", type=int)
     diagnostic_type = (request.args.get("diagnostic_type") or "").strip()
-    subject_filter = (request.args.get("subject") or "").strip()
+    subject_id = request.args.get("subject_id", type=int)
     parallel_filter = request.args.get("parallel", type=int)
     status_filter = (request.args.get("status") or "").strip()
 
     years = AcademicYear.query.order_by(AcademicYear.name.desc()).all()
-    subjects = _subject_choices()
+    subjects = list_subject_activities()
     all_rows = _visible_sessions_with_stats()
 
     # s85: фильтруем сначала, потом подгружаем статистику только по нужным сессиям.
@@ -587,7 +600,7 @@ def index():
             continue
         if diagnostic_type and row.diagnostic_type != diagnostic_type:
             continue
-        if subject_filter and _norm(row.subject) != _norm(subject_filter):
+        if subject_id and row.education_activity_id != subject_id:
             continue
         if parallel_filter and row.parallel != parallel_filter:
             continue
@@ -644,7 +657,7 @@ def index():
         subjects=subjects,
         current_year_id=academic_year_id,
         diagnostic_type=diagnostic_type,
-        subject_filter=subject_filter,
+        selected_subject_id=subject_id,
         parallel_filter=parallel_filter,
         status_filter=status_filter,
         can_manage=_can_manage_diagnostics(),
@@ -884,7 +897,7 @@ def analytics():
     session_id = request.args.get("session_id", type=int)
     parallel_filter = request.args.get("parallel", type=int)
     class_filter = (request.args.get("class_name") or "").strip()
-    subject_filter = (request.args.get("subject") or "").strip()
+    subject_id = request.args.get("subject_id", type=int)
     teacher_id = request.args.get("teacher_id", type=int)
 
     all_sessions = _visible_sessions_with_stats()
@@ -944,7 +957,7 @@ def analytics():
             continue
         if class_filter and _norm_class(class_name) != _norm_class(class_filter):
             continue
-        if subject_filter and _norm(getattr(session, "subject", None)) != _norm(subject_filter):
+        if subject_id and session.education_activity_id != subject_id:
             continue
         if teacher_id and (not binding or binding.teacher_id != teacher_id):
             continue
@@ -1126,7 +1139,7 @@ def analytics():
         if item.get("class_percent") is not None or item.get("city_percent") is not None
     ]
 
-    subject_options = sorted({(row.session.subject or "").strip() for row in session_rows if row.session and (row.session.subject or "").strip()})
+    subject_options = list_subject_activities()
 
     return render_template(
         "diagnostics/diagnostics_analytics.html",
@@ -1135,7 +1148,7 @@ def analytics():
         selected_session_id=session_id,
         parallel_filter=parallel_filter,
         class_filter=class_filter,
-        subject_filter=subject_filter,
+        selected_subject_id=subject_id,
         teacher_filter=teacher_id,
         parallel_options=available_parallels,
         class_options=class_options,
@@ -1299,7 +1312,7 @@ def teacher_binding():
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     selected_year_id = request.values.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     session_id = request.values.get("session_id", type=int)
-    subject_filter = (request.values.get("subject") or "").strip()
+    subject_id = request.values.get("subject_id", type=int)
     parallel_filter = request.values.get("parallel", type=int)
     class_filter = (request.values.get("class_name") or "").strip()
     teacher_filter = request.values.get("teacher_id", type=int)
@@ -1316,8 +1329,10 @@ def teacher_binding():
         results_q = results_q.filter(or_(DiagnosticSession.academic_year_id == selected_year_id, DiagnosticSession.academic_year_id.is_(None)))
     if session_id:
         results_q = results_q.filter(DiagnosticResult.session_id == session_id)
-    if subject_filter:
-        results_q = results_q.filter(func.lower(func.coalesce(DiagnosticSession.subject, "")) == _norm(subject_filter))
+    if subject_id:
+        results_q = results_q.filter(
+            DiagnosticSession.education_activity_id == subject_id,
+        )
     if parallel_filter:
         results_q = results_q.filter(DiagnosticSession.parallel == parallel_filter)
 
@@ -1464,7 +1479,7 @@ def teacher_binding():
             db.session.commit()
             flash(f"Изменения сохранены: {changed} строк.", "success")
 
-        return redirect(url_for("diagnostics.teacher_binding", academic_year_id=selected_year_id or "", session_id=session_id or "", subject=subject_filter, parallel=parallel_filter or "", class_name=class_filter, teacher_id=teacher_filter or "", status=status_filter, only_unassigned=1 if only_unassigned else "", focus_class=selected_class_focus))
+        return redirect(url_for("diagnostics.teacher_binding", academic_year_id=selected_year_id or "", session_id=session_id or "", subject_id=subject_id or "", parallel=parallel_filter or "", class_name=class_filter, teacher_id=teacher_filter or "", status=status_filter, only_unassigned=1 if only_unassigned else "", focus_class=selected_class_focus))
 
     status_counts = defaultdict(int)
     for row in binding_rows:
@@ -1497,12 +1512,13 @@ def teacher_binding():
         "diagnostics/diagnostics_teacher_binding.html",
         years=years,
         sessions=sessions,
+        subjects=list_subject_activities(),
         teachers=teachers,
         binding_rows=binding_rows,
         quick_class_rows=quick_class_rows,
         current_year_id=selected_year_id,
         current_session_id=session_id,
-        subject_filter=subject_filter,
+        selected_subject_id=subject_id,
         parallel_filter=parallel_filter,
         class_filter=class_filter,
         teacher_filter=teacher_filter,

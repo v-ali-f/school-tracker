@@ -21,7 +21,7 @@
   <form method="get" class="row g-3 align-items-end">
     <div class="col-md-2"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id"><option value="">Все</option>{% for y in years %}<option value="{{ y.id }}" {% if current_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
     <div class="col-md-3"><label class="form-label">Диагностика</label><select class="form-select" name="session_id"><option value="">Все</option>{% for s in sessions %}<option value="{{ s.id }}" {% if current_session_id == s.id %}selected{% endif %}>{{ s.title }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><label class="form-label">Предмет</label><input class="form-control" name="subject" value="{{ subject_filter }}"></div>
+    <div class="col-md-2"><label class="form-label">Предмет</label><select class="form-select" name="subject_id"><option value="">Все</option>{% for subject in subjects %}<option value="{{ subject.id }}" {% if selected_subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>{% endfor %}</select></div>
     <div class="col-md-1"><label class="form-label">Параллель</label><input class="form-control" type="number" name="parallel" value="{{ parallel_filter or '' }}"></div>
     <div class="col-md-2"><label class="form-label">Класс</label><input class="form-control" name="class_name" value="{{ class_filter }}"></div>
     <div class="col-md-2"><label class="form-label">Статус</label><select class="form-select" name="status"><option value="">Все</option><option value="auto" {% if status_filter == 'auto' %}selected{% endif %}>Авто</option><option value="manual" {% if status_filter == 'manual' %}selected{% endif %}>Вручную</option><option value="unassigned" {% if status_filter == 'unassigned' %}selected{% endif %}>Не назначено</option><option value="disputed" {% if status_filter == 'disputed' %}selected{% endif %}>Требует уточнения</option></select></div>
@@ -58,7 +58,7 @@
           {% endif %}
         </td>
         <td>{{ row.results_count }}</td>
-        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('diagnostics.teacher_binding', academic_year_id=current_year_id, session_id=current_session_id, subject=subject_filter, parallel=parallel_filter, class_name=class_filter, status=status_filter, focus_class=row.class_name) }}">Открыть класс</a></td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('diagnostics.teacher_binding', academic_year_id=current_year_id, session_id=current_session_id, subject_id=selected_subject_id, parallel=parallel_filter, class_name=class_filter, status=status_filter, focus_class=row.class_name) }}">Открыть класс</a></td>
       </tr>
     {% else %}
       <tr><td colspan="7" class="text-center text-muted py-3">Нет строк для быстрой привязки.</td></tr>

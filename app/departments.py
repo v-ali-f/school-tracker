@@ -10,12 +10,12 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for, abort
 from flask_login import current_user, login_required
 from openpyxl import load_workbook
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.extensions import db
 from app.services.education_activity_service import (
     assign_subject_activity,
-    get_or_create_subject_with_activity,
+    get_or_create_subject_activity,
     get_subject_activity,
     list_subject_activities,
     replace_activity_departments,
@@ -35,7 +35,6 @@ from .models import (
     DepartmentLeader,
     DepartmentSubject,
     EducationActivity,
-    Subject,
     TeacherCourse,
     TeacherLoad,
     TeacherMckoResult,
@@ -200,19 +199,30 @@ def _ensure_default_departments():
                 dep.description = item.get("description")
                 changed = True
         for subject_name in item.get("subject_names", []):
-            subject, subject_created = get_or_create_subject_with_activity(subject_name)
-            if subject_created:
+            activity, activity_created = get_or_create_subject_activity(subject_name)
+            if activity_created:
                 changed = True
-            exists = DepartmentSubject.query.filter_by(department_id=dep.id, subject_id=subject.id).first()
-            if not exists:
-                db.session.add(DepartmentSubject(
-                    department_id=dep.id,
-                    subject_id=subject.id,
-                    education_activity_id=subject.education_activity_id,
+            legacy_subject_id = (
+                activity.legacy_subject.id
+                if activity.legacy_subject
+                else None
+            )
+            exists = (
+                DepartmentSubject.query
+                .filter(DepartmentSubject.department_id == dep.id)
+                .filter(or_(
+                    DepartmentSubject.education_activity_id == activity.id,
+                    DepartmentSubject.subject_id == legacy_subject_id,
                 ))
+                .first()
+            )
+            if not exists:
+                link = DepartmentSubject(department_id=dep.id)
+                assign_subject_activity(link, activity)
+                db.session.add(link)
                 changed = True
-            elif not exists.education_activity_id:
-                exists.education_activity_id = subject.education_activity_id
+            elif exists.education_activity_id != activity.id:
+                assign_subject_activity(exists, activity)
                 changed = True
     if changed:
         db.session.commit()
@@ -555,7 +565,10 @@ def _parse_excel_loads(file_storage):
 
     filename = getattr(file_storage, "filename", None)
     users_cache = {_normalize_person_key(u.fio): u for u in User.query.all() if getattr(u, "fio", None)}
-    subjects = {s.name.lower(): s for s in Subject.query.all()}
+    activities = {
+        activity.name.lower(): activity
+        for activity in list_subject_activities(include_inactive=True)
+    }
     buildings = {b.name.lower(): b for b in Building.query.all() if b.name}
 
     parsed_rows = []
@@ -654,20 +667,17 @@ def _parse_excel_loads(file_storage):
 
     for item in parsed_rows:
         subject_text = item["subject_text"]
-        subject = subjects.get(subject_text.lower())
-        if not subject:
-            subject, _created = get_or_create_subject_with_activity(
+        activity = activities.get(subject_text.lower())
+        if not activity:
+            activity, _created = get_or_create_subject_activity(
                 subject_text,
                 created_by_user_id=getattr(current_user, "id", None),
             )
-            subjects[subject_text.lower()] = subject
+            activities[subject_text.lower()] = activity
             updated += 1
         load = TeacherLoad(
             teacher_id=item["teacher"].id,
-            subject_id=subject.id,
-            education_activity_id=subject.education_activity_id,
             academic_year_id=current_year.id if current_year else None,
-            subject_name=subject.name,
             class_name=item["class_text"],
             group_name=item["group_text"],
             hours=item["hours"],
@@ -681,6 +691,7 @@ def _parse_excel_loads(file_storage):
             teacher_total_hours=item["teacher_total_hours"],
             retention_until=retention_until,
         )
+        assign_subject_activity(load, activity)
         db.session.add(load)
         created += 1
 

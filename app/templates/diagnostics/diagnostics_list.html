@@ -30,9 +30,9 @@
     </div>
     <div class="col-md-3">
       <label class="form-label">Предмет</label>
-      <select class="form-select" name="subject">
+      <select class="form-select" name="subject_id">
         <option value="">Все</option>
-        {% for subject in subjects %}<option value="{{ subject }}" {% if subject_filter == subject %}selected{% endif %}>{{ subject }}</option>{% endfor %}
+        {% for subject in subjects %}<option value="{{ subject.id }}" {% if selected_subject_id == subject.id %}selected{% endif %}>{{ subject.name }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-md-2"><label class="form-label">Параллель</label><input class="form-control" type="number" name="parallel" value="{{ parallel_filter or '' }}"></div>

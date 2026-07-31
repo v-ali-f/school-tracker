@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
 from app.models import (
+    Child,
     ControlWork,
     Debt,
     Department,
@@ -28,6 +29,7 @@ from app.services.education_activity_service import (
     MATCHED,
     UNMATCHED,
     assign_subject_activity,
+    get_or_create_subject_activity,
     get_or_create_subject_with_activity,
     list_subject_activities,
     normalize_activity_code,
@@ -545,6 +547,25 @@ def test_subject_activity_list_is_the_only_alphabetical_selector_source(app):
         ]
 
 
+def test_get_or_create_subject_activity_prefers_canonical_catalog(app):
+    with app.app_context():
+        activity = _global_activity("CHEMISTRY", "Химия")
+        db.session.commit()
+
+        selected, created = get_or_create_subject_activity("  Химия  ")
+        db.session.commit()
+
+        assert created is False
+        assert selected.id == activity.id
+        assert EducationActivity.query.filter_by(
+            activity_kind="SUBJECT",
+            name="Химия",
+        ).count() == 1
+        assert Subject.query.filter_by(
+            education_activity_id=activity.id,
+        ).count() == 1
+
+
 def test_diagnostic_form_uses_canonical_activity_selector(
     app, client, make_user, login
 ):
@@ -560,6 +581,60 @@ def test_diagnostic_form_uses_canonical_activity_selector(
     assert b'name="education_activity_id"' in response.data
     assert b'name="subject"' not in response.data
     assert "Физика".encode() in response.data
+
+
+def test_diagnostic_list_filters_by_canonical_subject_id(
+    app, client, make_user, login
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        physics = _global_activity("PHYSICS", "Физика")
+        chemistry = _global_activity("CHEMISTRY", "Химия")
+        physics_session = DiagnosticSession(
+            title="Диагностика по физике",
+            diagnostic_type="MCKO",
+        )
+        chemistry_session = DiagnosticSession(
+            title="Диагностика по химии",
+            diagnostic_type="MCKO",
+        )
+        assign_subject_activity(physics_session, physics)
+        assign_subject_activity(chemistry_session, chemistry)
+        db.session.add_all((physics_session, chemistry_session))
+        db.session.commit()
+        physics_id = physics.id
+
+    login(user_id)
+    response = client.get(f"/diagnostics/?subject_id={physics_id}")
+
+    assert response.status_code == 200
+    assert b'name="subject_id"' in response.data
+    assert "Диагностика по физике".encode() in response.data
+    assert "Диагностика по химии".encode() not in response.data
+
+
+def test_legacy_debt_route_uses_existing_canonical_subject(
+    app, client, make_user, login
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        child = Child(last_name="Иванов", first_name="Иван")
+        activity = _global_activity("BIOLOGY", "Биология")
+        db.session.add(child)
+        db.session.commit()
+        child_id = child.id
+        activity_id = activity.id
+
+    login(user_id)
+    response = client.post(
+        f"/children/{child_id}/debt/new",
+        data={"education_activity_id": activity_id},
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        debt = Debt.query.filter_by(child_id=child_id).one()
+        assert debt.education_activity_id == activity_id
 
 
 def test_teacher_cannot_manage_catalog_even_when_write_flag_is_enabled(
