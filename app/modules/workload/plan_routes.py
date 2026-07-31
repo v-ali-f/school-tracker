@@ -34,6 +34,8 @@ from app.models import (
     SchoolClass,
     TariffCycle,
     TariffVersion,
+    TeachingGroup,
+    WorkloadNeedSource,
 )
 from app.services.education_plan_service import (
     ACTIVITY_KINDS_BY_PLAN,
@@ -886,6 +888,75 @@ def register_plan_routes(workload_bp):
             scope_label=_scope_label,
             can_update=can_update,
         )
+
+    @workload_bp.post("/plans/<int:plan_id>/delete")
+    @login_required
+    def plan_delete(plan_id):
+        plan = _get_plan(plan_id, for_update=True)
+        if plan.root_plan_id is not None or plan.plan_kind != "CURRICULUM":
+            abort(400)
+        try:
+            require_plan_editable(
+                plan,
+                expected_revision=request.form.get("revision", type=int),
+            )
+            bundle = plan_bundle_parts(plan)
+            line_ids = [
+                line.id
+                for part in bundle.values()
+                for line in part.lines
+            ]
+            group_count = (
+                TeachingGroup.query
+                .filter(TeachingGroup.source_plan_line_id.in_(line_ids))
+                .count()
+                if line_ids else 0
+            )
+            need_count = (
+                WorkloadNeedSource.query
+                .filter(
+                    WorkloadNeedSource.education_plan_line_id.in_(line_ids)
+                )
+                .count()
+                if line_ids else 0
+            )
+            if group_count or need_count:
+                raise PlanValidationError(
+                    "План уже используется при формировании групп или "
+                    "нагрузки. Сначала удалите зависимые рабочие данные."
+                )
+
+            binding_count = len(plan.class_bindings)
+            if line_ids:
+                (
+                    EducationPlanLine.query
+                    .filter(EducationPlanLine.source_line_id.in_(line_ids))
+                    .update(
+                        {EducationPlanLine.source_line_id: None},
+                        synchronize_session=False,
+                    )
+                )
+            plan_name = plan.name
+            db.session.delete(plan)
+            db.session.commit()
+        except PlanValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        except IntegrityError:
+            db.session.rollback()
+            flash(
+                "План связан с рабочими данными и пока не может быть удалён.",
+                "danger",
+            )
+        else:
+            message = f"Учебный план «{plan_name}» удалён."
+            if binding_count:
+                message += (
+                    f" Удалено привязок к классам: {binding_count}. "
+                    "Классы и ученики сохранены без учебного плана."
+                )
+            flash(message, "success")
+        return redirect(url_for("workload.plans"))
 
     @workload_bp.post("/plans/<int:plan_id>/matrix/activities")
     @login_required

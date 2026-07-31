@@ -93,6 +93,13 @@ def compact_decimal(value):
     return format(number.normalize(), "f").replace(".", ",")
 
 
+@workload_bp.app_template_filter("education_level_label")
+def education_level_label(value):
+    if not value:
+        return "Все уровни"
+    return EDUCATION_LEVEL_LABELS.get(value, value)
+
+
 @workload_bp.before_request
 def protect_workload_module():
     require_workload_module()

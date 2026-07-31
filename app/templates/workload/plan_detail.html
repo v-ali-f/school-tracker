@@ -29,7 +29,7 @@
   </div>
   <div>
     <div class="small text-muted">Уровень</div>
-    <div class="fw-semibold">{{ plan.education_level or 'Все уровни' }}</div>
+    <div class="fw-semibold">{{ plan.education_level|education_level_label }}</div>
   </div>
   <div>
     <div class="small text-muted">Здание</div>

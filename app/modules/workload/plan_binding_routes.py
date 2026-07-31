@@ -1,6 +1,7 @@
 from flask import (
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -69,6 +70,33 @@ def _require_bindings_update():
         current_user,
     ):
         abort(403)
+
+
+def _is_binding_ajax_request():
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def _binding_success_response(snapshot_class, plans, message):
+    _, student_plan_ids = class_plan_allocations(snapshot_class, plans)
+    if _is_binding_ajax_request():
+        return jsonify({
+            "ok": True,
+            "message": message,
+            "assigned_count": len(student_plan_ids),
+            "student_count": len(snapshot_class.enrollments),
+        })
+    flash(message, "success")
+    return None
+
+
+def _binding_error_response(message):
+    if _is_binding_ajax_request():
+        return jsonify({
+            "ok": False,
+            "message": message,
+        }), 422
+    flash(message, "danger")
+    return None
 
 
 def _available_versions():
@@ -475,12 +503,20 @@ def register_plan_binding_routes(workload_bp):
             db.session.commit()
         except PlanBindingValidationError as exc:
             db.session.rollback()
-            flash(str(exc), "danger")
+            response = _binding_error_response(str(exc))
+            if response is not None:
+                return response
         else:
-            flash(
-                f"Учебный план для {snapshot_class.name_snapshot} обновлён.",
-                "success",
+            response = _binding_success_response(
+                snapshot_class,
+                plans,
+                (
+                    f"Учебный план для "
+                    f"{snapshot_class.name_snapshot} сохранён."
+                ),
             )
+            if response is not None:
+                return response
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
@@ -526,7 +562,17 @@ def register_plan_binding_routes(workload_bp):
             db.session.commit()
         except PlanBindingValidationError as exc:
             db.session.rollback()
-            flash(str(exc), "danger")
+            response = _binding_error_response(str(exc))
+            if response is not None:
+                return response
+        else:
+            response = _binding_success_response(
+                snapshot_class,
+                plans,
+                f"Учебный план ученика {enrollment.fio_snapshot} сохранён.",
+            )
+            if response is not None:
+                return response
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
