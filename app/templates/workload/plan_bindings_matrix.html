@@ -1,0 +1,152 @@
+{% extends "workload/workspace_base.html" %}
+
+{% block title %}Свод учебных планов по классам{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260731_1">
+{% endblock %}
+
+{% block workspace_content %}
+<section class="class-plan-stage">
+  <header class="class-plan-heading">
+    <div>
+      <h2>Свод учебных планов по классам</h2>
+      <p>Часы назначенных УП в разрезе фактических классов и профильных групп</p>
+    </div>
+  </header>
+
+  {% include "workload/_plan_binding_views.html" %}
+
+  <div class="class-plan-toolbar">
+    <form method="get" action="{{ url_for('workload.plan_bindings_matrix') }}" data-plan-binding-filters>
+      <label>
+        <span>Учебный год</span>
+        <select class="form-select form-select-sm" name="version_id" data-plan-binding-filter>
+          {% for item in versions %}
+          <option value="{{ item.id }}" {% if selected_version and item.id == selected_version.id %}selected{% endif %}>
+            {{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <input type="hidden" name="level" value="{{ selected_level }}">
+    </form>
+
+    <nav class="class-plan-levels" aria-label="Уровень образования">
+      {% for level, label in level_labels.items() %}
+      <a
+        class="{% if selected_level == level %}is-active{% endif %}"
+        href="{{ url_for('workload.plan_bindings_matrix', version_id=selected_version.id if selected_version else none, level=level) }}"
+      >
+        <span>{{ level }}</span>
+        <small>{{ level_counts[level] }} кл.</small>
+      </a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  {% if registry_status.is_stale %}
+  <div class="class-plan-notice class-plan-notice--warning" role="status">
+    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+    <span>Сводный контингент изменён. Перед работой со сводом обновите данные в разделе назначения планов.</span>
+    <a href="{{ url_for('workload.plan_bindings', version_id=selected_version.id if selected_version else none) }}">Перейти</a>
+  </div>
+  {% endif %}
+
+  {% if not selected_version %}
+  <div class="class-plan-empty">Нет учебного года с рабочей версией.</div>
+  {% elif not snapshot %}
+  <div class="class-plan-empty">Сначала загрузите классы из сводного контингента в разделе назначения планов.</div>
+  {% elif not matrix.class_groups %}
+  <div class="class-plan-empty">Для уровня {{ selected_level }} в текущем снимке контингента нет классов.</div>
+  {% else %}
+  <div class="class-plan-caption">
+    <strong>{{ matrix.level_label }}</strong>
+    <span>
+      Показана недельная нагрузка на 1 сентября.
+      Для 1 класса используется период «сентябрь–октябрь», для 11 класса — «I период».
+    </span>
+  </div>
+
+  <div class="class-plan-matrix-wrap" tabindex="0" aria-label="Таблица учебных планов {{ selected_level }} по классам">
+    <table class="class-plan-matrix">
+      <thead>
+        <tr>
+          <th class="class-plan-matrix__subject" rowspan="2">Предмет или курс</th>
+          {% for group in matrix.class_groups %}
+          <th class="class-plan-matrix__class {% if loop.index is even %}is-alt{% endif %}" data-class-name="{{ group.snapshot_class.name_snapshot }}" colspan="{{ group.columns|length }}">
+            {{ group.snapshot_class.name_snapshot }}
+          </th>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for group in matrix.class_groups %}
+            {% set group_alt = loop.index is even %}
+            {% for column in group.columns %}
+            <th class="class-plan-matrix__plan {% if group_alt %}is-alt{% endif %} {% if column.is_unassigned %}is-unassigned{% endif %}" data-plan-name="{{ column.plan.name if column.plan else '' }}">
+              <span title="{{ column.plan.name if column.plan else 'Учебный план не назначен' }}">
+                {{ column.plan.name if column.plan else 'Без УП' }}
+              </span>
+              <small>{{ column.student_count }} уч. · {{ column.period_label }}</small>
+            </th>
+            {% endfor %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for section in matrix.sections %}
+        <tr class="class-plan-matrix__section">
+          <th colspan="{{ matrix.columns|length + 1 }}">{{ section.label }}</th>
+        </tr>
+          {% for row in section.rows %}
+          <tr data-activity-name="{{ row.activity.name }}">
+            <th class="class-plan-matrix__row-name">
+              <span>{{ row.activity.name }}</span>
+              {% if row.profile_code %}<small>{{ row.profile_code }}</small>{% endif %}
+            </th>
+            {% for column in matrix.columns %}
+            {% set cell = row.cells.get(column.key) %}
+            <td class="{% if column.is_unassigned %}is-unassigned{% endif %}" data-column-key="{{ column.key }}">
+              {% if cell and cell.hours is not none %}
+              <strong>{{ cell.hours|compact_decimal }}</strong>
+              {% else %}
+              <span class="class-plan-matrix__empty-value">—</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        <tr class="class-plan-matrix__subtotal">
+          <th>Итого по разделу</th>
+          {% for column in matrix.columns %}
+          <td>{{ section.column_totals.get(column.key, 0)|compact_decimal }}</td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr>
+          <td class="class-plan-matrix__empty-row" colspan="{{ matrix.columns|length + 1 }}">
+            В назначенных учебных планах пока нет предметных строк.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if matrix.sections %}
+      <tfoot>
+        <tr>
+          <th>Всего часов в неделю</th>
+          {% for column in matrix.columns %}
+          <td>{{ matrix.column_totals.get(column.key, 0)|compact_decimal }}</td>
+          {% endfor %}
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block workspace_scripts %}
+<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260730_3"></script>
+{% endblock %}

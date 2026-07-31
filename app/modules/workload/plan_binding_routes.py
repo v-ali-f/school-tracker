@@ -19,6 +19,11 @@ from app.services.education_plan_binding_service import (
     replace_class_plan_assignments,
     replace_plan_binding_members,
 )
+from app.services.class_plan_matrix_service import (
+    EDUCATION_LEVEL_GRADES,
+    EDUCATION_LEVEL_LABELS,
+    build_class_plan_matrix,
+)
 from app.services.teaching_group_service import (
     GroupValidationError,
     build_population_snapshot,
@@ -266,6 +271,75 @@ def register_plan_binding_routes(workload_bp):
             class_count=len(classes),
             registry_status=registry_status,
             can_update=can_update,
+            academic_years=AcademicYear.query.order_by(
+                AcademicYear.start_date.desc()
+            ).all(),
+        )
+
+    @workload_bp.get("/plan-bindings/matrix")
+    @login_required
+    def plan_bindings_matrix():
+        _require_bindings_read()
+        versions = _available_versions()
+        version = _selected_version(
+            versions,
+            request.args.get("version_id", type=int),
+        )
+        snapshot = (
+            current_population_snapshot(version.id)
+            if version else None
+        )
+        registry_status = (
+            population_registry_status(version, snapshot)
+            if version else {
+                "class_count": 0,
+                "student_count": 0,
+                "snapshot_class_count": 0,
+                "snapshot_student_count": 0,
+                "is_stale": False,
+            }
+        )
+        classes = _snapshot_classes(snapshot)
+        plans = _curriculum_plans(version)
+        _, _, unassigned_count = _class_binding_rows(classes, version)
+        level_counts = {
+            level: sum(
+                1
+                for item in classes
+                if item.grade_snapshot in grades
+            )
+            for level, grades in EDUCATION_LEVEL_GRADES.items()
+        }
+        selected_level = (
+            request.args.get("level") or ""
+        ).strip().upper()
+        if selected_level not in EDUCATION_LEVEL_GRADES:
+            selected_level = next(
+                (
+                    level
+                    for level in EDUCATION_LEVEL_GRADES
+                    if level_counts[level]
+                ),
+                "NOO",
+            )
+        matrix = build_class_plan_matrix(
+            snapshot,
+            plans,
+            selected_level,
+        )
+        return render_template(
+            "workload/plan_bindings_matrix.html",
+            versions=versions,
+            selected_version=version,
+            snapshot=snapshot,
+            plans=plans,
+            matrix=matrix,
+            selected_level=selected_level,
+            level_labels=EDUCATION_LEVEL_LABELS,
+            level_counts=level_counts,
+            class_count=len(classes),
+            unassigned_count=unassigned_count,
+            registry_status=registry_status,
             academic_years=AcademicYear.query.order_by(
                 AcademicYear.start_date.desc()
             ).all(),

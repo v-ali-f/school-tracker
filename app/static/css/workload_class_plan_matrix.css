@@ -1,0 +1,347 @@
+.class-plan-stage {
+  color: var(--workload-text);
+}
+
+.class-plan-heading {
+  min-height: 46px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--workload-border);
+}
+
+.class-plan-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.class-plan-heading p {
+  margin: 3px 0 0;
+  color: var(--workload-muted);
+  font-size: 12px;
+}
+
+.plan-binding-view-nav {
+  max-width: 520px;
+  margin: 12px 0;
+}
+
+.class-plan-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 12px;
+}
+
+.class-plan-toolbar form {
+  width: min(360px, 100%);
+}
+
+.class-plan-toolbar label,
+.class-plan-toolbar label > span {
+  display: block;
+}
+
+.class-plan-toolbar label > span {
+  margin-bottom: 4px;
+  color: #49566f;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.class-plan-levels {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 3px;
+  border: 1px solid var(--workload-border);
+  border-radius: 6px;
+  background: var(--workload-surface-muted);
+}
+
+.class-plan-levels a {
+  min-width: 88px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  color: #56637a;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.class-plan-levels a:hover,
+.class-plan-levels a.is-active {
+  color: #084fbd;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(17, 33, 64, 0.08);
+}
+
+.class-plan-levels small {
+  color: #7a869c;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.class-plan-caption {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 10px;
+  color: #536179;
+  border: 1px solid var(--workload-border);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: #f8fafc;
+  font-size: 11px;
+}
+
+.class-plan-caption strong {
+  color: #25334e;
+  font-size: 12px;
+}
+
+.class-plan-notice,
+.class-plan-empty {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--workload-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.class-plan-notice--warning {
+  color: #744a00;
+  border-color: #ead5a7;
+  background: #fff9ec;
+}
+
+.class-plan-notice a {
+  margin-left: auto;
+  font-weight: 650;
+}
+
+.class-plan-empty {
+  justify-content: center;
+  min-height: 100px;
+  color: var(--workload-muted);
+  background: #fafbfd;
+}
+
+.class-plan-matrix-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--workload-border-strong);
+  border-radius: 0 0 6px 6px;
+  background: #fff;
+  scrollbar-width: thin;
+}
+
+.class-plan-matrix-wrap:focus-visible {
+  outline: 2px solid #78aef8;
+  outline-offset: 2px;
+}
+
+.class-plan-matrix {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.class-plan-matrix th,
+.class-plan-matrix td {
+  height: 34px;
+  padding: 4px 7px;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid #dbe3ee;
+  border-bottom: 1px solid #dbe3ee;
+}
+
+.class-plan-matrix tr > :last-child {
+  border-right: 0;
+}
+
+.class-plan-matrix thead th {
+  color: #54617a;
+  background: #f5f7fa;
+  font-weight: 650;
+}
+
+.class-plan-matrix__subject,
+.class-plan-matrix__row-name,
+.class-plan-matrix__subtotal th,
+.class-plan-matrix tfoot th {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 230px;
+  min-width: 230px;
+  max-width: 230px;
+  text-align: left !important;
+  background: #fff;
+  box-shadow: 1px 0 0 #cbd6e4;
+}
+
+.class-plan-matrix__subject {
+  z-index: 5;
+  background: #f5f7fa !important;
+}
+
+.class-plan-matrix__class {
+  min-width: 92px;
+  color: #283750 !important;
+  border-bottom-color: #cbd6e4 !important;
+  background: #eef4fc !important;
+  font-size: 12px;
+}
+
+.class-plan-matrix__class.is-alt,
+.class-plan-matrix__plan.is-alt {
+  background: #f4f7fb !important;
+}
+
+.class-plan-matrix__plan {
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
+  background: #f9fbfd !important;
+}
+
+.class-plan-matrix__plan > span,
+.class-plan-matrix__plan > small {
+  display: block;
+}
+
+.class-plan-matrix__plan > span {
+  overflow: hidden;
+  color: #33425e;
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-plan-matrix__plan > small {
+  margin-top: 2px;
+  color: #77839a;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.class-plan-matrix .is-unassigned {
+  color: #8d5a00;
+  background: #fff9ec !important;
+}
+
+.class-plan-matrix__section th {
+  position: static;
+  height: 30px;
+  padding-left: 10px;
+  color: #214d84;
+  text-align: left;
+  background: #eaf3ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.class-plan-matrix__row-name span,
+.class-plan-matrix__row-name small {
+  display: block;
+}
+
+.class-plan-matrix__row-name span {
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.class-plan-matrix__row-name small {
+  margin-top: 1px;
+  color: var(--workload-muted);
+  font-size: 9px;
+}
+
+.class-plan-matrix td strong {
+  color: #1d2b45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.class-plan-matrix__empty-value {
+  color: #a5adba;
+}
+
+.class-plan-matrix__subtotal th,
+.class-plan-matrix__subtotal td {
+  background: #f6f8fb;
+  font-weight: 700;
+}
+
+.class-plan-matrix__subtotal th {
+  background: #f6f8fb;
+}
+
+.class-plan-matrix tfoot th,
+.class-plan-matrix tfoot td {
+  height: 36px;
+  color: #174b88;
+  background: #eaf3ff;
+  border-bottom: 0;
+  font-weight: 750;
+}
+
+.class-plan-matrix tfoot th {
+  background: #eaf3ff;
+}
+
+.class-plan-matrix__empty-row {
+  height: 100px !important;
+  color: var(--workload-muted);
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .class-plan-toolbar,
+  .class-plan-caption {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .class-plan-levels {
+    width: 100%;
+  }
+
+  .class-plan-levels a {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .class-plan-caption {
+    gap: 4px;
+  }
+
+  .class-plan-matrix__subject,
+  .class-plan-matrix__row-name,
+  .class-plan-matrix__subtotal th,
+  .class-plan-matrix tfoot th {
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+  }
+}
