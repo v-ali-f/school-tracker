@@ -13,6 +13,7 @@ from app.models import (
     EducationPlan,
     EducationPlanBinding,
     EducationPlanLine,
+    EducationPlanLinePeriod,
     EducationPlanLineScope,
     PopulationSnapshot,
     PopulationSnapshotClass,
@@ -30,6 +31,10 @@ from app.services.education_plan_service import (
 from app.services.education_plan_binding_service import (
     class_plan_allocations,
     replace_plan_binding_members,
+)
+from app.services.class_plan_matrix_service import (
+    class_period_label,
+    effective_line_weekly_hours,
 )
 from app.services.teaching_group_service import (
     GroupValidationError,
@@ -307,6 +312,173 @@ def test_plan_bindings_page_reads_snapshot_classes(
     )
     assert response.status_code == 200
     assert "Иванов Иван".encode() in response.data
+
+
+def test_class_plan_matrix_uses_assigned_plan_hours(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        replace_plan_binding_members(
+            plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+        version_id = context["version_id"]
+
+    login(user_id)
+    response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO"
+    )
+
+    assert response.status_code == 200
+    assert "Свод учебных планов по классам".encode() in response.data
+    assert 'data-class-name="5А"'.encode() in response.data
+    assert 'data-plan-name="Основной учебный план"'.encode() in response.data
+    assert 'data-activity-name="Математика"'.encode() in response.data
+    assert "ч/нед.".encode() in response.data
+    assert "Без УП".encode() in response.data
+
+
+def test_class_plan_matrix_splits_class_between_two_plans(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        first_line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        first_plan = first_line.education_plan
+        second_plan = EducationPlan(
+            tariff_version_id=context["version_id"],
+            plan_kind="CURRICULUM",
+            name="Профильный учебный план",
+            education_level="OOO",
+            building_id=context["building_id"],
+            scope_code="OOO_PROFILE_MATRIX",
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(second_plan)
+        db.session.flush()
+        second_line = EducationPlanLine(
+            education_plan_id=second_plan.id,
+            education_activity_id=first_line.education_activity_id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("7"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("238"),
+            sort_order=10,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(second_line)
+        db.session.flush()
+        db.session.add(EducationPlanLineScope(
+            education_plan_line_id=second_line.id,
+            scope_kind="GRADE",
+            grade=5,
+            building_id=context["building_id"],
+            scope_key=line_scope_key(
+                "GRADE",
+                grade=5,
+                building_id=context["building_id"],
+            ),
+        ))
+        enrollment_ids = [
+            item.id for item in snapshot_class.enrollments
+        ]
+        replace_plan_binding_members(
+            first_plan,
+            snapshot_class,
+            set(enrollment_ids),
+            user_id=user_id,
+        )
+        replace_plan_binding_members(
+            second_plan,
+            snapshot_class,
+            {enrollment_ids[0]},
+            user_id=user_id,
+        )
+        db.session.commit()
+        version_id = context["version_id"]
+
+    login(user_id)
+    response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO"
+    )
+
+    assert response.status_code == 200
+    assert 'data-class-name="5А" colspan="2"'.encode() in response.data
+    assert 'data-plan-name="Основной учебный план"'.encode() in response.data
+    assert 'data-plan-name="Профильный учебный план"'.encode() in response.data
+    assert response.data.count("1 уч. · ч/нед.".encode()) >= 2
+
+
+def test_class_plan_matrix_uses_first_period_on_september_first():
+    line = EducationPlanLine(weekly_hours=Decimal("5"))
+    line.periods = [
+        EducationPlanLinePeriod(
+            date_from=date(2026, 9, 1),
+            date_to=date(2026, 10, 31),
+            weekly_hours=Decimal("3"),
+        ),
+        EducationPlanLinePeriod(
+            date_from=date(2026, 11, 1),
+            date_to=date(2027, 5, 31),
+            weekly_hours=Decimal("5"),
+        ),
+    ]
+
+    assert effective_line_weekly_hours(line, 1) == Decimal("3")
+    assert effective_line_weekly_hours(line, 11) == Decimal("3")
+    assert effective_line_weekly_hours(line, 10) == Decimal("5")
+    assert class_period_label("NOO", 1) == "сент.–окт."
+    assert class_period_label("SOO", 11) == "I период"
+    assert class_period_label("OOO", 5) == "ч/нед."
 
 
 def test_plan_bindings_page_warns_when_population_registry_changed(
