@@ -580,6 +580,10 @@ def _build_plan_matrix(plan):
         for component in PLAN_COMPONENT_KINDS
         if component in section_map
     ]
+    for section in sections:
+        for index, row in enumerate(section["rows"]):
+            row["can_move_up"] = index > 0
+            row["can_move_down"] = index < len(section["rows"]) - 1
     plan_scope_totals = {
         scope_key: {"weekly": zero, "annual": zero}
         for scope_key in scope_keys
@@ -1365,6 +1369,100 @@ def register_plan_routes(workload_bp):
             )
         return redirect(
             url_for("workload.plan_matrix", plan_id=plan.id)
+        )
+
+    @workload_bp.post("/plans/<int:plan_id>/matrix/rows/reorder")
+    @login_required
+    def plan_matrix_reorder_row(plan_id):
+        plan = _get_plan(plan_id, for_update=True)
+        try:
+            require_plan_editable(
+                plan,
+                expected_revision=request.form.get("revision", type=int),
+            )
+            activity_id = request.form.get("education_activity_id", type=int)
+            component_kind = (
+                (request.form.get("component_kind") or "").strip().upper()
+            )
+            profile_code = " ".join(
+                (request.form.get("profile_code") or "").split()
+            )
+            direction = (request.form.get("direction") or "").strip().lower()
+            if direction not in {"up", "down"}:
+                raise PlanValidationError(
+                    "Не удалось определить направление перемещения."
+                )
+
+            matrix = _build_plan_matrix(plan)
+            section = next(
+                (
+                    item
+                    for item in matrix["sections"]
+                    if item["component_kind"] == component_kind
+                ),
+                None,
+            )
+            rows = list(section["rows"]) if section else []
+            current_index = next(
+                (
+                    index
+                    for index, row in enumerate(rows)
+                    if (
+                        row["activity"].id == activity_id
+                        and (row["profile_code"] or "") == profile_code
+                    )
+                ),
+                None,
+            )
+            if current_index is None:
+                raise PlanValidationError(
+                    "Предметная строка уже удалена или не существует."
+                )
+
+            target_index = (
+                current_index - 1
+                if direction == "up"
+                else current_index + 1
+            )
+            if target_index < 0 or target_index >= len(rows):
+                raise PlanValidationError(
+                    "Строка уже находится на границе раздела."
+                )
+
+            current_row = rows.pop(current_index)
+            rows.insert(target_index, current_row)
+            order_by_key = {
+                (
+                    row["activity"].id,
+                    row["profile_code"] or "",
+                ): (index + 1) * 10
+                for index, row in enumerate(rows)
+            }
+            for line in plan.lines:
+                if line.component_kind != component_kind:
+                    continue
+                line.sort_order = order_by_key.get(
+                    (
+                        line.education_activity_id,
+                        line.profile_code or "",
+                    ),
+                    line.sort_order,
+                )
+                line.updated_by_user_id = current_user.id
+
+            touch_plan(plan, user_id=current_user.id)
+            db.session.commit()
+        except PlanValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            flash("Порядок предметов сохранён.", "success")
+        return redirect(
+            url_for(
+                "workload.plan_matrix",
+                plan_id=plan.id,
+                part=plan.plan_kind,
+            )
         )
 
     @workload_bp.post("/plans/<int:plan_id>/status")

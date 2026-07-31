@@ -45,7 +45,6 @@
         <th>Учебный год</th>
         <th>Наименование</th>
         <th>Уровень</th>
-        <th>Состав комплекта</th>
         <th class="text-end">Строк</th>
         <th class="text-end">Действие</th>
       </tr>
@@ -60,12 +59,6 @@
         <td>
           {{ plan.education_level or 'Все уровни' }}
           {% if plan.building %}<div class="small text-muted">{{ plan.building.short_name or plan.building.name }}</div>{% endif %}
-        </td>
-        <td>
-          <span class="workload-plan-bundle-state">
-            <i class="bi bi-book" aria-hidden="true"></i>
-            УП + ВД + ДО
-          </span>
         </td>
         {% set line_count = namespace(value=plan.lines|length) %}
         {% for companion in plan.companion_plans %}
@@ -91,7 +84,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="text-center text-muted py-4">Учебные планы ещё не созданы.</td></tr>
+      <tr><td colspan="5" class="text-center text-muted py-4">Учебные планы ещё не созданы.</td></tr>
       {% endfor %}
     </tbody>
   </table>

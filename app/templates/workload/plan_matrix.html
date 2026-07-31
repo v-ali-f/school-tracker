@@ -131,12 +131,39 @@
       {% for row in section.rows %}
       <tr data-matrix-row data-section="{{ row.component_kind }}">
         <th class="workload-plan-matrix__subject">
-          <div class="workload-plan-matrix__row-heading">
+          <div class="workload-plan-matrix__row-heading" data-activity-name="{{ row.activity.name }}">
             <div>
               <span>{{ row.activity.name }}</span>
               {% if row.profile_code %}<small>{{ row.profile_code }}</small>{% endif %}
             </div>
             {% if can_update %}
+            <div class="workload-plan-matrix__row-actions">
+              {% if row.can_move_up %}
+              <form method="post" action="{{ url_for('workload.plan_matrix_reorder_row', plan_id=plan.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="revision" value="{{ plan.revision }}">
+                <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
+                <input type="hidden" name="component_kind" value="{{ row.component_kind }}">
+                <input type="hidden" name="profile_code" value="{{ row.profile_code or '' }}">
+                <input type="hidden" name="direction" value="up">
+                <button class="workload-plan-matrix__move-row" type="submit" title="Переместить выше" aria-label="Переместить «{{ row.activity.name }}» выше">
+                  <i class="bi bi-chevron-up" aria-hidden="true"></i>
+                </button>
+              </form>
+              {% endif %}
+              {% if row.can_move_down %}
+              <form method="post" action="{{ url_for('workload.plan_matrix_reorder_row', plan_id=plan.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="revision" value="{{ plan.revision }}">
+                <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
+                <input type="hidden" name="component_kind" value="{{ row.component_kind }}">
+                <input type="hidden" name="profile_code" value="{{ row.profile_code or '' }}">
+                <input type="hidden" name="direction" value="down">
+                <button class="workload-plan-matrix__move-row" type="submit" title="Переместить ниже" aria-label="Переместить «{{ row.activity.name }}» ниже">
+                  <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                </button>
+              </form>
+              {% endif %}
             <form
               method="post"
               action="{{ url_for('workload.plan_matrix_delete_row', plan_id=plan.id) }}"
@@ -156,6 +183,7 @@
                 <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </form>
+            </div>
             {% endif %}
           </div>
         </th>

@@ -252,7 +252,7 @@
   gap: 6px;
 }
 
-.workload-plan-matrix__row-heading > div {
+.workload-plan-matrix__row-heading > div:first-child {
   min-width: 0;
 }
 
@@ -266,18 +266,39 @@
   overflow-wrap: anywhere;
 }
 
+.workload-plan-matrix__row-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 1px;
+}
+
+.workload-plan-matrix__row-actions form {
+  margin: 0;
+}
+
+.workload-plan-matrix__move-row,
 .workload-plan-matrix__delete-row {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 28px;
+  flex: 0 0 22px;
   padding: 0;
   color: #7d8798;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.workload-plan-matrix__move-row:hover,
+.workload-plan-matrix__move-row:focus-visible {
+  color: #1459b8;
+  background: #edf5ff;
+  border-color: #b9d2f3;
+  outline: 0;
 }
 
 .workload-plan-matrix__delete-row:hover,
