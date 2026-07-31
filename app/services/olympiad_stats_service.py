@@ -184,7 +184,7 @@ def all_analytics(academic_year_id=None, teacher_id=None, department_id=None, st
     dept_by_teacher = defaultdict(lambda: {"name": "", "subjects": set(), "total": 0, "winners": 0, "prizers": 0, "annulled": 0})
     dept_child_ids = set()
     for r in rows:
-        subj = r.subject_name or (r.subject.name if r.subject else "—")
+        subj = r.resolved_subject_name
         dept_by_subject[subj] += 1
         tname = r.teacher.fio if r.teacher else "Не определён"
         item = dept_by_teacher[tname]
@@ -210,7 +210,7 @@ def all_analytics(academic_year_id=None, teacher_id=None, department_id=None, st
 
     subj_count = defaultdict(int)
     for r in rows:
-        subj_count[r.subject_name or (r.subject.name if r.subject else "—")] += 1
+        subj_count[r.resolved_subject_name] += 1
     by_subject = [[k, v] for k, v in sorted(subj_count.items(), key=lambda x: x[1], reverse=True)[:15]]
 
     cls_count = defaultdict(int)
@@ -300,7 +300,7 @@ def subject_stats(academic_year_id=None):
     rows = _load_rows_eager(academic_year_id)
     by_subject = defaultdict(int)
     for r in rows:
-        by_subject[r.subject_name or (r.subject.name if r.subject else "—")] += 1
+        by_subject[r.resolved_subject_name] += 1
     return [[k, v] for k, v in sorted(by_subject.items(), key=lambda x: x[1], reverse=True)[:15]]
 
 

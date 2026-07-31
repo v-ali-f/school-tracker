@@ -296,12 +296,16 @@ def subject_activity_query(*, include_inactive: bool = False):
 
 
 def list_subject_activities(*, include_inactive: bool = False):
-    return subject_activity_query(
+    items = subject_activity_query(
         include_inactive=include_inactive,
-    ).order_by(
-        func.lower(EducationActivity.name).asc(),
-        EducationActivity.id.asc(),
     ).all()
+    return sorted(
+        items,
+        key=lambda item: (
+            normalize_activity_name(item.name),
+            item.id,
+        ),
+    )
 
 
 def get_subject_activity(activity_id: int | None) -> EducationActivity | None:
@@ -321,9 +325,11 @@ def assign_subject_activity(target, activity: EducationActivity | int):
     subject = sync_subject_from_activity(activity)
     db.session.flush()
     target.education_activity_id = activity.id
+    if hasattr(type(target), "education_activity"):
+        target.education_activity = activity
     if hasattr(target, "subject_id"):
         target.subject_id = subject.id
-    if hasattr(target, "subject_name"):
+    if "subject_name" in target.__table__.columns:
         target.subject_name = activity.name
     if target.__class__.__name__ == "DiagnosticSession":
         target.subject = activity.name

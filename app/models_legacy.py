@@ -792,6 +792,16 @@ class Debt(db.Model):
         foreign_keys=[education_activity_id],
     )
 
+    @property
+    def subject_name(self):
+        if self.education_activity:
+            return self.education_activity.name
+        return self.subject.name if self.subject else "—"
+
+    @property
+    def subject_catalog_id(self):
+        return self.education_activity_id or self.subject_id
+
     def __repr__(self):
         return f"<Debt child={self.child_id} subject={self.subject_id}>"
 
@@ -1260,7 +1270,13 @@ class ControlWork(db.Model):
 
     @property
     def subject_name(self):
+        if self.education_activity:
+            return self.education_activity.name
         return self.subject_ref.name if self.subject_ref else "—"
+
+    @property
+    def subject_catalog_id(self):
+        return self.education_activity_id or self.subject_id
 
     @property
     def work_kind_label(self):
@@ -1500,6 +1516,14 @@ class OlympiadImportSession(db.Model):
     department = db.relationship("Department", foreign_keys=[department_id])
     importer = db.relationship("User", foreign_keys=[imported_by])
 
+    @property
+    def resolved_subject_name(self):
+        if self.education_activity:
+            return self.education_activity.name
+        if self.subject_name:
+            return self.subject_name
+        return self.subject.name if self.subject else "—"
+
 
 class OlympiadResult(db.Model):
     __tablename__ = "olympiad_result"
@@ -1567,6 +1591,18 @@ class OlympiadResult(db.Model):
     creator = db.relationship("User", foreign_keys=[created_by])
     import_session = db.relationship("OlympiadImportSession", foreign_keys=[import_session_id], backref=db.backref("results", lazy=True))
 
+    @property
+    def resolved_subject_name(self):
+        if self.education_activity:
+            return self.education_activity.name
+        if self.subject_name:
+            return self.subject_name
+        return self.subject.name if self.subject else "—"
+
+    @property
+    def subject_catalog_id(self):
+        return self.education_activity_id or self.subject_id
+
 
 class OlympiadUnmatchedRow(db.Model):
     __tablename__ = "olympiad_unmatched_row"
@@ -1616,6 +1652,7 @@ class OlympiadSubjectMapping(db.Model):
         index=True,
     )
     linked_subject_ids = db.Column(db.Text, nullable=True)
+    linked_education_activity_ids = db.Column(db.Text, nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey("department.id"), nullable=True, index=True)
     grade_from = db.Column(db.Integer, nullable=True)
     grade_to = db.Column(db.Integer, nullable=True)
@@ -1640,6 +1677,23 @@ class OlympiadSubjectMapping(db.Model):
                 values.append(int(raw))
         if self.subject_id and self.subject_id not in values:
             values.insert(0, self.subject_id)
+        return values
+
+    def linked_education_activity_id_list(self):
+        values = []
+        for raw in str(self.linked_education_activity_ids or "").replace(';', ',').split(','):
+            raw = str(raw).strip()
+            if raw.isdigit():
+                value = int(raw)
+                if value not in values:
+                    values.append(value)
+        if self.education_activity_id:
+            values = [
+                value
+                for value in values
+                if value != self.education_activity_id
+            ]
+            values.insert(0, self.education_activity_id)
         return values
 
 

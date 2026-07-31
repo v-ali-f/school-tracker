@@ -6,6 +6,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
 from app.models import (
+    ControlWork,
+    Debt,
     Department,
     DepartmentSubject,
     DiagnosticSession,
@@ -13,6 +15,8 @@ from app.models import (
     EducationActivityAlias,
     EducationActivityDepartment,
     ExternalActivityMappingLog,
+    OlympiadResult,
+    OlympiadSubjectMapping,
     OrganizationSettings,
     Subject,
     TeacherLoad,
@@ -465,9 +469,70 @@ def test_canonical_activity_assignment_keeps_transition_links_consistent(app):
         assert diagnostic.subject == activity.name
 
 
+def test_academic_consumers_share_one_canonical_subject(app):
+    with app.app_context():
+        activity = _global_activity("MATHEMATICS", "Математика")
+        db.session.flush()
+
+        control_work = ControlWork(theme="Входная диагностика")
+        debt = Debt(child_id=1)
+        olympiad_result = OlympiadResult(
+            academic_year_id=1,
+            child_id=1,
+            stage="школьный",
+        )
+        olympiad_mapping = OlympiadSubjectMapping(
+            olympiad_subject_name="Математика",
+        )
+
+        for target in (
+            control_work,
+            debt,
+            olympiad_result,
+            olympiad_mapping,
+        ):
+            assign_subject_activity(target, activity)
+
+        subject = Subject.query.filter_by(
+            education_activity_id=activity.id,
+        ).one()
+        assert {
+            control_work.education_activity_id,
+            debt.education_activity_id,
+            olympiad_result.education_activity_id,
+            olympiad_mapping.education_activity_id,
+        } == {activity.id}
+        assert {
+            control_work.subject_id,
+            debt.subject_id,
+            olympiad_result.subject_id,
+            olympiad_mapping.subject_id,
+        } == {subject.id}
+        assert control_work.subject_name == activity.name
+        assert debt.subject_name == activity.name
+        assert olympiad_result.resolved_subject_name == activity.name
+
+
+def test_olympiad_mapping_uses_canonical_linked_subject_ids(app):
+    with app.app_context():
+        mathematics = _global_activity("MATHEMATICS", "Математика")
+        geometry = _global_activity("GEOMETRY", "Геометрия")
+        mapping = OlympiadSubjectMapping(
+            olympiad_subject_name="Математика",
+            linked_education_activity_ids=f"{geometry.id},{mathematics.id}",
+        )
+        assign_subject_activity(mapping, mathematics)
+
+        assert mapping.linked_education_activity_id_list() == [
+            mathematics.id,
+            geometry.id,
+        ]
+
+
 def test_subject_activity_list_is_the_only_alphabetical_selector_source(app):
     with app.app_context():
         _global_activity("RUSSIAN", "Русский язык")
+        _global_activity("ENGLISH", "Английский язык")
         _global_activity("ALGEBRA", "Алгебра")
         course = _global_activity("ROBOTICS", "Робототехника")
         course.activity_kind = "ADDITIONAL_PROGRAM"
@@ -475,6 +540,7 @@ def test_subject_activity_list_is_the_only_alphabetical_selector_source(app):
 
         assert [item.name for item in list_subject_activities()] == [
             "Алгебра",
+            "Английский язык",
             "Русский язык",
         ]
 

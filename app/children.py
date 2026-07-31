@@ -108,7 +108,10 @@ from app.core.extensions import db
 from app.core.cache import view_response_cache, make_key
 from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
 from app.services.education_activity_service import (
+    assign_subject_activity,
+    get_subject_activity,
     get_or_create_subject_with_activity,
+    list_subject_activities,
 )
 from .models import (
     AcademicYear,
@@ -830,7 +833,7 @@ def child_card(child_id: int):
     if not can_view_child_basic(child):
         abort(403)
 
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
 
     social = child.social or _get_or_create_social(child)
     db.session.flush()
@@ -863,7 +866,6 @@ def child_card(child_id: int):
 
     open_debts = (
         Debt.query
-        .join(Subject, Debt.subject_id == Subject.id)
         .filter(Debt.child_id == child.id, Debt.status == "OPEN")
         .order_by(Debt.due_date.is_(None), Debt.due_date.asc(), Debt.created_at.desc())
         .all()
@@ -871,7 +873,6 @@ def child_card(child_id: int):
 
     closed_debts = (
         Debt.query
-        .join(Subject, Debt.subject_id == Subject.id)
         .filter(Debt.child_id == child.id, Debt.status == "CLOSED")
         .order_by(Debt.closed_at.is_(None), Debt.closed_at.desc(), Debt.created_at.desc())
         .all()
@@ -1434,14 +1435,19 @@ def add_debt(child_id: int):
         flash("Не выбран предмет", "danger")
         return redirect(url_for("children.child_card", child_id=child.id))
 
+    activity = get_subject_activity(int(subject_id))
+    if activity is None:
+        flash("Выберите предмет из единого каталога.", "danger")
+        return redirect(url_for("children.child_card", child_id=child.id))
+
     debt = Debt(
         child_id=child.id,
-        subject_id=int(subject_id),
         detected_date=detected_date,
         due_date=due_date,
         status="OPEN",
         created_at=datetime.utcnow(),
     )
+    assign_subject_activity(debt, activity)
 
     db.session.add(debt)
     db.session.flush()
@@ -2528,7 +2534,6 @@ def registry_az():
     debts = (
         Debt.query
         .join(Child, Debt.child_id == Child.id)
-        .join(Subject, Debt.subject_id == Subject.id)
         .outerjoin(
             ChildEnrollment,
             (ChildEnrollment.child_id == Child.id)
@@ -2544,7 +2549,12 @@ def registry_az():
     if filters["selected_class_id"]:
         debts = debts.filter(SchoolClass.id == filters["selected_class_id"])
 
-    debts = debts.order_by(SchoolClass.name.asc(), Child.last_name.asc(), Child.first_name.asc(), Subject.name.asc()).all()
+    debts = debts.order_by(
+        SchoolClass.name.asc(),
+        Child.last_name.asc(),
+        Child.first_name.asc(),
+        Debt.education_activity_id.asc(),
+    ).all()
 
     m = {}
     for d in debts:
@@ -2554,10 +2564,12 @@ def registry_az():
 
         if ch.id not in m:
             m[ch.id] = {"child": ch, "subjects": []}
-        subj = d.subject.name if d.subject else None
+        subj = d.subject_name
         if subj and subj not in m[ch.id]["subjects"]:
             m[ch.id]["subjects"].append(subj)
 
+    for item in m.values():
+        item["subjects"].sort(key=lambda value: value.casefold())
     rows = list(m.values())
 
     page, per_page = resolve_pagination()
@@ -2586,7 +2598,6 @@ def registry_az_export():
     debts = (
         Debt.query
         .join(Child, Debt.child_id == Child.id)
-        .join(Subject, Debt.subject_id == Subject.id)
         .outerjoin(
             ChildEnrollment,
             (ChildEnrollment.child_id == Child.id)
@@ -2602,7 +2613,11 @@ def registry_az_export():
     if filters["selected_class_id"]:
         debts = debts.filter(SchoolClass.id == filters["selected_class_id"])
 
-    debts = debts.order_by(Child.last_name.asc(), Child.first_name.asc(), Subject.name.asc()).all()
+    debts = debts.order_by(
+        Child.last_name.asc(),
+        Child.first_name.asc(),
+        Debt.education_activity_id.asc(),
+    ).all()
 
     m = {}
     for d in debts:
@@ -2611,9 +2626,12 @@ def registry_az_export():
             continue
         if ch.id not in m:
             m[ch.id] = {"child": ch, "subjects": []}
-        subj = d.subject.name if d.subject else None
+        subj = d.subject_name
         if subj and subj not in m[ch.id]["subjects"]:
             m[ch.id]["subjects"].append(subj)
+
+    for item in m.values():
+        item["subjects"].sort(key=lambda value: value.casefold())
 
     wb = Workbook()
     ws = wb.active

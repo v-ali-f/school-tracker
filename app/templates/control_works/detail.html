@@ -34,8 +34,8 @@
   <div class="control-topbar">
     <div class="control-topbar__group control-topbar__group--nav">
       <a class="btn btn-primary" href="{{ url_for('control_works.control_work_report', work_id=work.id) }}">Сводный отчёт</a>
-      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_registry', academic_year_id=work.academic_year_id, subject_id=work.subject_id, **return_args) }}">Реестр</a>
-      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_archive', academic_year_id=work.academic_year_id, subject_id=work.subject_id) }}">Архив по предмету</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_registry', academic_year_id=work.academic_year_id, subject_id=work.subject_catalog_id, **return_args) }}">Реестр</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('control_works.control_works_archive', academic_year_id=work.academic_year_id, subject_id=work.subject_catalog_id) }}">Архив по предмету</a>
     </div>
     {% if can('control_works_edit') %}
     <div class="control-topbar__status">
@@ -157,7 +157,7 @@
             <h6 class="mb-1">История изменений</h6>
             <div class="small text-muted">Последние действия по этой контрольной работе.</div>
           </div>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('control_works.control_works_journal', academic_year_id=work.academic_year_id, subject_id=work.subject_id) }}">К журналу работ</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('control_works.control_works_journal', academic_year_id=work.academic_year_id, subject_id=work.subject_catalog_id) }}">К журналу работ</a>
         </div>
         <div class="table-responsive mt-3">
           <table class="table table-sm align-middle mb-0">

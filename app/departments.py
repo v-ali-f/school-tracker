@@ -34,6 +34,7 @@ from .models import (
     Department,
     DepartmentLeader,
     DepartmentSubject,
+    EducationActivity,
     Subject,
     TeacherCourse,
     TeacherLoad,
@@ -238,8 +239,12 @@ def _load_departments_for_user():
     return deps
 
 
-def _subject_ids_for_department(dep: Department):
-    return [link.subject_id for link in dep.subject_links]
+def _subject_activity_ids_for_department(dep: Department):
+    return [
+        link.education_activity_id
+        for link in dep.subject_links
+        if link.education_activity_id
+    ]
 
 
 def _teacher_ids_for_department(dep: Department, building_id=None):
@@ -684,8 +689,8 @@ def _parse_excel_loads(file_storage):
     return created, updated, skipped
 
 def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None):
-    subject_ids = _subject_ids_for_department(dep)
-    if not subject_ids:
+    activity_ids = _subject_activity_ids_for_department(dep)
+    if not activity_ids:
         return {
             "total_results": 0,
             "avg_percent": None,
@@ -694,9 +699,18 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
         }
 
     results_q = (
-        db.session.query(ControlWorkResult, ControlWork, Subject, ControlWorkAssignment, User)
+        db.session.query(
+            ControlWorkResult,
+            ControlWork,
+            EducationActivity,
+            ControlWorkAssignment,
+            User,
+        )
         .join(ControlWork, ControlWork.id == ControlWorkResult.control_work_id)
-        .join(Subject, Subject.id == ControlWork.subject_id)
+        .join(
+            EducationActivity,
+            EducationActivity.id == ControlWork.education_activity_id,
+        )
         .outerjoin(
             ControlWorkAssignment,
             db.and_(
@@ -705,7 +719,7 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
             ),
         )
         .outerjoin(User, User.id == ControlWorkAssignment.teacher_id)
-        .filter(ControlWork.subject_id.in_(subject_ids))
+        .filter(ControlWork.education_activity_id.in_(activity_ids))
     )
     if teacher_id:
         results_q = results_q.filter(ControlWorkAssignment.teacher_id == teacher_id)
@@ -721,7 +735,11 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
         percent = row.ControlWorkResult.percent
         if percent is None:
             continue
-        subj_name = row.Subject.name if row.Subject else "—"
+        subj_name = (
+            row.EducationActivity.name
+            if row.EducationActivity
+            else "—"
+        )
         by_subject[subj_name].append(percent)
         teacher_name = row.User.fio if row.User else "Не указан"
         by_teacher[teacher_name].append(percent)

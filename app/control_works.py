@@ -14,9 +14,14 @@ from sqlalchemy import func as sa_func
 from app.core.extensions import db
 from .models import (
     ControlWork, ControlWorkTask, ControlWorkAssignment, ControlWorkResult, ControlWorkLog,
-    SchoolClass, User, ChildEnrollment, Child, AcademicYear, Subject, TeacherLoad, DepartmentLeader
+    SchoolClass, User, ChildEnrollment, Child, AcademicYear, TeacherLoad, DepartmentLeader
 )
 from .permissions import has_permission
+from app.services.education_activity_service import (
+    assign_subject_activity,
+    get_subject_activity,
+    list_subject_activities,
+)
 from app.services.org_settings_service import get_organization_header_lines, get_organization_signature_block
 
 control_bp = Blueprint("control_works", __name__, url_prefix="/control-works")
@@ -356,7 +361,7 @@ def _build_work_registry_row(work, precomputed_results=None, precomputed_total_s
         "theme": work.theme or "—",
         "work_kind": work.work_kind,
         "work_kind_label": work.work_kind_label,
-        "subject_id": work.subject_id,
+        "subject_id": work.subject_catalog_id,
         "subject_name": work.subject_name or "—",
         "academic_year_id": work.academic_year_id,
         "parallel": getattr(work, "parallel", None),
@@ -402,7 +407,7 @@ def _build_registry_dataset(selected_year_id=None, selected_subject_id=None, sel
     if selected_year_id:
         query = query.filter(ControlWork.academic_year_id == selected_year_id)
     if selected_subject_id:
-        query = query.filter(ControlWork.subject_id == selected_subject_id)
+        query = query.filter(ControlWork.education_activity_id == selected_subject_id)
     if selected_grade:
         query = query.filter(ControlWork.parallel == selected_grade)
     if selected_work_kind:
@@ -418,7 +423,7 @@ def _build_registry_dataset(selected_year_id=None, selected_subject_id=None, sel
         selectinload(ControlWork.assignments).joinedload(ControlWorkAssignment.teacher),
         joinedload(ControlWork.creator),
         joinedload(ControlWork.updater),
-        joinedload(ControlWork.subject_ref),
+        joinedload(ControlWork.education_activity),
     )
     works = query.distinct().all()
 
@@ -579,7 +584,7 @@ def _teacher_load_candidates(subject_id=None, grade=None, class_name=None, acade
     if academic_year_id:
         query = query.filter((TeacherLoad.academic_year_id == academic_year_id) | (TeacherLoad.academic_year_id.is_(None)))
     if subject_id:
-        query = query.filter(TeacherLoad.subject_id == subject_id)
+        query = query.filter(TeacherLoad.education_activity_id == subject_id)
     if department_ids:
         query = query.filter(TeacherLoad.department_id.in_(department_ids))
     if grade is not None:
@@ -669,7 +674,7 @@ def _auto_teacher_by_class(classes, teacher_options_map):
 
 def _get_archive_filters():
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     teachers = User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()
 
     selected_year_id = request.args.get("academic_year_id", type=int)
@@ -693,7 +698,9 @@ def _archive_works_query(filters):
     if filters["selected_year_id"]:
         query = query.filter(ControlWork.academic_year_id == filters["selected_year_id"])
     if filters["selected_subject_id"]:
-        query = query.filter(ControlWork.subject_id == filters["selected_subject_id"])
+        query = query.filter(
+            ControlWork.education_activity_id == filters["selected_subject_id"]
+        )
     if filters["selected_teacher_id"]:
         query = query.join(ControlWorkAssignment, ControlWorkAssignment.control_work_id == ControlWork.id).filter(ControlWorkAssignment.teacher_id == filters["selected_teacher_id"])
     return query.distinct().order_by(ControlWork.work_date.desc().nullslast(), ControlWork.created_at.desc())
@@ -1446,8 +1453,8 @@ def _build_archive_dataset(filters):
             g["teacher"] = a.teacher
             g["works"].append(row)
 
-        sg = subject_groups[work.subject_id]
-        sg["subject"] = work.subject_ref
+        sg = subject_groups[work.subject_catalog_id]
+        sg["subject"] = work.education_activity or work.subject_ref
         sg["works"].append(row)
 
         ykey = work.academic_year_id or 0
@@ -1631,7 +1638,7 @@ def _form_context(selected_subject_id=None):
         .all() if year else []
     )
     teachers = User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     parallels = sorted({c.grade for c in classes if c.grade is not None})
     department_ids = _department_ids_for_user()
     teacher_options_map = _teacher_options_map(classes, subject_id=selected_subject_id, academic_year_id=(year.id if year else None), department_ids=department_ids)
@@ -1684,7 +1691,10 @@ def _save_work_from_form(work=None):
             "manual_status": getattr(work, "manual_status", None) or "",
         }
 
-    work.subject_id = subject_id
+    activity = get_subject_activity(subject_id)
+    if activity is None:
+        raise ValueError("Выберите предмет из единого реестра.")
+    assign_subject_activity(work, activity)
     work.work_kind = work_kind
     work.academic_year_id = current_year.id if current_year else getattr(work, "academic_year_id", None)
     if current_year and current_year.end_date:
@@ -1810,8 +1820,12 @@ def _control_summary_dataset(selected_year_id=None, selected_subject_id=None, se
         work_query = work_query.filter(ControlWork.academic_year_id == selected_year_id)
         result_query = result_query.filter(ControlWork.academic_year_id == selected_year_id)
     if selected_subject_id:
-        work_query = work_query.filter(ControlWork.subject_id == selected_subject_id)
-        result_query = result_query.filter(ControlWork.subject_id == selected_subject_id)
+        work_query = work_query.filter(
+            ControlWork.education_activity_id == selected_subject_id
+        )
+        result_query = result_query.filter(
+            ControlWork.education_activity_id == selected_subject_id
+        )
     if selected_grade:
         result_query = result_query.filter(SchoolClass.grade == selected_grade)
     if selected_class_id:
@@ -1825,12 +1839,12 @@ def _control_summary_dataset(selected_year_id=None, selected_subject_id=None, se
     elif department_ids:
         result_query = result_query.join(TeacherLoad, db.and_(
             TeacherLoad.teacher_id == ControlWorkAssignment.teacher_id,
-            TeacherLoad.subject_id == ControlWork.subject_id,
+            TeacherLoad.education_activity_id == ControlWork.education_activity_id,
             TeacherLoad.is_archived.is_(False),
         )).filter(TeacherLoad.department_id.in_(department_ids))
         work_query = work_query.join(ControlWorkAssignment, ControlWorkAssignment.control_work_id == ControlWork.id).join(TeacherLoad, db.and_(
             TeacherLoad.teacher_id == ControlWorkAssignment.teacher_id,
-            TeacherLoad.subject_id == ControlWork.subject_id,
+            TeacherLoad.education_activity_id == ControlWork.education_activity_id,
             TeacherLoad.is_archived.is_(False),
         )).filter(TeacherLoad.department_id.in_(department_ids))
 
@@ -2148,7 +2162,7 @@ def control_works_summary():
     if not has_permission("control_works_view"):
         abort(403)
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     current_year = _current_year()
     selected_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     selected_subject_id = request.args.get("subject_id", type=int)
@@ -2215,7 +2229,7 @@ def control_works_registry():
     if not has_permission("control_works_view"):
         abort(403)
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     current_year = _current_year()
     selected_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     selected_subject_id = request.args.get("subject_id", type=int)
@@ -2327,7 +2341,7 @@ def my_control_works():
 def new_control_work():
     if not has_permission("control_works_edit"):
         abort(403)
-    selected_subject_id = request.form.get("subject_id", type=int) or (work.subject_id if "work" in locals() and work else None)
+    selected_subject_id = request.form.get("subject_id", type=int)
     year, classes, teachers, subjects, parallels, teacher_options_map, auto_teacher_by_class = _form_context(selected_subject_id=selected_subject_id)
     task_count = _task_count_from_request_or_work()
 
@@ -2350,7 +2364,10 @@ def edit_control_work(work_id):
     if not has_permission("control_works_edit"):
         abort(403)
     work = ControlWork.query.get_or_404(work_id)
-    selected_subject_id = request.form.get("subject_id", type=int) or (work.subject_id if "work" in locals() and work else None)
+    selected_subject_id = (
+        request.form.get("subject_id", type=int)
+        or work.subject_catalog_id
+    )
     year, classes, teachers, subjects, parallels, teacher_options_map, auto_teacher_by_class = _form_context(selected_subject_id=selected_subject_id)
     task_count = _task_count_from_request_or_work(work)
 
@@ -2798,7 +2815,7 @@ def control_works_journal():
     only_attention = request.args.get("attention") == "1"
     dataset = _build_registry_dataset(selected_year_id=selected_year_id, selected_subject_id=selected_subject_id, selected_teacher_id=selected_teacher_id, selected_class_id=selected_class_id, selected_grade=selected_grade, selected_work_kind=selected_work_kind, selected_status=selected_status, overdue_only=overdue_only, only_attention=only_attention, include_archived=True)
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
+    subjects = list_subject_activities()
     teacher_query = User.query.order_by(User.last_name.asc(), User.first_name.asc())
     if not has_permission("control_works_edit") and getattr(current_user, "role", None) != "METHODIST":
         teacher_query = teacher_query.filter(User.id == current_user.id)

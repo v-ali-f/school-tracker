@@ -13,7 +13,7 @@
         <select id="subject-select" class="form-select" name="subject_id" required>
           <option value="">Выберите предмет</option>
           {% for s in subjects %}
-            {% set selected_subject = request.form.get('subject_id') or (work.subject_id if work else None) %}
+            {% set selected_subject = request.form.get('subject_id') or (work.subject_catalog_id if work else None) %}
             <option value="{{ s.id }}" {% if selected_subject|int == s.id %}selected{% endif %}>{{ s.name }}</option>
           {% endfor %}
         </select>

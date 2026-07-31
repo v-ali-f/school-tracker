@@ -2,7 +2,7 @@ from datetime import date
 from flask import Blueprint, render_template, request
 from flask_login import login_required
 from sqlalchemy import func
-from .models import Child, Debt, Subject
+from .models import Child, Debt, EducationActivity
 from app.core.extensions import db
 
 reports_bp = Blueprint("reports", __name__)
@@ -26,10 +26,13 @@ def report_az():
             Child.middle_name.label("middle_name"),
             func.count(Debt.id).label("debt_count"),
             func.min(Debt.due_date).label("nearest_due"),
-            func.group_concat(Subject.name, ", ").label("subjects")
+            func.group_concat(EducationActivity.name, ", ").label("subjects")
         )
         .join(Debt, Debt.child_id == Child.id)
-        .join(Subject, Subject.id == Debt.subject_id)
+        .join(
+            EducationActivity,
+            EducationActivity.id == Debt.education_activity_id,
+        )
     )
 
     if cls:
