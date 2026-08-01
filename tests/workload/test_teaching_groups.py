@@ -27,6 +27,7 @@ from app.models import (
     TeachingGroupHistory,
     TeachingGroupMember,
     TeachingMetagroupSource,
+    User,
     WorkloadNeed,
 )
 from app.services.education_plan_service import (
@@ -52,6 +53,12 @@ from app.services.teaching_group_service import (
     validate_group_sources,
 )
 from app.services.teaching_metagroup_service import create_metagroup
+from app.services.teaching_group_matrix_service import (
+    build_teaching_group_matrix,
+)
+from app.services.workload_assignment_matrix_service import (
+    build_workload_assignment_matrix,
+)
 from app.services.workload_distribution_service import generate_plan_needs
 
 
@@ -1792,6 +1799,98 @@ def test_metagroup_inherits_sources_and_replaces_them_in_workload(
         assert [source.source_kind for source in needs[0].sources] == [
             "MERGE"
         ]
+
+
+def test_metagroup_need_is_mirrored_across_source_class_columns(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        classes = sorted(
+            snapshot.classes,
+            key=lambda item: item.name_snapshot,
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        plan = line.education_plan
+        for snapshot_class in classes:
+            replace_plan_binding_members(
+                plan,
+                snapshot_class,
+                {
+                    enrollment.id
+                    for enrollment in snapshot_class.enrollments
+                },
+                user_id=user_id,
+            )
+        db.session.flush()
+        sources = [
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=index,
+            )
+            for index, snapshot_class in enumerate(classes, start=1)
+        ]
+        metagroup = create_metagroup(
+            version=db.session.get(
+                TariffVersion,
+                context["version_id"],
+            ),
+            snapshot=snapshot,
+            plans=[plan],
+            source_tokens=[
+                f"group:{group.id}" for group in sources
+            ],
+            name="Математика · метагруппа 5-х классов",
+            user_id=user_id,
+        )
+        db.session.commit()
+        generate_plan_needs(
+            metagroup.tariff_version,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        need = WorkloadNeed.query.one()
+        teacher = db.session.get(User, user_id)
+        plan_matrix = build_teaching_group_matrix(
+            snapshot,
+            [plan],
+            "OOO",
+            context["version_id"],
+        )
+        matrix = build_workload_assignment_matrix(
+            [need],
+            [],
+            plan_matrices=[plan_matrix],
+            extra_teachers=[teacher],
+            draft_rows=[(
+                teacher,
+                line.education_activity,
+                "CURRICULUM",
+            )],
+        )
+
+        row = matrix["blocks"][0]["rows"][0]
+        mirrored_slots = [
+            slot
+            for cell in row["matrix_cells"].values()
+            for slot in cell["slots"]
+        ]
+        assert len(matrix["columns"]) == 2
+        assert [slot["need"].id for slot in mirrored_slots] == [
+            need.id,
+            need.id,
+        ]
+        assert all(slot["is_metagroup"] for slot in mirrored_slots)
 
 
 def test_metagroup_rejects_sources_from_one_class(app, make_user):

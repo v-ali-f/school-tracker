@@ -29,6 +29,13 @@ def _class_sort_key(name):
 def _need_plan_context(need):
     group = need.teaching_group
     line = group.source_plan_line if group else None
+    if (
+        line is None
+        and group is not None
+        and group.group_type == "METAGROUP"
+        and group.metagroup_sources
+    ):
+        line = group.metagroup_sources[0].source_group.source_plan_line
     plan = line.education_plan if line else None
     root_plan = plan.root_plan if plan and plan.root_plan else plan
     return {
@@ -210,10 +217,58 @@ def _segment(need, hours, *, unassigned):
     }
 
 
+def _editable_slot(
+    need,
+    teacher,
+    source_group,
+    group_index,
+    group_count,
+    assignments,
+):
+    own_assignment = next(
+        (
+            item for item in assignments
+            if item.employee_user_id == teacher.id
+        ),
+        None,
+    )
+    assigned_elsewhere = next(
+        (
+            item for item in assignments
+            if item.employee_user_id != teacher.id
+        ),
+        None,
+    )
+    target_group = need.teaching_group
+    if target_group is not None and target_group.group_type == "METAGROUP":
+        label = f"МГ · {target_group.name}"
+    elif group_count > 1:
+        label = f"Группа {group_index}"
+    else:
+        label = ""
+    return {
+        "need": need,
+        "source_group": source_group,
+        "assignment": own_assignment,
+        "assigned_elsewhere": assigned_elsewhere,
+        "planned": Decimal(need.weekly_hours or ZERO),
+        "value": (
+            Decimal(own_assignment.weekly_hours or ZERO)
+            if own_assignment is not None else None
+        ),
+        "label": label,
+        "is_metagroup": (
+            target_group is not None
+            and target_group.group_type == "METAGROUP"
+        ),
+    }
+
+
 def build_workload_assignment_matrix(
     needs,
     assignments,
     *,
+    plan_matrices=(),
     extra_teachers=(),
     draft_rows=(),
     teacher_metadata=None,
@@ -225,11 +280,76 @@ def build_workload_assignment_matrix(
         for need in needs
     }
     columns_by_key = {}
+    plan_cells = {}
+    for plan_matrix in plan_matrices:
+        for class_group in plan_matrix.get("class_groups", []):
+            snapshot_class = class_group["snapshot_class"]
+            for source_column in class_group["columns"]:
+                if source_column["is_unassigned"] or source_column["plan"] is None:
+                    continue
+                root_plan = source_column["plan"]
+                columns_by_key[source_column["key"]] = {
+                    "key": source_column["key"],
+                    "label": snapshot_class.name_snapshot,
+                    "detail": "",
+                    "plan_name": root_plan.name,
+                    "is_metagroup": False,
+                    "is_orphan": False,
+                    "grade": snapshot_class.grade_snapshot or 99,
+                    "class_name": snapshot_class.name_snapshot,
+                    "snapshot_class_id": snapshot_class.id,
+                    "plan_id": root_plan.id,
+                    "sort_key": (
+                        snapshot_class.grade_snapshot or 99,
+                        _class_sort_key(snapshot_class.name_snapshot)[1],
+                        0,
+                        root_plan.name.casefold(),
+                    ),
+                }
+        for section in plan_matrix.get("sections", []):
+            for source_row in section["rows"]:
+                for column_key, cell in source_row["cells"].items():
+                    if column_key not in columns_by_key:
+                        continue
+                    plan_cells[
+                        (
+                            source_row["activity"].id,
+                            source_row["plan_kind"],
+                            column_key,
+                        )
+                    ] = cell
+
     need_column_keys = {}
     for need in needs:
         column = _column_for_need(need, contexts[need.id])
-        need_column_keys[need.id] = column["key"]
-        columns_by_key.setdefault(column["key"], column)
+        source_keys = []
+        group = need.teaching_group
+        source_groups = (
+            [link.source_group for link in group.metagroup_sources]
+            if group is not None and group.group_type == "METAGROUP"
+            else [group]
+        )
+        for source_group in source_groups:
+            if source_group is None:
+                continue
+            line = source_group.source_plan_line
+            root_plan = (
+                line.education_plan.root_plan
+                if line and line.education_plan.root_plan is not None
+                else line.education_plan if line else None
+            )
+            for link in source_group.source_classes:
+                key = (
+                    f"class-{link.population_snapshot_class_id}-"
+                    f"plan-{root_plan.id if root_plan is not None else 0}"
+                )
+                if key in columns_by_key:
+                    source_keys.append(key)
+        if source_keys:
+            need_column_keys[need.id] = tuple(dict.fromkeys(source_keys))
+        else:
+            need_column_keys[need.id] = (column["key"],)
+            columns_by_key.setdefault(column["key"], column)
 
     class_plan_counts = defaultdict(set)
     for column in columns_by_key.values():
@@ -256,14 +376,14 @@ def build_workload_assignment_matrix(
         assignments_by_need[assignment.workload_need_id].append(assignment)
 
     blocks_by_teacher = {}
-    unassigned_block = _new_block(unassigned=True)
     for need in needs:
         context = contexts[need.id]
-        column_key = need_column_keys[need.id]
-        column = columns_by_key[column_key]
-        column["planned"] += Decimal(need.weekly_hours or ZERO)
-        column["allocated"] += Decimal(need.allocated_weekly_hours or ZERO)
-        column["remaining"] += Decimal(need.remaining_weekly_hours or ZERO)
+        column_keys = need_column_keys[need.id]
+        for column_key in column_keys:
+            column = columns_by_key[column_key]
+            column["planned"] += Decimal(need.weekly_hours or ZERO)
+            column["allocated"] += Decimal(need.allocated_weekly_hours or ZERO)
+            column["remaining"] += Decimal(need.remaining_weekly_hours or ZERO)
 
         for assignment in assignments_by_need.get(need.id, []):
             teacher = assignment.employee
@@ -275,18 +395,10 @@ def build_workload_assignment_matrix(
             hours = Decimal(assignment.weekly_hours or ZERO)
             row["total"] += hours
             block["total"] += hours
-            row["cells"][column_key].append(
-                _segment(need, hours, unassigned=False)
-            )
-
-        remaining = Decimal(need.remaining_weekly_hours or ZERO)
-        if remaining > ZERO:
-            row = _row_for(unassigned_block, need, context)
-            row["total"] += remaining
-            unassigned_block["total"] += remaining
-            row["cells"][column_key].append(
-                _segment(need, remaining, unassigned=True)
-            )
+            for column_key in column_keys:
+                row["cells"][column_key].append(
+                    _segment(need, hours, unassigned=False)
+                )
 
     for teacher in extra_teachers:
         blocks_by_teacher.setdefault(
@@ -297,13 +409,12 @@ def build_workload_assignment_matrix(
     needs_by_activity = defaultdict(list)
     for need in needs:
         context = contexts[need.id]
-        needs_by_activity[
-            (
+        for column_key in need_column_keys[need.id]:
+            needs_by_activity[(
                 need.education_activity_id,
                 context["plan_kind"],
-                need_column_keys[need.id],
-            )
-        ].append(need)
+                column_key,
+            )].append(need)
 
     for teacher, activity, plan_kind in draft_rows:
         block = blocks_by_teacher.setdefault(
@@ -355,9 +466,6 @@ def build_workload_assignment_matrix(
                 )
     blocks = list(blocks_by_teacher.values())
     blocks.sort(key=lambda item: item["label"].casefold())
-    if unassigned_block["rows_by_key"]:
-        blocks.append(unassigned_block)
-
     for block in blocks:
         block["rows"] = sorted(
             block["rows_by_key"].values(),
@@ -369,22 +477,60 @@ def build_workload_assignment_matrix(
         for row in block["rows"]:
             row["cells"] = dict(row["cells"])
             row["available_cells"] = {}
-            if not block["unassigned"]:
+            row["matrix_cells"] = {}
+            if not row.get("placeholder"):
                 for column in columns:
-                    available = [
-                        need
-                        for need in needs_by_activity.get(
-                            (
-                                row["activity"].id,
-                                row["plan_kind"],
-                                column["key"],
-                            ),
-                            [],
+                    cell_key = (
+                        row["activity"].id,
+                        row["plan_kind"],
+                        column["key"],
+                    )
+                    source_cell = plan_cells.get(cell_key)
+                    available_needs = needs_by_activity.get(cell_key, [])
+                    if source_cell is None and not available_needs:
+                        continue
+                    slots = []
+                    seen_need_ids = set()
+                    groups = list(source_cell.get("groups", ())) if source_cell else []
+                    for group_index, source_group in enumerate(groups, start=1):
+                        target_group = (
+                            source_group.metagroup_membership.metagroup
+                            if source_group.metagroup_membership is not None
+                            else source_group
                         )
-                        if Decimal(need.remaining_weekly_hours or ZERO) > ZERO
-                    ]
-                    if available:
-                        row["available_cells"][column["key"]] = available
+                        need = next(
+                            (
+                                item for item in available_needs
+                                if item.teaching_group_id == target_group.id
+                            ),
+                            None,
+                        )
+                        if need is None or need.id in seen_need_ids:
+                            continue
+                        seen_need_ids.add(need.id)
+                        slots.append(_editable_slot(
+                            need,
+                            block["teacher"],
+                            source_group,
+                            group_index,
+                            len(groups),
+                            assignments_by_need.get(need.id, []),
+                        ))
+                    for need in available_needs:
+                        if need.id in seen_need_ids:
+                            continue
+                        slots.append(_editable_slot(
+                            need,
+                            block["teacher"],
+                            need.teaching_group,
+                            len(slots) + 1,
+                            len(available_needs),
+                            assignments_by_need.get(need.id, []),
+                        ))
+                    row["matrix_cells"][column["key"]] = {
+                        "slots": slots,
+                        "planned": source_cell is not None,
+                    }
         if not block["rows"] and not block["unassigned"]:
             block["rows"] = [{
                 "teacher": block["teacher"],
@@ -394,6 +540,7 @@ def build_workload_assignment_matrix(
                 "total": ZERO,
                 "cells": {},
                 "available_cells": {},
+                "matrix_cells": {},
                 "placeholder": True,
             }]
         block["metadata"] = (teacher_metadata or {}).get(
