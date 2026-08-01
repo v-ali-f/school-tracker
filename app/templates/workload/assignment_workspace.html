@@ -113,7 +113,6 @@
 </div>
 
 <div class="workload-matrix-legend" aria-label="Обозначения матрицы">
-  <span><i class="is-assigned"></i>Назначено</span>
   <span><i class="is-available"></i>Можно назначить</span>
   <span><i class="is-locked"></i>Назначено другому преподавателю</span>
 </div>
@@ -215,9 +214,10 @@
                   title="{% if slot.assignment %}Снять назначение {{ slot.planned|compact_decimal }} ч/нед.{% elif slot.assigned_elsewhere %}Назначено другому преподавателю.{% else %}Назначить полный объём {{ slot.planned|compact_decimal }} ч/нед.{% endif %}"
                   {% if not can_update or slot.assigned_elsewhere %}disabled{% endif %}
                   data-workload-cell-toggle
-                ><span data-workload-cell-value>{{ slot.planned|compact_decimal }}</span></button>
-                {% if slot.label %}<small title="{{ slot.label }}">{{ slot.label }}</small>{% endif %}
-                <span class="workload-cell-state" aria-live="polite"></span>
+                ><span data-workload-cell-value>{% if slot.assignment %}{{ slot.planned|compact_decimal }}{% endif %}</span></button>
+                {% if slot.label %}
+                <small title="{{ slot.label }}" data-workload-cell-label {% if not slot.assignment %}hidden{% endif %}>{{ slot.label }}</small>
+                {% endif %}
               </form>
               {% endfor %}
             </div>
@@ -389,6 +389,8 @@
     document.querySelectorAll(`[data-workload-cell-form][data-need-id="${payload.need_id}"]`).forEach((form) => {
       const button = form.querySelector("[data-workload-cell-toggle]");
       const hours = form.querySelector("[data-workload-cell-hours]");
+      const value = form.querySelector("[data-workload-cell-value]");
+      const label = form.querySelector("[data-workload-cell-label]");
       const sameTeacher = Number(form.dataset.teacherId) === Number(payload.teacher_id);
       const assigned = payload.value !== null && sameTeacher;
       const locked = payload.value !== null && !sameTeacher;
@@ -396,6 +398,8 @@
       form.classList.toggle("is-assigned", assigned);
       form.classList.toggle("is-locked", locked);
       hours.value = assigned ? "0" : planned;
+      if (value) value.textContent = assigned ? formatHours(planned) : "";
+      if (label) label.hidden = !assigned;
       button.disabled = locked || form.dataset.editable !== "1";
       button.title = assigned
         ? `Снять назначение ${formatHours(planned)} ч/нед.`

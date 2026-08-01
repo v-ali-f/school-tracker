@@ -349,11 +349,6 @@
   border-radius: 2px;
 }
 
-.workload-matrix-legend i.is-assigned {
-  background: #e7f4ed;
-  border-color: #a8d5bd;
-}
-
 .workload-matrix-legend i.is-unassigned {
   background: #fff;
   border-color: #d79b9b;
@@ -689,10 +684,6 @@
   white-space: nowrap;
 }
 
-.workload-cell-entry.is-assigned {
-  background: #e7f4ed;
-}
-
 .workload-cell-entry.is-locked {
   background-color: #eef1f5;
   background-image: linear-gradient(
@@ -707,19 +698,6 @@
 
 .workload-cell-entry.is-saving {
   opacity: 0.55;
-}
-
-.workload-cell-state {
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  border-radius: 50%;
-}
-
-.workload-cell-entry.is-assigned .workload-cell-state {
-  background: #288354;
 }
 
 .workload-assignment-matrix__no-teachers {
