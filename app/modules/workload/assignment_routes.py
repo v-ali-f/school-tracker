@@ -6,6 +6,7 @@ from io import BytesIO
 from flask import (
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -25,6 +26,7 @@ from app.models import (
     Building,
     Department,
     EducationActivity,
+    EducationPlan,
     OrganizationSettings,
     SchoolClass,
     TariffCycle,
@@ -33,6 +35,8 @@ from app.models import (
     TariffVersion,
     TeacherLoad,
     TeacherMckoResult,
+    TeachingGroup,
+    TeachingMetagroupSource,
     User,
     WORKLOAD_ASSIGNMENT_KINDS,
     WORKLOAD_ASSIGNMENT_KIND_LABELS,
@@ -49,6 +53,7 @@ from app.services.workload_distribution_service import (
     cancel_assignment,
     decimal_hours,
     generate_plan_needs,
+    resolve_line_hours,
     refresh_need_status,
     require_assignment_editable,
     teacher_totals,
@@ -61,6 +66,11 @@ from app.services.workload_assignment_matrix_service import (
     need_grades,
     need_matches_department,
 )
+from app.services.teaching_group_matrix_service import (
+    build_teaching_group_matrix,
+    materialize_default_teaching_groups,
+)
+from app.services.teaching_group_service import current_population_snapshot
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -361,6 +371,153 @@ def _workspace_subject_options(needs):
             item["activity"].name.casefold(),
         ),
     )
+
+
+def _workspace_plan_subject_options(plan_matrices, department_id=None):
+    options = {}
+    for matrix in plan_matrices:
+        for section in matrix.get("sections", []):
+            for row in section["rows"]:
+                activity = row["activity"]
+                links = [
+                    link for link in activity.department_links
+                    if link.is_active
+                ]
+                if (
+                    department_id
+                    and links
+                    and not any(
+                        link.department_id == department_id
+                        for link in links
+                    )
+                ):
+                    continue
+                options[(activity.id, row["plan_kind"])] = {
+                    "activity": activity,
+                    "plan_kind": row["plan_kind"],
+                    "plan_kind_label": PLAN_KIND_LABELS.get(
+                        row["plan_kind"],
+                        row["plan_kind"],
+                    ),
+                }
+    return sorted(
+        options.values(),
+        key=lambda item: (
+            item["plan_kind_label"].casefold(),
+            item["activity"].name.casefold(),
+        ),
+    )
+
+
+def _workspace_plan_context(
+    version,
+    *,
+    education_level=None,
+    grade=None,
+    building_id=None,
+):
+    if version is None:
+        return None, [], []
+    snapshot = current_population_snapshot(version.id)
+    plans = (
+        EducationPlan.query
+        .filter_by(
+            tariff_version_id=version.id,
+            plan_kind="CURRICULUM",
+            root_plan_id=None,
+        )
+        .order_by(
+            EducationPlan.education_level.asc(),
+            EducationPlan.name.asc(),
+        )
+        .all()
+    )
+    scope = resolve_workload_scope(current_user)
+    allowed_building_ids = (
+        None if scope.unrestricted else set(scope.building_ids)
+    )
+    levels = (
+        [education_level]
+        if education_level in {"NOO", "OOO", "SOO"}
+        else ["NOO", "OOO", "SOO"]
+    )
+    matrices = [
+        build_teaching_group_matrix(
+            snapshot,
+            plans,
+            level,
+            version.id,
+            grade=grade,
+            building_id=building_id,
+            allowed_building_ids=allowed_building_ids,
+        )
+        for level in levels
+    ] if snapshot is not None else []
+    return snapshot, plans, matrices
+
+
+def _ensure_workspace_plan_needs(version, snapshot, plans):
+    if version is None or snapshot is None or version.status != "DRAFT":
+        return False
+    created_groups = materialize_default_teaching_groups(
+        version=version,
+        snapshot=snapshot,
+        plans=plans,
+        user_id=current_user.id,
+    )
+    db.session.flush()
+    merged_source_ids = {
+        item.source_group_id
+        for item in (
+            TeachingMetagroupSource.query
+            .join(
+                TeachingGroup,
+                TeachingGroup.id == TeachingMetagroupSource.metagroup_id,
+            )
+            .filter(
+                TeachingGroup.tariff_version_id == version.id,
+                TeachingGroup.status != "CLOSED",
+            )
+            .all()
+        )
+    }
+    expected_group_ids = set()
+    for group in (
+        TeachingGroup.query
+        .filter(
+            TeachingGroup.tariff_version_id == version.id,
+            TeachingGroup.status != "CLOSED",
+        )
+        .all()
+    ):
+        if group.id in merged_source_ids:
+            continue
+        source_line = (
+            group.metagroup_sources[0].source_group.source_plan_line
+            if group.group_type == "METAGROUP" and group.metagroup_sources
+            else group.source_plan_line
+        )
+        if source_line is None:
+            continue
+        weekly, annual = resolve_line_hours(
+            source_line,
+            group.valid_from,
+            group.valid_to,
+        )
+        if weekly > ZERO or annual > ZERO:
+            expected_group_ids.add(group.id)
+    current_group_ids = {
+        item.teaching_group_id
+        for item in WorkloadNeed.query.filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadNeed.status != "CANCELLED",
+        ).all()
+    }
+    if not created_groups and expected_group_ids <= current_group_ids:
+        return False
+    generate_plan_needs(version, user_id=current_user.id)
+    db.session.commit()
+    return True
 
 
 def _assignment_from_form(need, assignment=None):
@@ -759,6 +916,35 @@ def register_assignment_routes(workload_bp):
             (item for item in versions if item.id == version_id),
             None,
         )
+        can_update = (
+            is_feature_enabled(WORKLOAD_WRITE)
+            and can_use_workload_permission(
+                "workload.assignments.update",
+                current_user,
+            )
+        )
+        snapshot, plans, plan_matrices = _workspace_plan_context(
+            selected_version,
+            education_level=education_level or None,
+            grade=grade,
+            building_id=building_id,
+        )
+        if can_update and selected_version is not None:
+            try:
+                if _ensure_workspace_plan_needs(
+                    selected_version,
+                    snapshot,
+                    plans,
+                ):
+                    _, _, plan_matrices = _workspace_plan_context(
+                        selected_version,
+                        education_level=education_level or None,
+                        grade=grade,
+                        building_id=building_id,
+                    )
+            except WorkloadDistributionError as exc:
+                db.session.rollback()
+                flash(str(exc), "danger")
         query = _scoped_need_query().filter(
             WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
         )
@@ -796,7 +982,10 @@ def register_assignment_routes(workload_bp):
             for teacher_id in state["teacher_ids"]
             if teacher_id in employee_by_id
         ]
-        subject_options = _workspace_subject_options(needs)
+        subject_options = _workspace_plan_subject_options(
+            plan_matrices,
+            department_id,
+        ) or _workspace_subject_options(needs)
         allowed_subject_keys = {
             (item["activity"].id, item["plan_kind"])
             for item in subject_options
@@ -837,6 +1026,7 @@ def register_assignment_routes(workload_bp):
         matrix = build_workload_assignment_matrix(
             needs,
             assignments,
+            plan_matrices=plan_matrices,
             extra_teachers=extra_teachers,
             draft_rows=draft_rows,
             teacher_metadata=_workspace_teacher_metadata(
@@ -880,13 +1070,7 @@ def register_assignment_routes(workload_bp):
             subject_options=subject_options,
             need_status_labels=WORKLOAD_NEED_STATUS_LABELS,
             assignment_kind_labels=WORKLOAD_ASSIGNMENT_KIND_LABELS,
-            can_update=(
-                is_feature_enabled(WORKLOAD_WRITE)
-                and can_use_workload_permission(
-                    "workload.assignments.update",
-                    current_user,
-                )
-            ),
+            can_update=can_update,
         )
 
     @workload_bp.post("/assignments/workspace/teachers")
@@ -1022,6 +1206,164 @@ def register_assignment_routes(workload_bp):
             )
         return _workspace_redirect()
 
+    @workload_bp.post("/assignments/workspace/cell")
+    @login_required
+    def assignment_workspace_cell_update():
+        _require_assignments_update()
+        need_id = request.form.get("need_id", type=int)
+        teacher_id = request.form.get("teacher_id", type=int)
+        need = _get_need(need_id, for_update=True)
+        teacher = db.session.get(User, teacher_id) if teacher_id else None
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if is_ajax:
+                return jsonify({"ok": False, "message": message}), 422
+            flash(message, "danger")
+            return _workspace_redirect()
+
+        if teacher is None or not teacher.is_active_user:
+            return fail("Преподаватель не найден.")
+        raw_hours = (request.form.get("hours") or "").strip()
+        active_assignments = [
+            item for item in need.active_assignments
+            if item.assignment_kind != "VACANCY"
+        ]
+        own_assignments = [
+            item for item in active_assignments
+            if item.employee_user_id == teacher.id
+        ]
+        other_assignments = [
+            item for item in active_assignments
+            if item.employee_user_id != teacher.id
+        ]
+        try:
+            if not raw_hours or raw_hours.replace(",", ".") in {"0", "0.0"}:
+                for assignment in own_assignments:
+                    cancel_assignment(
+                        assignment,
+                        user_id=current_user.id,
+                        expected_revision=assignment.revision,
+                        reason="Снято из матрицы распределения нагрузки",
+                    )
+                refresh_need_status(need)
+                value = None
+            else:
+                hours = decimal_hours(raw_hours, "часов в неделю")
+                planned = Decimal(need.weekly_hours or ZERO)
+                if hours != planned:
+                    raise WorkloadDistributionError(
+                        "Для этой группы необходимо назначить полный объём: "
+                        f"{planned.normalize()} ч/нед."
+                    )
+                if other_assignments:
+                    raise WorkloadDistributionError(
+                        "Эта группа уже назначена другому преподавателю."
+                    )
+                if own_assignments:
+                    assignment = own_assignments[0]
+                    assignment.weekly_hours = planned
+                    assignment.annual_hours = calculate_assignment_annual_hours(
+                        need,
+                        planned,
+                        None,
+                    )
+                    assignment.updated_by_user_id = current_user.id
+                else:
+                    assignment = WorkloadAssignment(
+                        organization_id=need.organization_id,
+                        tariff_version_id=need.tariff_version_id,
+                        workload_need_id=need.id,
+                        employee_user_id=teacher.id,
+                        position_code="TEACHER",
+                        position_title="Учитель",
+                        department_id=need.department_id,
+                        building_id=need.building_id,
+                        assignment_kind="MAIN",
+                        date_from=need.date_from,
+                        date_to=need.date_to,
+                        weekly_hours=planned,
+                        annual_hours=calculate_assignment_annual_hours(
+                            need,
+                            planned,
+                            None,
+                        ),
+                        status="DRAFT",
+                        created_by_user_id=current_user.id,
+                        updated_by_user_id=current_user.id,
+                    )
+                    validate_assignment(need, assignment)
+                    db.session.add(assignment)
+                    db.session.flush()
+                    add_assignment_change(
+                        assignment,
+                        "CREATE",
+                        user_id=current_user.id,
+                    )
+                refresh_need_status(need)
+                value = planned
+            db.session.commit()
+        except (WorkloadDistributionError, IntegrityError) as exc:
+            db.session.rollback()
+            return fail(
+                str(exc)
+                if isinstance(exc, WorkloadDistributionError)
+                else "Не удалось сохранить нагрузку."
+            )
+
+        version_needs = WorkloadNeed.query.filter(
+            WorkloadNeed.tariff_version_id == need.tariff_version_id,
+            WorkloadNeed.status != "CANCELLED",
+        ).all()
+        view_mode = (request.form.get("view") or "all").strip().lower()
+        version_needs = _filter_workspace_needs(
+            version_needs,
+            department_id=(
+                request.form.get("department_id", type=int)
+                if view_mode == "department"
+                else None
+            ),
+            building_id=request.form.get("building_id", type=int),
+            education_level=(
+                request.form.get("education_level") or ""
+            ).strip().upper() or None,
+            grade=request.form.get("grade", type=int),
+        )
+        allocated = sum(
+            (item.allocated_weekly_hours for item in version_needs),
+            ZERO,
+        )
+        planned_total = sum(
+            (Decimal(item.weekly_hours or ZERO) for item in version_needs),
+            ZERO,
+        )
+        teacher_assignments = (
+            WorkloadAssignment.query
+            .filter(
+                WorkloadAssignment.tariff_version_id == need.tariff_version_id,
+                WorkloadAssignment.employee_user_id == teacher.id,
+                WorkloadAssignment.status != "CANCELLED",
+                WorkloadAssignment.assignment_kind != "VACANCY",
+            )
+            .all()
+        )
+        teacher_total = sum(
+            (Decimal(item.weekly_hours or ZERO) for item in teacher_assignments),
+            ZERO,
+        )
+        if is_ajax:
+            return jsonify({
+                "ok": True,
+                "need_id": need.id,
+                "teacher_id": teacher.id,
+                "value": float(value) if value is not None else None,
+                "teacher_total": float(teacher_total),
+                "allocated": float(allocated),
+                "remaining": float(planned_total - allocated),
+            })
+        flash("Нагрузка сохранена.", "success")
+        return _workspace_redirect()
+
     @workload_bp.post(
         "/assignments/workspace/<int:assignment_id>/cancel"
     )
@@ -1062,6 +1404,12 @@ def register_assignment_routes(workload_bp):
         ).strip().upper()
         grade = request.args.get("grade", type=int)
         building_id = request.args.get("building_id", type=int)
+        _, _, plan_matrices = _workspace_plan_context(
+            version,
+            education_level=education_level or None,
+            grade=grade,
+            building_id=building_id,
+        )
         needs = _filter_workspace_needs(
             _scoped_need_query().filter(
                 WorkloadNeed.tariff_version_id == version.id,
@@ -1083,7 +1431,11 @@ def register_assignment_routes(workload_bp):
             .all()
             if need_ids else []
         )
-        matrix = build_workload_assignment_matrix(needs, assignments)
+        matrix = build_workload_assignment_matrix(
+            needs,
+            assignments,
+            plan_matrices=plan_matrices,
+        )
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "Нагрузка"

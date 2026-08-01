@@ -405,7 +405,7 @@ def test_admin_creates_assignment_through_route(
     assert client.get("/workload/departments/").status_code == 200
 
 
-def test_assignment_workspace_shows_unassigned_group_in_matrix(
+def test_assignment_workspace_hides_unassigned_pseudo_teacher(
     app,
     client,
     make_user,
@@ -426,10 +426,9 @@ def test_assignment_workspace_shows_unassigned_group_in_matrix(
 
     assert response.status_code == 200
     assert "data-workload-matrix" in html
-    assert "Не распределено" in html
-    assert "не назначено" in html
-    assert "Математика 5А, группа 1" in html
-    assert ">5<" in html
+    assert "Не распределено" not in html
+    assert "не назначено" not in html
+    assert "Добавьте преподавателя" in html
 
 
 def test_generate_from_workspace_returns_to_matrix(
@@ -509,14 +508,16 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     html = matrix.get_data(as_text=True)
     assert matrix.status_code == 200
     assert "Предмет не выбран" not in html
-    assert "Назначить" in html
+    assert "data-workload-cell-input" in html
+    assert 'name="hours"' in html
 
     assign = client.post(
-        "/workload/assignments/workspace/assign",
+        "/workload/assignments/workspace/cell",
         data={
             **filters,
             "need_id": str(need_id),
             "teacher_id": str(teacher_id),
+            "hours": "5",
         },
     )
     assert assign.status_code == 302
@@ -525,6 +526,40 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         assert assignment.employee_user_id == teacher_id
         assert assignment.weekly_hours == Decimal("5.000")
         assert assignment.workload_need.status == "COVERED"
+
+    locked = client.post(
+        "/workload/assignments/workspace/cell",
+        data={
+            **filters,
+            "need_id": str(need_id),
+            "teacher_id": str(admin_id),
+            "hours": "5",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert locked.status_code == 422
+    assert "другому преподавателю" in locked.get_json()["message"]
+
+    client.post(
+        "/workload/assignments/workspace/teachers",
+        data={**filters, "teacher_id": str(admin_id)},
+    )
+    client.post(
+        "/workload/assignments/workspace/subjects",
+        data={
+            **filters,
+            "teacher_id": str(admin_id),
+            "activity_id": str(activity_id),
+            "plan_kind": "CURRICULUM",
+        },
+    )
+    locked_matrix = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert "is-locked" in locked_matrix
+    assert "Назначено другому преподавателю." in locked_matrix
+    assert "disabled" in locked_matrix
 
 
 def test_workspace_export_and_compact_hours(

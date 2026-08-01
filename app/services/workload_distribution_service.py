@@ -147,9 +147,9 @@ def generate_plan_needs(tariff_version, *, user_id):
     organization_id = tariff_version.tariff_cycle.organization_id
     groups = (
         TeachingGroup.query
-        .filter_by(
-            tariff_version_id=tariff_version.id,
-            status="READY",
+        .filter(
+            TeachingGroup.tariff_version_id == tariff_version.id,
+            TeachingGroup.status != "CLOSED",
         )
         .order_by(TeachingGroup.id.asc())
         .all()
@@ -165,7 +165,7 @@ def generate_plan_needs(tariff_version, *, user_id):
             )
             .filter(
                 TeachingGroup.tariff_version_id == tariff_version.id,
-                TeachingGroup.status == "READY",
+                TeachingGroup.status != "CLOSED",
             )
             .all()
         )

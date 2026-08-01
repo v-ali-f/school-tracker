@@ -359,6 +359,16 @@
   border-color: #d79b9b;
 }
 
+.workload-matrix-legend i.is-available {
+  background: #fff;
+  border-color: #aeb9c9;
+}
+
+.workload-matrix-legend i.is-locked {
+  background: #eef1f5;
+  border-color: #c8d0dc;
+}
+
 .workload-matrix-legend i.is-partial {
   background: #fff3d9;
   border-color: #e3bd71;
@@ -607,8 +617,8 @@
 }
 
 .workload-assignment-matrix__cell {
-  height: 46px;
-  padding: 2px !important;
+  height: 42px;
+  padding: 0 !important;
 }
 
 .workload-assignment-matrix__cell.is-empty {
@@ -621,6 +631,96 @@
     transparent 53%
   );
   background-size: 10px 10px;
+}
+
+.workload-cell-slots {
+  min-height: 42px;
+  display: grid;
+  grid-auto-rows: minmax(42px, auto);
+}
+
+.workload-cell-entry {
+  min-width: 0;
+  min-height: 42px;
+  position: relative;
+  display: grid;
+  align-content: center;
+  background: #fff;
+}
+
+.workload-cell-entry + .workload-cell-entry {
+  border-top: 1px solid var(--workload-border-strong);
+}
+
+.workload-cell-entry input[name="hours"] {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 3px 5px;
+  color: var(--workload-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  font-size: 14px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.workload-cell-entry input[name="hours"]:focus {
+  box-shadow: inset 0 0 0 2px var(--workload-primary);
+}
+
+.workload-cell-entry > small {
+  max-width: calc(100% - 6px);
+  margin: -11px 3px 2px;
+  overflow: hidden;
+  color: #657188;
+  font-size: 7px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workload-cell-entry.is-assigned {
+  background: #e7f4ed;
+}
+
+.workload-cell-entry.is-locked {
+  background-color: #eef1f5;
+  background-image: linear-gradient(
+    135deg,
+    transparent 47%,
+    rgba(153, 164, 180, 0.18) 48%,
+    rgba(153, 164, 180, 0.18) 52%,
+    transparent 53%
+  );
+  background-size: 10px 10px;
+}
+
+.workload-cell-entry.is-saving {
+  opacity: 0.55;
+}
+
+.workload-cell-state {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  border-radius: 50%;
+}
+
+.workload-cell-entry.is-assigned .workload-cell-state {
+  background: #288354;
+}
+
+.workload-assignment-matrix__no-teachers {
+  height: 72px;
+  padding: 16px !important;
+  color: var(--workload-muted);
+  background: #fff;
+  text-align: center !important;
 }
 
 .workload-assignment-segment {

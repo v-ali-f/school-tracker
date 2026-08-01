@@ -104,9 +104,9 @@
 <div class="workload-matrix-toolbar">
   <div class="workload-matrix-totals">
     <span>План <strong>{{ matrix.total_weekly|compact_decimal }}</strong></span>
-    <span>Назначено <strong>{{ matrix.total_allocated|compact_decimal }}</strong></span>
+    <span>Назначено <strong data-workload-total-allocated>{{ matrix.total_allocated|compact_decimal }}</strong></span>
     <span class="{% if matrix.total_remaining > 0 %}has-remaining{% endif %}">
-      Осталось <strong>{{ matrix.total_remaining|compact_decimal }}</strong>
+      Осталось <strong data-workload-total-remaining>{{ matrix.total_remaining|compact_decimal }}</strong>
     </span>
   </div>
   <span class="workload-matrix-toolbar__hint">Все значения — часов в неделю</span>
@@ -114,11 +114,11 @@
 
 <div class="workload-matrix-legend" aria-label="Обозначения матрицы">
   <span><i class="is-assigned"></i>Назначено</span>
-  <span><i class="is-unassigned"></i>Не распределено</span>
-  <span><i class="is-partial"></i>Осталась группа</span>
+  <span><i class="is-available"></i>Можно назначить</span>
+  <span><i class="is-locked"></i>Назначено другому преподавателю</span>
 </div>
 
-{% if matrix.columns and matrix.blocks %}
+{% if matrix.columns %}
 <div class="workload-assignment-matrix-wrap" data-workload-matrix>
   <table class="workload-assignment-matrix" style="--matrix-column-count: {{ matrix.columns|length }}">
     <thead>
@@ -155,11 +155,6 @@
           {% for column in class_group.columns %}
           <th class="workload-assignment-matrix__class-plan {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %}">
             <span title="{{ column.subheader_label }}">{{ column.subheader_label }}</span>
-            {% if column.remaining > 0 %}
-            <small>{{ column.remaining|compact_decimal }} не распределено</small>
-            {% else %}
-            <small>распределено</small>
-            {% endif %}
           </th>
           {% endfor %}
         {% endfor %}
@@ -168,18 +163,15 @@
     <tbody>
       {% for block in matrix.blocks %}
         {% for row in block.rows %}
-        <tr class="{% if block.unassigned %}is-unassigned-row{% endif %}">
+        <tr>
           {% if loop.first %}
-          <th class="workload-assignment-matrix__teacher-cell {% if block.unassigned %}is-unassigned{% endif %}" rowspan="{{ block.rows|length }}">
+          <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block.rows|length }}">
             <span>{{ block.label }}</span>
-            <strong>{{ block.total|compact_decimal }}</strong>
-            {% if not block.unassigned %}
             <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
             <small>
               МЦКО: {{ block.metadata.mcko or '—' }}
               {% if block.metadata.mcko_expires %}до {{ block.metadata.mcko_expires.strftime('%d.%m.%Y') }}{% endif %}
             </small>
-            {% endif %}
           </th>
           {% endif %}
           <th class="workload-assignment-matrix__subject-cell">
@@ -189,7 +181,7 @@
             {% else %}
             <span class="text-muted">Предмет не выбран</span>
             {% endif %}
-            {% if can_update and not block.unassigned %}
+            {% if can_update %}
             <details class="workload-subject-add">
               <summary title="Добавить предмет" aria-label="Добавить предмет">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
@@ -212,63 +204,61 @@
             {% endif %}
           </th>
           {% if loop.first %}
-          <td class="workload-assignment-matrix__teacher-total-cell {% if block.unassigned %}is-unassigned{% endif %}" rowspan="{{ block.rows|length }}">
+          <td class="workload-assignment-matrix__teacher-total-cell" rowspan="{{ block.rows|length }}" data-teacher-total="{{ block.teacher.id }}">
             {{ block.total|compact_decimal }}
           </td>
           {% endif %}
-          <td class="workload-assignment-matrix__subject-total-cell">{{ row.total|compact_decimal }}</td>
+          <td
+            class="workload-assignment-matrix__subject-total-cell"
+            data-subject-total="{{ block.teacher.id }}:{{ row.activity.id if row.activity else 0 }}:{{ row.plan_kind or '' }}"
+          >{{ row.total|compact_decimal }}</td>
           {% for column in matrix.columns %}
-          {% set segments = row.cells.get(column.key, []) %}
-          {% set available = row.available_cells.get(column.key, []) %}
-          <td class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not segments and not available %}is-empty{% endif %}">
-            {% for segment in segments %}
-              {% if block.unassigned %}
-              <span class="workload-assignment-segment is-unassigned">
-                <span>{{ segment.hours|compact_decimal }}</span>
-                <small>{{ segment.label }}</small>
-                <em>не назначено</em>
-              </span>
-              {% else %}
-              <span class="workload-assignment-segment {% if segment.partial %}is-partial{% else %}is-assigned{% endif %}">
-                <span>{{ segment.hours|compact_decimal }}</span>
-                <small>{{ segment.label }}</small>
-                {% if can_update %}
-                {% set active_assignment = segment.need.active_assignments|selectattr('employee_user_id', 'equalto', block.teacher.id)|rejectattr('assignment_kind', 'equalto', 'VACANCY')|first %}
-                {% if active_assignment %}
-                <form method="post" action="{{ url_for('workload.assignment_workspace_cancel', assignment_id=active_assignment.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  {{ workspace_fields() }}
-                  <button type="submit" title="Снять назначение" aria-label="Снять назначение">
-                    <i class="bi bi-x" aria-hidden="true"></i>
-                  </button>
-                </form>
-                {% endif %}
-                {% endif %}
-              </span>
-              {% endif %}
-            {% endfor %}
-            {% if can_update and not block.unassigned %}
-              {% for need in available %}
-              <form class="workload-available-need" method="post" action="{{ url_for('workload.assignment_workspace_assign') }}">
+          {% set matrix_cell = row.matrix_cells.get(column.key) %}
+          <td class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %}">
+            {% if matrix_cell %}
+            <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
+              {% for slot in matrix_cell.slots %}
+              <form
+                class="workload-cell-entry {% if slot.assignment %}is-assigned{% elif slot.assigned_elsewhere %}is-locked{% endif %}"
+                method="post"
+                action="{{ url_for('workload.assignment_workspace_cell_update') }}"
+                data-workload-cell-form
+                data-need-id="{{ slot.need.id }}"
+                data-teacher-id="{{ block.teacher.id }}"
+                data-row-key="{{ block.teacher.id }}:{{ row.activity.id }}:{{ row.plan_kind }}"
+              >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ workspace_fields() }}
-                <input type="hidden" name="need_id" value="{{ need.id }}">
+                <input type="hidden" name="need_id" value="{{ slot.need.id }}">
                 <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
-                <button type="submit" title="Назначить {{ block.teacher.fio }} на полный объём">
-                  <strong>{{ need.remaining_weekly_hours|compact_decimal }}</strong>
-                  <small>
-                    {% if need.teaching_group.group_type == 'CLASS' %}Весь класс{% else %}{{ need.teaching_group.name }}{% endif %}
-                  </small>
-                  <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                </button>
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  name="hours"
+                  value="{% if slot.value is not none %}{{ slot.value|compact_decimal }}{% endif %}"
+                  aria-label="Часы: {{ block.teacher.fio }}, {{ row.activity.name }}, {{ column.label }}{% if slot.label %}, {{ slot.label }}{% endif %}"
+                  title="По плану {{ slot.planned|compact_decimal }} ч/нед.{% if slot.assigned_elsewhere %} Назначено другому преподавателю.{% endif %}"
+                  {% if not can_update or slot.assigned_elsewhere %}disabled{% endif %}
+                  data-workload-cell-input
+                >
+                {% if slot.label %}<small title="{{ slot.label }}">{{ slot.label }}</small>{% endif %}
+                <span class="workload-cell-state" aria-live="polite"></span>
               </form>
               {% endfor %}
+            </div>
             {% endif %}
           </td>
           {% endfor %}
         </tr>
         {% endfor %}
       {% endfor %}
+      {% if not matrix.blocks %}
+      <tr>
+        <td class="workload-assignment-matrix__no-teachers" colspan="{{ 4 + matrix.columns|length }}">
+          Добавьте преподавателя кнопкой «+» в заголовке таблицы.
+        </td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
 </div>
@@ -277,16 +267,6 @@
   <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
   <strong>По выбранным условиям нет часов</strong>
   <span>Измените фильтры или сформируйте потребность по учебным планам.</span>
-  {% if can_update and selected_version and not matrix.need_count %}
-  <form method="post" action="{{ url_for('workload.assignments_generate') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="version_id" value="{{ selected_version.id }}">
-    <input type="hidden" name="return_to" value="workspace">
-    <button class="btn btn-primary btn-sm" type="submit">
-      <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Сформировать по учебным планам
-    </button>
-  </form>
-  {% endif %}
 </div>
 {% endif %}
 
@@ -363,6 +343,101 @@
   teacherDialog?.addEventListener("click", (event) => {
     if (event.target === teacherDialog) teacherDialog.close();
   });
+
+  const formatHours = (value) => {
+    if (value === null || value === undefined || value === "") return "";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    return Number.isInteger(number) ? String(number) : String(number).replace(".", ",");
+  };
+
+  const updateNeedInputs = (payload) => {
+    document.querySelectorAll(`[data-workload-cell-form][data-need-id="${payload.need_id}"]`).forEach((form) => {
+      const input = form.querySelector("[data-workload-cell-input]");
+      const sameTeacher = Number(form.dataset.teacherId) === Number(payload.teacher_id);
+      form.classList.toggle("is-assigned", payload.value !== null && sameTeacher);
+      form.classList.toggle("is-locked", payload.value !== null && !sameTeacher);
+      input.disabled = payload.value !== null && !sameTeacher;
+      input.value = payload.value !== null && sameTeacher ? formatHours(payload.value) : "";
+      input.dataset.savedValue = input.value;
+    });
+    const teacherTotal = document.querySelector(`[data-teacher-total="${payload.teacher_id}"]`);
+    if (teacherTotal) teacherTotal.textContent = formatHours(payload.teacher_total);
+    const allocated = document.querySelector("[data-workload-total-allocated]");
+    const remaining = document.querySelector("[data-workload-total-remaining]");
+    if (allocated) allocated.textContent = formatHours(payload.allocated);
+    if (remaining) remaining.textContent = formatHours(payload.remaining);
+  };
+
+  const recalculateSubjectTotals = () => {
+    document.querySelectorAll("[data-subject-total]").forEach((total) => {
+      const rowKey = total.dataset.subjectTotal;
+      const needs = new Map();
+      document.querySelectorAll(`[data-workload-cell-form][data-row-key="${rowKey}"]`).forEach((form) => {
+        const input = form.querySelector("[data-workload-cell-input]");
+        if (!input || form.classList.contains("is-locked")) return;
+        const value = Number((input.value || "").replace(",", "."));
+        if (Number.isFinite(value) && value > 0) {
+          needs.set(form.dataset.needId, value);
+        }
+      });
+      total.textContent = formatHours(
+        Array.from(needs.values()).reduce((sum, value) => sum + value, 0)
+      );
+    });
+  };
+
+  document.querySelectorAll("[data-workload-cell-form]").forEach((form) => {
+    const input = form.querySelector("[data-workload-cell-input]");
+    if (!input || input.disabled) return;
+    let saveTimer = null;
+    let saving = false;
+    const save = async () => {
+      if (saving) return;
+      const previous = input.dataset.savedValue ?? input.defaultValue ?? "";
+      if (input.value === previous) return;
+      saving = true;
+      if (saveTimer) {
+        window.clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      const formData = new FormData(form);
+      form.classList.add("is-saving");
+      input.disabled = true;
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: formData,
+          headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.message || "Не удалось сохранить часы.");
+        updateNeedInputs(payload);
+        recalculateSubjectTotals();
+      } catch (error) {
+        input.value = previous;
+        window.alert(error.message);
+      } finally {
+        saving = false;
+        form.classList.remove("is-saving");
+        if (!form.classList.contains("is-locked")) input.disabled = false;
+      }
+    };
+    input.dataset.savedValue = input.value;
+    input.addEventListener("input", () => {
+      if (saveTimer) window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(save, 650);
+    });
+    input.addEventListener("change", save);
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+  });
+  recalculateSubjectTotals();
 })();
 </script>
 {% endblock %}
