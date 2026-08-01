@@ -418,7 +418,11 @@ def _group_matrix_plans(version):
     )
 
 
-def _group_matrix_context(version_id, requested_level):
+def _group_matrix_context(
+    version_id,
+    requested_level,
+    requested_grade=None,
+):
     versions = _available_group_matrix_versions()
     version = _selected_group_matrix_version(versions, version_id)
     snapshot = (
@@ -445,12 +449,20 @@ def _group_matrix_context(version_id, requested_level):
             ),
             "NOO",
         )
+    level_grades = sorted(EDUCATION_LEVEL_GRADES[selected_level])
+    try:
+        selected_grade = int(requested_grade)
+    except (TypeError, ValueError):
+        selected_grade = None
+    if selected_grade not in EDUCATION_LEVEL_GRADES[selected_level]:
+        selected_grade = None
     matrix = (
         build_teaching_group_matrix(
             snapshot,
             plans,
             selected_level,
             version.id,
+            grade=selected_grade,
         )
         if version else {
             "class_groups": [],
@@ -489,6 +501,8 @@ def _group_matrix_context(version_id, requested_level):
         "plans": plans,
         "matrix": matrix,
         "selected_level": selected_level,
+        "selected_grade": selected_grade,
+        "level_grades": level_grades,
         "level_labels": EDUCATION_LEVEL_LABELS,
         "level_counts": level_counts,
         "class_count": len(snapshot_classes),
@@ -506,6 +520,7 @@ def register_group_routes(workload_bp):
         context = _group_matrix_context(
             request.args.get("version_id", type=int),
             request.args.get("level"),
+            request.args.get("grade"),
         )
         return render_template(
             "workload/group_matrix.html",
@@ -519,6 +534,7 @@ def register_group_routes(workload_bp):
         context = _group_matrix_context(
             request.args.get("version_id", type=int),
             request.args.get("level"),
+            request.args.get("grade"),
         )
         composition = build_group_composition_workspace(
             context["matrix"]
@@ -558,6 +574,7 @@ def register_group_routes(workload_bp):
         context = _group_matrix_context(
             version_id,
             request.form.get("level"),
+            request.form.get("grade"),
         )
         item_key = (request.form.get("item_key") or "").strip()
         composition = build_group_composition_workspace(
@@ -622,6 +639,7 @@ def register_group_routes(workload_bp):
             "workload.group_composition",
             version_id=version.id,
             level=request.form.get("level"),
+            grade=request.form.get("grade"),
             item=item_key,
         ))
 

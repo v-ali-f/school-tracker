@@ -25,11 +25,11 @@
 }
 
 .group-matrix .group-matrix__cell.is-divided {
-  background: #edf5ff;
+  background: #edf8f1;
 }
 
 .group-matrix .group-matrix__cell.needs-composition {
-  background: #fff7df;
+  background: #edf8f1;
 }
 
 .group-matrix .group-matrix__cell:focus-within {

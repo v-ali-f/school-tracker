@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260731_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_3">
 {% endblock %}
 
 {% block workspace_content %}
@@ -18,14 +18,14 @@
     <div class="class-plan-heading__actions" aria-label="Выгрузка свода">
       <a
         class="btn btn-outline-success btn-sm"
-        href="{{ url_for('workload.plan_bindings_matrix_export_xlsx', version_id=selected_version.id, level=selected_level) }}"
+        href="{{ url_for('workload.plan_bindings_matrix_export_xlsx', version_id=selected_version.id, level=selected_level, grade=selected_grade) }}"
       >
         <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
         Excel
       </a>
       <a
         class="btn btn-outline-danger btn-sm"
-        href="{{ url_for('workload.plan_bindings_matrix_export_pdf', version_id=selected_version.id, level=selected_level) }}"
+        href="{{ url_for('workload.plan_bindings_matrix_export_pdf', version_id=selected_version.id, level=selected_level, grade=selected_grade) }}"
       >
         <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
         PDF
@@ -47,6 +47,7 @@
         </select>
       </label>
       <input type="hidden" name="level" value="{{ selected_level }}">
+      {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
     </form>
 
     <nav class="class-plan-levels" aria-label="Уровень образования">
@@ -62,6 +63,23 @@
     </nav>
   </div>
 
+  <nav class="class-plan-grades" aria-label="Параллель">
+    <span class="class-plan-grades__label">Параллель</span>
+    <a
+      class="{% if not selected_grade %}is-active{% endif %}"
+      href="{{ url_for('workload.plan_bindings_matrix', version_id=selected_version.id if selected_version else none, level=selected_level) }}"
+    >Все</a>
+    {% for grade in level_grades %}
+    <a
+      class="{% if selected_grade == grade %}is-active{% endif %}"
+      href="{{ url_for('workload.plan_bindings_matrix', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade) }}"
+      title="{{ grade }}-я параллель"
+    >
+      <span>{{ grade }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
   {% if registry_status.is_stale %}
   <div class="class-plan-notice class-plan-notice--warning" role="status">
     <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
@@ -75,7 +93,7 @@
   {% elif not snapshot %}
   <div class="class-plan-empty">Сначала загрузите классы из сводного контингента в разделе назначения планов.</div>
   {% elif not matrix.class_groups %}
-  <div class="class-plan-empty">Для уровня {{ selected_level }} в текущем снимке контингента нет классов.</div>
+  <div class="class-plan-empty">Для выбранного уровня и параллели в текущем снимке контингента нет классов.</div>
   {% else %}
   <div class="class-plan-caption">
     <strong>{{ matrix.level_label }}</strong>
@@ -139,6 +157,14 @@
           <td>{{ section.column_totals.get(column.key, 0)|compact_decimal }}</td>
           {% endfor %}
         </tr>
+        {% if section.plan_kind == 'CURRICULUM' and section.is_plan_kind_end %}
+        <tr class="class-plan-matrix__curriculum-total">
+          <th>Всего по учебному плану</th>
+          {% for column in matrix.columns %}
+          <td>{{ matrix.plan_kind_column_totals['CURRICULUM'].get(column.key, 0)|compact_decimal }}</td>
+          {% endfor %}
+        </tr>
+        {% endif %}
         {% else %}
         <tr>
           <td class="class-plan-matrix__empty-row" colspan="{{ matrix.columns|length + 1 }}">

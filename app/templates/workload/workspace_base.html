@@ -139,7 +139,7 @@
     {% endif %}
   </nav>
 
-  {% if workspace_mode in ['bindings', 'class_matrix'] %}
+  {% if workspace_mode == 'class_matrix' %}
   <section class="workload-indicators" aria-label="Состояние привязки учебных планов">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Классов</span>
@@ -158,45 +158,7 @@
       <strong>{% if snapshot is defined and snapshot %}{{ snapshot.snapshot_date.strftime('%d.%m.%Y') }}{% else %}Не загружен{% endif %}</strong>
     </div>
   </section>
-  {% elif workspace_mode == 'groups' and matrix is defined %}
-  <section class="workload-indicators" aria-label="Состояние групп">
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Классов</span>
-      <strong>{{ matrix.class_count }}</strong>
-    </div>
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Столбцов УП</span>
-      <strong>{{ matrix.column_count }}</strong>
-    </div>
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Делений</span>
-      <strong>{{ matrix.divided_count }}</strong>
-    </div>
-    <div class="workload-indicator workload-indicator--state">
-      <span class="workload-indicator__label">Нужно распределить состав</span>
-      <strong>{{ matrix.incomplete_count }}</strong>
-    </div>
-  </section>
-  {% elif workspace_mode == 'group_composition' and composition is defined %}
-  <section class="workload-indicators" aria-label="Состояние состава групп">
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Делений</span>
-      <strong>{{ composition['items']|length }}</strong>
-    </div>
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Готово</span>
-      <strong>{{ composition.complete_count }}</strong>
-    </div>
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Не завершено</span>
-      <strong>{{ composition.incomplete_count }}</strong>
-    </div>
-    <div class="workload-indicator workload-indicator--state">
-      <span class="workload-indicator__label">Назначено учеников</span>
-      <strong>{{ composition.assigned_count }} / {{ composition.student_count }}</strong>
-    </div>
-  </section>
-  {% elif workspace_mode != 'hours' %}
+  {% elif workspace_mode not in ['hours', 'bindings', 'groups', 'group_composition'] %}
   <section class="workload-indicators" aria-label="Состояние рабочего пространства">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Нераспределено</span>

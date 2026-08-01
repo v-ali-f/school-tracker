@@ -85,6 +85,7 @@ def build_class_plan_matrix_xlsx(matrix, academic_year_name):
     header_fill = PatternFill("solid", fgColor="F5F7FA")
     section_fill = PatternFill("solid", fgColor="EAF3FF")
     subtotal_fill = PatternFill("solid", fgColor="F6F8FB")
+    curriculum_total_fill = PatternFill("solid", fgColor="E4F0FF")
     total_fill = PatternFill("solid", fgColor="DDEBFC")
 
     for row in sheet.iter_rows(
@@ -140,6 +141,27 @@ def build_class_plan_matrix_xlsx(matrix, academic_year_name):
             cell.fill = subtotal_fill
             cell.font = Font(bold=True)
         row_index += 1
+        if (
+            section["plan_kind"] == "CURRICULUM"
+            and section["is_plan_kind_end"]
+        ):
+            sheet.cell(row_index, 1, "Всего по учебному плану")
+            curriculum_totals = matrix[
+                "plan_kind_column_totals"
+            ]["CURRICULUM"]
+            for offset, column in enumerate(
+                matrix["columns"],
+                start=2,
+            ):
+                sheet.cell(
+                    row_index,
+                    offset,
+                    _number(curriculum_totals.get(column["key"], 0)),
+                )
+            for cell in sheet[row_index]:
+                cell.fill = curriculum_total_fill
+                cell.font = Font(bold=True, color="153F73")
+            row_index += 1
 
     if matrix["sections"]:
         sheet.cell(row_index, 1, "Всего часов в неделю")
@@ -249,6 +271,7 @@ def _pdf_table(matrix, columns, styles, colors, fonts, page_width):
     ]]
     section_rows = []
     subtotal_rows = []
+    curriculum_total_rows = []
     for section in matrix["sections"]:
         section_rows.append(len(data))
         data.append([
@@ -287,6 +310,29 @@ def _pdf_table(matrix, columns, styles, colors, fonts, page_width):
                 for column in columns
             ],
         ])
+        if (
+            section["plan_kind"] == "CURRICULUM"
+            and section["is_plan_kind_end"]
+        ):
+            curriculum_total_rows.append(len(data))
+            curriculum_totals = matrix[
+                "plan_kind_column_totals"
+            ]["CURRICULUM"]
+            data.append([
+                _paragraph(
+                    "Всего по учебному плану",
+                    styles["Subject"],
+                ),
+                *[
+                    _paragraph(
+                        _display(
+                            curriculum_totals.get(column["key"], 0)
+                        ),
+                        styles["Cell"],
+                    )
+                    for column in columns
+                ],
+            ])
 
     total_row = None
     if matrix["sections"]:
@@ -342,6 +388,30 @@ def _pdf_table(matrix, columns, styles, colors, fonts, page_width):
                 colors.HexColor("#F6F8FB"),
             ),
             ("FONTNAME", (0, row_index), (-1, row_index), bold_font),
+        ])
+    for row_index in curriculum_total_rows:
+        commands.extend([
+            (
+                "BACKGROUND",
+                (0, row_index),
+                (-1, row_index),
+                colors.HexColor("#E4F0FF"),
+            ),
+            ("FONTNAME", (0, row_index), (-1, row_index), bold_font),
+            (
+                "LINEABOVE",
+                (0, row_index),
+                (-1, row_index),
+                1,
+                colors.HexColor("#8FB4E8"),
+            ),
+            (
+                "LINEBELOW",
+                (0, row_index),
+                (-1, row_index),
+                1,
+                colors.HexColor("#8FB4E8"),
+            ),
         ])
     if total_row is not None:
         commands.extend([
