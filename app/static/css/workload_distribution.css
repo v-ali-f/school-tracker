@@ -652,7 +652,7 @@
   border-top: 1px solid var(--workload-border-strong);
 }
 
-.workload-cell-entry input[name="hours"] {
+.workload-cell-toggle {
   width: 100%;
   min-width: 0;
   height: 40px;
@@ -665,10 +665,17 @@
   font-size: 14px;
   font-weight: 750;
   text-align: center;
+  cursor: pointer;
 }
 
-.workload-cell-entry input[name="hours"]:focus {
+.workload-cell-toggle:focus-visible {
   box-shadow: inset 0 0 0 2px var(--workload-primary);
+}
+
+.workload-cell-toggle:disabled {
+  color: inherit;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .workload-cell-entry > small {

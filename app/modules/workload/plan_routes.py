@@ -59,6 +59,11 @@ from app.services.education_plan_service import (
     validate_line_values,
     validate_period_range,
 )
+from app.services.workload_distribution_service import (
+    WorkloadDistributionError,
+    delete_plan_lines_with_dependencies,
+    generate_plan_needs,
+)
 
 from .access import (
     can_use_workload_permission,
@@ -133,6 +138,27 @@ def _current_organization_id():
         .first()
     )
     return organization.id if organization else None
+
+
+def _synchronize_plan_workload(plan, line):
+    has_group = (
+        TeachingGroup.query
+        .filter_by(
+            tariff_version_id=plan.tariff_version_id,
+            source_plan_line_id=line.id,
+        )
+        .first()
+    )
+    has_need = (
+        WorkloadNeedSource.query
+        .filter_by(education_plan_line_id=line.id)
+        .first()
+    )
+    if has_group is not None or has_need is not None:
+        generate_plan_needs(
+            plan.tariff_version,
+            user_id=current_user.id,
+        )
 
 
 def _require_plan_read():
@@ -1360,8 +1386,9 @@ def register_plan_routes(workload_bp):
             )
             line.updated_by_user_id = current_user.id
             touch_plan(plan, user_id=current_user.id)
+            _synchronize_plan_workload(plan, line)
             db.session.commit()
-        except PlanValidationError as exc:
+        except (PlanValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             if _is_matrix_ajax_request():
                 return jsonify({"ok": False, "error": str(exc)}), 422
@@ -1420,11 +1447,10 @@ def register_plan_routes(workload_bp):
                     "Предметная строка уже удалена или не существует."
                 )
             activity_name = lines[0].education_activity.name
-            for line in lines:
-                db.session.delete(line)
+            deleted = delete_plan_lines_with_dependencies(lines)
             touch_plan(plan, user_id=current_user.id)
             db.session.commit()
-        except PlanValidationError as exc:
+        except (PlanValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             flash(str(exc), "danger")
         except IntegrityError:
@@ -1435,7 +1461,9 @@ def register_plan_routes(workload_bp):
             )
         else:
             flash(
-                f"Строка «{activity_name}» удалена из плана.",
+                f"Строка «{activity_name}» удалена из плана. "
+                f"Удалено групп: {deleted['groups']}, "
+                f"назначений нагрузки: {deleted['assignments']}.",
                 "success",
             )
         return redirect(
@@ -1710,8 +1738,9 @@ def register_plan_routes(workload_bp):
                         **payload["period"],
                     ))
                 touch_plan(plan, user_id=current_user.id)
+                _synchronize_plan_workload(plan, line)
                 db.session.commit()
-            except PlanValidationError as exc:
+            except (PlanValidationError, WorkloadDistributionError) as exc:
                 db.session.rollback()
                 flash(str(exc), "danger")
             except IntegrityError:
@@ -1743,14 +1772,19 @@ def register_plan_routes(workload_bp):
                 plan,
                 expected_revision=request.form.get("revision", type=int),
             )
-            db.session.delete(line)
+            deleted = delete_plan_lines_with_dependencies([line])
             touch_plan(plan, user_id=current_user.id)
             db.session.commit()
-        except PlanValidationError as exc:
+        except (PlanValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             flash(str(exc), "danger")
         else:
-            flash("Строка плана удалена.", "success")
+            flash(
+                "Строка плана удалена. "
+                f"Удалено групп: {deleted['groups']}, "
+                f"назначений нагрузки: {deleted['assignments']}.",
+                "success",
+            )
         return redirect(url_for("workload.plan_detail", plan_id=plan.id))
 
     @workload_bp.post(
@@ -1798,8 +1832,9 @@ def register_plan_routes(workload_bp):
             line.annual_hours = annual_hours
             line.updated_by_user_id = current_user.id
             touch_plan(plan, user_id=current_user.id)
+            _synchronize_plan_workload(plan, line)
             db.session.commit()
-        except PlanValidationError as exc:
+        except (PlanValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             if _is_matrix_ajax_request():
                 return jsonify({"ok": False, "error": str(exc)}), 422
