@@ -44,6 +44,7 @@ from app.services.workload_distribution_service import (
     WorkloadDistributionError,
     calculate_assignment_annual_hours,
     cancel_assignment,
+    delete_plan_lines_with_dependencies,
     generate_plan_needs,
     refresh_need_status,
     validate_assignment,
@@ -156,6 +157,7 @@ def _distribution_context(user_id):
         "building_id": building.id,
         "department_id": department.id,
         "version_id": version.id,
+        "plan_id": plan.id,
         "group_id": group.id,
     }
 
@@ -220,6 +222,108 @@ def test_need_generation_is_idempotent(app, make_user):
         assert second["created"] == 0
         assert WorkloadNeed.query.count() == 1
         assert WorkloadNeedSource.query.count() == 1
+
+
+def test_need_generation_updates_full_teacher_assignment_from_plan(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(user_id)
+        _generate(context, user_id)
+        need = WorkloadNeed.query.one()
+        assignment = _assignment(need, teacher_id, "5")
+        validate_assignment(need, assignment)
+        db.session.add(assignment)
+        db.session.flush()
+        refresh_need_status(need)
+        db.session.commit()
+
+        line = EducationPlanLine.query.one()
+        line.weekly_hours = Decimal("6")
+        line.annual_hours = Decimal("204")
+        db.session.commit()
+        result = _generate(context, user_id)
+
+        assignment = WorkloadAssignment.query.one()
+        need = WorkloadNeed.query.one()
+        assert result["updated"] == 1
+        assert need.weekly_hours == Decimal("6.000")
+        assert need.status == "COVERED"
+        assert assignment.weekly_hours == Decimal("6.000")
+        assert assignment.annual_hours == Decimal("204.000")
+        assert assignment.revision == 2
+        change = WorkloadAssignmentChange.query.one()
+        assert change.change_kind == "UPDATE"
+        assert "учебным планом" in change.reason
+
+
+def test_delete_plan_line_removes_groups_needs_and_assignments(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(user_id)
+        _generate(context, user_id)
+        need = WorkloadNeed.query.one()
+        assignment = _assignment(need, teacher_id, "5")
+        validate_assignment(need, assignment)
+        db.session.add(assignment)
+        db.session.commit()
+
+        line = EducationPlanLine.query.one()
+        deleted = delete_plan_lines_with_dependencies([line])
+        db.session.commit()
+
+        assert deleted == {"groups": 1, "needs": 1, "assignments": 1}
+        assert EducationPlanLine.query.count() == 0
+        assert TeachingGroup.query.count() == 0
+        assert WorkloadNeed.query.count() == 0
+        assert WorkloadNeedSource.query.count() == 0
+        assert WorkloadAssignment.query.count() == 0
+
+
+def test_plan_matrix_delete_route_cascades_to_workload(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(user_id)
+        _generate(context, user_id)
+        need = WorkloadNeed.query.one()
+        assignment = _assignment(need, teacher_id, "5")
+        validate_assignment(need, assignment)
+        db.session.add(assignment)
+        activity_id = need.education_activity_id
+        db.session.commit()
+    login(user_id)
+
+    response = client.post(
+        f"/workload/plans/{context['plan_id']}/matrix/rows/delete",
+        data={
+            "revision": "1",
+            "education_activity_id": str(activity_id),
+            "component_kind": "MANDATORY",
+            "profile_code": "",
+        },
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert EducationPlanLine.query.count() == 0
+        assert TeachingGroup.query.count() == 0
+        assert WorkloadNeed.query.count() == 0
+        assert WorkloadAssignment.query.count() == 0
 
 
 def test_need_generation_skips_plan_line_without_hours(app, make_user):
@@ -510,8 +614,9 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     html = matrix.get_data(as_text=True)
     assert matrix.status_code == 200
     assert "Предмет не выбран" not in html
-    assert "data-workload-cell-input" in html
+    assert "data-workload-cell-toggle" in html
     assert 'name="hours"' in html
+    assert 'type="hidden"' in html
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
 

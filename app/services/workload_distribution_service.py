@@ -121,6 +121,46 @@ def refresh_need_status(need):
     return need.status
 
 
+def _synchronize_full_assignment(
+    need,
+    *,
+    old_weekly,
+    old_annual,
+    new_weekly,
+    new_annual,
+    user_id,
+):
+    active = [
+        item
+        for item in need.assignments
+        if item.status != "CANCELLED"
+        and item.assignment_kind != "VACANCY"
+    ]
+    if len(active) != 1:
+        return False
+    assignment = active[0]
+    if (
+        Decimal(assignment.weekly_hours or ZERO) != old_weekly
+        or Decimal(assignment.annual_hours or ZERO) != old_annual
+    ):
+        return False
+    if old_weekly == new_weekly and old_annual == new_annual:
+        return False
+    before = assignment_snapshot(assignment)
+    assignment.weekly_hours = new_weekly
+    assignment.annual_hours = new_annual
+    assignment.revision += 1
+    assignment.updated_by_user_id = user_id
+    add_assignment_change(
+        assignment,
+        "UPDATE",
+        user_id=user_id,
+        before_data=before,
+        reason="Автоматически синхронизировано с учебным планом",
+    )
+    return True
+
+
 def generate_plan_needs(tariff_version, *, user_id):
     if tariff_version.status != "DRAFT":
         raise WorkloadLockedError(
@@ -248,6 +288,14 @@ def generate_plan_needs(tariff_version, *, user_id):
         else:
             old_weekly = Decimal(need.weekly_hours or ZERO)
             old_annual = Decimal(need.annual_hours or ZERO)
+            _synchronize_full_assignment(
+                need,
+                old_weekly=old_weekly,
+                old_annual=old_annual,
+                new_weekly=weekly,
+                new_annual=annual,
+                user_id=user_id,
+            )
             if (
                 need.allocated_weekly_hours > weekly
                 or (
@@ -336,6 +384,107 @@ def generate_plan_needs(tariff_version, *, user_id):
         "cancelled": cancelled,
         "ready_groups": len(groups),
         "skipped_empty": skipped_empty,
+    }
+
+
+def delete_plan_lines_with_dependencies(lines):
+    lines = list(lines)
+    if not lines:
+        return {"groups": 0, "needs": 0, "assignments": 0}
+    version_ids = {
+        line.education_plan.tariff_version_id for line in lines
+    }
+    if len(version_ids) != 1:
+        raise WorkloadDistributionError(
+            "Удаляемые строки относятся к разным версиям тарификации."
+        )
+    version_id = next(iter(version_ids))
+    line_ids = {line.id for line in lines}
+    groups = (
+        TeachingGroup.query
+        .filter(
+            TeachingGroup.tariff_version_id == version_id,
+            TeachingGroup.source_plan_line_id.in_(line_ids),
+        )
+        .all()
+    )
+    groups_by_id = {group.id: group for group in groups}
+
+    changed = True
+    while changed and groups_by_id:
+        changed = False
+        group_ids = set(groups_by_id)
+        linked_groups = (
+            TeachingGroup.query
+            .filter(TeachingGroup.source_group_id.in_(group_ids))
+            .all()
+        )
+        linked_metagroups = [
+            link.metagroup
+            for link in (
+                TeachingMetagroupSource.query
+                .filter(
+                    TeachingMetagroupSource.source_group_id.in_(group_ids)
+                )
+                .all()
+            )
+        ]
+        for group in linked_groups + linked_metagroups:
+            if group.tariff_version_id != version_id:
+                raise WorkloadDistributionError(
+                    "Строка используется в следующей версии. "
+                    "Сначала удалите связанную версию нагрузки."
+                )
+            if group.id not in groups_by_id:
+                groups_by_id[group.id] = group
+                changed = True
+
+    group_ids = set(groups_by_id)
+    need_ids = {
+        item.workload_need_id
+        for item in (
+            WorkloadNeedSource.query
+            .filter(WorkloadNeedSource.education_plan_line_id.in_(line_ids))
+            .all()
+        )
+    }
+    if group_ids:
+        need_ids.update(
+            need.id
+            for need in (
+                WorkloadNeed.query
+                .filter(WorkloadNeed.teaching_group_id.in_(group_ids))
+                .all()
+            )
+        )
+    needs = (
+        WorkloadNeed.query
+        .filter(WorkloadNeed.id.in_(need_ids))
+        .all()
+        if need_ids else []
+    )
+    assignment_count = sum(len(need.assignments) for need in needs)
+    for need in needs:
+        db.session.delete(need)
+    db.session.flush()
+
+    ordered_groups = sorted(
+        groups_by_id.values(),
+        key=lambda group: (
+            group.group_type != "METAGROUP",
+            group.source_group_id is None,
+            group.id,
+        ),
+    )
+    for group in ordered_groups:
+        db.session.delete(group)
+    db.session.flush()
+    for line in lines:
+        db.session.delete(line)
+    return {
+        "groups": len(ordered_groups),
+        "needs": len(needs),
+        "assignments": assignment_count,
     }
 
 

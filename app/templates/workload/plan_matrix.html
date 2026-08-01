@@ -167,7 +167,7 @@
             <form
               method="post"
               action="{{ url_for('workload.plan_matrix_delete_row', plan_id=plan.id) }}"
-              onsubmit="return confirm('Удалить эту предметную строку из всех классов?');"
+              onsubmit="return confirm('Удалить эту предметную строку из всех классов? Связанные группы и назначения нагрузки также будут удалены.');"
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="revision" value="{{ plan.revision }}">
