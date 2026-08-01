@@ -37,6 +37,9 @@ from app.services.workload_distribution_service import (
     teacher_totals,
     validate_assignment,
 )
+from app.services.workload_assignment_matrix_service import (
+    build_workload_assignment_matrix,
+)
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -572,6 +575,7 @@ def register_assignment_routes(workload_bp):
             .all()
             if need_ids else []
         )
+        matrix = build_workload_assignment_matrix(needs, assignments)
         departments, _ = _scope_options()
         totals = {
             "weekly": sum(
@@ -592,6 +596,7 @@ def register_assignment_routes(workload_bp):
             versions=versions,
             selected_version_id=version_id,
             teacher_rows=_teacher_rows(assignments),
+            matrix=matrix,
             totals=totals,
             departments=departments,
             selected_department_id=department_id,

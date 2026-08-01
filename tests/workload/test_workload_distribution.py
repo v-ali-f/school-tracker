@@ -362,9 +362,19 @@ def test_admin_creates_assignment_through_route(
     workspace_html = workspace_response.get_data(as_text=True)
     assert workspace_response.status_code == 200
     assert "workload_distribution.css" in workspace_html
-    assert "data-need-select" in workspace_html
+    assert "data-workload-matrix" in workspace_html
+    assert "data-matrix-subject-column" in workspace_html
+    assert "data-matrix-total-column" in workspace_html
+    assert "data-matrix-class-column" in workspace_html
+    assert workspace_html.index(
+        "data-matrix-subject-column"
+    ) < workspace_html.index(
+        "data-matrix-total-column"
+    ) < workspace_html.index(
+        "data-matrix-class-column"
+    )
     assert "data-need-context" not in workspace_html
-    assert "Не распределено" in workspace_html
+    assert "Назначено" in workspace_html
     assert 'name="version_id"' in workspace_html
     assert "2026/2027 · версия 1" in workspace_html
     assert 'data-active-mode="workload"' in workspace_html
@@ -374,6 +384,33 @@ def test_admin_creates_assignment_through_route(
         f"/workload/teachers/{teacher_id}"
     ).status_code == 200
     assert client.get("/workload/departments/").status_code == 200
+
+
+def test_assignment_workspace_shows_unassigned_group_in_matrix(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+    login(admin_id)
+
+    response = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "data-workload-matrix" in html
+    assert "Не распределено" in html
+    assert "не назначено" in html
+    assert "Математика 5А, группа 1" in html
+    assert ">5<" in html
 
 
 def test_teacher_can_view_only_own_workload(
