@@ -128,9 +128,9 @@
         <td>{{ need.teaching_group.name if need.teaching_group else '—' }}</td>
         <td>{{ need.department.name if need.department else 'Не определена' }}</td>
         <td class="text-nowrap">{{ need.date_from.strftime('%d.%m.%Y') }}–{{ need.date_to.strftime('%d.%m.%Y') }}</td>
-        <td class="text-end text-nowrap">{{ need.weekly_hours }} ч.</td>
-        <td class="text-end text-nowrap">{{ need.allocated_weekly_hours }} ч.</td>
-        <td class="text-end text-nowrap {% if need.remaining_weekly_hours > 0 %}text-danger fw-semibold{% endif %}">{{ need.remaining_weekly_hours }} ч.</td>
+        <td class="text-end text-nowrap">{{ need.weekly_hours|compact_decimal }} ч.</td>
+        <td class="text-end text-nowrap">{{ need.allocated_weekly_hours|compact_decimal }} ч.</td>
+        <td class="text-end text-nowrap {% if need.remaining_weekly_hours > 0 %}text-danger fw-semibold{% endif %}">{{ need.remaining_weekly_hours|compact_decimal }} ч.</td>
         <td>{{ status_labels[need.status] }}</td>
         <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.need_detail', need_id=need.id) }}" title="Открыть" aria-label="Открыть"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
       </tr>

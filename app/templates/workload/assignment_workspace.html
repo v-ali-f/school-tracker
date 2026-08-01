@@ -2,33 +2,49 @@
 {% block title %}Распределение нагрузки{% endblock %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260801_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260801_2">
 {% endblock %}
+
+{% macro workspace_fields() %}
+  <input type="hidden" name="version_id" value="{{ selected_version_id or '' }}">
+  <input type="hidden" name="view" value="{{ view_mode }}">
+  <input type="hidden" name="department_id" value="{{ selected_department_id or '' }}">
+  <input type="hidden" name="building_id" value="{{ selected_building_id or '' }}">
+  <input type="hidden" name="education_level" value="{{ selected_education_level or '' }}">
+  <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
+{% endmacro %}
 
 {% block workspace_content %}
 <div class="page-head mb-3">
   <div>
-    <div class="page-title">Нагрузка преподавателей</div>
-    <div class="page-sub">Матрица плановых часов по преподавателям, предметам и учебным группам</div>
+    <div class="page-title">Распределение нагрузки</div>
+    <div class="page-sub">Одна матрица для учебного плана, внеурочной деятельности и дополнительного образования</div>
   </div>
-  <div class="page-actions d-flex gap-1">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignments') }}" title="Реестр потребностей" aria-label="Реестр потребностей">
-      <i class="bi bi-list-ul" aria-hidden="true"></i>
+  <div class="page-actions">
+    {% if selected_version %}
+    <a
+      class="btn btn-outline-secondary btn-sm"
+      href="{{ url_for(
+        'workload.assignment_workspace_export',
+        version_id=selected_version_id,
+        view=view_mode,
+        department_id=selected_department_id or '',
+        building_id=selected_building_id or '',
+        education_level=selected_education_level or '',
+        grade=selected_grade or ''
+      ) }}"
+    >
+      <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Скачать Excel
     </a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_teachers') }}">
-      <i class="bi bi-people me-1" aria-hidden="true"></i>Преподаватели
-    </a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.workload_departments') }}">
-      <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Кафедры
-    </a>
+    {% endif %}
   </div>
 </div>
 
 {% include "workload/_nav.html" %}
 
-<form class="workload-compact-filters workload-assignment-filters" method="get">
-  <div>
-    <label class="form-label" for="workspace-version">Учебный год</label>
+<form class="workload-matrix-filterbar" method="get" data-workload-filterbar>
+  <div class="workload-filter-field workload-filter-field--year">
+    <label for="workspace-version">Учебный год</label>
     <select class="form-select form-select-sm" id="workspace-version" name="version_id">
       {% for item in versions %}
       <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>
@@ -37,25 +53,97 @@
       {% endfor %}
     </select>
   </div>
-  <div>
-    <label class="form-label" for="workspace-department">Кафедра предмета</label>
-    <select class="form-select form-select-sm" id="workspace-department" name="department_id">
-      <option value="">Все доступные кафедры</option>
+  <div class="workload-filter-field">
+    <label for="workspace-view">Вид</label>
+    <select class="form-select form-select-sm" id="workspace-view" name="view" data-workload-view>
+      <option value="all" {% if view_mode == 'all' %}selected{% endif %}>Вся нагрузка</option>
+      <option value="department" {% if view_mode == 'department' %}selected{% endif %}>По кафедре</option>
+    </select>
+  </div>
+  <div class="workload-filter-field workload-filter-field--department">
+    <label for="workspace-department">Кафедра</label>
+    <select class="form-select form-select-sm" id="workspace-department" name="department_id" data-workload-department>
+      <option value="">Выберите кафедру</option>
       {% for item in departments %}
       <option value="{{ item.id }}" {% if item.id == selected_department_id %}selected{% endif %}>{{ item.name }}</option>
       {% endfor %}
     </select>
   </div>
-  <button class="btn btn-outline-secondary btn-sm" type="submit" title="Применить фильтр" aria-label="Применить фильтр">
-    <i class="bi bi-funnel" aria-hidden="true"></i>
+  <div class="workload-filter-field">
+    <label for="workspace-building">Здание</label>
+    <select class="form-select form-select-sm" id="workspace-building" name="building_id">
+      <option value="">Все здания</option>
+      {% for item in buildings %}
+      <option value="{{ item.id }}" {% if item.id == selected_building_id %}selected{% endif %}>{{ item.short_name or item.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="workload-filter-field">
+    <label for="workspace-level">Уровень</label>
+    <select class="form-select form-select-sm" id="workspace-level" name="education_level">
+      <option value="">Все уровни</option>
+      <option value="NOO" {% if selected_education_level == 'NOO' %}selected{% endif %}>НОО</option>
+      <option value="OOO" {% if selected_education_level == 'OOO' %}selected{% endif %}>ООО</option>
+      <option value="SOO" {% if selected_education_level == 'SOO' %}selected{% endif %}>СОО</option>
+    </select>
+  </div>
+  <div class="workload-filter-field workload-filter-field--grade">
+    <label for="workspace-grade">Параллель</label>
+    <select class="form-select form-select-sm" id="workspace-grade" name="grade">
+      <option value="">Все</option>
+      {% for number in range(1, 12) %}
+      <option value="{{ number }}" {% if number == selected_grade %}selected{% endif %}>{{ number }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-primary btn-sm workload-filter-submit" type="submit">
+    <i class="bi bi-funnel me-1" aria-hidden="true"></i>Показать
   </button>
 </form>
 
+<div class="workload-matrix-toolbar">
+  <div class="workload-matrix-totals">
+    <span>План <strong>{{ matrix.total_weekly|compact_decimal }}</strong></span>
+    <span>Назначено <strong>{{ matrix.total_allocated|compact_decimal }}</strong></span>
+    <span class="{% if matrix.total_remaining > 0 %}has-remaining{% endif %}">
+      Осталось <strong>{{ matrix.total_remaining|compact_decimal }}</strong>
+    </span>
+  </div>
+  {% if can_update and selected_version %}
+  <details class="workload-inline-add">
+    <summary class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Добавить преподавателя
+    </summary>
+    <form method="post" action="{{ url_for('workload.assignment_workspace_teacher_add') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <label for="matrix-teacher">Преподаватель</label>
+      <select class="form-select form-select-sm" id="matrix-teacher" name="teacher_id" required>
+        <option value="">Выберите сотрудника</option>
+        {% if teacher_choices.suggested %}
+        <optgroup label="Преподаватели кафедры">
+          {% for item in teacher_choices.suggested %}
+          <option value="{{ item.id }}">{{ item.fio }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+        <optgroup label="Другие сотрудники">
+          {% for item in teacher_choices.other %}
+          <option value="{{ item.id }}">{{ item.fio }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+      <button class="btn btn-primary btn-sm" type="submit">Добавить</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+
 <div class="workload-matrix-legend" aria-label="Обозначения матрицы">
   <span><i class="is-assigned"></i>Назначено</span>
-  <span><i class="is-unassigned"></i>Не назначено</span>
-  <span><i class="is-partial"></i>Назначено частично</span>
-  <span class="workload-matrix-legend__note">Числа показывают часов в неделю</span>
+  <span><i class="is-unassigned"></i>Не распределено</span>
+  <span><i class="is-partial"></i>Осталась группа</span>
+  <span class="workload-matrix-legend__note">Все значения — часов в неделю</span>
 </div>
 
 {% if matrix.columns and matrix.blocks %}
@@ -63,24 +151,14 @@
   <table class="workload-assignment-matrix" style="--matrix-column-count: {{ matrix.columns|length }}">
     <thead>
       <tr>
-        <th class="workload-assignment-matrix__teacher" rowspan="2">Преподаватель</th>
-        <th class="workload-assignment-matrix__subject" rowspan="2" data-matrix-subject-column>Предмет / деятельность</th>
-        <th class="workload-assignment-matrix__total" rowspan="2" data-matrix-total-column>Всего</th>
+        <th class="workload-assignment-matrix__teacher">Преподаватель</th>
+        <th class="workload-assignment-matrix__subject" data-matrix-subject-column>Предмет / деятельность</th>
+        <th class="workload-assignment-matrix__total" data-matrix-total-column>Всего</th>
         {% for column in matrix.columns %}
         <th class="workload-assignment-matrix__class {% if loop.index is even %}is-alt{% endif %}" data-matrix-class-column>
           <span>{{ column.label }}</span>
           {% if column.show_plan_name %}<small>{{ column.plan_name }}</small>{% elif column.detail %}<small>{{ column.detail }}</small>{% endif %}
-        </th>
-        {% endfor %}
-      </tr>
-      <tr>
-        {% for column in matrix.columns %}
-        <th class="workload-assignment-matrix__class-total {% if loop.index is even %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %}">
-          {% if column.remaining > 0 %}
-          Осталось {{ column.remaining|compact_decimal }}
-          {% else %}
-          Распределено
-          {% endif %}
+          {% if column.remaining > 0 %}<em>{{ column.remaining|compact_decimal }} не распределено</em>{% endif %}
         </th>
         {% endfor %}
       </tr>
@@ -92,28 +170,93 @@
           {% if loop.first %}
           <th class="workload-assignment-matrix__teacher-cell {% if block.unassigned %}is-unassigned{% endif %}" rowspan="{{ block.rows|length }}">
             <span>{{ block.label }}</span>
-            <small>Всего {{ block.total|compact_decimal }}</small>
+            <strong>{{ block.total|compact_decimal }}</strong>
+            {% if not block.unassigned %}
+            <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
+            <small>
+              МЦКО: {{ block.metadata.mcko or '—' }}
+              {% if block.metadata.mcko_expires %}до {{ block.metadata.mcko_expires.strftime('%d.%m.%Y') }}{% endif %}
+            </small>
+            {% endif %}
           </th>
           {% endif %}
           <th class="workload-assignment-matrix__subject-cell">
+            {% if row.activity %}
             <span>{{ row.activity.name }}</span>
             <small>{{ row.plan_kind_label }}</small>
+            {% else %}
+            <span class="text-muted">Предмет не выбран</span>
+            {% endif %}
+            {% if can_update and not block.unassigned %}
+            <details class="workload-subject-add">
+              <summary title="Добавить предмет" aria-label="Добавить предмет">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+              </summary>
+              <form method="post" action="{{ url_for('workload.assignment_workspace_subject_add') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {{ workspace_fields() }}
+                <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
+                <select class="form-select form-select-sm" name="activity_plan_kind" data-activity-plan-kind required>
+                  <option value="">Выберите предмет</option>
+                  {% for option in subject_options %}
+                  <option value="{{ option.activity.id }}:{{ option.plan_kind }}">{{ option.activity.name }} · {{ option.plan_kind_label }}</option>
+                  {% endfor %}
+                </select>
+                <input type="hidden" name="activity_id" data-activity-id>
+                <input type="hidden" name="plan_kind" data-plan-kind>
+                <button class="btn btn-primary btn-sm" type="submit">Добавить</button>
+              </form>
+            </details>
+            {% endif %}
           </th>
           <td class="workload-assignment-matrix__row-total">{{ row.total|compact_decimal }}</td>
           {% for column in matrix.columns %}
           {% set segments = row.cells.get(column.key, []) %}
-          <td class="workload-assignment-matrix__cell {% if loop.index is even %}is-alt{% endif %} {% if not segments %}is-empty{% endif %}">
+          {% set available = row.available_cells.get(column.key, []) %}
+          <td class="workload-assignment-matrix__cell {% if loop.index is even %}is-alt{% endif %} {% if not segments and not available %}is-empty{% endif %}">
             {% for segment in segments %}
-            <a
-              class="workload-assignment-segment {% if segment.unassigned %}is-unassigned{% elif segment.partial %}is-partial{% else %}is-assigned{% endif %}"
-              href="{{ url_for('workload.need_detail', need_id=segment.need.id) }}"
-              title="{{ segment.label }}: {{ segment.hours|compact_decimal }} ч."
-            >
-              <span>{{ segment.hours|compact_decimal }}</span>
-              <small>{{ segment.label }}</small>
-              {% if segment.partial %}<em>ост. {{ segment.remaining|compact_decimal }}</em>{% elif segment.unassigned %}<em>не назначено</em>{% endif %}
-            </a>
+              {% if block.unassigned %}
+              <span class="workload-assignment-segment is-unassigned">
+                <span>{{ segment.hours|compact_decimal }}</span>
+                <small>{{ segment.label }}</small>
+                <em>не назначено</em>
+              </span>
+              {% else %}
+              <span class="workload-assignment-segment {% if segment.partial %}is-partial{% else %}is-assigned{% endif %}">
+                <span>{{ segment.hours|compact_decimal }}</span>
+                <small>{{ segment.label }}</small>
+                {% if can_update %}
+                {% set active_assignment = segment.need.active_assignments|selectattr('employee_user_id', 'equalto', block.teacher.id)|rejectattr('assignment_kind', 'equalto', 'VACANCY')|first %}
+                {% if active_assignment %}
+                <form method="post" action="{{ url_for('workload.assignment_workspace_cancel', assignment_id=active_assignment.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  {{ workspace_fields() }}
+                  <button type="submit" title="Снять назначение" aria-label="Снять назначение">
+                    <i class="bi bi-x" aria-hidden="true"></i>
+                  </button>
+                </form>
+                {% endif %}
+                {% endif %}
+              </span>
+              {% endif %}
             {% endfor %}
+            {% if can_update and not block.unassigned %}
+              {% for need in available %}
+              <form class="workload-available-need" method="post" action="{{ url_for('workload.assignment_workspace_assign') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {{ workspace_fields() }}
+                <input type="hidden" name="need_id" value="{{ need.id }}">
+                <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
+                <button type="submit" title="Назначить {{ block.teacher.fio }} на полный объём">
+                  <strong>{{ need.remaining_weekly_hours|compact_decimal }}</strong>
+                  <small>
+                    {% if need.teaching_group.group_type == 'CLASS' %}Весь класс{% else %}{{ need.teaching_group.name }}{% endif %}
+                  </small>
+                  <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                </button>
+              </form>
+              {% endfor %}
+            {% endif %}
           </td>
           {% endfor %}
         </tr>
@@ -125,23 +268,45 @@
 {% else %}
 <div class="workload-matrix-empty">
   <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
-  <strong>Матрица нагрузки пока пуста</strong>
-  <span>Сначала сформируйте потребность по готовым учебным группам.</span>
-  <div class="workload-matrix-empty__actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.group_composition') }}">
-      <i class="bi bi-person-check me-1" aria-hidden="true"></i>Проверить состав групп
-    </a>
-    {% if can_update and selected_version %}
-    <form method="post" action="{{ url_for('workload.assignments_generate') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="version_id" value="{{ selected_version.id }}">
-      <input type="hidden" name="return_to" value="workspace">
-      <button class="btn btn-primary btn-sm" type="submit">
-        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Сформировать матрицу
-      </button>
-    </form>
-    {% endif %}
-  </div>
+  <strong>По выбранным условиям нет часов</strong>
+  <span>Измените фильтры или сформируйте потребность по учебным планам.</span>
+  {% if can_update and selected_version and not matrix.need_count %}
+  <form method="post" action="{{ url_for('workload.assignments_generate') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+    <input type="hidden" name="return_to" value="workspace">
+    <button class="btn btn-primary btn-sm" type="submit">
+      <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Сформировать по учебным планам
+    </button>
+  </form>
+  {% endif %}
 </div>
 {% endif %}
+
+<script>
+(() => {
+  const view = document.querySelector("[data-workload-view]");
+  const department = document.querySelector("[data-workload-department]");
+  const syncView = () => {
+    if (!view || !department) return;
+    department.disabled = view.value !== "department";
+    department.required = view.value === "department";
+  };
+  view?.addEventListener("change", syncView);
+  syncView();
+
+  document.querySelectorAll("[data-activity-plan-kind]").forEach((select) => {
+    const form = select.closest("form");
+    form?.addEventListener("submit", (event) => {
+      const [activityId, planKind] = select.value.split(":");
+      if (!activityId || !planKind) {
+        event.preventDefault();
+        return;
+      }
+      form.querySelector("[data-activity-id]").value = activityId;
+      form.querySelector("[data-plan-kind]").value = planKind;
+    });
+  });
+})();
+</script>
 {% endblock %}

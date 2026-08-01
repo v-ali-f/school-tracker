@@ -68,7 +68,7 @@
 <div class="workload-stage-summary workload-control-summary workload-control-summary--six">
   <div><span>Статус</span><strong>{{ run_status_labels[selected_run.status] }}</strong></div>
   <div><span>Педагогов</span><strong>{{ totals.employee_count }}</strong></div>
-  <div><span>Часов в неделю</span><strong>{{ totals.weekly_hours }}</strong></div>
+  <div><span>Часов в неделю</span><strong>{{ totals.weekly_hours|compact_decimal }}</strong></div>
   <div><span>Ставок</span><strong>{{ totals.fte }}</strong></div>
   {% if can_view_finance %}
   <div><span>Основная оплата</span><strong>{{ '%.2f'|format(totals.base_amount) }} руб.</strong></div>
@@ -93,7 +93,7 @@
         <td>{{ line.education_activity.name }}</td>
         <td>{{ line.teaching_group.name if line.teaching_group else '—' }}</td>
         <td><div>{{ line.position_title }}</div><div class="small text-muted">{{ line.position_code }}</div></td>
-        <td class="text-end">{{ line.weekly_hours }}</td>
+        <td class="text-end">{{ line.weekly_hours|compact_decimal }}</td>
         <td class="text-end">{{ line.rate_norm_hours }}</td>
         <td class="text-end fw-semibold">{{ line.fte_value }}</td>
         {% if can_view_finance %}
@@ -125,7 +125,7 @@
     <div><dt>Строк</dt><dd>{{ lines|length }}</dd></div>
   </dl>
   <div class="workload-context-hours">
-    <div><span>Часы</span><strong>{{ totals.weekly_hours }}</strong></div>
+    <div><span>Часы</span><strong>{{ totals.weekly_hours|compact_decimal }}</strong></div>
     <div><span>Ставки</span><strong>{{ totals.fte }}</strong></div>
     <div><span>Ошибки</span><strong>{{ selected_run.summary_data.error_count or 0 }}</strong></div>
   </div>

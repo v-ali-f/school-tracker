@@ -66,9 +66,9 @@
     <a href="{{ url_for('workload.plan_detail', plan_id=group.source_plan_line.education_plan_id) }}">
       {{ group.source_plan_line.education_plan.name }}
     </a>
-    · {{ group.source_plan_line.weekly_hours or '—' }} ч/нед.
+    · {{ group.source_plan_line.weekly_hours|compact_decimal if group.source_plan_line.weekly_hours is not none else '—' }} ч/нед.
     · {{ group.source_plan_line.weeks_count or '—' }} нед.
-    · {{ group.source_plan_line.annual_hours or '—' }} ч/год
+    · {{ group.source_plan_line.annual_hours|compact_decimal if group.source_plan_line.annual_hours is not none else '—' }} ч/год
   </div>
   <div class="table-responsive border-top">
     <table class="table table-sm align-middle mb-0">

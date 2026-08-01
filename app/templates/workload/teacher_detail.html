@@ -34,7 +34,7 @@
         <td>{{ assignment_kind_labels[item.assignment_kind] }}</td>
         <td>{{ item.department.name if item.department else 'Не определена' }}</td>
         <td class="text-nowrap">{{ item.date_from.strftime('%d.%m.%Y') }}–{{ item.date_to.strftime('%d.%m.%Y') }}</td>
-        <td class="text-end">{{ item.weekly_hours }}</td>
+        <td class="text-end">{{ item.weekly_hours|compact_decimal }}</td>
         {% set tariff_line = tariff_lines.get(item.id) %}
         <td class="text-end">{{ tariff_line.fte_value if tariff_line else '—' }}</td>
         {% if can_view_finance %}<td class="text-end">{{ '%.2f'|format(tariff_line.total_amount) if tariff_line else '—' }}</td>{% endif %}

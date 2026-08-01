@@ -136,8 +136,8 @@
               {{ run_status_labels[run.status] }}
             </span>
           </td>
-          <td class="text-end">{{ '%.3f'|format(run.legacy_weekly_hours) }}</td>
-          <td class="text-end">{{ '%.3f'|format(run.internal_weekly_hours) }}</td>
+          <td class="text-end">{{ run.legacy_weekly_hours|compact_decimal }}</td>
+          <td class="text-end">{{ run.internal_weekly_hours|compact_decimal }}</td>
           <td class="text-end">{{ run.matched_count }}</td>
           <td class="text-end">{{ run.blocking_count }}</td>
           <td class="text-end">
@@ -177,8 +177,8 @@
           <td>{{ item.employee.fio if item.employee else '—' }}</td>
           <td>{{ item.education_activity.name if item.education_activity else (item.subject.name if item.subject else '—') }}</td>
           <td>{{ item.department.name if item.department else 'Не определена' }}</td>
-          <td class="text-end">{{ '%.3f'|format(item.legacy_weekly_hours) }}</td>
-          <td class="text-end">{{ '%.3f'|format(item.internal_weekly_hours) }}</td>
+          <td class="text-end">{{ item.legacy_weekly_hours|compact_decimal }}</td>
+          <td class="text-end">{{ item.internal_weekly_hours|compact_decimal }}</td>
           <td class="text-end {% if item.difference_hours %}fw-semibold{% endif %}">{{ '%+.3f'|format(item.difference_hours) }}</td>
         </tr>
         {% else %}

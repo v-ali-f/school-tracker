@@ -163,11 +163,11 @@
       <strong>{% if snapshot is defined and snapshot %}{{ snapshot.snapshot_date.strftime('%d.%m.%Y') }}{% else %}Не загружен{% endif %}</strong>
     </div>
   </section>
-  {% elif workspace_mode not in ['hours', 'bindings', 'groups', 'group_composition', 'metagroups'] %}
+  {% elif workspace_mode not in ['hours', 'bindings', 'groups', 'group_composition', 'metagroups', 'workload'] %}
   <section class="workload-indicators" aria-label="Состояние рабочего пространства">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Нераспределено</span>
-      <strong>{% if needs is defined %}{{ needs|sum(attribute='remaining_weekly_hours') }} ч{% else %}—{% endif %}</strong>
+      <strong>{% if needs is defined %}{{ needs|sum(attribute='remaining_weekly_hours')|compact_decimal }} ч{% else %}—{% endif %}</strong>
     </div>
     <div class="workload-indicator">
       <span class="workload-indicator__label">Ошибки</span>
