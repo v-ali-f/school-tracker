@@ -257,6 +257,10 @@ def require_group_editable(group, *, expected_revision=None):
         raise GroupLockedError(
             "Для изменения сначала верните группу в статус «Черновик»."
         )
+    if group.metagroup_membership is not None:
+        raise GroupLockedError(
+            "Группа входит в метагруппу. Сначала удалите метагруппу."
+        )
     if expected_revision is not None and group.revision != expected_revision:
         raise ConcurrentGroupUpdateError(
             "Группа была изменена другим пользователем. Обновите страницу."
@@ -480,6 +484,11 @@ def change_group_status(
             "Группа была изменена другим пользователем. Обновите страницу."
         )
     target = (target_status or "").strip().upper()
+    if group.metagroup_membership is not None:
+        raise GroupLockedError(
+            "Статус исходной группы нельзя менять, пока она входит "
+            "в метагруппу."
+        )
     allowed = {
         "DRAFT": {"READY", "CLOSED"},
         "READY": {"DRAFT", "CLOSED"},

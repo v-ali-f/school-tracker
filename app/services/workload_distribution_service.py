@@ -6,6 +6,7 @@ from app.models import (
     EducationActivityDepartment,
     TariffVersion,
     TeachingGroup,
+    TeachingMetagroupSource,
     User,
     WorkloadAssignment,
     WorkloadAssignmentChange,
@@ -157,11 +158,39 @@ def generate_plan_needs(tariff_version, *, user_id):
         .order_by(TeachingGroup.id.asc())
         .all()
     )
+    merged_source_ids = {
+        item.source_group_id
+        for item in (
+            TeachingMetagroupSource.query
+            .join(
+                TeachingGroup,
+                TeachingGroup.id
+                == TeachingMetagroupSource.metagroup_id,
+            )
+            .filter(
+                TeachingGroup.tariff_version_id == tariff_version.id,
+                TeachingGroup.status == "READY",
+            )
+            .all()
+        )
+    }
+    groups = [
+        group for group in groups
+        if group.id not in merged_source_ids
+    ]
     desired_keys = set()
     created = 0
     updated = 0
     for group in groups:
-        line = group.source_plan_line
+        source_lines = (
+            list(dict.fromkeys(
+                link.source_group.source_plan_line
+                for link in group.metagroup_sources
+            ))
+            if group.group_type == "METAGROUP"
+            else [group.source_plan_line]
+        )
+        line = source_lines[0]
         weekly, annual = resolve_line_hours(
             line,
             group.valid_from,
@@ -200,18 +229,21 @@ def generate_plan_needs(tariff_version, *, user_id):
             )
             db.session.add(need)
             db.session.flush()
-            db.session.add(WorkloadNeedSource(
-                workload_need_id=need.id,
-                education_plan_line_id=line.id,
-                source_weekly_hours=weekly,
-                source_annual_hours=annual,
-                source_kind=(
-                    "DIVISION"
-                    if line.requires_division
-                    or group.group_type == "SUBGROUP"
-                    else "DIRECT"
-                ),
-            ))
+            for source_line in source_lines:
+                db.session.add(WorkloadNeedSource(
+                    workload_need_id=need.id,
+                    education_plan_line_id=source_line.id,
+                    source_weekly_hours=weekly,
+                    source_annual_hours=annual,
+                    source_kind=(
+                        "MERGE"
+                        if group.group_type == "METAGROUP"
+                        else "DIVISION"
+                        if line.requires_division
+                        or group.group_type == "SUBGROUP"
+                        else "DIRECT"
+                    ),
+                ))
             created += 1
         else:
             old_weekly = Decimal(need.weekly_hours or ZERO)
@@ -235,8 +267,36 @@ def generate_plan_needs(tariff_version, *, user_id):
             need.status = "OPEN"
             need.revision += 1
             need.updated_by_user_id = user_id
-            for source in need.sources:
-                if source.education_plan_line_id == line.id:
+            desired_sources = {
+                (
+                    source_line.id,
+                    "MERGE"
+                    if group.group_type == "METAGROUP"
+                    else "DIVISION"
+                    if line.requires_division
+                    or group.group_type == "SUBGROUP"
+                    else "DIRECT",
+                )
+                for source_line in source_lines
+            }
+            existing_sources = {
+                (source.education_plan_line_id, source.source_kind): source
+                for source in need.sources
+            }
+            for key, source in existing_sources.items():
+                if key not in desired_sources:
+                    db.session.delete(source)
+            for line_id, source_kind in desired_sources:
+                source = existing_sources.get((line_id, source_kind))
+                if source is None:
+                    db.session.add(WorkloadNeedSource(
+                        workload_need_id=need.id,
+                        education_plan_line_id=line_id,
+                        source_weekly_hours=weekly,
+                        source_annual_hours=annual,
+                        source_kind=source_kind,
+                    ))
+                else:
                     source.source_weekly_hours = weekly
                     source.source_annual_hours = annual
             refresh_need_status(need)

@@ -19,6 +19,8 @@
   {% set workspace_mode = 'bindings' %}
 {% elif workspace_endpoint.startswith('workload.group_composition') %}
   {% set workspace_mode = 'group_composition' %}
+{% elif workspace_endpoint.startswith('workload.metagroup') %}
+  {% set workspace_mode = 'metagroups' %}
 {% elif workspace_endpoint.startswith('workload.group') %}
   {% if request.args.get('group_type') == 'METAGROUP' or (group is defined and group and group.group_type == 'METAGROUP') %}
     {% set workspace_mode = 'metagroups' %}
@@ -133,6 +135,9 @@
     <a class="workload-mode {% if workspace_mode == 'group_composition' %}is-active{% endif %}" href="{{ url_for('workload.group_composition') }}">
       <i class="bi bi-person-check" aria-hidden="true"></i><span>Состав групп</span>
     </a>
+    <a class="workload-mode {% if workspace_mode == 'metagroups' %}is-active{% endif %}" href="{{ url_for('workload.metagroups') }}">
+      <i class="bi bi-intersect" aria-hidden="true"></i><span>Метагруппы</span>
+    </a>
     <a class="workload-mode {% if workspace_mode == 'workload' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace') }}">
       <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Нагрузка</span>
     </a>
@@ -158,7 +163,7 @@
       <strong>{% if snapshot is defined and snapshot %}{{ snapshot.snapshot_date.strftime('%d.%m.%Y') }}{% else %}Не загружен{% endif %}</strong>
     </div>
   </section>
-  {% elif workspace_mode not in ['hours', 'bindings', 'groups', 'group_composition'] %}
+  {% elif workspace_mode not in ['hours', 'bindings', 'groups', 'group_composition', 'metagroups'] %}
   <section class="workload-indicators" aria-label="Состояние рабочего пространства">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Нераспределено</span>
