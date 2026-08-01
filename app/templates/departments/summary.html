@@ -11,14 +11,9 @@
   </div>
 </div>
 
-{% if load_source_state %}
-<div class="alert {% if load_source_state.effective_mode == 'INTERNAL' %}alert-success{% elif load_source_state.configured_mode == 'COMPARE' %}alert-warning{% else %}alert-secondary{% endif %} py-2">
-  Нагрузка кафедры:
-  {% if load_source_state.effective_mode == 'INTERNAL' %}утверждённый внутренний источник
-  {% elif load_source_state.configured_mode == 'COMPARE' %}Excel-источник в режиме параллельной сверки
-  {% else %}Excel-источник{% endif %}.
+<div class="alert alert-light border py-2">
+  Нагрузка кафедры поступает из единой матрицы и доступна здесь только для просмотра{% if workload_version %} · версия {{ workload_version.version_no }}{% endif %}.
 </div>
-{% endif %}
 
 <div class="card mb-4"><div class="card-body">
   <form method="get" class="row g-2">
@@ -37,7 +32,7 @@
 </div>
 
 <div class="row g-4 mb-4">
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title">Учителя кафедры</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>ФИО</th><th>Роль</th></tr></thead><tbody>{% for t in teachers %}<tr><td>{{ t.fio or t.username }}</td><td>{{ t.role }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет учителей по выбранной кафедре</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title">Учителя кафедры</h5><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>ФИО</th><th class="text-end">Часы</th><th class="text-end">Предметы</th><th class="text-end">Группы</th></tr></thead><tbody>{% for item in teacher_load_summaries %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">{{ item.teacher.fio or item.teacher.username }}</a></td><td class="text-end fw-semibold">{{ item.total|compact_decimal }}</td><td class="text-end">{{ item.subjects }}</td><td class="text-end">{{ item.groups }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет назначенной нагрузки по выбранной кафедре</td></tr>{% endfor %}</tbody></table></div></div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title">Результаты контрольных по предметам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет результатов</td></tr>{% endfor %}</tbody></table></div></div></div></div>
 </div>
 
@@ -97,15 +92,17 @@
 
 <div class="row g-4">
   <div class="col-lg-6"><div class="card h-100"><div class="card-body">
-    <h5 class="section-title">Диагностика МЦКО учителей</h5>
-    <div class="table-responsive mb-3"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Предмет</th><th>Дата</th><th>Статус</th></tr></thead><tbody>{% for row in mcko_rows %}<tr><td>{{ row.teacher.fio if row.teacher else '—' }}</td><td>{{ row.subject.name if row.subject else '—' }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{% if row.is_expired %}<span class="badge text-bg-danger">Истёк</span>{% else %}<span class="badge text-bg-success">Действует</span>{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+    <h5 class="section-title" id="teacher-mcko">Результаты МЦКО педагогов</h5>
+    <div class="small text-muted mb-2">Сертификат действует три календарных года с даты диагностики.</div>
+    <div class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>Учитель</th><th>Предмет</th><th>Уровень</th><th>Дата</th><th>Действует до</th><th>Статус</th></tr></thead><tbody>{% for row in mcko_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
     {% if is_admin or is_methodist or current_user.role in ['TEACHER','CLASS_TEACHER'] %}
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2">
       <input type="hidden" name="department_id" value="{{ dep.id }}">
       <div class="col-md-4"><select class="form-select" name="teacher_id">{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
-      <div class="col-md-3"><select class="form-select" name="subject_id"><option value="">Предмет</option>{% for link in dep.subject_links %}{% if link.education_activity %}<option value="{{ link.education_activity_id }}">{{ link.education_activity.name }}</option>{% endif %}{% endfor %}</select></div>
-      <div class="col-md-2"><input class="form-control" type="date" name="passed_at"></div>
-      <div class="col-md-3"><input class="form-control" name="result_text" placeholder="Результат / балл"></div>
+      <div class="col-md-3"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><select class="form-select" name="level" required><option value="">Уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><input class="form-control" type="date" name="passed_at" required></div>
+      <div class="col-md-12"><input class="form-control" name="result_text" placeholder="Примечание или номер сертификата"></div>
       <div class="col-md-12 d-grid"><button class="btn btn-outline-primary">Добавить результат МЦКО</button></div>
     </form>
     {% endif %}

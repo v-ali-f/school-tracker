@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h1 class="page-title">{{ teacher.fio or teacher.username }}</h1>
+    <div class="page-sub">Нагрузка и результаты МЦКО · только для просмотра</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary', academic_year_id=academic_year_id) }}"><i class="bi bi-arrow-left"></i> К кафедрам</a>
+  </div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <label class="form-label" for="teacher-profile-year">Учебный год</label>
+    <select class="form-select" id="teacher-profile-year" name="academic_year_id" onchange="this.form.submit()">
+      {% for year in years %}<option value="{{ year.id }}" {% if year.id == academic_year_id %}selected{% endif %}>{{ year.name }}</option>{% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Учебный план</div><div class="fs-5 fw-semibold">{{ totals.CURRICULUM|compact_decimal }} ч.</div></div></div>
+  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Внеурочная</div><div class="fs-5 fw-semibold">{{ totals.EXTRACURRICULAR|compact_decimal }} ч.</div></div></div>
+  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Допобразование</div><div class="fs-5 fw-semibold">{{ totals.ADDITIONAL_EDUCATION|compact_decimal }} ч.</div></div></div>
+  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Всего</div><div class="fs-5 fw-semibold">{{ totals.TOTAL|compact_decimal }} ч/нед.</div></div></div>
+</div>
+
+<div class="card mb-4"><div class="card-body p-0">
+  <div class="px-3 pt-3"><h2 class="section-title">Подробная нагрузка</h2><div class="small text-muted mb-2">{% if workload_version %}Версия {{ workload_version.version_no }}{% else %}Версия нагрузки не создана{% endif %}</div></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Предмет или курс</th><th>Класс или группа</th><th>Раздел</th><th>Кафедра</th><th>Здание</th><th class="text-end">Часы/нед.</th></tr></thead>
+    <tbody>{% for row in load_rows %}<tr><td>{{ row.subject_name }}</td><td>{{ row.group_name or '—' }}</td><td>{% if row.plan_kind == 'CURRICULUM' %}Учебный план{% elif row.plan_kind == 'EXTRACURRICULAR' %}Внеурочная деятельность{% else %}Дополнительное образование{% endif %}</td><td>{{ row.department.name if row.department else '—' }}</td><td>{{ row.building_name or '—' }}</td><td class="text-end fw-semibold">{{ row.hours|compact_decimal }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted text-center py-4">Назначенной нагрузки нет.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h2 class="section-title" id="teacher-mcko">Результаты МЦКО</h2>
+  <div class="small text-muted mb-3">Актуальность определяется по сроку три календарных года с даты диагностики.</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Предмет</th><th>Уровень</th><th>Дата диагностики</th><th>Действует до</th><th>Статус</th><th>Примечание</th></tr></thead>
+    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td><td>{{ row.result_text or '—' }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted text-center py-4">Результаты МЦКО не внесены.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div></div>
+{% endblock %}

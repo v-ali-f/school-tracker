@@ -155,12 +155,16 @@
         <tr>
           {% if loop.first %}
           <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
-            <span>{{ block.label }}</span>
+            <a href="{{ url_for('departments.teacher_profile', teacher_id=block.teacher.id, academic_year_id=selected_version.tariff_cycle.academic_year_id) }}">{{ block.label }}</a>
             <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
-            <small>
-              МЦКО: {{ block.metadata.mcko or '—' }}
-              {% if block.metadata.mcko_expires %}до {{ block.metadata.mcko_expires.strftime('%d.%m.%Y') }}{% endif %}
-            </small>
+            {% if block.metadata.mcko_items %}
+              {% for item in block.metadata.mcko_items[:2] %}
+              <small>МЦКО: {{ item.activity_name }} — {{ item.level_label }} до {{ item.expires_at.strftime('%d.%m.%Y') }}</small>
+              {% endfor %}
+              {% if block.metadata.mcko_items|length > 2 %}<small>Ещё: {{ block.metadata.mcko_items|length - 2 }}</small>{% endif %}
+            {% else %}
+              <small>МЦКО: —</small>
+            {% endif %}
           </th>
           {% endif %}
           <th class="workload-assignment-matrix__subject-cell">

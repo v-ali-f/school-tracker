@@ -60,6 +60,7 @@ class DepartmentLoadRow:
     is_whole_class: bool
     is_meta_group: bool
     teacher_total_hours: float
+    plan_kind: str = "CURRICULUM"
     is_readonly: bool = True
     source_kind: str = "INTERNAL"
 
@@ -219,6 +220,12 @@ def _grade_from_group(group):
     return next(iter(grades)) if len(grades) == 1 else None
 
 
+def _plan_kind_from_group(group):
+    line = getattr(group, "source_plan_line", None) if group else None
+    plan = getattr(line, "education_plan", None) if line else None
+    return getattr(plan, "plan_kind", None) or "CURRICULUM"
+
+
 def internal_department_load_rows(
     tariff_version,
     *,
@@ -314,8 +321,176 @@ def internal_department_load_rows(
             teacher_total_hours=float(
                 teacher_totals[line.employee_user_id]
             ),
+            plan_kind=_plan_kind_from_group(group),
         ))
     return rows
+
+
+def current_workload_version_for_year(
+    academic_year_id,
+    organization_id=None,
+):
+    """Return the version currently used by read-only workload consumers.
+
+    Department and employee cards must reflect the same assignments that are
+    visible in the workload matrix. During preparation this can be a draft;
+    once an effective version exists it takes precedence automatically.
+    """
+    organization_id = (
+        active_organization_id()
+        if organization_id is None
+        else organization_id
+    )
+    query = (
+        TariffVersion.query
+        .join(TariffVersion.tariff_cycle)
+        .filter(
+            TariffVersion.tariff_cycle.has(
+                academic_year_id=academic_year_id,
+            ),
+        )
+    )
+    if organization_id is None:
+        query = query.filter(
+            TariffVersion.tariff_cycle.has(organization_id=None)
+        )
+    else:
+        query = query.filter(
+            TariffVersion.tariff_cycle.has(
+                organization_id=organization_id,
+            )
+        )
+    versions = query.order_by(
+        TariffVersion.version_no.desc(),
+        TariffVersion.id.desc(),
+    ).all()
+    priority = {
+        "EFFECTIVE": 5,
+        "APPROVED": 4,
+        "IN_REVIEW": 3,
+        "DRAFT": 2,
+        "ARCHIVED": 1,
+    }
+    return max(
+        versions,
+        key=lambda item: (
+            priority.get(item.status, 0),
+            item.version_no,
+            item.id,
+        ),
+        default=None,
+    )
+
+
+def current_department_load_rows(
+    academic_year_id,
+    *,
+    department_id=None,
+    subject_id=None,
+    teacher_id=None,
+    building_id=None,
+    query_text=None,
+    organization_id=None,
+):
+    """Read teacher assignments directly from the workload workspace."""
+    tariff_version = current_workload_version_for_year(
+        academic_year_id,
+        organization_id=organization_id,
+    )
+    if tariff_version is None:
+        return [], None
+
+    query = (
+        WorkloadAssignment.query
+        .join(
+            WorkloadAssignment.workload_need,
+        )
+        .filter(
+            WorkloadAssignment.tariff_version_id == tariff_version.id,
+            WorkloadAssignment.status != "CANCELLED",
+            WorkloadAssignment.employee_user_id.isnot(None),
+            WorkloadAssignment.assignment_kind != "VACANCY",
+        )
+    )
+    if department_id:
+        query = query.filter(db.or_(
+            WorkloadAssignment.department_id == department_id,
+            WorkloadAssignment.workload_need.has(
+                department_id=department_id,
+            ),
+        ))
+    if teacher_id:
+        query = query.filter(
+            WorkloadAssignment.employee_user_id == teacher_id,
+        )
+    if building_id:
+        query = query.filter(db.or_(
+            WorkloadAssignment.building_id == building_id,
+            WorkloadAssignment.workload_need.has(
+                building_id=building_id,
+            ),
+        ))
+    if subject_id:
+        activity = db.session.get(EducationActivity, subject_id)
+        if activity is None or activity.activity_kind != "SUBJECT":
+            subject = db.session.get(Subject, subject_id)
+            activity = subject.education_activity if subject else None
+        if activity is None:
+            return [], tariff_version
+        query = query.filter(
+            WorkloadAssignment.workload_need.has(
+                education_activity_id=activity.id,
+            )
+        )
+
+    assignments = query.order_by(
+        WorkloadAssignment.employee_user_id.asc(),
+        WorkloadAssignment.workload_need_id.asc(),
+        WorkloadAssignment.id.asc(),
+    ).all()
+    search = " ".join((query_text or "").lower().split())
+    teacher_totals = defaultdict(Decimal)
+    for assignment in assignments:
+        teacher_totals[assignment.employee_user_id] += Decimal(
+            assignment.weekly_hours or ZERO
+        )
+
+    academic_year = tariff_version.tariff_cycle.academic_year
+    rows = []
+    for assignment in assignments:
+        need = assignment.workload_need
+        group = need.teaching_group
+        activity = need.education_activity
+        department = assignment.department or need.department
+        building = assignment.building or need.building
+        group_name = group.name if group else None
+        subject_name = activity.name
+        teacher_name = assignment.employee.fio if assignment.employee else ""
+        if search and search not in " ".join(
+            (subject_name, group_name or "", teacher_name)
+        ).lower():
+            continue
+        rows.append(DepartmentLoadRow(
+            id=assignment.id,
+            teacher=assignment.employee,
+            subject=getattr(activity, "legacy_subject", None),
+            academic_year=academic_year,
+            department=department,
+            building=building,
+            class_name=group_name,
+            grade=_grade_from_group(group),
+            group_name=group_name,
+            hours=float(assignment.weekly_hours or ZERO),
+            subject_name=subject_name,
+            building_name=building.name if building else None,
+            is_whole_class=bool(group and group.group_type == "CLASS"),
+            is_meta_group=bool(group and group.group_type == "METAGROUP"),
+            teacher_total_hours=float(
+                teacher_totals[assignment.employee_user_id]
+            ),
+            plan_kind=_plan_kind_from_group(group),
+        ))
+    return rows, tariff_version
 
 
 def department_teacher_ids(
@@ -326,37 +501,15 @@ def department_teacher_ids(
     organization_id=None,
 ):
     if not academic_year_id:
-        query = TeacherLoad.query.filter_by(department_id=department_id)
-        if building_id:
-            query = query.filter_by(building_id=building_id)
-        return sorted({
-            row.teacher_id for row in query.all() if row.teacher_id
-        })
-    state = source_state(
+        return []
+    rows, _ = current_department_load_rows(
         academic_year_id,
+        department_id=department_id,
+        building_id=building_id,
         organization_id=organization_id,
     )
-    if state.effective_mode == "INTERNAL":
-        rows = internal_department_load_rows(
-            state.tariff_version,
-            department_id=department_id,
-            building_id=building_id,
-        )
-        return sorted({
-            row.teacher.id for row in rows if row.teacher is not None
-        })
-
-    query = TeacherLoad.query.filter_by(department_id=department_id)
-    if building_id:
-        query = query.filter_by(building_id=building_id)
-    query = query.filter(
-        db.or_(
-            TeacherLoad.academic_year_id == academic_year_id,
-            TeacherLoad.academic_year_id.is_(None),
-        )
-    )
     return sorted({
-        row.teacher_id for row in query.all() if row.teacher_id
+        row.teacher.id for row in rows if row.teacher is not None
     })
 
 

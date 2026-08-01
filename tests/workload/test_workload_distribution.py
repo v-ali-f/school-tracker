@@ -26,6 +26,7 @@ from app.models import (
     TariffRateNorm,
     TeachingGroup,
     TeacherLoad,
+    TeacherMckoResult,
     User,
     WorkloadAssignment,
     WorkloadAssignmentChange,
@@ -705,6 +706,59 @@ def test_workspace_export_and_compact_hours(
     assert export.status_code == 200
     assert export.data.startswith(b"PK")
     assert "spreadsheetml.sheet" in export.content_type
+
+
+def test_department_and_workspace_read_current_load_and_mcko(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        db.session.add(_assignment(need, teacher_id, "5"))
+        db.session.add(TeacherMckoResult(
+            teacher_id=teacher_id,
+            education_activity_id=need.education_activity_id,
+            passed_at=date(2026, 5, 26),
+            expires_at=date(2029, 5, 26),
+            level="HIGH",
+        ))
+        db.session.commit()
+        year_id = context["year_id"]
+
+    login(admin_id)
+    workspace = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    ).get_data(as_text=True)
+    assert f"/departments/teachers/{teacher_id}" in workspace
+    assert "МЦКО: Математика — Высокий" in workspace
+    assert "до 26.05.2029" in workspace
+
+    load_page = client.get(
+        "/departments/loads",
+        query_string={"academic_year_id": year_id},
+    ).get_data(as_text=True)
+    assert "Данные поступают из матрицы распределения нагрузки" in load_page
+    assert "Импортировать Excel" not in load_page
+    assert "Математика" in load_page
+
+    profile = client.get(
+        f"/departments/teachers/{teacher_id}",
+        query_string={"academic_year_id": year_id},
+    )
+    assert profile.status_code == 200
+    profile_html = profile.get_data(as_text=True)
+    assert "Подробная нагрузка" in profile_html
+    assert "5 ч/нед." in profile_html
+    assert "Высокий" in profile_html
 
 
 def test_teacher_can_view_only_own_workload(
@@ -1528,5 +1582,6 @@ def test_stage_eight_routes_show_internal_department_load(
     )
     assert load_page.status_code == 200
     html = load_page.get_data(as_text=True)
-    assert "утверждённая внутренняя нагрузка" in html.lower()
+    assert "данные поступают из матрицы распределения нагрузки" in html.lower()
     assert "Импортировать Excel" not in html
+    assert "Добавить нагрузку вручную" not in html
