@@ -835,20 +835,33 @@
 }
 
 .workload-subject-add {
-  margin-top: 5px;
+  margin: 0;
   position: relative;
   display: block;
 }
 
 .workload-subject-add > summary {
-  width: 22px;
-  height: 22px;
+  width: fit-content;
+  min-height: 28px;
+  padding: 3px 8px;
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   justify-content: center;
-  color: #5f6e86;
+  color: #1766d6;
+  font-size: 11px;
+  font-weight: 700;
   border: 1px solid var(--workload-border-strong);
   border-radius: 4px;
+  background: #fff;
+}
+
+.workload-subject-add > summary:hover,
+.workload-subject-add > summary:focus-visible {
+  color: #fff;
+  background: #1766d6;
+  border-color: #1766d6;
+  outline: 0;
 }
 
 .workload-subject-add[open] > form {
@@ -866,6 +879,24 @@
   width: 100%;
   min-width: 0;
   font-size: 11px;
+}
+
+.workload-add-subject-row__subject,
+.workload-add-subject-row__total,
+.workload-add-subject-row__empty {
+  min-height: 38px;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  background: #f8fafc;
+  border-top: 1px solid var(--workload-border-strong) !important;
+}
+
+.workload-add-subject-row__subject {
+  text-align: left !important;
+}
+
+.workload-add-subject-row__empty.is-alt {
+  background: #f3f7fc;
 }
 
 .workload-add-teacher-row td {
