@@ -382,6 +382,9 @@ def test_admin_creates_assignment_through_route(
     assert "data-matrix-subject-column" in workspace_html
     assert "data-matrix-total-column" in workspace_html
     assert "data-matrix-class-column" in workspace_html
+    assert "ФИО преподавателя" in workspace_html
+    assert "По предмету" in workspace_html
+    assert "workload-assignment-matrix__class-plan" in workspace_html
     assert workspace_html.index(
         "data-matrix-subject-column"
     ) < workspace_html.index(

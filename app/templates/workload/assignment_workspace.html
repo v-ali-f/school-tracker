@@ -2,7 +2,7 @@
 {% block title %}Распределение нагрузки{% endblock %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260801_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
 {% endblock %}
 
 {% macro workspace_fields() %}
@@ -109,41 +109,13 @@
       Осталось <strong>{{ matrix.total_remaining|compact_decimal }}</strong>
     </span>
   </div>
-  {% if can_update and selected_version %}
-  <details class="workload-inline-add">
-    <summary class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Добавить преподавателя
-    </summary>
-    <form method="post" action="{{ url_for('workload.assignment_workspace_teacher_add') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      {{ workspace_fields() }}
-      <label for="matrix-teacher">Преподаватель</label>
-      <select class="form-select form-select-sm" id="matrix-teacher" name="teacher_id" required>
-        <option value="">Выберите сотрудника</option>
-        {% if teacher_choices.suggested %}
-        <optgroup label="Преподаватели кафедры">
-          {% for item in teacher_choices.suggested %}
-          <option value="{{ item.id }}">{{ item.fio }}</option>
-          {% endfor %}
-        </optgroup>
-        {% endif %}
-        <optgroup label="Другие сотрудники">
-          {% for item in teacher_choices.other %}
-          <option value="{{ item.id }}">{{ item.fio }}</option>
-          {% endfor %}
-        </optgroup>
-      </select>
-      <button class="btn btn-primary btn-sm" type="submit">Добавить</button>
-    </form>
-  </details>
-  {% endif %}
+  <span class="workload-matrix-toolbar__hint">Все значения — часов в неделю</span>
 </div>
 
 <div class="workload-matrix-legend" aria-label="Обозначения матрицы">
   <span><i class="is-assigned"></i>Назначено</span>
   <span><i class="is-unassigned"></i>Не распределено</span>
   <span><i class="is-partial"></i>Осталась группа</span>
-  <span class="workload-matrix-legend__note">Все значения — часов в неделю</span>
 </div>
 
 {% if matrix.columns and matrix.blocks %}
@@ -151,15 +123,45 @@
   <table class="workload-assignment-matrix" style="--matrix-column-count: {{ matrix.columns|length }}">
     <thead>
       <tr>
-        <th class="workload-assignment-matrix__teacher">Преподаватель</th>
-        <th class="workload-assignment-matrix__subject" data-matrix-subject-column>Предмет / деятельность</th>
-        <th class="workload-assignment-matrix__total" data-matrix-total-column>Всего</th>
-        {% for column in matrix.columns %}
-        <th class="workload-assignment-matrix__class {% if loop.index is even %}is-alt{% endif %}" data-matrix-class-column>
-          <span>{{ column.label }}</span>
-          {% if column.show_plan_name %}<small>{{ column.plan_name }}</small>{% elif column.detail %}<small>{{ column.detail }}</small>{% endif %}
-          {% if column.remaining > 0 %}<em>{{ column.remaining|compact_decimal }} не распределено</em>{% endif %}
+        <th class="workload-assignment-matrix__teacher" rowspan="2">
+          <span>ФИО преподавателя</span>
+          {% if can_update and selected_version %}
+          <button
+            class="workload-matrix-head-add"
+            type="button"
+            title="Добавить преподавателя"
+            aria-label="Добавить преподавателя"
+            data-open-teacher-dialog
+          >
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+          </button>
+          {% endif %}
         </th>
+        <th class="workload-assignment-matrix__subject" rowspan="2" data-matrix-subject-column>Предмет</th>
+        <th class="workload-assignment-matrix__teacher-total" rowspan="2" data-matrix-total-column>Всего</th>
+        <th class="workload-assignment-matrix__subject-total" rowspan="2">По предмету</th>
+        {% for class_group in matrix.class_groups %}
+        <th
+          class="workload-assignment-matrix__class-group {% if class_group.is_alt %}is-alt{% endif %}"
+          colspan="{{ class_group.columns|length }}"
+          data-matrix-class-column
+        >
+          {{ class_group.label }}
+        </th>
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for class_group in matrix.class_groups %}
+          {% for column in class_group.columns %}
+          <th class="workload-assignment-matrix__class-plan {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %}">
+            <span title="{{ column.subheader_label }}">{{ column.subheader_label }}</span>
+            {% if column.remaining > 0 %}
+            <small>{{ column.remaining|compact_decimal }} не распределено</small>
+            {% else %}
+            <small>распределено</small>
+            {% endif %}
+          </th>
+          {% endfor %}
         {% endfor %}
       </tr>
     </thead>
@@ -209,11 +211,16 @@
             </details>
             {% endif %}
           </th>
-          <td class="workload-assignment-matrix__row-total">{{ row.total|compact_decimal }}</td>
+          {% if loop.first %}
+          <td class="workload-assignment-matrix__teacher-total-cell {% if block.unassigned %}is-unassigned{% endif %}" rowspan="{{ block.rows|length }}">
+            {{ block.total|compact_decimal }}
+          </td>
+          {% endif %}
+          <td class="workload-assignment-matrix__subject-total-cell">{{ row.total|compact_decimal }}</td>
           {% for column in matrix.columns %}
           {% set segments = row.cells.get(column.key, []) %}
           {% set available = row.available_cells.get(column.key, []) %}
-          <td class="workload-assignment-matrix__cell {% if loop.index is even %}is-alt{% endif %} {% if not segments and not available %}is-empty{% endif %}">
+          <td class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not segments and not available %}is-empty{% endif %}">
             {% for segment in segments %}
               {% if block.unassigned %}
               <span class="workload-assignment-segment is-unassigned">
@@ -283,6 +290,44 @@
 </div>
 {% endif %}
 
+{% if can_update and selected_version %}
+<dialog class="workload-teacher-dialog" data-teacher-dialog>
+  <form method="post" action="{{ url_for('workload.assignment_workspace_teacher_add') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ workspace_fields() }}
+    <div class="workload-teacher-dialog__head">
+      <div>
+        <strong>Добавить преподавателя</strong>
+        <small>После добавления выберите предмет кнопкой «+» в его строке.</small>
+      </div>
+      <button type="button" title="Закрыть" aria-label="Закрыть" data-close-teacher-dialog>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <label for="matrix-teacher">Преподаватель</label>
+    <select class="form-select" id="matrix-teacher" name="teacher_id" required>
+      <option value="">Выберите сотрудника</option>
+      {% if teacher_choices.suggested %}
+      <optgroup label="Преподаватели кафедры">
+        {% for item in teacher_choices.suggested %}
+        <option value="{{ item.id }}">{{ item.fio }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+      <optgroup label="Другие сотрудники">
+        {% for item in teacher_choices.other %}
+        <option value="{{ item.id }}">{{ item.fio }}</option>
+        {% endfor %}
+      </optgroup>
+    </select>
+    <div class="workload-teacher-dialog__actions">
+      <button class="btn btn-outline-secondary" type="button" data-close-teacher-dialog>Отмена</button>
+      <button class="btn btn-primary" type="submit">Добавить</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
 <script>
 (() => {
   const view = document.querySelector("[data-workload-view]");
@@ -306,6 +351,17 @@
       form.querySelector("[data-activity-id]").value = activityId;
       form.querySelector("[data-plan-kind]").value = planKind;
     });
+  });
+
+  const teacherDialog = document.querySelector("[data-teacher-dialog]");
+  document.querySelector("[data-open-teacher-dialog]")?.addEventListener("click", () => {
+    teacherDialog?.showModal();
+  });
+  document.querySelectorAll("[data-close-teacher-dialog]").forEach((button) => {
+    button.addEventListener("click", () => teacherDialog?.close());
+  });
+  teacherDialog?.addEventListener("click", (event) => {
+    if (event.target === teacherDialog) teacherDialog.close();
   });
 })();
 </script>

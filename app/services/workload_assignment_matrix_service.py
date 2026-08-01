@@ -322,6 +322,37 @@ def build_workload_assignment_matrix(
         columns_by_key.values(),
         key=lambda item: item["sort_key"],
     )
+    class_groups = []
+    class_groups_by_key = {}
+    for column in columns:
+        if column["is_metagroup"] or column["is_orphan"]:
+            group_key = column["key"]
+        else:
+            group_key = f"class-{column['class_name']}"
+        class_group = class_groups_by_key.get(group_key)
+        if class_group is None:
+            class_group = {
+                "key": group_key,
+                "label": column["class_name"],
+                "is_metagroup": column["is_metagroup"],
+                "is_orphan": column["is_orphan"],
+                "columns": [],
+            }
+            class_groups_by_key[group_key] = class_group
+            class_groups.append(class_group)
+        class_group["columns"].append(column)
+    for group_index, class_group in enumerate(class_groups, start=1):
+        class_group["is_alt"] = group_index % 2 == 0
+        for column in class_group["columns"]:
+            column["is_alt"] = class_group["is_alt"]
+            if column["is_metagroup"]:
+                column["subheader_label"] = "Метагруппа"
+            elif column["is_orphan"]:
+                column["subheader_label"] = column["detail"]
+            else:
+                column["subheader_label"] = (
+                    column["plan_name"] or "Учебный план"
+                )
     blocks = list(blocks_by_teacher.values())
     blocks.sort(key=lambda item: item["label"].casefold())
     if unassigned_block["rows_by_key"]:
@@ -380,6 +411,7 @@ def build_workload_assignment_matrix(
     )
     return {
         "columns": columns,
+        "class_groups": class_groups,
         "blocks": blocks,
         "need_count": len(needs),
         "teacher_count": len(blocks_by_teacher),
