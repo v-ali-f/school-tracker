@@ -222,6 +222,22 @@ def test_need_generation_is_idempotent(app, make_user):
         assert WorkloadNeedSource.query.count() == 1
 
 
+def test_need_generation_skips_plan_line_without_hours(app, make_user):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(user_id)
+        line = EducationPlanLine.query.one()
+        line.weekly_hours = Decimal("0")
+        line.annual_hours = Decimal("0")
+        db.session.commit()
+
+        result = _generate(context, user_id)
+
+        assert result["created"] == 0
+        assert result["skipped_empty"] == 1
+        assert WorkloadNeed.query.count() == 0
+
+
 def test_partial_assignment_updates_need_status(app, make_user):
     user_id = make_user("ADMIN")
     teacher_id = make_user("TEACHER")
@@ -411,6 +427,37 @@ def test_assignment_workspace_shows_unassigned_group_in_matrix(
     assert "не назначено" in html
     assert "Математика 5А, группа 1" in html
     assert ">5<" in html
+
+
+def test_generate_from_workspace_returns_to_matrix(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        line = EducationPlanLine.query.one()
+        line.weekly_hours = Decimal("0")
+        line.annual_hours = Decimal("0")
+        db.session.commit()
+    login(admin_id)
+
+    response = client.post(
+        "/workload/assignments/generate",
+        data={
+            "version_id": context["version_id"],
+            "return_to": "workspace",
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.location.endswith(
+        f"/workload/assignments/workspace?version_id={context['version_id']}"
+    )
 
 
 def test_teacher_can_view_only_own_workload(
