@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     form.addEventListener("submit", async (event) => {
       if (!window.fetch || form.classList.contains("is-saving")) return;
       event.preventDefault();
+      const formData = new FormData(form);
       form.classList.add("is-saving");
       select.disabled = true;
       select.setAttribute("aria-busy", "true");
@@ -35,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const response = await window.fetch(form.action, {
           method: "POST",
-          body: new FormData(form),
+          body: formData,
           credentials: "same-origin",
           headers: {
             "Accept": "application/json",

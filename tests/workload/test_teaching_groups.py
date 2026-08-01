@@ -1298,6 +1298,61 @@ def test_class_plan_assignment_returns_json_without_page_reload(
     }
 
 
+def test_missing_plan_id_does_not_clear_class_binding(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        class_id = snapshot_class.id
+        plan_id = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        ).education_plan_id
+        version_id = context["version_id"]
+
+    login(user_id)
+    saved = client.post(
+        "/workload/plan-bindings/class",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+            "plan_id": plan_id,
+        },
+    )
+    assert saved.status_code == 302
+
+    missing = client.post(
+        "/workload/plan-bindings/class",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert missing.status_code == 422
+    assert missing.get_json()["ok"] is False
+    with app.app_context():
+        binding = EducationPlanBinding.query.one()
+        assert binding.education_plan_id == plan_id
+        assert binding.binding_mode == "CLASS"
+
+
 def test_deleting_plan_removes_bindings_but_keeps_class_and_students(
     app,
     client,
