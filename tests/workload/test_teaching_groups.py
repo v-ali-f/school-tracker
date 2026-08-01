@@ -24,6 +24,7 @@ from app.models import (
     TariffVersion,
     TeachingGroup,
     TeachingGroupHistory,
+    WorkloadNeed,
 )
 from app.services.education_plan_service import (
     create_plan_bundle,
@@ -47,6 +48,7 @@ from app.services.teaching_group_service import (
     population_registry_status,
     validate_group_sources,
 )
+from app.services.workload_distribution_service import generate_plan_needs
 
 
 def _child(last_name, first_name):
@@ -486,6 +488,167 @@ def test_class_plan_matrix_splits_class_between_two_plans(
     assert 'data-plan-name="Основной учебный план"'.encode() in response.data
     assert 'data-plan-name="Профильный учебный план"'.encode() in response.data
     assert response.data.count("1 уч. · ч/нед.".encode()) >= 2
+
+
+def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+        version_id = context["version_id"]
+
+    login(user_id)
+    response = client.get(
+        f"/workload/groups/?version_id={version_id}&level=OOO"
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Количество учебных групп" in html
+    assert 'data-activity-name="Математика"' in html
+    assert 'data-original-value="1"' in html
+    assert "Без УП" in html
+    with app.app_context():
+        assert TeachingGroup.query.count() == 0
+
+
+def test_group_matrix_creates_split_groups_and_restores_whole_class(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+        payload = {
+            "version_id": context["version_id"],
+            "plan_line_id": line.id,
+            "snapshot_class_id": snapshot_class.id,
+            "plan_id": line.education_plan_id,
+        }
+
+    login(user_id)
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data={**payload, "group_count": 2},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["needs_composition"] is True
+    with app.app_context():
+        groups = TeachingGroup.query.order_by(TeachingGroup.id.asc()).all()
+        assert len(groups) == 2
+        assert {group.group_type for group in groups} == {"SUBGROUP"}
+        assert {group.status for group in groups} == {"DRAFT"}
+        assert all(group.actual_size == 0 for group in groups)
+        assert all(not group.members for group in groups)
+
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data={**payload, "group_count": 1},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["needs_composition"] is False
+    with app.app_context():
+        group = TeachingGroup.query.one()
+        assert group.group_type == "CLASS"
+        assert group.status == "READY"
+        assert group.actual_size == 2
+        assert len(group.members) == 2
+
+
+def test_generating_needs_materializes_default_one_group(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        result = generate_plan_needs(
+            db.session.get(TariffVersion, context["version_id"]),
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert result["created"] == 1
+        group = TeachingGroup.query.one()
+        assert group.group_type == "CLASS"
+        assert group.status == "READY"
+        assert len(group.members) == 2
+        assert WorkloadNeed.query.one().teaching_group_id == group.id
 
 
 def test_class_plan_matrix_places_all_bundle_parts_on_one_sheet(
@@ -968,13 +1131,14 @@ def test_administrator_creates_personal_subgroup(
         assert len(group.members) == 1
         assert TeachingGroupHistory.query.count() == 1
 
-    registry = client.get("/workload/groups/")
-    registry_html = registry.get_data(as_text=True)
-    assert registry.status_code == 200
-    assert "workload_distribution.css" in registry_html
-    assert "data-group-select" in registry_html
-    assert "data-group-context" not in registry_html
-    assert "Математика 5А, группа 1" in registry_html
+    matrix = client.get(
+        f"/workload/groups/?version_id={context['version_id']}&level=OOO"
+    )
+    matrix_html = matrix.get_data(as_text=True)
+    assert matrix.status_code == 200
+    assert "workload_distribution.css" in matrix_html
+    assert "data-group-matrix" in matrix_html
+    assert "Количество учебных групп" in matrix_html
 
 
 def test_whole_class_automatically_gets_all_members(

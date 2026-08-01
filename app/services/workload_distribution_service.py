@@ -129,6 +129,24 @@ def generate_plan_needs(tariff_version, *, user_id):
         raise WorkloadLockedError(
             "Потребность можно пересчитывать только в черновой версии."
         )
+    from app.services.teaching_group_matrix_service import (
+        materialize_default_teaching_groups,
+    )
+    from app.services.teaching_group_service import (
+        current_population_snapshot,
+    )
+
+    plans = [
+        plan for plan in tariff_version.plans
+        if plan.plan_kind == "CURRICULUM" and plan.root_plan_id is None
+    ]
+    materialize_default_teaching_groups(
+        version=tariff_version,
+        snapshot=current_population_snapshot(tariff_version.id),
+        plans=plans,
+        user_id=user_id,
+    )
+    db.session.flush()
     organization_id = tariff_version.tariff_cycle.organization_id
     groups = (
         TeachingGroup.query

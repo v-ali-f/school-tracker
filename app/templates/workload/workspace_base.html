@@ -128,9 +128,6 @@
     <a class="workload-mode {% if workspace_mode == 'groups' %}is-active{% endif %}" href="{{ url_for('workload.groups') }}">
       <i class="bi bi-people" aria-hidden="true"></i><span>Группы</span>
     </a>
-    <a class="workload-mode {% if workspace_mode == 'metagroups' %}is-active{% endif %}" href="{{ url_for('workload.groups', group_type='METAGROUP') }}">
-      <i class="bi bi-intersect" aria-hidden="true"></i><span>Метагруппы</span>
-    </a>
     <a class="workload-mode {% if workspace_mode == 'workload' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace') }}">
       <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Нагрузка</span>
     </a>
@@ -154,6 +151,25 @@
     <div class="workload-indicator workload-indicator--state">
       <span class="workload-indicator__label">Контингент</span>
       <strong>{% if snapshot is defined and snapshot %}{{ snapshot.snapshot_date.strftime('%d.%m.%Y') }}{% else %}Не загружен{% endif %}</strong>
+    </div>
+  </section>
+  {% elif workspace_mode == 'groups' and matrix is defined %}
+  <section class="workload-indicators" aria-label="Состояние групп">
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Классов</span>
+      <strong>{{ matrix.class_count }}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Столбцов УП</span>
+      <strong>{{ matrix.column_count }}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Делений</span>
+      <strong>{{ matrix.divided_count }}</strong>
+    </div>
+    <div class="workload-indicator workload-indicator--state">
+      <span class="workload-indicator__label">Нужно распределить состав</span>
+      <strong>{{ matrix.incomplete_count }}</strong>
     </div>
   </section>
   {% elif workspace_mode != 'hours' %}

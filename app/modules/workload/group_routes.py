@@ -1,6 +1,14 @@
 from datetime import date
 
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import (
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
@@ -19,7 +27,6 @@ from app.models import (
     PopulationSnapshotEnrollment,
     TariffCycle,
     TariffVersion,
-    TEACHING_GROUP_STATUSES,
     TEACHING_GROUP_STATUS_LABELS,
     TEACHING_GROUP_TYPES,
     TEACHING_GROUP_TYPE_LABELS,
@@ -43,6 +50,15 @@ from app.services.teaching_group_service import (
     validate_group_type,
     validate_member_conflicts,
 )
+from app.services.class_plan_matrix_service import (
+    EDUCATION_LEVEL_GRADES,
+    EDUCATION_LEVEL_LABELS,
+)
+from app.services.teaching_group_matrix_service import (
+    build_teaching_group_matrix,
+    replace_teaching_group_count,
+)
+from app.services.teaching_group_service import population_registry_status
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -356,110 +372,204 @@ def _render_group_form(group=None, selected_plan_line=None):
     )
 
 
+def _available_group_matrix_versions():
+    query = TariffVersion.query.join(TariffCycle)
+    organization_id = _current_organization_id()
+    if organization_id is None:
+        query = query.filter(TariffCycle.organization_id.is_(None))
+    else:
+        query = query.filter(TariffCycle.organization_id == organization_id)
+    return query.order_by(
+        (TariffVersion.status == "DRAFT").desc(),
+        TariffCycle.academic_year_id.desc(),
+        TariffVersion.version_no.desc(),
+    ).all()
+
+
+def _selected_group_matrix_version(versions, version_id):
+    if version_id:
+        return next(
+            (item for item in versions if item.id == version_id),
+            None,
+        )
+    return next(
+        (item for item in versions if item.status == "DRAFT"),
+        versions[0] if versions else None,
+    )
+
+
+def _group_matrix_plans(version):
+    if version is None:
+        return []
+    return (
+        EducationPlan.query
+        .filter_by(
+            tariff_version_id=version.id,
+            plan_kind="CURRICULUM",
+            root_plan_id=None,
+        )
+        .order_by(
+            EducationPlan.education_level.asc(),
+            EducationPlan.name.asc(),
+        )
+        .all()
+    )
+
+
+def _group_matrix_context(version_id, requested_level):
+    versions = _available_group_matrix_versions()
+    version = _selected_group_matrix_version(versions, version_id)
+    snapshot = (
+        current_population_snapshot(version.id)
+        if version else None
+    )
+    plans = _group_matrix_plans(version)
+    snapshot_classes = list(snapshot.classes) if snapshot else []
+    level_counts = {
+        level: sum(
+            1
+            for item in snapshot_classes
+            if item.grade_snapshot in grades
+        )
+        for level, grades in EDUCATION_LEVEL_GRADES.items()
+    }
+    selected_level = (requested_level or "").strip().upper()
+    if selected_level not in EDUCATION_LEVEL_GRADES:
+        selected_level = next(
+            (
+                level
+                for level in EDUCATION_LEVEL_GRADES
+                if level_counts[level]
+            ),
+            "NOO",
+        )
+    matrix = (
+        build_teaching_group_matrix(
+            snapshot,
+            plans,
+            selected_level,
+            version.id,
+        )
+        if version else {
+            "class_groups": [],
+            "columns": [],
+            "sections": [],
+            "class_count": 0,
+            "column_count": 0,
+            "divided_count": 0,
+            "incomplete_count": 0,
+        }
+    )
+    unassigned_count = sum(
+        column["student_count"]
+        for column in matrix["columns"]
+        if column["is_unassigned"]
+    )
+    registry_status = (
+        population_registry_status(version, snapshot)
+        if version else {
+            "is_stale": False,
+        }
+    )
+    can_update = (
+        version is not None
+        and version.status == "DRAFT"
+        and is_feature_enabled(WORKLOAD_WRITE)
+        and can_use_workload_permission(
+            "workload.groups.update",
+            current_user,
+        )
+    )
+    return {
+        "versions": versions,
+        "selected_version": version,
+        "snapshot": snapshot,
+        "plans": plans,
+        "matrix": matrix,
+        "selected_level": selected_level,
+        "level_labels": EDUCATION_LEVEL_LABELS,
+        "level_counts": level_counts,
+        "class_count": len(snapshot_classes),
+        "unassigned_count": unassigned_count,
+        "registry_status": registry_status,
+        "can_update": can_update,
+    }
+
+
 def register_group_routes(workload_bp):
     @workload_bp.get("/groups/")
     @login_required
     def groups():
         _require_groups_read()
-        organization_id = _current_organization_id()
-        query = (
-            TeachingGroup.query
-            .join(TariffVersion)
-            .join(TariffCycle)
-        )
-        if organization_id is None:
-            query = query.filter(TariffCycle.organization_id.is_(None))
-        else:
-            query = query.filter(
-                TariffCycle.organization_id == organization_id
-            )
-        scope = resolve_workload_scope(current_user)
-        if not scope.unrestricted:
-            query = query.filter(
-                TeachingGroup.building_id.in_(scope.building_ids)
-            )
-
-        group_type = (
-            request.args.get("group_type") or ""
-        ).strip().upper()
-        status = (request.args.get("status") or "").strip().upper()
-        activity_id = request.args.get("activity_id", type=int)
-        if group_type in TEACHING_GROUP_TYPES:
-            query = query.filter(TeachingGroup.group_type == group_type)
-        if status in TEACHING_GROUP_STATUSES:
-            query = query.filter(TeachingGroup.status == status)
-        if activity_id:
-            query = query.filter(
-                TeachingGroup.education_activity_id == activity_id
-            )
-        items = query.order_by(
-            TeachingGroup.status.asc(),
-            TeachingGroup.name.asc(),
-        ).all()
-        selected_group_id = request.args.get("selected_group_id", type=int)
-        selected_group = next(
-            (item for item in items if item.id == selected_group_id),
-            items[0] if items else None,
-        )
-        group_type_counts = {
-            item: sum(1 for group in items if group.group_type == item)
-            for item in TEACHING_GROUP_TYPES
-        }
-        group_status_counts = {
-            item: sum(1 for group in items if group.status == item)
-            for item in TEACHING_GROUP_STATUSES
-        }
-
-        draft_versions = (
-            TariffVersion.query
-            .join(TariffCycle)
-            .filter(TariffVersion.status == "DRAFT")
-        )
-        if organization_id is None:
-            draft_versions = draft_versions.filter(
-                TariffCycle.organization_id.is_(None)
-            )
-        else:
-            draft_versions = draft_versions.filter(
-                TariffCycle.organization_id == organization_id
-            )
-        versions = draft_versions.all()
-        snapshots = {
-            version.id: current_population_snapshot(version.id)
-            for version in versions
-        }
-        can_update = (
-            is_feature_enabled(WORKLOAD_WRITE)
-            and can_use_workload_permission(
-                "workload.groups.update",
-                current_user,
-            )
+        context = _group_matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
         )
         return render_template(
-            "workload/groups.html",
-            groups=items,
-            group_types=TEACHING_GROUP_TYPES,
-            group_type_labels=TEACHING_GROUP_TYPE_LABELS,
-            group_statuses=TEACHING_GROUP_STATUSES,
-            group_status_labels=TEACHING_GROUP_STATUS_LABELS,
-            composition_mode_labels=GROUP_COMPOSITION_MODE_LABELS,
-            selected_group_type=group_type,
-            selected_status=status,
-            selected_activity_id=activity_id,
-            activities=EducationActivity.query.order_by(
-                EducationActivity.name.asc()
-            ).all(),
-            versions=versions,
-            snapshots=snapshots,
-            selected_group=selected_group,
-            selected_version=(
-                selected_group.tariff_version
-                if selected_group else (versions[0] if versions else None)
-            ),
-            group_type_counts=group_type_counts,
-            group_status_counts=group_status_counts,
-            can_update=can_update,
+            "workload/group_matrix.html",
+            **context,
         )
+
+    @workload_bp.post("/groups/matrix/cell")
+    @login_required
+    def group_matrix_cell_update():
+        _require_groups_update()
+        version_id = request.form.get("version_id", type=int)
+        version = db.session.get(TariffVersion, version_id)
+        if version is None or version not in _available_group_matrix_versions():
+            abort(404)
+        snapshot = current_population_snapshot(version.id)
+        if snapshot is None:
+            return jsonify({
+                "ok": False,
+                "message": "Сначала загрузите сводный контингент.",
+            }), 422
+        snapshot_class_id = request.form.get("snapshot_class_id", type=int)
+        snapshot_class = db.session.get(
+            PopulationSnapshotClass,
+            snapshot_class_id,
+        )
+        if snapshot_class is None:
+            abort(404)
+        scope = resolve_workload_scope(current_user)
+        if (
+            not scope.unrestricted
+            and snapshot_class.building_id not in scope.building_ids
+        ):
+            abort(403)
+        group_count = request.form.get("group_count", type=int)
+        if group_count is None:
+            return jsonify({
+                "ok": False,
+                "message": "Укажите количество групп.",
+            }), 422
+        try:
+            groups = replace_teaching_group_count(
+                version=version,
+                snapshot=snapshot,
+                plans=_group_matrix_plans(version),
+                plan_line_id=request.form.get("plan_line_id", type=int),
+                snapshot_class_id=snapshot_class_id,
+                plan_id=request.form.get("plan_id", type=int),
+                group_count=group_count,
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except GroupValidationError as exc:
+            db.session.rollback()
+            return jsonify({
+                "ok": False,
+                "message": str(exc),
+            }), 422
+        return jsonify({
+            "ok": True,
+            "message": (
+                f"Для {snapshot_class.name_snapshot} сохранено: "
+                f"{len(groups)}."
+            ),
+            "group_count": len(groups),
+            "needs_composition": len(groups) > 1,
+        })
 
     @workload_bp.post("/groups/snapshot/refresh")
     @login_required
