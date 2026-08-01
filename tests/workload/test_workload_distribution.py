@@ -615,6 +615,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert matrix.status_code == 200
     assert "Предмет не выбран" not in html
     assert "data-workload-cell-toggle" in html
+    assert "data-workload-cell-value></span>" in html
     assert 'name="hours"' in html
     assert 'type="hidden"' in html
     assert html.count('class="workload-subject-add"') == 1
@@ -630,6 +631,11 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         },
     )
     assert assign.status_code == 302
+    assigned_matrix = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert "data-workload-cell-value>5</span>" in assigned_matrix
     with app.app_context():
         assignment = WorkloadAssignment.query.one()
         assert assignment.employee_user_id == teacher_id
