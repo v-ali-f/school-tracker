@@ -371,8 +371,16 @@ def register_assignment_routes(workload_bp):
                 "Потребность пересчитана: "
                 f"создано {result['created']}, "
                 f"обновлено {result['updated']}, "
-                f"отменено {result['cancelled']}.",
+                f"отменено {result['cancelled']}, "
+                f"пустых строк пропущено {result['skipped_empty']}.",
                 "success",
+            )
+        if request.form.get("return_to") == "workspace":
+            return redirect(
+                url_for(
+                    "workload.assignment_workspace",
+                    version_id=version.id,
+                )
             )
         return redirect(url_for("workload.assignments", version_id=version.id))
 

@@ -95,10 +95,6 @@ def resolve_line_hours(plan_line, date_from, date_to):
     if annual is None and weekly > ZERO and weeks is not None:
         annual = weekly * Decimal(weeks)
     annual = Decimal(annual or ZERO).quantize(HOURS_QUANTUM)
-    if weekly <= ZERO and annual <= ZERO:
-        raise WorkloadDistributionError(
-            f"У строки плана № {plan_line.id} отсутствует объём часов."
-        )
     return weekly, annual
 
 
@@ -181,6 +177,7 @@ def generate_plan_needs(tariff_version, *, user_id):
     desired_keys = set()
     created = 0
     updated = 0
+    skipped_empty = 0
     for group in groups:
         source_lines = (
             list(dict.fromkeys(
@@ -196,6 +193,9 @@ def generate_plan_needs(tariff_version, *, user_id):
             group.valid_from,
             group.valid_to,
         )
+        if weekly <= ZERO and annual <= ZERO:
+            skipped_empty += 1
+            continue
         key = (
             group.id,
             group.valid_from,
@@ -335,6 +335,7 @@ def generate_plan_needs(tariff_version, *, user_id):
         "updated": updated,
         "cancelled": cancelled,
         "ready_groups": len(groups),
+        "skipped_empty": skipped_empty,
     }
 
 

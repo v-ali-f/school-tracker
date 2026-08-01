@@ -135,6 +135,7 @@
     <form method="post" action="{{ url_for('workload.assignments_generate') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+      <input type="hidden" name="return_to" value="workspace">
       <button class="btn btn-primary btn-sm" type="submit">
         <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Сформировать матрицу
       </button>
