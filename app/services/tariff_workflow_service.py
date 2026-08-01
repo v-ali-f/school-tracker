@@ -29,6 +29,7 @@ from app.models import (
     TeachingGroup,
     TeachingGroupClass,
     TeachingGroupMember,
+    TeachingMetagroupSource,
     WorkloadAssignment,
     WorkloadNeed,
     WorkloadNeedSource,
@@ -964,6 +965,19 @@ def clone_correction_version(
                     source_kind=old_member.source_kind,
                     note=old_member.note,
                 ))
+
+    for old_group in source.teaching_groups:
+        if old_group.id not in group_map:
+            continue
+        for old_link in old_group.metagroup_sources:
+            mapped_source_group_id = group_map.get(old_link.source_group_id)
+            if mapped_source_group_id is None:
+                continue
+            db.session.add(TeachingMetagroupSource(
+                metagroup_id=group_map[old_group.id],
+                source_group_id=mapped_source_group_id,
+                sort_order=old_link.sort_order,
+            ))
 
     need_map = {}
     for old_need in source.workload_needs:

@@ -23,7 +23,10 @@ from app.models import (
     SchoolClass,
     TariffVersion,
     TeachingGroup,
+    TeachingGroupClass,
     TeachingGroupHistory,
+    TeachingGroupMember,
+    TeachingMetagroupSource,
     WorkloadNeed,
 )
 from app.services.education_plan_service import (
@@ -48,6 +51,7 @@ from app.services.teaching_group_service import (
     population_registry_status,
     validate_group_sources,
 )
+from app.services.teaching_metagroup_service import create_metagroup
 from app.services.workload_distribution_service import generate_plan_needs
 
 
@@ -188,6 +192,49 @@ def _group_form(context, class_ids, member_ids=(), **overrides):
     }
     data.update(overrides)
     return data
+
+
+def _ready_source_group(context, snapshot_class, *, user_id, suffix):
+    line = db.session.get(
+        EducationPlanLine,
+        context["plan_line_id"],
+    )
+    member_ids = [item.id for item in snapshot_class.enrollments]
+    group = TeachingGroup(
+        tariff_version_id=context["version_id"],
+        education_activity_id=line.education_activity_id,
+        group_type="CLASS",
+        code=f"META_SOURCE_{suffix}",
+        name=f"{snapshot_class.name_snapshot} · Математика",
+        composition_mode="PERSONAL",
+        building_id=context["building_id"],
+        planned_size=len(member_ids),
+        actual_size=len(member_ids),
+        valid_from=date(2026, 9, 1),
+        valid_to=date(2027, 8, 31),
+        source_plan_line_id=line.id,
+        status="READY",
+        created_by_user_id=user_id,
+        updated_by_user_id=user_id,
+    )
+    db.session.add(group)
+    db.session.flush()
+    db.session.add(TeachingGroupClass(
+        teaching_group_id=group.id,
+        population_snapshot_class_id=snapshot_class.id,
+        relation_kind="FULL",
+        student_count=len(member_ids),
+    ))
+    for member_id in member_ids:
+        db.session.add(TeachingGroupMember(
+            teaching_group_id=group.id,
+            snapshot_enrollment_id=member_id,
+            valid_from=group.valid_from,
+            valid_to=group.valid_to,
+            source_kind="AUTO",
+        ))
+    db.session.flush()
+    return group
 
 
 def test_population_snapshot_preserves_classes_and_students(app, make_user):
@@ -1545,6 +1592,109 @@ def test_group_close_records_date_and_truncates_members(
         assert group.valid_to == date(2027, 1, 31)
         assert group.members[0].valid_to == date(2027, 1, 31)
         assert group.close_reason == "Изменение учебного плана"
+
+
+def test_metagroup_inherits_sources_and_replaces_them_in_workload(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        classes = sorted(
+            snapshot.classes,
+            key=lambda item: item.name_snapshot,
+        )
+        sources = [
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=index,
+            )
+            for index, snapshot_class in enumerate(classes, start=1)
+        ]
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        plan = line.education_plan
+        metagroup = create_metagroup(
+            version=db.session.get(
+                TariffVersion,
+                context["version_id"],
+            ),
+            snapshot=snapshot,
+            plans=[plan],
+            source_tokens=[
+                f"group:{group.id}" for group in sources
+            ],
+            name="Математика · метагруппа 5-х классов",
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert metagroup.group_type == "METAGROUP"
+        assert metagroup.status == "READY"
+        assert metagroup.actual_size == 3
+        assert len(metagroup.members) == 3
+        assert len(metagroup.source_classes) == 2
+        assert len(metagroup.metagroup_sources) == 2
+        assert TeachingMetagroupSource.query.count() == 2
+
+        result = generate_plan_needs(
+            metagroup.tariff_version,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        needs = WorkloadNeed.query.filter_by(
+            tariff_version_id=context["version_id"],
+            status="OPEN",
+        ).all()
+        assert result["created"] == 1
+        assert len(needs) == 1
+        assert needs[0].teaching_group_id == metagroup.id
+        assert [source.source_kind for source in needs[0].sources] == [
+            "MERGE"
+        ]
+
+
+def test_metagroup_rejects_sources_from_one_class(app, make_user):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = snapshot.classes[0]
+        source = _ready_source_group(
+            context,
+            snapshot_class,
+            user_id=user_id,
+            suffix=1,
+        )
+        db.session.flush()
+
+        with pytest.raises(
+            GroupValidationError,
+            match="не менее двух",
+        ):
+            create_metagroup(
+                version=db.session.get(
+                    TariffVersion,
+                    context["version_id"],
+                ),
+                snapshot=snapshot,
+                plans=[source.source_plan_line.education_plan],
+                source_tokens=[
+                    f"group:{source.id}",
+                    f"group:{source.id}",
+                ],
+                name="Некорректная метагруппа",
+                user_id=user_id,
+            )
 
 
 def test_teacher_cannot_open_group_registry(

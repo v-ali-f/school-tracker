@@ -60,6 +60,11 @@ from app.services.teaching_group_matrix_service import (
     replace_group_composition_assignments,
     replace_teaching_group_count,
 )
+from app.services.teaching_metagroup_service import (
+    build_metagroup_workspace,
+    create_metagroup,
+    delete_metagroup,
+)
 from app.services.teaching_group_service import population_registry_status
 
 from .access import can_use_workload_permission, require_workload_write
@@ -641,6 +646,102 @@ def register_group_routes(workload_bp):
             level=request.form.get("level"),
             grade=request.form.get("grade"),
             item=item_key,
+        ))
+
+    @workload_bp.get("/groups/metagroups/")
+    @login_required
+    def metagroups():
+        _require_groups_read()
+        context = _group_matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+            request.args.get("grade"),
+        )
+        context["metagroup_workspace"] = (
+            build_metagroup_workspace(
+                context["matrix"],
+                context["selected_version"].id,
+            )
+            if context["selected_version"] else {
+                "clusters": [],
+                "metagroups": [],
+                "available_source_count": 0,
+            }
+        )
+        return render_template(
+            "workload/metagroups.html",
+            **context,
+        )
+
+    @workload_bp.post("/groups/metagroups/create")
+    @login_required
+    def metagroup_create():
+        _require_groups_update()
+        version_id = request.form.get("version_id", type=int)
+        version = db.session.get(TariffVersion, version_id)
+        if version is None or version not in _available_group_matrix_versions():
+            abort(404)
+        context = _group_matrix_context(
+            version_id,
+            request.form.get("level"),
+            request.form.get("grade"),
+        )
+        try:
+            metagroup = create_metagroup(
+                version=version,
+                snapshot=context["snapshot"],
+                plans=context["plans"],
+                source_tokens=request.form.getlist("source_tokens"),
+                name=request.form.get("name"),
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except (GroupValidationError, IntegrityError) as exc:
+            db.session.rollback()
+            message = (
+                str(exc)
+                if isinstance(exc, GroupValidationError)
+                else "Не удалось сохранить метагруппу."
+            )
+            flash(message, "danger")
+        else:
+            flash(
+                f"Метагруппа «{metagroup.name}» создана.",
+                "success",
+            )
+        return redirect(url_for(
+            "workload.metagroups",
+            version_id=version.id,
+            level=request.form.get("level"),
+            grade=request.form.get("grade"),
+        ))
+
+    @workload_bp.post("/groups/metagroups/<int:group_id>/delete")
+    @login_required
+    def metagroup_delete(group_id):
+        _require_groups_update()
+        group = db.session.get(TeachingGroup, group_id)
+        if group is None:
+            abort(404)
+        scope = resolve_workload_scope(current_user)
+        if (
+            not scope.unrestricted
+            and group.building_id not in scope.building_ids
+        ):
+            abort(403)
+        try:
+            delete_metagroup(group)
+            db.session.commit()
+        except GroupValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            flash("Метагруппа удалена.", "success")
+        return redirect(url_for(
+            "workload.metagroups",
+            version_id=request.form.get("version_id", type=int),
+            level=request.form.get("level"),
+            grade=request.form.get("grade"),
         ))
 
     @workload_bp.post("/groups/matrix/cell")

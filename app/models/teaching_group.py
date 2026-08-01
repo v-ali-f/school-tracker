@@ -519,6 +519,70 @@ class TeachingGroupMember(db.Model):
     )
 
 
+class TeachingMetagroupSource(db.Model):
+    __tablename__ = "teaching_metagroup_source"
+
+    id = db.Column(db.Integer, primary_key=True)
+    metagroup_id = db.Column(
+        db.Integer,
+        db.ForeignKey("teaching_group.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_group_id = db.Column(
+        db.Integer,
+        db.ForeignKey("teaching_group.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    sort_order = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+
+    metagroup = db.relationship(
+        "TeachingGroup",
+        foreign_keys=[metagroup_id],
+        backref=db.backref(
+            "metagroup_sources",
+            lazy=True,
+            cascade="all, delete-orphan",
+            order_by="TeachingMetagroupSource.sort_order",
+        ),
+    )
+    source_group = db.relationship(
+        "TeachingGroup",
+        foreign_keys=[source_group_id],
+        backref=db.backref(
+            "metagroup_membership",
+            lazy=True,
+            uselist=False,
+        ),
+    )
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "metagroup_id <> source_group_id",
+            name="ck_teaching_metagroup_distinct_source",
+        ),
+        db.CheckConstraint(
+            "sort_order >= 0",
+            name="ck_teaching_metagroup_source_order",
+        ),
+        db.UniqueConstraint(
+            "metagroup_id",
+            "source_group_id",
+            name="uq_teaching_metagroup_source",
+        ),
+        db.UniqueConstraint(
+            "source_group_id",
+            name="uq_teaching_metagroup_single_membership",
+        ),
+    )
+
+
 class TeachingGroupHistory(db.Model):
     __tablename__ = "teaching_group_history"
 
@@ -576,4 +640,5 @@ __all__ = [
     "TeachingGroupClass",
     "TeachingGroupHistory",
     "TeachingGroupMember",
+    "TeachingMetagroupSource",
 ]

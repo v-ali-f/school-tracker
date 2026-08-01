@@ -8,6 +8,7 @@ from app.models import (
     TeachingGroup,
     TeachingGroupClass,
     TeachingGroupMember,
+    TeachingMetagroupSource,
     WorkloadNeed,
 )
 from app.services.class_plan_matrix_service import build_class_plan_matrix
@@ -205,6 +206,16 @@ def _editable_existing_groups(version_id, line_id, class_id):
     if group_ids and (
         TeachingGroup.query
         .filter(TeachingGroup.source_group_id.in_(group_ids))
+        .first()
+    ):
+        raise GroupValidationError(
+            "Группы уже перенесены в следующую версию и не могут быть пересозданы."
+        )
+    if group_ids and (
+        TeachingMetagroupSource.query
+        .filter(
+            TeachingMetagroupSource.source_group_id.in_(group_ids)
+        )
         .first()
     ):
         raise GroupValidationError(
@@ -474,6 +485,10 @@ def replace_group_composition_assignments(
     ):
         raise GroupValidationError(
             "По группам уже сформирована нагрузка. Сначала отмените её."
+        )
+    if any(group.metagroup_membership is not None for group in groups):
+        raise GroupValidationError(
+            "Группы входят в метагруппу. Сначала удалите метагруппу."
         )
 
     eligible_ids = {
