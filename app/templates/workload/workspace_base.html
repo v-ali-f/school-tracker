@@ -144,26 +144,7 @@
     {% endif %}
   </nav>
 
-  {% if workspace_mode == 'class_matrix' %}
-  <section class="workload-indicators" aria-label="Состояние привязки учебных планов">
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Классов</span>
-      <strong>{{ class_count if class_count is defined else '—' }}</strong>
-    </div>
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Планов для класса</span>
-      <strong>{{ plans|length if plans is defined else '—' }}</strong>
-    </div>
-    <div class="workload-indicator">
-      <span class="workload-indicator__label">Без учебного плана</span>
-      <strong>{{ unassigned_count if unassigned_count is defined else '—' }}</strong>
-    </div>
-    <div class="workload-indicator workload-indicator--state">
-      <span class="workload-indicator__label">Контингент</span>
-      <strong>{% if snapshot is defined and snapshot %}{{ snapshot.snapshot_date.strftime('%d.%m.%Y') }}{% else %}Не загружен{% endif %}</strong>
-    </div>
-  </section>
-  {% elif workspace_mode not in ['hours', 'bindings', 'groups', 'group_composition', 'metagroups', 'workload'] %}
+  {% if workspace_mode not in ['hours', 'bindings', 'class_matrix', 'groups', 'group_composition', 'metagroups', 'workload'] %}
   <section class="workload-indicators" aria-label="Состояние рабочего пространства">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Нераспределено</span>

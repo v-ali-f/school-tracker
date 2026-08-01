@@ -25,6 +25,11 @@ from app.services.teaching_group_service import (
 
 
 METAGROUP_CODE_PREFIX = "META_"
+PLAN_KIND_ORDER = {
+    "CURRICULUM": 0,
+    "EXTRACURRICULAR": 1,
+    "ADDITIONAL_EDUCATION": 2,
+}
 
 
 def _decimal_key(value):
@@ -111,7 +116,7 @@ def _candidate_from_cell(cell, column, row, section):
     }
 
 
-def build_metagroup_workspace(matrix, version_id):
+def build_metagroup_workspace(matrix, version_id, activity_key=None):
     used_source_ids = {
         item.source_group_id
         for item in (
@@ -128,36 +133,38 @@ def build_metagroup_workspace(matrix, version_id):
             .all()
         )
     }
+    selected_grade = matrix.get("selected_grade")
     candidates = []
-    for section in matrix["sections"]:
-        for row in section["rows"]:
-            for column in matrix["columns"]:
-                if column["is_unassigned"]:
-                    continue
-                cell = row["cells"].get(column["key"])
-                if cell is None:
-                    continue
-                if cell["groups"]:
-                    for group in cell["groups"]:
-                        if group.id in used_source_ids:
-                            continue
-                        candidate = _candidate_from_group(
-                            group,
+    if selected_grade is not None:
+        for section in matrix["sections"]:
+            for row in section["rows"]:
+                for column in matrix["columns"]:
+                    if column["is_unassigned"]:
+                        continue
+                    cell = row["cells"].get(column["key"])
+                    if cell is None:
+                        continue
+                    if cell["groups"]:
+                        for group in cell["groups"]:
+                            if group.id in used_source_ids:
+                                continue
+                            candidate = _candidate_from_group(
+                                group,
+                                column,
+                                row,
+                                section,
+                            )
+                            if candidate is not None:
+                                candidates.append(candidate)
+                    else:
+                        candidate = _candidate_from_cell(
+                            cell,
                             column,
                             row,
                             section,
                         )
                         if candidate is not None:
                             candidates.append(candidate)
-                else:
-                    candidate = _candidate_from_cell(
-                        cell,
-                        column,
-                        row,
-                        section,
-                    )
-                    if candidate is not None:
-                        candidates.append(candidate)
 
     clusters = {}
     for candidate in candidates:
@@ -205,9 +212,38 @@ def build_metagroup_workspace(matrix, version_id):
             available_clusters.append(cluster)
     available_clusters.sort(key=lambda item: (
         item["grade"] or 0,
-        item["plan_kind"],
+        PLAN_KIND_ORDER.get(item["plan_kind"], 99),
         item["activity"].name.casefold(),
     ))
+    activity_options_by_key = {}
+    for cluster in available_clusters:
+        key = f"{cluster['activity'].id}:{cluster['plan_kind']}"
+        activity_options_by_key[key] = {
+            "key": key,
+            "activity": cluster["activity"],
+            "plan_kind": cluster["plan_kind"],
+            "section_label": cluster["section_label"],
+        }
+    activity_options = sorted(
+        activity_options_by_key.values(),
+        key=lambda item: (
+            PLAN_KIND_ORDER.get(item["plan_kind"], 99),
+            item["activity"].name.casefold(),
+        ),
+    )
+    selected_activity_key = (
+        activity_key
+        if activity_key in activity_options_by_key
+        else None
+    )
+    selected_clusters = [
+        cluster
+        for cluster in available_clusters
+        if (
+            selected_activity_key
+            == f"{cluster['activity'].id}:{cluster['plan_kind']}"
+        )
+    ]
 
     metagroups = (
         TeachingGroup.query
@@ -219,7 +255,6 @@ def build_metagroup_workspace(matrix, version_id):
         .order_by(TeachingGroup.name.asc())
         .all()
     )
-    selected_grade = matrix.get("selected_grade")
     allowed_grades = {
         item["snapshot_class"].grade_snapshot
         for item in matrix["columns"]
@@ -245,10 +280,12 @@ def build_metagroup_workspace(matrix, version_id):
         )
     ]
     return {
-        "clusters": available_clusters,
+        "clusters": selected_clusters,
         "metagroups": metagroups,
+        "activity_options": activity_options,
+        "selected_activity_key": selected_activity_key,
         "available_source_count": sum(
-            len(item["candidates"]) for item in available_clusters
+            len(item["candidates"]) for item in selected_clusters
         ),
     }
 

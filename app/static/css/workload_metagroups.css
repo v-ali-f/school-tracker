@@ -14,6 +14,35 @@
   gap: 8px;
 }
 
+.metagroup-activity-filter {
+  display: grid;
+  grid-template-columns: minmax(280px, 520px);
+  padding: 10px;
+  background: #f6f8fb;
+  border: 1px solid var(--workload-border);
+  border-radius: 6px;
+}
+
+.metagroup-activity-filter label > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #56647a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.metagroup-selection-hint {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  color: #607089;
+  font-size: 11px;
+  background: #f8fafc;
+  border: 1px dashed #c7d3e4;
+  border-radius: 6px;
+}
+
 .metagroup-section-heading {
   min-height: 42px;
   display: flex;

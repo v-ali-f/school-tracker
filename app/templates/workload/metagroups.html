@@ -5,7 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_metagroups.css') }}?v=20260801_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_metagroups.css') }}?v=20260801_2">
 {% endblock %}
 
 {% block workspace_content %}
@@ -89,61 +89,48 @@
   {% elif not snapshot %}
   <div class="class-plan-empty">Сначала загрузите классы и назначьте им учебные планы.</div>
   {% else %}
-    {% if metagroup_workspace.metagroups %}
-    <section class="metagroup-register" aria-labelledby="metagroup-register-title">
-      <div class="metagroup-section-heading">
-        <div>
-          <h3 id="metagroup-register-title">Созданные метагруппы</h3>
-          <p>Состав наследуется из исходных групп и отдельно не редактируется</p>
-        </div>
-        <strong>{{ metagroup_workspace.metagroups|length }}</strong>
-      </div>
-      <div class="metagroup-register__rows">
-        {% for item in metagroup_workspace.metagroups %}
-        <article class="metagroup-register__row">
-          <div class="metagroup-register__identity">
-            <strong>{{ item.name }}</strong>
-            <span>{{ item.education_activity.name }} · {{ item.actual_size }} уч.</span>
-          </div>
-          <div class="metagroup-register__sources">
-            {% for link in item.metagroup_sources %}
-            <span>{{ link.source_group.name }}</span>
-            {% endfor %}
-          </div>
-          {% if can_update %}
-          <form
-            method="post"
-            action="{{ url_for('workload.metagroup_delete', group_id=item.id) }}"
-            onsubmit="return confirm('Удалить метагруппу? Исходные группы и их составы сохранятся.');"
-          >
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="version_id" value="{{ selected_version.id }}">
-            <input type="hidden" name="level" value="{{ selected_level }}">
-            {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
-            {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
-            <button class="metagroup-icon-button" type="submit" title="Удалить метагруппу" aria-label="Удалить метагруппу">
-              <i class="bi bi-trash" aria-hidden="true"></i>
-            </button>
-          </form>
-          {% endif %}
-        </article>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
     <section class="metagroup-constructor" aria-labelledby="metagroup-constructor-title">
       <div class="metagroup-section-heading">
         <div>
-          <h3 id="metagroup-constructor-title">Создать метагруппу</h3>
-          <p>В одном блоке уже собраны только совместимые источники</p>
+          <h3 id="metagroup-constructor-title">Новая метагруппа</h3>
+          <p>Выберите параллель и предмет, затем отметьте классы или готовые группы</p>
         </div>
-        <strong>{{ metagroup_workspace.available_source_count }}</strong>
       </div>
 
-      {% if not metagroup_workspace.clusters %}
+      {% if not selected_grade %}
       <div class="class-plan-empty">
-        Нет сочетаний из двух готовых классов или групп одной параллели с одинаковыми часами.
+        Выберите параллель в строке фильтров выше.
+      </div>
+      {% else %}
+      <form class="metagroup-activity-filter" method="get" action="{{ url_for('workload.metagroups') }}">
+        <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+        <input type="hidden" name="level" value="{{ selected_level }}">
+        <input type="hidden" name="grade" value="{{ selected_grade }}">
+        {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
+        <label>
+          <span>Предмет или курс</span>
+          <select class="form-select form-select-sm" name="activity" onchange="this.form.submit()">
+            <option value="">Выберите предмет</option>
+            {% for option in metagroup_workspace.activity_options %}
+            <option value="{{ option.key }}" {% if metagroup_workspace.selected_activity_key == option.key %}selected{% endif %}>
+              {{ option.activity.name }} · {{ option.section_label }}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+      </form>
+
+      {% if not metagroup_workspace.activity_options %}
+      <div class="class-plan-empty">
+        В этой параллели пока нет совместимых классов или готовых групп для объединения.
+      </div>
+      {% elif not metagroup_workspace.selected_activity_key %}
+      <div class="metagroup-selection-hint">
+        После выбора предмета здесь появятся только классы и группы с одинаковым объёмом часов.
+      </div>
+      {% elif not metagroup_workspace.clusters %}
+      <div class="class-plan-empty">
+        Для выбранного предмета нет совместимых источников.
       </div>
       {% else %}
       <div class="metagroup-clusters">
@@ -154,6 +141,7 @@
           <input type="hidden" name="level" value="{{ selected_level }}">
           {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
           {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
+          <input type="hidden" name="activity" value="{{ metagroup_workspace.selected_activity_key }}">
 
           <header class="metagroup-cluster__heading">
             <div>
@@ -201,7 +189,52 @@
         {% endfor %}
       </div>
       {% endif %}
+      {% endif %}
     </section>
+
+    {% if metagroup_workspace.metagroups %}
+    <section class="metagroup-register" aria-labelledby="metagroup-register-title">
+      <div class="metagroup-section-heading">
+        <div>
+          <h3 id="metagroup-register-title">Созданные метагруппы</h3>
+          <p>Состав наследуется из исходных групп и отдельно не редактируется</p>
+        </div>
+        <strong>{{ metagroup_workspace.metagroups|length }}</strong>
+      </div>
+      <div class="metagroup-register__rows">
+        {% for item in metagroup_workspace.metagroups %}
+        <article class="metagroup-register__row">
+          <div class="metagroup-register__identity">
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.education_activity.name }} · {{ item.actual_size }} уч.</span>
+          </div>
+          <div class="metagroup-register__sources">
+            {% for link in item.metagroup_sources %}
+            <span>{{ link.source_group.name }}</span>
+            {% endfor %}
+          </div>
+          {% if can_update %}
+          <form
+            method="post"
+            action="{{ url_for('workload.metagroup_delete', group_id=item.id) }}"
+            onsubmit="return confirm('Удалить метагруппу? Исходные группы и их составы сохранятся.');"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+            <input type="hidden" name="level" value="{{ selected_level }}">
+            {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
+            {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
+            {% if metagroup_workspace.selected_activity_key %}<input type="hidden" name="activity" value="{{ metagroup_workspace.selected_activity_key }}">{% endif %}
+            <button class="metagroup-icon-button" type="submit" title="Удалить метагруппу" aria-label="Удалить метагруппу">
+              <i class="bi bi-trash" aria-hidden="true"></i>
+            </button>
+          </form>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
   {% endif %}
 </section>
 {% endblock %}

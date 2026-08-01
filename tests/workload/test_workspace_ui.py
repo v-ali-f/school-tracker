@@ -60,6 +60,7 @@ def test_binding_and_group_pages_hide_summary_indicators(
 
     for path in (
         "/workload/plan-bindings/",
+        "/workload/plan-bindings/matrix",
         "/workload/groups/",
         "/workload/groups/composition/",
     ):

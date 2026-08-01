@@ -704,10 +704,13 @@ def register_group_routes(workload_bp):
             build_metagroup_workspace(
                 context["matrix"],
                 context["selected_version"].id,
+                request.args.get("activity"),
             )
             if context["selected_version"] else {
                 "clusters": [],
                 "metagroups": [],
+                "activity_options": [],
+                "selected_activity_key": None,
                 "available_source_count": 0,
             }
         )
@@ -759,6 +762,7 @@ def register_group_routes(workload_bp):
             level=request.form.get("level"),
             grade=request.form.get("grade"),
             building_id=request.form.get("building_id"),
+            activity=request.form.get("activity"),
         ))
 
     @workload_bp.post("/groups/metagroups/<int:group_id>/delete")
@@ -788,6 +792,7 @@ def register_group_routes(workload_bp):
             level=request.form.get("level"),
             grade=request.form.get("grade"),
             building_id=request.form.get("building_id"),
+            activity=request.form.get("activity"),
         ))
 
     @workload_bp.post("/groups/matrix/cell")
