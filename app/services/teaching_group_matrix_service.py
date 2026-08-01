@@ -14,6 +14,7 @@ from app.services.class_plan_matrix_service import build_class_plan_matrix
 from app.services.teaching_group_service import (
     GroupValidationError,
     add_group_history,
+    touch_group,
 )
 
 
@@ -78,6 +79,9 @@ def build_teaching_group_matrix(snapshot, plans, education_level, version_id):
                 cell.update({
                     "group_count": group_count,
                     "group_ids": tuple(group.id for group in groups),
+                    "groups": tuple(
+                        sorted(groups, key=lambda group: (group.code, group.id))
+                    ),
                     "is_configured": bool(groups),
                     "needs_composition": needs_composition,
                 })
@@ -350,6 +354,185 @@ def replace_teaching_group_count(
     return groups
 
 
+def build_group_composition_workspace(matrix):
+    items = []
+    for section in matrix["sections"]:
+        for row in section["rows"]:
+            for column in matrix["columns"]:
+                cell = row["cells"].get(column["key"])
+                if (
+                    cell is None
+                    or column["is_unassigned"]
+                    or cell["group_count"] <= 1
+                    or not cell["groups"]
+                ):
+                    continue
+                groups = list(cell["groups"])
+                eligible_ids = set(column["member_ids"])
+                enrollments = sorted(
+                    (
+                        enrollment
+                        for enrollment in column[
+                            "snapshot_class"
+                        ].enrollments
+                        if enrollment.id in eligible_ids
+                    ),
+                    key=lambda item: item.fio_snapshot.casefold(),
+                )
+                assignment_by_member_id = {}
+                for group in groups:
+                    for member in group.members:
+                        if member.snapshot_enrollment_id in eligible_ids:
+                            assignment_by_member_id[
+                                member.snapshot_enrollment_id
+                            ] = group.id
+                assigned_count = len(assignment_by_member_id)
+                group_sizes = {
+                    group.id: sum(
+                        1
+                        for group_id in assignment_by_member_id.values()
+                        if group_id == group.id
+                    )
+                    for group in groups
+                }
+                complete = (
+                    assigned_count == len(enrollments)
+                    and bool(enrollments)
+                    and all(group_sizes[group.id] > 0 for group in groups)
+                )
+                items.append({
+                    "key": (
+                        f"line-{cell['line'].id}-"
+                        f"class-{column['snapshot_class'].id}"
+                    ),
+                    "section_label": section["label"],
+                    "activity": row["activity"],
+                    "plan_line": cell["line"],
+                    "snapshot_class": column["snapshot_class"],
+                    "plan": column["plan"],
+                    "groups": groups,
+                    "enrollments": enrollments,
+                    "assignment_by_member_id": assignment_by_member_id,
+                    "group_sizes": group_sizes,
+                    "assigned_count": assigned_count,
+                    "student_count": len(enrollments),
+                    "complete": complete,
+                })
+    items.sort(key=lambda item: (
+        item["snapshot_class"].grade_snapshot or 0,
+        item["snapshot_class"].name_snapshot.casefold(),
+        item["plan"].name.casefold(),
+        item["activity"].name.casefold(),
+    ))
+    return {
+        "items": items,
+        "complete_count": sum(1 for item in items if item["complete"]),
+        "incomplete_count": sum(
+            1 for item in items if not item["complete"]
+        ),
+        "assigned_count": sum(
+            item["assigned_count"] for item in items
+        ),
+        "student_count": sum(
+            item["student_count"] for item in items
+        ),
+    }
+
+
+def replace_group_composition_assignments(
+    item,
+    assignments,
+    *,
+    user_id,
+):
+    groups = list(item["groups"])
+    if not groups:
+        raise GroupValidationError("Учебные группы не найдены.")
+    if any(
+        not group.code.startswith(AUTO_GROUP_CODE_PREFIX)
+        for group in groups
+    ):
+        raise GroupValidationError(
+            "Состав можно менять только у групп, созданных из матрицы."
+        )
+    group_ids = {group.id for group in groups}
+    if (
+        WorkloadNeed.query
+        .filter(WorkloadNeed.teaching_group_id.in_(group_ids))
+        .first()
+    ):
+        raise GroupValidationError(
+            "По группам уже сформирована нагрузка. Сначала отмените её."
+        )
+
+    eligible_ids = {
+        enrollment.id for enrollment in item["enrollments"]
+    }
+    normalized_assignments = {
+        int(member_id): int(group_id)
+        for member_id, group_id in dict(assignments).items()
+        if group_id is not None
+    }
+    if set(normalized_assignments) - eligible_ids:
+        raise GroupValidationError(
+            "В составе есть ученик из другого класса или учебного плана."
+        )
+    if set(normalized_assignments.values()) - group_ids:
+        raise GroupValidationError(
+            "Выбрана группа из другого предмета или класса."
+        )
+
+    for group in groups:
+        for member in list(group.members):
+            db.session.delete(member)
+    db.session.flush()
+
+    members_by_group = {group.id: [] for group in groups}
+    for member_id, group_id in normalized_assignments.items():
+        members_by_group[group_id].append(member_id)
+    complete = (
+        len(normalized_assignments) == len(eligible_ids)
+        and bool(eligible_ids)
+        and all(members_by_group[group.id] for group in groups)
+    )
+    for group in groups:
+        member_ids = sorted(members_by_group[group.id])
+        for member_id in member_ids:
+            db.session.add(TeachingGroupMember(
+                teaching_group_id=group.id,
+                snapshot_enrollment_id=member_id,
+                valid_from=group.valid_from,
+                valid_to=group.valid_to,
+                source_kind="MANUAL",
+            ))
+        group.actual_size = len(member_ids)
+        group.status = "READY" if complete else "DRAFT"
+        for source_class in group.source_classes:
+            if (
+                source_class.population_snapshot_class_id
+                == item["snapshot_class"].id
+            ):
+                source_class.student_count = len(member_ids)
+        touch_group(
+            group,
+            user_id=user_id,
+            event_code="COMPOSITION_UPDATED",
+            details={
+                "actual_size": len(member_ids),
+                "complete": complete,
+            },
+        )
+    return {
+        "complete": complete,
+        "assigned_count": len(normalized_assignments),
+        "student_count": len(eligible_ids),
+        "group_sizes": {
+            group.id: len(members_by_group[group.id])
+            for group in groups
+        },
+    }
+
+
 def materialize_default_teaching_groups(
     *,
     version,
@@ -467,7 +650,9 @@ def materialize_default_teaching_groups(
 
 __all__ = [
     "AUTO_GROUP_CODE_PREFIX",
+    "build_group_composition_workspace",
     "build_teaching_group_matrix",
     "materialize_default_teaching_groups",
+    "replace_group_composition_assignments",
     "replace_teaching_group_count",
 ]

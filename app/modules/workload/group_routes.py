@@ -55,7 +55,9 @@ from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_LABELS,
 )
 from app.services.teaching_group_matrix_service import (
+    build_group_composition_workspace,
     build_teaching_group_matrix,
+    replace_group_composition_assignments,
     replace_teaching_group_count,
 )
 from app.services.teaching_group_service import population_registry_status
@@ -509,6 +511,119 @@ def register_group_routes(workload_bp):
             "workload/group_matrix.html",
             **context,
         )
+
+    @workload_bp.get("/groups/composition/")
+    @login_required
+    def group_composition():
+        _require_groups_read()
+        context = _group_matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+        )
+        composition = build_group_composition_workspace(
+            context["matrix"]
+        )
+        requested_key = (request.args.get("item") or "").strip()
+        selected_item = next(
+            (
+                item for item in composition["items"]
+                if item["key"] == requested_key
+            ),
+            next(
+                (
+                    item for item in composition["items"]
+                    if not item["complete"]
+                ),
+                composition["items"][0]
+                if composition["items"] else None,
+            ),
+        )
+        context.update({
+            "composition": composition,
+            "selected_item": selected_item,
+        })
+        return render_template(
+            "workload/group_composition.html",
+            **context,
+        )
+
+    @workload_bp.post("/groups/composition/")
+    @login_required
+    def group_composition_update():
+        _require_groups_update()
+        version_id = request.form.get("version_id", type=int)
+        version = db.session.get(TariffVersion, version_id)
+        if version is None or version not in _available_group_matrix_versions():
+            abort(404)
+        context = _group_matrix_context(
+            version_id,
+            request.form.get("level"),
+        )
+        item_key = (request.form.get("item_key") or "").strip()
+        composition = build_group_composition_workspace(
+            context["matrix"]
+        )
+        selected_item = next(
+            (
+                item for item in composition["items"]
+                if item["key"] == item_key
+            ),
+            None,
+        )
+        if selected_item is None:
+            abort(404)
+        assignments = {}
+        for enrollment in selected_item["enrollments"]:
+            group_id = request.form.get(
+                f"member_{enrollment.id}",
+                type=int,
+            )
+            if group_id is not None:
+                assignments[enrollment.id] = group_id
+        try:
+            result = replace_group_composition_assignments(
+                selected_item,
+                assignments,
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except GroupValidationError as exc:
+            db.session.rollback()
+            if (
+                request.headers.get("X-Requested-With")
+                == "XMLHttpRequest"
+            ):
+                return jsonify({
+                    "ok": False,
+                    "message": str(exc),
+                }), 422
+            flash(str(exc), "danger")
+        else:
+            message = (
+                "Состав полностью распределён."
+                if result["complete"]
+                else (
+                    f"Сохранено назначений: "
+                    f"{result['assigned_count']} из "
+                    f"{result['student_count']}."
+                )
+            )
+            if (
+                request.headers.get("X-Requested-With")
+                == "XMLHttpRequest"
+            ):
+                return jsonify({
+                    "ok": True,
+                    "message": message,
+                    **result,
+                })
+            flash(message, "success")
+        return redirect(url_for(
+            "workload.group_composition",
+            version_id=version.id,
+            level=request.form.get("level"),
+            item=item_key,
+        ))
 
     @workload_bp.post("/groups/matrix/cell")
     @login_required
