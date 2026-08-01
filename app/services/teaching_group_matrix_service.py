@@ -28,12 +28,16 @@ def build_teaching_group_matrix(
     education_level,
     version_id,
     grade=None,
+    building_id=None,
+    allowed_building_ids=None,
 ):
     matrix = build_class_plan_matrix(
         snapshot,
         plans,
         education_level,
         grade=grade,
+        building_id=building_id,
+        allowed_building_ids=allowed_building_ids,
     )
     line_ids = {
         cell["line"].id

@@ -32,6 +32,7 @@ from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_GRADES,
     EDUCATION_LEVEL_LABELS,
     build_class_plan_matrix,
+    snapshot_building_options,
 )
 from app.services.class_plan_matrix_export_service import (
     build_class_plan_matrix_pdf,
@@ -236,7 +237,12 @@ def _class_binding_rows(classes, version):
     return rows, all_plans, unassigned_total
 
 
-def _matrix_context(version_id, requested_level, requested_grade=None):
+def _matrix_context(
+    version_id,
+    requested_level,
+    requested_grade=None,
+    requested_building_id=None,
+):
     versions = _available_versions()
     version = _selected_version(versions, version_id)
     snapshot = (
@@ -255,12 +261,37 @@ def _matrix_context(version_id, requested_level, requested_grade=None):
     )
     classes = _snapshot_classes(snapshot)
     plans = _curriculum_plans(version)
-    _, _, unassigned_count = _class_binding_rows(classes, version)
+    scope = resolve_workload_scope(current_user)
+    allowed_building_ids = (
+        None if scope.unrestricted else set(scope.building_ids)
+    )
+    building_options = snapshot_building_options(
+        snapshot,
+        allowed_building_ids,
+    )
+    building_ids = {item["id"] for item in building_options}
+    try:
+        selected_building_id = int(requested_building_id)
+    except (TypeError, ValueError):
+        selected_building_id = None
+    if selected_building_id not in building_ids:
+        selected_building_id = None
+
+    def matches_selected_building(item):
+        if selected_building_id is None:
+            return True
+        if selected_building_id < 0:
+            return item.building_id is None
+        return item.building_id == selected_building_id
+
     level_counts = {
         level: sum(
             1
             for item in classes
-            if item.grade_snapshot in grades
+            if (
+                item.grade_snapshot in grades
+                and matches_selected_building(item)
+            )
         )
         for level, grades in EDUCATION_LEVEL_GRADES.items()
     }
@@ -281,23 +312,33 @@ def _matrix_context(version_id, requested_level, requested_grade=None):
         selected_grade = None
     if selected_grade not in EDUCATION_LEVEL_GRADES[selected_level]:
         selected_grade = None
+    matrix = build_class_plan_matrix(
+        snapshot,
+        plans,
+        selected_level,
+        grade=selected_grade,
+        building_id=selected_building_id,
+        allowed_building_ids=allowed_building_ids,
+    )
+    unassigned_count = sum(
+        column["student_count"]
+        for column in matrix["columns"]
+        if column["is_unassigned"]
+    )
     return {
         "versions": versions,
         "selected_version": version,
         "snapshot": snapshot,
         "plans": plans,
-        "matrix": build_class_plan_matrix(
-            snapshot,
-            plans,
-            selected_level,
-            grade=selected_grade,
-        ),
+        "matrix": matrix,
         "selected_level": selected_level,
         "selected_grade": selected_grade,
+        "selected_building_id": selected_building_id,
+        "building_options": building_options,
         "level_grades": level_grades,
         "level_labels": EDUCATION_LEVEL_LABELS,
         "level_counts": level_counts,
-        "class_count": len(classes),
+        "class_count": matrix["class_count"],
         "unassigned_count": unassigned_count,
         "registry_status": registry_status,
         "academic_years": AcademicYear.query.order_by(
@@ -394,6 +435,7 @@ def register_plan_binding_routes(workload_bp):
             request.args.get("version_id", type=int),
             request.args.get("level"),
             request.args.get("grade"),
+            request.args.get("building_id"),
         )
         return render_template(
             "workload/plan_bindings_matrix.html",
@@ -408,6 +450,7 @@ def register_plan_binding_routes(workload_bp):
             request.args.get("version_id", type=int),
             request.args.get("level"),
             request.args.get("grade"),
+            request.args.get("building_id"),
         )
         version = context["selected_version"]
         if version is None:
@@ -421,6 +464,10 @@ def register_plan_binding_routes(workload_bp):
             f"_{context['selected_grade']}_grade"
             if context["selected_grade"] else ""
         )
+        building_suffix = (
+            f"_building_{context['selected_building_id']}"
+            if context["selected_building_id"] else ""
+        )
         return send_file(
             stream,
             as_attachment=True,
@@ -429,6 +476,7 @@ def register_plan_binding_routes(workload_bp):
                 f"{year_name.replace('/', '-')}_"
                 f"{context['selected_level']}"
                 f"{grade_suffix}"
+                f"{building_suffix}"
                 f".xlsx"
             ),
             mimetype=(
@@ -445,6 +493,7 @@ def register_plan_binding_routes(workload_bp):
             request.args.get("version_id", type=int),
             request.args.get("level"),
             request.args.get("grade"),
+            request.args.get("building_id"),
         )
         version = context["selected_version"]
         if version is None:
@@ -458,6 +507,10 @@ def register_plan_binding_routes(workload_bp):
             f"_{context['selected_grade']}_grade"
             if context["selected_grade"] else ""
         )
+        building_suffix = (
+            f"_building_{context['selected_building_id']}"
+            if context["selected_building_id"] else ""
+        )
         return send_file(
             stream,
             as_attachment=True,
@@ -466,6 +519,7 @@ def register_plan_binding_routes(workload_bp):
                 f"{year_name.replace('/', '-')}_"
                 f"{context['selected_level']}"
                 f"{grade_suffix}"
+                f"{building_suffix}"
                 f".pdf"
             ),
             mimetype="application/pdf",

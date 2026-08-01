@@ -6,8 +6,6 @@
 
   var saveUrl = root.dataset.saveUrl;
   var status = root.querySelector("[data-group-matrix-status]");
-  var filter = root.querySelector("[data-group-matrix-filter]");
-  var filterForm = root.querySelector("[data-group-matrix-filters]");
 
   function setStatus(message, state) {
     if (!status) return;
@@ -16,11 +14,13 @@
     status.classList.toggle("is-error", state === "error");
   }
 
-  if (filter && filterForm) {
-    filter.addEventListener("change", function () {
-      filterForm.submit();
+  root.querySelectorAll("[data-group-matrix-filters]").forEach(function (filterForm) {
+    filterForm.querySelectorAll("[data-group-matrix-filter]").forEach(function (filter) {
+      filter.addEventListener("change", function () {
+        filterForm.submit();
+      });
     });
-  }
+  });
 
   function updateCellState(input, count, needsComposition) {
     var cell = input.closest(".group-matrix__cell");

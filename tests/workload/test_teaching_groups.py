@@ -437,10 +437,7 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     empty_grade_html = empty_grade_response.get_data(as_text=True)
     assert empty_grade_response.status_code == 200
     assert 'data-class-name="5А"' not in empty_grade_html
-    assert (
-        "Для выбранного уровня и параллели"
-        in empty_grade_html
-    )
+    assert "Для выбранных фильтров" in empty_grade_html
 
     xlsx_response = client.get(
         f"/workload/plan-bindings/matrix/export.xlsx"
@@ -561,6 +558,88 @@ def test_class_plan_matrix_splits_class_between_two_plans(
     assert response.data.count("1 уч. · ч/нед.".encode()) >= 2
 
 
+def test_planning_matrices_filter_snapshot_classes_by_building(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        second_building = Building(
+            name="Второй учебный корпус",
+            short_name="Корпус Б",
+        )
+        db.session.add(second_building)
+        db.session.flush()
+        class_b = SchoolClass.query.filter_by(
+            academic_year_id=context["year_id"],
+            name="5Б",
+        ).one()
+        class_b.building_id = second_building.id
+        db.session.commit()
+
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class_a = PopulationSnapshotClass.query.filter_by(
+            population_snapshot_id=snapshot_id,
+            name_snapshot="5А",
+        ).one()
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class_a,
+            {item.id for item in snapshot_class_a.enrollments},
+            user_id=user_id,
+        )
+        db.session.commit()
+        version_id = context["version_id"]
+        main_building_id = context["building_id"]
+        second_building_id = second_building.id
+
+    login(user_id)
+    response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO"
+        f"&building_id={main_building_id}"
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'aria-label="Здание"' in html
+    assert "ГЗ" in html
+    assert "Корпус Б" in html
+    assert 'data-class-name="5А"' in html
+    assert 'data-class-name="5Б"' not in html
+
+    response = client.get(
+        f"/workload/groups/"
+        f"?version_id={version_id}&level=OOO"
+        f"&building_id={second_building_id}"
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'value="{}" selected'.format(second_building_id) in html
+    assert "5Б" in html
+    assert "5А" not in html
+
+    for path in ("composition/", "metagroups/"):
+        response = client.get(
+            f"/workload/groups/{path}"
+            f"?version_id={version_id}&level=OOO"
+            f"&building_id={second_building_id}"
+        )
+        assert response.status_code == 200
+        assert (
+            'value="{}" selected'.format(second_building_id)
+            in response.get_data(as_text=True)
+        )
+
+
 def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     app,
     client,
@@ -624,9 +703,7 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     empty_grade_html = empty_grade_response.get_data(as_text=True)
     assert empty_grade_response.status_code == 200
     assert 'data-activity-name="Математика"' not in empty_grade_html
-    assert "Для выбранного уровня и параллели нет классов." in (
-        empty_grade_html
-    )
+    assert "Для выбранных фильтров нет классов." in empty_grade_html
     with app.app_context():
         assert TeachingGroup.query.count() == 0
 
