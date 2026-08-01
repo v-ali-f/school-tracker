@@ -837,7 +837,7 @@
 .workload-subject-add {
   margin-top: 5px;
   position: relative;
-  display: inline-block;
+  display: block;
 }
 
 .workload-subject-add > summary {
@@ -852,17 +852,20 @@
 }
 
 .workload-subject-add[open] > form {
-  width: 280px;
-  padding: 8px;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 25;
+  width: 100%;
+  margin-top: 6px;
+  padding: 0;
+  position: static;
   display: block;
-  background: #fff;
-  border: 1px solid var(--workload-border-strong);
-  border-radius: 6px;
-  box-shadow: 0 10px 24px rgba(31, 45, 69, 0.16);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.workload-subject-add[open] select {
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
 }
 
 .workload-add-teacher-row td {
