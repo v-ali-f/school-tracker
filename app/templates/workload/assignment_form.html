@@ -8,7 +8,7 @@
 <div class="page-head mb-3">
   <div>
     <div class="page-title">{{ 'Изменение назначения' if assignment else 'Новое назначение' }}</div>
-    <div class="page-sub">{{ need.education_activity.name }} · {{ need.teaching_group.name if need.teaching_group else 'без группы' }} · остаток {{ need.remaining_weekly_hours }} ч/нед.</div>
+    <div class="page-sub">{{ need.education_activity.name }} · {{ need.teaching_group.name if need.teaching_group else 'без группы' }} · остаток {{ need.remaining_weekly_hours|compact_decimal }} ч/нед.</div>
   </div>
   <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.need_detail', need_id=need.id) }}">Отмена</a>
 </div>
@@ -46,11 +46,11 @@
     </div>
     <div class="col-lg-3">
       <label class="form-label" for="weekly-hours">Часов в неделю</label>
-      <input class="form-control" id="weekly-hours" name="weekly_hours" inputmode="decimal" value="{{ assignment.weekly_hours if assignment else need.remaining_weekly_hours }}" required>
+      <input class="form-control" id="weekly-hours" name="weekly_hours" inputmode="decimal" value="{{ (assignment.weekly_hours if assignment else need.remaining_weekly_hours)|compact_decimal }}" required>
     </div>
     <div class="col-lg-3">
       <label class="form-label" for="annual-hours">Часов за период</label>
-      <input class="form-control" id="annual-hours" name="annual_hours" inputmode="decimal" value="{{ assignment.annual_hours if assignment else '' }}" placeholder="Рассчитается автоматически">
+      <input class="form-control" id="annual-hours" name="annual_hours" inputmode="decimal" value="{{ assignment.annual_hours|compact_decimal if assignment else '' }}" placeholder="Рассчитается автоматически">
     </div>
     <div class="col-lg-3">
       <label class="form-label" for="date-from">Действует с</label>
@@ -98,8 +98,8 @@
   const employee = document.getElementById("employee-user");
   const weekly = document.getElementById("weekly-hours");
   const annual = document.getElementById("annual-hours");
-  const needWeekly = Number("{{ need.weekly_hours }}");
-  const needAnnual = Number("{{ need.annual_hours }}");
+  const needWeekly = Number("{{ need.weekly_hours|compact_decimal }}".replace(",", "."));
+  const needAnnual = Number("{{ need.annual_hours|compact_decimal }}".replace(",", "."));
   let annualEdited = {{ 'true' if assignment else 'false' }};
 
   function syncEmployee() {
@@ -112,7 +112,7 @@
     if (annualEdited || !needWeekly || !needAnnual) return;
     const value = Number(String(weekly.value).replace(",", "."));
     annual.value = Number.isFinite(value)
-      ? (value * needAnnual / needWeekly).toFixed(3)
+      ? String(Number((value * needAnnual / needWeekly).toFixed(3))).replace(".", ",")
       : "";
   }
   kind.addEventListener("change", syncEmployee);

@@ -12,7 +12,7 @@
 
 <div class="workload-detail-summary">
   <div><div class="small text-muted">Должность</div><div class="fw-semibold">{{ line.position_title }}</div></div>
-  <div><div class="small text-muted">Нагрузка</div><div class="fw-semibold">{{ line.weekly_hours }} ч/нед.</div></div>
+  <div><div class="small text-muted">Нагрузка</div><div class="fw-semibold">{{ line.weekly_hours|compact_decimal }} ч/нед.</div></div>
   <div><div class="small text-muted">Норма</div><div class="fw-semibold">{{ line.rate_norm_hours }} ч.</div></div>
   <div><div class="small text-muted">Доля ставки</div><div class="fw-semibold">{{ line.fte_value }}</div></div>
   <div><div class="small text-muted">Численность</div><div class="fw-semibold">{{ line.population_value }}</div></div>

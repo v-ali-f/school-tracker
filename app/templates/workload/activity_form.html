@@ -55,6 +55,18 @@
   <fieldset class="col-12">
     <legend class="form-label mb-2">Кафедры</legend>
     {% if departments %}
+    {% set active_department_links = activity.department_links|selectattr('is_active')|list if activity else [] %}
+    <div class="form-check mb-2">
+      <input
+        class="form-check-input"
+        id="activity-all-departments"
+        type="checkbox"
+        data-all-departments
+        {% if activity and active_department_links|length == departments|length %}checked{% endif %}
+      >
+      <label class="form-check-label fw-semibold" for="activity-all-departments">Все кафедры</label>
+      <div class="form-text">Подходит для общешкольных занятий, которые может вести преподаватель любой кафедры.</div>
+    </div>
     <div class="row g-2">
       {% for department in departments %}
       {% set linked = activity and (activity.department_links|selectattr('department_id', 'equalto', department.id)|selectattr('is_active')|list) %}
@@ -66,6 +78,7 @@
             type="checkbox"
             name="department_ids"
             value="{{ department.id }}"
+            data-department-option
             {% if linked %}checked{% endif %}
           >
           <label class="form-check-label" for="activity-department-{{ department.id }}">{{ department.name }}</label>
@@ -82,4 +95,21 @@
     <button class="btn btn-primary" type="submit">Сохранить</button>
   </div>
 </form>
+<script>
+(() => {
+  const all = document.querySelector("[data-all-departments]");
+  const options = [...document.querySelectorAll("[data-department-option]")];
+  if (!all || !options.length) return;
+  const syncAll = () => {
+    all.checked = options.every((item) => item.checked);
+    all.indeterminate = !all.checked && options.some((item) => item.checked);
+  };
+  all.addEventListener("change", () => {
+    options.forEach((item) => { item.checked = all.checked; });
+    all.indeterminate = false;
+  });
+  options.forEach((item) => item.addEventListener("change", syncAll));
+  syncAll();
+})();
+</script>
 {% endblock %}

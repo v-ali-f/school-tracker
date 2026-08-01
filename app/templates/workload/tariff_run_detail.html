@@ -35,7 +35,7 @@
         <td>{{ line.employee.fio }}</td>
         <td>{{ line.education_activity.name }}</td>
         <td>{{ line.teaching_group.name if line.teaching_group else '—' }}</td>
-        <td class="text-end">{{ line.weekly_hours }}</td>
+        <td class="text-end">{{ line.weekly_hours|compact_decimal }}</td>
         <td class="text-end">{{ line.fte_value }}</td>
         {% if can_view_finance %}<td class="text-end fw-semibold">{{ '%.2f'|format(line.total_amount) }}</td>{% endif %}
         <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.tariff_line_detail', line_id=line.id) }}" title="Расшифровка" aria-label="Расшифровка"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>

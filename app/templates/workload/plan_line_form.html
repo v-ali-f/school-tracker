@@ -116,11 +116,11 @@
   </div>
   <div class="col-md-2">
     <label class="form-label" for="period-weekly">Часов в неделю</label>
-    <input class="form-control" id="period-weekly" name="period_weekly_hours" inputmode="decimal" value="{{ current_period.weekly_hours if current_period and current_period.weekly_hours is not none else '' }}">
+    <input class="form-control" id="period-weekly" name="period_weekly_hours" inputmode="decimal" value="{{ current_period.weekly_hours|compact_decimal if current_period and current_period.weekly_hours is not none else '' }}">
   </div>
   <div class="col-md-2">
     <label class="form-label" for="period-annual">Часов за период</label>
-    <input class="form-control" id="period-annual" name="period_annual_hours" inputmode="decimal" value="{{ current_period.annual_hours if current_period and current_period.annual_hours is not none else '' }}">
+    <input class="form-control" id="period-annual" name="period_annual_hours" inputmode="decimal" value="{{ current_period.annual_hours|compact_decimal if current_period and current_period.annual_hours is not none else '' }}">
   </div>
   <div class="col-12 border-top pt-3">
     <button class="btn btn-primary" type="submit">{{ 'Сохранить' if line else 'Добавить строку' }}</button>

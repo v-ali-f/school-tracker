@@ -23,9 +23,9 @@
 {% include "workload/_nav.html" %}
 
 <div class="workload-detail-summary">
-  <div><div class="small text-muted">Потребность</div><div class="fw-semibold">{{ need.weekly_hours }} ч/нед. · {{ need.annual_hours }} ч/период</div></div>
-  <div><div class="small text-muted">Распределено</div><div class="fw-semibold">{{ need.allocated_weekly_hours }} ч/нед.</div></div>
-  <div><div class="small text-muted">Остаток</div><div class="fw-semibold {% if need.remaining_weekly_hours > 0 %}text-danger{% endif %}">{{ need.remaining_weekly_hours }} ч/нед.</div></div>
+  <div><div class="small text-muted">Потребность</div><div class="fw-semibold">{{ need.weekly_hours|compact_decimal }} ч/нед. · {{ need.annual_hours|compact_decimal }} ч/период</div></div>
+  <div><div class="small text-muted">Распределено</div><div class="fw-semibold">{{ need.allocated_weekly_hours|compact_decimal }} ч/нед.</div></div>
+  <div><div class="small text-muted">Остаток</div><div class="fw-semibold {% if need.remaining_weekly_hours > 0 %}text-danger{% endif %}">{{ need.remaining_weekly_hours|compact_decimal }} ч/нед.</div></div>
   <div><div class="small text-muted">Период</div><div class="fw-semibold">{{ need.date_from.strftime('%d.%m.%Y') }}–{{ need.date_to.strftime('%d.%m.%Y') }}</div></div>
   <div><div class="small text-muted">Кафедра</div><div class="fw-semibold">{{ need.department.name if need.department else 'Не определена' }}</div></div>
 </div>
@@ -36,7 +36,7 @@
     {% for source in need.sources %}
     <a href="{{ url_for('workload.plan_detail', plan_id=source.education_plan_line.education_plan_id) }}">{{ source.education_plan_line.education_plan.name }}</a>
     · {{ source.source_kind }}
-    · {{ source.source_weekly_hours }} ч/нед.
+    · {{ source.source_weekly_hours|compact_decimal }} ч/нед.
     {% endfor %}
     {% if need.teaching_group %}
     · <a href="{{ url_for('workload.group_detail', group_id=need.teaching_group.id) }}">{{ need.teaching_group.name }}</a>
@@ -62,8 +62,8 @@
           <td>{{ assignment_kind_labels[item.assignment_kind] }}</td>
           <td>{{ item.position_title or '—' }}</td>
           <td class="text-nowrap">{{ item.date_from.strftime('%d.%m.%Y') }}–{{ item.date_to.strftime('%d.%m.%Y') }}</td>
-          <td class="text-end">{{ item.weekly_hours }}</td>
-          <td class="text-end">{{ item.annual_hours }}</td>
+          <td class="text-end">{{ item.weekly_hours|compact_decimal }}</td>
+          <td class="text-end">{{ item.annual_hours|compact_decimal }}</td>
           <td>{{ assignment_status_labels[item.status] }}</td>
           <td class="text-end text-nowrap">
             {% if can_update and item.status != 'CANCELLED' %}

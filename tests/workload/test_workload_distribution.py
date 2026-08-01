@@ -460,6 +460,100 @@ def test_generate_from_workspace_returns_to_matrix(
     )
 
 
+def test_workspace_adds_teacher_subject_and_assigns_full_need(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        need_id = need.id
+        activity_id = need.education_activity_id
+    login(admin_id)
+    filters = {
+        "version_id": str(context["version_id"]),
+        "view": "all",
+    }
+
+    add_teacher = client.post(
+        "/workload/assignments/workspace/teachers",
+        data={**filters, "teacher_id": str(teacher_id)},
+    )
+    assert add_teacher.status_code == 302
+
+    add_subject = client.post(
+        "/workload/assignments/workspace/subjects",
+        data={
+            **filters,
+            "teacher_id": str(teacher_id),
+            "activity_id": str(activity_id),
+            "plan_kind": "CURRICULUM",
+        },
+    )
+    assert add_subject.status_code == 302
+
+    matrix = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    )
+    html = matrix.get_data(as_text=True)
+    assert matrix.status_code == 200
+    assert "Предмет не выбран" not in html
+    assert "Назначить" in html
+
+    assign = client.post(
+        "/workload/assignments/workspace/assign",
+        data={
+            **filters,
+            "need_id": str(need_id),
+            "teacher_id": str(teacher_id),
+        },
+    )
+    assert assign.status_code == 302
+    with app.app_context():
+        assignment = WorkloadAssignment.query.one()
+        assert assignment.employee_user_id == teacher_id
+        assert assignment.weekly_hours == Decimal("5.000")
+        assert assignment.workload_need.status == "COVERED"
+
+
+def test_workspace_export_and_compact_hours(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+    login(admin_id)
+
+    matrix = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    )
+    html = matrix.get_data(as_text=True)
+    assert "5,000" not in html
+    assert "5.000" not in html
+
+    export = client.get(
+        "/workload/assignments/workspace/export.xlsx",
+        query_string={"version_id": context["version_id"]},
+    )
+    assert export.status_code == 200
+    assert export.data.startswith(b"PK")
+    assert "spreadsheetml.sheet" in export.content_type
+
+
 def test_teacher_can_view_only_own_workload(
     app,
     client,
