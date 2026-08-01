@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_4">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260801_1">
 {% endblock %}
 
@@ -44,24 +44,24 @@
       </a>
       {% endfor %}
     </nav>
-  </div>
 
-  <nav class="class-plan-grades" aria-label="Параллель">
-    <span class="class-plan-grades__label">Параллель</span>
-    <a
-      class="{% if not selected_grade %}is-active{% endif %}"
-      href="{{ url_for('workload.group_composition', version_id=selected_version.id if selected_version else none, level=selected_level) }}"
-    >Все</a>
-    {% for grade in level_grades %}
-    <a
-      class="{% if selected_grade == grade %}is-active{% endif %}"
-      href="{{ url_for('workload.group_composition', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade) }}"
-      title="{{ grade }}-я параллель"
-    >
-      <span>{{ grade }}</span>
-    </a>
-    {% endfor %}
-  </nav>
+    <nav class="class-plan-grades" aria-label="Параллель">
+      <span class="class-plan-grades__label">Параллель</span>
+      <a
+        class="{% if not selected_grade %}is-active{% endif %}"
+        href="{{ url_for('workload.group_composition', version_id=selected_version.id if selected_version else none, level=selected_level) }}"
+      >Все</a>
+      {% for grade in level_grades %}
+      <a
+        class="{% if selected_grade == grade %}is-active{% endif %}"
+        href="{{ url_for('workload.group_composition', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade) }}"
+        title="{{ grade }}-я параллель"
+      >
+        <span>{{ grade }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+  </div>
 
   {% if not selected_version %}
   <div class="class-plan-empty">Нет учебного года с рабочей версией.</div>

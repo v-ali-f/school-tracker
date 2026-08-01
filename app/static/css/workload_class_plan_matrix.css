@@ -42,6 +42,7 @@
 
 .class-plan-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
@@ -107,7 +108,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: -4px 0 12px auto;
+  margin: 0;
   padding: 3px;
   overflow-x: auto;
   border: 1px solid var(--workload-border);
@@ -385,7 +386,6 @@
 @media (max-width: 800px) {
   .class-plan-grades {
     width: 100%;
-    margin-left: 0;
   }
 
   .class-plan-heading {
