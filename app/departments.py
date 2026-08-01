@@ -5,7 +5,7 @@ from typing import Optional
 
 import re
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for, abort
 from flask_login import current_user, login_required
@@ -21,9 +21,14 @@ from app.services.education_activity_service import (
     replace_activity_departments,
 )
 from app.services.workload_integration_service import (
+    current_department_load_rows,
     department_teacher_ids,
-    internal_department_load_rows,
-    source_state,
+)
+from app.services.teacher_mcko_service import (
+    MCKO_LEVEL_LABELS,
+    mcko_expires_at,
+    mcko_results_for_teachers,
+    normalize_mcko_level,
 )
 from .models import (
     Building,
@@ -255,19 +260,6 @@ def _subject_activity_ids_for_department(dep: Department):
         for link in dep.subject_links
         if link.education_activity_id
     ]
-
-
-def _teacher_ids_for_department(dep: Department, building_id=None):
-    loads = TeacherLoad.query.filter_by(department_id=dep.id)
-    if building_id:
-        loads = loads.filter_by(building_id=building_id)
-    return sorted({x.teacher_id for x in loads if x.teacher_id})
-
-
-def _legacy_load_writes_allowed(academic_year_id):
-    if not academic_year_id:
-        return True
-    return source_state(academic_year_id).configured_mode == "LEGACY"
 
 
 def _department_for_load(subject_name: Optional[str], grade: Optional[int]):
@@ -909,22 +901,11 @@ def delete_leader(leader_id):
 @login_required
 def loads():
     if request.method == "POST":
-        if not is_admin(current_user):
-            abort(403)
-        current_year = AcademicYear.query.filter_by(is_current=True).first()
-        if current_year and not _legacy_load_writes_allowed(current_year.id):
-            flash(
-                "Excel-источник за текущий год зафиксирован для сверки. "
-                "Сначала верните режим «Excel-источник».",
-                "danger",
-            )
-            return redirect(url_for("departments.loads"))
-        f = request.files.get("file")
-        if not f or not f.filename:
-            flash("Выберите Excel-файл нагрузки.", "danger")
-            return redirect(url_for("departments.loads"))
-        created, updated, skipped = _parse_excel_loads(f)
-        flash(f"Нагрузка импортирована. Строк обработано: {created}, новых предметов: {updated}, пропущено: {skipped}.", "success")
+        flash(
+            "Импорт Excel отключён. Нагрузка формируется в разделе "
+            "«Учебное планирование и нагрузка».",
+            "warning",
+        )
         return redirect(url_for("departments.loads"))
 
     q = (request.args.get("q") or "").strip().lower()
@@ -938,43 +919,47 @@ def loads():
     teacher_view_only = current_user.role in {TEACHER, CLASS_TEACHER}
     if teacher_view_only:
         teacher_id = current_user.id
-    load_source_state = (
-        source_state(academic_year_id)
-        if academic_year_id
-        else None
-    )
-    if load_source_state and load_source_state.effective_mode == "INTERNAL":
-        rows = internal_department_load_rows(
-            load_source_state.tariff_version,
+    rows, workload_version = (
+        current_department_load_rows(
+            academic_year_id,
             department_id=department_id,
             subject_id=subject_id,
             teacher_id=teacher_id,
             query_text=q,
         )
+        if academic_year_id
+        else ([], None)
+    )
+    if teacher_view_only:
+        available_teachers = [current_user]
     else:
-        query = TeacherLoad.query
-        if academic_year_id:
-            query = query.filter(db.or_(TeacherLoad.academic_year_id == academic_year_id, TeacherLoad.academic_year_id.is_(None)))
-        if department_id:
-            query = query.filter_by(department_id=department_id)
-        if subject_id:
-            query = query.filter_by(education_activity_id=subject_id)
-        if teacher_id:
-            query = query.filter_by(teacher_id=teacher_id)
-        if q:
-            query = query.join(User, User.id == TeacherLoad.teacher_id).filter(
-                db.or_(
-                    func.lower(TeacherLoad.subject_name).contains(q),
-                    func.lower(TeacherLoad.class_name).contains(q),
-                    func.lower(User.last_name + ' ' + func.coalesce(User.first_name, '') + ' ' + func.coalesce(User.middle_name, '')).contains(q),
-                )
-            )
-        rows = query.order_by(TeacherLoad.subject_name.asc(), TeacherLoad.class_name.asc()).all()
+        all_workload_rows, _ = (
+            current_department_load_rows(academic_year_id)
+            if academic_year_id
+            else ([], None)
+        )
+        available_teacher_ids = sorted({
+            row.teacher.id
+            for row in all_workload_rows
+            if row.teacher is not None
+        })
+        available_teachers = (
+            User.query
+            .filter(User.id.in_(available_teacher_ids))
+            .order_by(User.last_name.asc(), User.first_name.asc())
+            .all()
+            if available_teacher_ids
+            else []
+        )
 
-    teacher_hours = defaultdict(float)
+    teacher_hours = {}
     for item in rows:
         if item.teacher:
-            teacher_hours[item.teacher.fio] += float(item.hours or 0)
+            summary = teacher_hours.setdefault(item.teacher.id, {
+                "teacher": item.teacher,
+                "hours": 0.0,
+            })
+            summary["hours"] += float(item.hours or 0)
 
     olympiad_stats = {"total_results": 0, "unique_children": 0, "winners": 0, "prizers": 0, "by_subject": [], "by_teacher": []}
 
@@ -985,9 +970,12 @@ def loads():
         rows=rows,
         departments=Department.query.order_by(Department.name.asc()).all(),
         subjects=list_subject_activities(),
-        teachers=([current_user] if current_user.role in {TEACHER, CLASS_TEACHER} else User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()),
+        teachers=available_teachers,
         teacher_view_only=teacher_view_only,
-        teacher_hours=sorted(teacher_hours.items()),
+        teacher_hours=sorted(
+            teacher_hours.values(),
+            key=lambda item: (item["teacher"].fio or "").lower(),
+        ),
         department_id=department_id,
         subject_id=subject_id,
         teacher_id=teacher_id,
@@ -997,101 +985,28 @@ def loads():
         academic_year_id=academic_year_id,
         olympiad_stats=olympiad_stats,
         diagnostics_stats=diagnostics_stats,
-        load_source_state=load_source_state,
+        workload_version=workload_version,
     )
 
 
 @departments_bp.route("/loads/new", methods=["POST"])
 @login_required
 def load_new():
-    if not is_admin(current_user):
-        abort(403)
-    teacher_id = request.form.get("teacher_id", type=int)
-    subject_id = request.form.get("subject_id", type=int)
-    class_name = (request.form.get("class_name") or "").strip() or None
-    group_name = (request.form.get("group_name") or "").strip() or None
-    hours = request.form.get("hours", type=float) or 0
-    building_id = request.form.get("building_id", type=int)
-    teacher = User.query.get_or_404(teacher_id)
-    activity = get_subject_activity(subject_id)
-    if activity is None:
-        abort(404)
-    grade = _extract_grade_from_class_text(class_name)
-    dep = _department_for_load(activity.name, grade)
-    current_year = AcademicYear.query.filter_by(is_current=True).first()
-    if current_year and not _legacy_load_writes_allowed(current_year.id):
-        flash(
-            "Ручное изменение Excel-нагрузки заблокировано в режиме сверки "
-            "или внутреннего источника.",
-            "danger",
-        )
-        return redirect(url_for("departments.loads"))
-    retention_until = None
-    if current_year and current_year.end_date:
-        try:
-            retention_until = current_year.end_date.replace(year=current_year.end_date.year + 7)
-        except Exception:
-            retention_until = None
-    load = TeacherLoad(
-        teacher_id=teacher.id,
-        academic_year_id=current_year.id if current_year else None,
-        class_name=class_name,
-        group_name=group_name,
-        hours=hours,
-        grade=grade,
-        building_id=building_id,
-        building_name=Building.query.get(building_id).name if building_id and Building.query.get(building_id) else None,
-        is_whole_class=(group_name or "").strip().lower() == "весь класс",
-        is_meta_group=bool(class_name and any(sep in class_name for sep in [",", ";", "/", "+"])),
-        department_id=dep.id if dep else None,
-        retention_until=retention_until,
-    )
-    assign_subject_activity(load, activity)
-    db.session.add(load)
-    db.session.commit()
-    flash("Нагрузка добавлена.", "success")
+    flash("Изменяйте нагрузку только в матрице распределения.", "warning")
     return redirect(url_for("departments.loads"))
 
 
 @departments_bp.route("/loads/<int:load_id>/update", methods=["POST"])
 @login_required
 def load_update(load_id):
-    if not is_admin(current_user):
-        abort(403)
-    load = TeacherLoad.query.get_or_404(load_id)
-    if (
-        load.academic_year_id
-        and not _legacy_load_writes_allowed(load.academic_year_id)
-    ):
-        flash("Excel-нагрузка за этот год доступна только для чтения.", "danger")
-        return redirect(url_for("departments.loads"))
-    load.class_name = (request.form.get("class_name") or "").strip() or None
-    load.group_name = (request.form.get("group_name") or "").strip() or None
-    load.hours = request.form.get("hours", type=float) or 0
-    grade = _extract_grade_from_class_text(load.class_name)
-    load.grade = grade
-    dep = _department_for_load(load.subject_name, grade)
-    load.department_id = dep.id if dep else None
-    db.session.commit()
-    flash("Нагрузка обновлена.", "success")
+    flash("Изменяйте нагрузку только в матрице распределения.", "warning")
     return redirect(url_for("departments.loads"))
 
 
 @departments_bp.route("/loads/<int:load_id>/delete", methods=["POST"])
 @login_required
 def load_delete(load_id):
-    if not is_admin(current_user):
-        abort(403)
-    load = TeacherLoad.query.get_or_404(load_id)
-    if (
-        load.academic_year_id
-        and not _legacy_load_writes_allowed(load.academic_year_id)
-    ):
-        flash("Excel-нагрузка за этот год доступна только для чтения.", "danger")
-        return redirect(url_for("departments.loads"))
-    db.session.delete(load)
-    db.session.commit()
-    flash("Строка нагрузки удалена.", "success")
+    flash("Изменяйте нагрузку только в матрице распределения.", "warning")
     return redirect(url_for("departments.loads"))
 
 
@@ -1263,11 +1178,6 @@ def summary():
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
-    load_source_state = (
-        source_state(academic_year_id)
-        if academic_year_id
-        else None
-    )
     if current_user.role in {TEACHER, CLASS_TEACHER}:
         deps = [
             department for department in deps
@@ -1293,24 +1203,45 @@ def summary():
     teacher_ids = []
     mcko_rows = []
     course_rows = []
+    department_load_rows = []
+    teacher_load_summaries = []
+    workload_version = None
     building_id = request.args.get("building_id", type=int)
 
     if dep:
-        teacher_ids = department_teacher_ids(
+        department_load_rows, workload_version = current_department_load_rows(
             academic_year_id,
-            dep.id,
+            department_id=dep.id,
             building_id=building_id,
         )
+        teacher_ids = sorted({
+            row.teacher.id
+            for row in department_load_rows
+            if row.teacher is not None
+        })
         if current_user.role in {TEACHER, CLASS_TEACHER}:
             teacher_ids = [x for x in teacher_ids if x == current_user.id]
+            department_load_rows = [
+                row for row in department_load_rows
+                if row.teacher and row.teacher.id == current_user.id
+            ]
         teacher_rows = User.query.filter(User.id.in_(teacher_ids)).order_by(User.last_name.asc(), User.first_name.asc()).all() if teacher_ids else []
+        for teacher in teacher_rows:
+            teacher_loads = [
+                row for row in department_load_rows
+                if row.teacher and row.teacher.id == teacher.id
+            ]
+            teacher_load_summaries.append({
+                "teacher": teacher,
+                "total": sum(row.hours for row in teacher_loads),
+                "subjects": len({row.subject_name for row in teacher_loads}),
+                "groups": len({row.group_name for row in teacher_loads if row.group_name}),
+            })
         stats = _control_work_stats(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
-        mcko_q = TeacherMckoResult.query.filter(TeacherMckoResult.teacher_id.in_(teacher_ids)) if teacher_ids else TeacherMckoResult.query.filter(db.text("0=1"))
-        if academic_year_id:
-            mcko_q = mcko_q.filter(db.or_(TeacherMckoResult.academic_year_id == academic_year_id, TeacherMckoResult.academic_year_id.is_(None)))
-        if selected_teacher_id:
-            mcko_q = mcko_q.filter_by(teacher_id=selected_teacher_id)
-        mcko_rows = mcko_q.order_by(TeacherMckoResult.passed_at.desc()).all()
+        mcko_rows = mcko_results_for_teachers(
+            teacher_ids,
+            teacher_id=selected_teacher_id,
+        )
         course_q = TeacherCourse.query.filter(TeacherCourse.teacher_id.in_(teacher_ids)) if teacher_ids else TeacherCourse.query.filter(db.text("0=1"))
         if academic_year_id:
             course_q = course_q.filter(db.or_(TeacherCourse.academic_year_id == academic_year_id, TeacherCourse.academic_year_id.is_(None)))
@@ -1336,7 +1267,59 @@ def summary():
         academic_year_id=academic_year_id,
         olympiad_stats=olympiad_stats,
         diagnostics_stats=diagnostics_stats,
-        load_source_state=load_source_state,
+        workload_version=workload_version,
+        teacher_load_summaries=teacher_load_summaries,
+        department_load_rows=department_load_rows,
+        mcko_level_labels=MCKO_LEVEL_LABELS,
+        mcko_subjects=list_subject_activities(),
+    )
+
+
+@departments_bp.get("/teachers/<int:teacher_id>")
+@login_required
+def teacher_profile(teacher_id):
+    if not (
+        is_admin(current_user)
+        or current_user.role == METHODIST
+        or current_user.id == teacher_id
+    ):
+        abort(403)
+    teacher = User.query.get_or_404(teacher_id)
+    years = AcademicYear.query.order_by(
+        AcademicYear.start_date.desc().nullslast(),
+        AcademicYear.name.desc(),
+    ).all()
+    current_year = AcademicYear.query.filter_by(is_current=True).first()
+    academic_year_id = request.args.get("academic_year_id", type=int) or (
+        current_year.id if current_year else None
+    )
+    load_rows, workload_version = (
+        current_department_load_rows(
+            academic_year_id,
+            teacher_id=teacher.id,
+        )
+        if academic_year_id
+        else ([], None)
+    )
+    totals = defaultdict(float)
+    for row in load_rows:
+        totals[row.plan_kind] += row.hours
+        totals["TOTAL"] += row.hours
+    mcko_rows = mcko_results_for_teachers(
+        [teacher.id],
+        teacher_id=teacher.id,
+    )
+    return render_template(
+        "departments/teacher_profile.html",
+        teacher=teacher,
+        years=years,
+        academic_year_id=academic_year_id,
+        workload_version=workload_version,
+        load_rows=load_rows,
+        totals=totals,
+        mcko_rows=mcko_rows,
+        mcko_level_labels=MCKO_LEVEL_LABELS,
+        mcko_subjects=list_subject_activities(),
     )
 
 
@@ -1349,8 +1332,15 @@ def add_mcko():
     passed_at_raw = request.form.get("passed_at") or None
     passed_at = datetime.strptime(passed_at_raw, "%Y-%m-%d").date() if passed_at_raw else None
     subject_id = request.form.get("subject_id", type=int)
-    level = (request.form.get("level") or "").strip() or None
+    level = normalize_mcko_level(request.form.get("level"))
     result_text = (request.form.get("result_text") or "").strip() or None
+    if not subject_id or not passed_at or not level:
+        flash("Укажите предмет, дату диагностики и уровень МЦКО.", "danger")
+        return redirect(request.referrer or url_for("departments.summary"))
+    activity = get_subject_activity(subject_id)
+    if activity is None:
+        flash("Выберите предмет из единого реестра.", "danger")
+        return redirect(request.referrer or url_for("departments.summary"))
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     retention_until = None
     if current_year and current_year.end_date:
@@ -1362,20 +1352,20 @@ def add_mcko():
         teacher_id=teacher_id,
         academic_year_id=current_year.id if current_year else None,
         passed_at=passed_at,
-        expires_at=(passed_at + timedelta(days=365*3)) if passed_at else None,
+        expires_at=mcko_expires_at(passed_at),
         level=level,
         result_text=result_text,
         retention_until=retention_until,
     )
-    if subject_id:
-        activity = get_subject_activity(subject_id)
-        if activity is None:
-            abort(404)
-        assign_subject_activity(result, activity)
+    assign_subject_activity(result, activity)
     db.session.add(result)
     db.session.commit()
     flash("Результат МЦКО сохранён.", "success")
-    return redirect(url_for("departments.summary", department_id=request.form.get("department_id"), teacher_id=teacher_id))
+    return redirect(request.referrer or url_for(
+        "departments.summary",
+        department_id=request.form.get("department_id"),
+        teacher_id=teacher_id,
+    ))
 
 
 @departments_bp.route("/teacher/course/add", methods=["POST"])

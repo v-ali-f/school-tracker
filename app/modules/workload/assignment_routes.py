@@ -34,7 +34,6 @@ from app.models import (
     TariffLine,
     TariffVersion,
     TeacherLoad,
-    TeacherMckoResult,
     TeachingGroup,
     TeachingMetagroupSource,
     User,
@@ -72,6 +71,7 @@ from app.services.teaching_group_matrix_service import (
     materialize_default_teaching_groups,
 )
 from app.services.teaching_group_service import current_population_snapshot
+from app.services.teacher_mcko_service import current_mcko_by_teacher
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -276,34 +276,11 @@ def _workspace_teacher_metadata(teachers, selected_version):
         .all()
     ):
         class_names[item.teacher_user_id].append(item.name)
-    mcko_by_teacher = {}
-    for item in (
-        TeacherMckoResult.query
-        .filter(
-            TeacherMckoResult.teacher_id.in_(teacher_ids),
-            TeacherMckoResult.is_archived.is_(False),
-        )
-        .order_by(
-            TeacherMckoResult.teacher_id.asc(),
-            TeacherMckoResult.id.desc(),
-        )
-        .all()
-    ):
-        mcko_by_teacher.setdefault(item.teacher_id, item)
+    mcko_by_teacher = current_mcko_by_teacher(teacher_ids)
     return {
         teacher_id: {
             "class_teacher": ", ".join(class_names.get(teacher_id, [])) or "—",
-            "mcko": (
-                mcko_by_teacher[teacher_id].level
-                if teacher_id in mcko_by_teacher
-                and mcko_by_teacher[teacher_id].level
-                else "—"
-            ),
-            "mcko_expires": (
-                mcko_by_teacher[teacher_id].expires_at
-                if teacher_id in mcko_by_teacher
-                else None
-            ),
+            "mcko_items": mcko_by_teacher.get(teacher_id, []),
         }
         for teacher_id in teacher_ids
     }
