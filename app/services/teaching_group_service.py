@@ -190,7 +190,7 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
                 f"{school_class.id}:{child.id}:{enrollment.id}:"
                 f"{enrollment.status}"
             )
-        rows.append((school_class, enrollment_rows))
+        rows.append((school_class, enrollment_rows, building_name))
 
     current = current_population_snapshot(tariff_version.id)
     if current is not None:
@@ -217,7 +217,7 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
     db.session.add(snapshot)
     db.session.flush()
 
-    for school_class, enrollment_rows in rows:
+    for school_class, enrollment_rows, building_name in rows:
         snapshot_class = PopulationSnapshotClass(
             population_snapshot_id=snapshot.id,
             source_school_class_id=school_class.id,

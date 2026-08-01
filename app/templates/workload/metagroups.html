@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_metagroups.css') }}?v=20260801_1">
 {% endblock %}
 
@@ -31,34 +31,57 @@
       </label>
       <input type="hidden" name="level" value="{{ selected_level }}">
       {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
+      {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
     </form>
 
-    <nav class="class-plan-levels" aria-label="Уровень образования">
-      {% for level, label in level_labels.items() %}
-      <a
-        class="{% if selected_level == level %}is-active{% endif %}"
-        href="{{ url_for('workload.metagroups', version_id=selected_version.id if selected_version else none, level=level) }}"
-      >
-        <span>{{ level|education_level_label }}</span>
-        <small>{{ level_counts[level] }} кл.</small>
-      </a>
-      {% endfor %}
-    </nav>
+    <div class="class-plan-filter-group">
+      <span class="class-plan-filter-label">Уровень образования</span>
+      <nav class="class-plan-levels" aria-label="Уровень образования">
+        {% for level, label in level_labels.items() %}
+        <a
+          class="{% if selected_level == level %}is-active{% endif %}"
+          href="{{ url_for('workload.metagroups', version_id=selected_version.id if selected_version else none, level=level, building_id=selected_building_id) }}"
+        >
+          <span>{{ level|education_level_label }}</span>
+          <small>{{ level_counts[level] }} кл.</small>
+        </a>
+        {% endfor %}
+      </nav>
+    </div>
 
-    <nav class="class-plan-grades" aria-label="Параллель">
-      <span class="class-plan-grades__label">Параллель</span>
-      <a
-        class="{% if not selected_grade %}is-active{% endif %}"
-        href="{{ url_for('workload.metagroups', version_id=selected_version.id if selected_version else none, level=selected_level) }}"
-      >Все</a>
-      {% for grade in level_grades %}
-      <a
-        class="{% if selected_grade == grade %}is-active{% endif %}"
-        href="{{ url_for('workload.metagroups', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade) }}"
-        title="{{ grade }}-я параллель"
-      >{{ grade }}</a>
-      {% endfor %}
-    </nav>
+    <div class="class-plan-filter-group">
+      <span class="class-plan-filter-label">Параллель</span>
+      <nav class="class-plan-grades" aria-label="Параллель">
+        <a
+          class="{% if not selected_grade %}is-active{% endif %}"
+          href="{{ url_for('workload.metagroups', version_id=selected_version.id if selected_version else none, level=selected_level, building_id=selected_building_id) }}"
+        >Все</a>
+        {% for grade in level_grades %}
+        <a
+          class="{% if selected_grade == grade %}is-active{% endif %}"
+          href="{{ url_for('workload.metagroups', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade, building_id=selected_building_id) }}"
+          title="{{ grade }}-я параллель"
+        >{{ grade }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    <form class="class-plan-building-filter" method="get" action="{{ url_for('workload.metagroups') }}">
+      <label>
+        <span>Здание</span>
+        <select class="form-select form-select-sm" name="building_id" onchange="this.form.submit()" aria-label="Здание">
+          <option value="">Все здания</option>
+          {% for building in building_options %}
+          <option value="{{ building.id }}" {% if selected_building_id == building.id %}selected{% endif %}>
+            {{ building.name }} · {{ building.class_count }} кл.
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if selected_version %}<input type="hidden" name="version_id" value="{{ selected_version.id }}">{% endif %}
+      <input type="hidden" name="level" value="{{ selected_level }}">
+      {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
+    </form>
   </div>
 
   {% if not selected_version %}
@@ -97,6 +120,7 @@
             <input type="hidden" name="version_id" value="{{ selected_version.id }}">
             <input type="hidden" name="level" value="{{ selected_level }}">
             {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
+            {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
             <button class="metagroup-icon-button" type="submit" title="Удалить метагруппу" aria-label="Удалить метагруппу">
               <i class="bi bi-trash" aria-hidden="true"></i>
             </button>
@@ -129,6 +153,7 @@
           <input type="hidden" name="version_id" value="{{ selected_version.id }}">
           <input type="hidden" name="level" value="{{ selected_level }}">
           {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
+          {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
 
           <header class="metagroup-cluster__heading">
             <div>

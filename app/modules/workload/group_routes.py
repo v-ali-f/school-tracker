@@ -53,6 +53,7 @@ from app.services.teaching_group_service import (
 from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_GRADES,
     EDUCATION_LEVEL_LABELS,
+    snapshot_building_options,
 )
 from app.services.teaching_group_matrix_service import (
     build_group_composition_workspace,
@@ -427,6 +428,7 @@ def _group_matrix_context(
     version_id,
     requested_level,
     requested_grade=None,
+    requested_building_id=None,
 ):
     versions = _available_group_matrix_versions()
     version = _selected_group_matrix_version(versions, version_id)
@@ -436,11 +438,43 @@ def _group_matrix_context(
     )
     plans = _group_matrix_plans(version)
     snapshot_classes = list(snapshot.classes) if snapshot else []
+    scope = resolve_workload_scope(current_user)
+    allowed_building_ids = (
+        None if scope.unrestricted else set(scope.building_ids)
+    )
+    if allowed_building_ids is not None:
+        snapshot_classes = [
+            item
+            for item in snapshot_classes
+            if item.building_id in allowed_building_ids
+        ]
+    building_options = snapshot_building_options(
+        snapshot,
+        allowed_building_ids,
+    )
+    building_ids = {item["id"] for item in building_options}
+    try:
+        selected_building_id = int(requested_building_id)
+    except (TypeError, ValueError):
+        selected_building_id = None
+    if selected_building_id not in building_ids:
+        selected_building_id = None
+
+    def matches_selected_building(item):
+        if selected_building_id is None:
+            return True
+        if selected_building_id < 0:
+            return item.building_id is None
+        return item.building_id == selected_building_id
+
     level_counts = {
         level: sum(
             1
             for item in snapshot_classes
-            if item.grade_snapshot in grades
+            if (
+                item.grade_snapshot in grades
+                and matches_selected_building(item)
+            )
         )
         for level, grades in EDUCATION_LEVEL_GRADES.items()
     }
@@ -468,6 +502,8 @@ def _group_matrix_context(
             selected_level,
             version.id,
             grade=selected_grade,
+            building_id=selected_building_id,
+            allowed_building_ids=allowed_building_ids,
         )
         if version else {
             "class_groups": [],
@@ -507,10 +543,12 @@ def _group_matrix_context(
         "matrix": matrix,
         "selected_level": selected_level,
         "selected_grade": selected_grade,
+        "selected_building_id": selected_building_id,
+        "building_options": building_options,
         "level_grades": level_grades,
         "level_labels": EDUCATION_LEVEL_LABELS,
         "level_counts": level_counts,
-        "class_count": len(snapshot_classes),
+        "class_count": matrix["class_count"],
         "unassigned_count": unassigned_count,
         "registry_status": registry_status,
         "can_update": can_update,
@@ -526,6 +564,7 @@ def register_group_routes(workload_bp):
             request.args.get("version_id", type=int),
             request.args.get("level"),
             request.args.get("grade"),
+            request.args.get("building_id"),
         )
         return render_template(
             "workload/group_matrix.html",
@@ -540,6 +579,7 @@ def register_group_routes(workload_bp):
             request.args.get("version_id", type=int),
             request.args.get("level"),
             request.args.get("grade"),
+            request.args.get("building_id"),
         )
         composition = build_group_composition_workspace(
             context["matrix"]
@@ -580,6 +620,7 @@ def register_group_routes(workload_bp):
             version_id,
             request.form.get("level"),
             request.form.get("grade"),
+            request.form.get("building_id"),
         )
         item_key = (request.form.get("item_key") or "").strip()
         composition = build_group_composition_workspace(
@@ -645,6 +686,7 @@ def register_group_routes(workload_bp):
             version_id=version.id,
             level=request.form.get("level"),
             grade=request.form.get("grade"),
+            building_id=request.form.get("building_id"),
             item=item_key,
         ))
 
@@ -656,6 +698,7 @@ def register_group_routes(workload_bp):
             request.args.get("version_id", type=int),
             request.args.get("level"),
             request.args.get("grade"),
+            request.args.get("building_id"),
         )
         context["metagroup_workspace"] = (
             build_metagroup_workspace(
@@ -685,6 +728,7 @@ def register_group_routes(workload_bp):
             version_id,
             request.form.get("level"),
             request.form.get("grade"),
+            request.form.get("building_id"),
         )
         try:
             metagroup = create_metagroup(
@@ -714,6 +758,7 @@ def register_group_routes(workload_bp):
             version_id=version.id,
             level=request.form.get("level"),
             grade=request.form.get("grade"),
+            building_id=request.form.get("building_id"),
         ))
 
     @workload_bp.post("/groups/metagroups/<int:group_id>/delete")
@@ -742,6 +787,7 @@ def register_group_routes(workload_bp):
             version_id=request.form.get("version_id", type=int),
             level=request.form.get("level"),
             grade=request.form.get("grade"),
+            building_id=request.form.get("building_id"),
         ))
 
     @workload_bp.post("/groups/matrix/cell")

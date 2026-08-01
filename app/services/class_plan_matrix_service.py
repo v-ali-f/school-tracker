@@ -19,6 +19,7 @@ EDUCATION_LEVEL_LABELS = {
     "OOO": "ООО · 5–9 классы",
     "SOO": "СОО · 10–11 классы",
 }
+UNASSIGNED_BUILDING_FILTER_ID = -1
 
 
 def effective_line_weekly_hours(line, grade):
@@ -36,6 +37,46 @@ def class_period_label(education_level, grade):
     if education_level == "SOO" and grade == 11:
         return "I период"
     return "ч/нед."
+
+
+def snapshot_building_options(snapshot, allowed_building_ids=None):
+    by_id = {}
+    for item in (snapshot.classes if snapshot else []):
+        if (
+            allowed_building_ids is not None
+            and item.building_id not in allowed_building_ids
+        ):
+            continue
+        if item.building_id is None:
+            option = by_id.setdefault(
+                UNASSIGNED_BUILDING_FILTER_ID,
+                {
+                    "id": UNASSIGNED_BUILDING_FILTER_ID,
+                    "name": "Здание не указано",
+                    "class_count": 0,
+                },
+            )
+            option["class_count"] += 1
+            continue
+        option = by_id.setdefault(item.building_id, {
+            "id": item.building_id,
+            "name": (
+                item.building_name_snapshot
+                or (
+                    item.building.short_name
+                    if item.building and item.building.short_name
+                    else item.building.name
+                    if item.building else None
+                )
+                or f"Здание {item.building_id}"
+            ),
+            "class_count": 0,
+        })
+        option["class_count"] += 1
+    return sorted(
+        by_id.values(),
+        key=lambda item: item["name"].casefold(),
+    )
 
 
 def _line_matches_snapshot_class(line, snapshot_class):
@@ -104,6 +145,8 @@ def build_class_plan_matrix(
     plans,
     education_level,
     grade=None,
+    building_id=None,
+    allowed_building_ids=None,
 ):
     grades = EDUCATION_LEVEL_GRADES.get(education_level, set())
     selected_grade = grade if grade in grades else None
@@ -113,6 +156,18 @@ def build_class_plan_matrix(
             for item in (snapshot.classes if snapshot else [])
             if (
                 item.grade_snapshot in grades
+                and (
+                    allowed_building_ids is None
+                    or item.building_id in allowed_building_ids
+                )
+                and (
+                    building_id is None
+                    or (
+                        building_id == UNASSIGNED_BUILDING_FILTER_ID
+                        and item.building_id is None
+                    )
+                    or item.building_id == building_id
+                )
                 and (
                     selected_grade is None
                     or item.grade_snapshot == selected_grade
@@ -261,6 +316,7 @@ def build_class_plan_matrix(
     return {
         "education_level": education_level,
         "selected_grade": selected_grade,
+        "selected_building_id": building_id,
         "level_label": EDUCATION_LEVEL_LABELS[education_level],
         "class_groups": class_groups,
         "columns": columns,
@@ -274,7 +330,9 @@ def build_class_plan_matrix(
 __all__ = [
     "EDUCATION_LEVEL_GRADES",
     "EDUCATION_LEVEL_LABELS",
+    "UNASSIGNED_BUILDING_FILTER_ID",
     "build_class_plan_matrix",
     "class_period_label",
     "effective_line_weekly_hours",
+    "snapshot_building_options",
 ]

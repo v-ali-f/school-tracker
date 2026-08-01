@@ -1,10 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const filters = document.querySelector("[data-plan-binding-filters]");
-  if (filters) {
+  document.querySelectorAll("[data-plan-binding-filters]").forEach((filters) => {
     filters.querySelectorAll("[data-plan-binding-filter]").forEach((field) => {
       field.addEventListener("change", () => filters.submit());
     });
-  }
+  });
 
   document.querySelectorAll("[data-plan-assignment-form]").forEach((form) => {
     const select = form.querySelector("[data-plan-assignment-select]");

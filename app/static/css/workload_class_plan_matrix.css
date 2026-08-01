@@ -53,6 +53,28 @@
   width: min(360px, 100%);
 }
 
+.class-plan-toolbar form.class-plan-building-filter {
+  width: min(230px, 100%);
+}
+
+.container.my-4 .class-plan-toolbar .form-select {
+  min-height: 42px;
+}
+
+.class-plan-filter-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.class-plan-filter-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #49566f;
+  font-size: 11px;
+  font-weight: 650;
+}
+
 .class-plan-toolbar label,
 .class-plan-toolbar label > span {
   display: block;
@@ -66,6 +88,7 @@
 }
 
 .class-plan-levels {
+  min-height: 42px;
   display: inline-flex;
   align-items: stretch;
   padding: 3px;
@@ -103,6 +126,7 @@
 }
 
 .class-plan-grades {
+  min-height: 42px;
   width: max-content;
   max-width: 100%;
   display: flex;
@@ -401,6 +425,12 @@
   .class-plan-caption {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .class-plan-toolbar form,
+  .class-plan-toolbar form.class-plan-building-filter,
+  .class-plan-filter-group {
+    width: 100%;
   }
 
   .class-plan-levels {
