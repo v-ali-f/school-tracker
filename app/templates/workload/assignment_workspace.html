@@ -151,10 +151,11 @@
     </thead>
     <tbody>
       {% for block in matrix.blocks %}
+        {% set block_rowspan = block.rows|length + (1 if can_update else 0) %}
         {% for row in block.rows %}
         <tr>
           {% if loop.first %}
-          <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block.rows|length }}">
+          <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
             <span>{{ block.label }}</span>
             <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
             <small>
@@ -170,27 +171,9 @@
             {% else %}
             <span class="text-muted">Предмет не выбран</span>
             {% endif %}
-            {% if can_update %}
-            <details class="workload-subject-add">
-              <summary title="Добавить предмет" aria-label="Добавить предмет">
-                <i class="bi bi-plus-lg" aria-hidden="true"></i>
-              </summary>
-              <form method="post" action="{{ url_for('workload.assignment_workspace_subject_add') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {{ workspace_fields() }}
-                <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
-                <select class="form-select form-select-sm" name="activity_plan_kind" data-activity-plan-kind required>
-                  <option value="">Выберите предмет</option>
-                  {% for option in subject_options %}
-                  <option value="{{ option.activity.id }}:{{ option.plan_kind }}">{{ option.activity.name }} · {{ option.plan_kind_label }}</option>
-                  {% endfor %}
-                </select>
-              </form>
-            </details>
-            {% endif %}
           </th>
           {% if loop.first %}
-          <td class="workload-assignment-matrix__teacher-total-cell" rowspan="{{ block.rows|length }}" data-teacher-total="{{ block.teacher.id }}">
+          <td class="workload-assignment-matrix__teacher-total-cell" rowspan="{{ block_rowspan }}" data-teacher-total="{{ block.teacher.id }}">
             {{ block.total|compact_decimal }}
           </td>
           {% endif %}
@@ -237,6 +220,33 @@
           {% endfor %}
         </tr>
         {% endfor %}
+        {% if can_update %}
+        <tr class="workload-add-subject-row">
+          <th class="workload-assignment-matrix__subject-cell workload-add-subject-row__subject">
+            <details class="workload-subject-add">
+              <summary title="Добавить предмет">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                <span>Добавить предмет</span>
+              </summary>
+              <form method="post" action="{{ url_for('workload.assignment_workspace_subject_add') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {{ workspace_fields() }}
+                <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
+                <select class="form-select form-select-sm" name="activity_plan_kind" data-activity-plan-kind required>
+                  <option value="">Выберите предмет</option>
+                  {% for option in subject_options %}
+                  <option value="{{ option.activity.id }}:{{ option.plan_kind }}">{{ option.activity.name }} · {{ option.plan_kind_label }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </details>
+          </th>
+          <td class="workload-assignment-matrix__subject-total-cell workload-add-subject-row__total" aria-hidden="true"></td>
+          {% for column in matrix.columns %}
+          <td class="workload-add-subject-row__empty {% if column.is_alt %}is-alt{% endif %}" aria-hidden="true"></td>
+          {% endfor %}
+        </tr>
+        {% endif %}
       {% endfor %}
       {% if not matrix.blocks and not can_update %}
       <tr>

@@ -512,6 +512,8 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "Предмет не выбран" not in html
     assert "data-workload-cell-input" in html
     assert 'name="hours"' in html
+    assert html.count('class="workload-subject-add"') == 1
+    assert "Добавить предмет" in html
 
     assign = client.post(
         "/workload/assignments/workspace/cell",

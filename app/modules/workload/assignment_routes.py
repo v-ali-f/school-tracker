@@ -61,6 +61,7 @@ from app.services.workload_distribution_service import (
 )
 from app.services.workload_assignment_matrix_service import (
     PLAN_KIND_LABELS,
+    PLAN_KIND_ORDER,
     build_workload_assignment_matrix,
     need_education_level,
     need_grades,
@@ -367,7 +368,7 @@ def _workspace_subject_options(needs):
     return sorted(
         options.values(),
         key=lambda item: (
-            item["plan_kind_label"].casefold(),
+            PLAN_KIND_ORDER.get(item["plan_kind"], 99),
             item["activity"].name.casefold(),
         ),
     )
@@ -403,7 +404,7 @@ def _workspace_plan_subject_options(plan_matrices, department_id=None):
     return sorted(
         options.values(),
         key=lambda item: (
-            item["plan_kind_label"].casefold(),
+            PLAN_KIND_ORDER.get(item["plan_kind"], 99),
             item["activity"].name.casefold(),
         ),
     )
