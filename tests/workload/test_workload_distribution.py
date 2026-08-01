@@ -412,6 +412,7 @@ def test_assignment_workspace_hides_unassigned_pseudo_teacher(
     login,
 ):
     app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
     admin_id = make_user("ADMIN")
     with app.app_context():
         context = _distribution_context(admin_id)
@@ -428,7 +429,9 @@ def test_assignment_workspace_hides_unassigned_pseudo_teacher(
     assert "data-workload-matrix" in html
     assert "Не распределено" not in html
     assert "не назначено" not in html
-    assert "Добавьте преподавателя" in html
+    assert "workload-add-teacher-row" in html
+    assert "Добавить преподавателя" in html
+    assert "workload-matrix-head-add" not in html
 
 
 def test_generate_from_workspace_returns_to_matrix(
@@ -495,8 +498,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         data={
             **filters,
             "teacher_id": str(teacher_id),
-            "activity_id": str(activity_id),
-            "plan_kind": "CURRICULUM",
+            "activity_plan_kind": f"{activity_id}:CURRICULUM",
         },
     )
     assert add_subject.status_code == 302

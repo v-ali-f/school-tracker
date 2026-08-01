@@ -1104,6 +1104,19 @@ def register_assignment_routes(workload_bp):
         teacher_id = request.form.get("teacher_id", type=int)
         activity_id = request.form.get("activity_id", type=int)
         plan_kind = (request.form.get("plan_kind") or "").strip().upper()
+        activity_plan_kind = (
+            request.form.get("activity_plan_kind") or ""
+        ).strip()
+        if activity_plan_kind:
+            activity_value, separator, kind_value = (
+                activity_plan_kind.partition(":")
+            )
+            if separator:
+                try:
+                    activity_id = int(activity_value)
+                except (TypeError, ValueError):
+                    activity_id = None
+                plan_kind = kind_value.strip().upper()
         version = _draft_versions_query().filter(
             TariffVersion.id == version_id
         ).first_or_404()
