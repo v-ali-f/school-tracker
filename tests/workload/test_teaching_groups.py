@@ -1801,6 +1801,76 @@ def test_metagroup_inherits_sources_and_replaces_them_in_workload(
         ]
 
 
+def test_metagroup_constructor_filters_by_grade_and_activity(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        classes = sorted(
+            snapshot.classes,
+            key=lambda item: item.name_snapshot,
+        )
+        for index, snapshot_class in enumerate(classes, start=1):
+            replace_plan_binding_members(
+                plan,
+                snapshot_class,
+                {item.id for item in snapshot_class.enrollments},
+                user_id=user_id,
+            )
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=index,
+            )
+        activity_id = plan.lines[0].education_activity_id
+        db.session.commit()
+
+    login(user_id)
+    base_query = {
+        "version_id": context["version_id"],
+        "level": "OOO",
+        "grade": "5",
+    }
+    response = client.get(
+        "/workload/groups/metagroups/",
+        query_string=base_query,
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert f'value="{activity_id}:CURRICULUM"' in html
+    assert 'class="metagroup-cluster"' not in html
+    assert "После выбора предмета" in html
+
+    response = client.get(
+        "/workload/groups/metagroups/",
+        query_string={
+            **base_query,
+            "activity": f"{activity_id}:CURRICULUM",
+        },
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'class="metagroup-cluster"' in html
+    assert "5А" in html
+    assert "5Б" in html
+
+
 def test_metagroup_need_is_mirrored_across_source_class_columns(
     app,
     make_user,
