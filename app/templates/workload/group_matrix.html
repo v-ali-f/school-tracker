@@ -4,8 +4,8 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260731_1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260801_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260801_2">
 {% endblock %}
 
 {% block workspace_content %}
@@ -34,6 +34,7 @@
         </select>
       </label>
       <input type="hidden" name="level" value="{{ selected_level }}">
+      {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
     </form>
 
     <nav class="class-plan-levels" aria-label="Уровень образования">
@@ -49,6 +50,23 @@
     </nav>
   </div>
 
+  <nav class="class-plan-grades" aria-label="Параллель">
+    <span class="class-plan-grades__label">Параллель</span>
+    <a
+      class="{% if not selected_grade %}is-active{% endif %}"
+      href="{{ url_for('workload.groups', version_id=selected_version.id if selected_version else none, level=selected_level) }}"
+    >Все</a>
+    {% for grade in level_grades %}
+    <a
+      class="{% if selected_grade == grade %}is-active{% endif %}"
+      href="{{ url_for('workload.groups', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade) }}"
+      title="{{ grade }}-я параллель"
+    >
+      <span>{{ grade }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
   {% if registry_status.is_stale %}
   <div class="class-plan-notice class-plan-notice--warning" role="status">
     <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
@@ -62,7 +80,7 @@
   {% elif not snapshot %}
   <div class="class-plan-empty">Сначала загрузите классы и назначьте им учебные планы.</div>
   {% elif not matrix.class_groups %}
-  <div class="class-plan-empty">Для выбранного уровня образования нет классов.</div>
+  <div class="class-plan-empty">Для выбранного уровня и параллели нет классов.</div>
   {% else %}
   <div class="class-plan-caption group-matrix-caption">
     <strong>{{ matrix.level_label }}</strong>

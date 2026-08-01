@@ -101,6 +101,48 @@
   font-weight: 600;
 }
 
+.class-plan-grades {
+  width: max-content;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -4px 0 12px auto;
+  padding: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--workload-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.class-plan-grades a {
+  min-height: 30px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 9px;
+  color: #5a667b;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.class-plan-grades__label {
+  padding: 0 6px;
+  color: #657188;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.class-plan-grades a:hover,
+.class-plan-grades a.is-active {
+  color: #084fbd;
+  background: #edf4ff;
+}
+
 .class-plan-caption {
   min-height: 38px;
   display: flex;
@@ -308,6 +350,19 @@
   background: #f6f8fb;
 }
 
+.class-plan-matrix__curriculum-total th,
+.class-plan-matrix__curriculum-total td {
+  color: #153f73;
+  background: #e4f0ff;
+  border-top: 2px solid #8fb4e8;
+  border-bottom: 2px solid #8fb4e8;
+  font-weight: 750;
+}
+
+.class-plan-matrix__curriculum-total th {
+  background: #dcecff;
+}
+
 .class-plan-matrix tfoot th,
 .class-plan-matrix tfoot td {
   height: 36px;
@@ -328,6 +383,11 @@
 }
 
 @media (max-width: 800px) {
+  .class-plan-grades {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .class-plan-heading {
     align-items: stretch;
     flex-direction: column;

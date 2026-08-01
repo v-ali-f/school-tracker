@@ -371,6 +371,29 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert "Свод по классам".encode() in response.data
     assert "Excel".encode() in response.data
     assert "PDF".encode() in response.data
+    assert 'aria-label="Параллель"'.encode() in response.data
+    assert "Всего по учебному плану".encode() in response.data
+
+    grade_response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO&grade=5"
+    )
+    grade_html = grade_response.get_data(as_text=True)
+    assert grade_response.status_code == 200
+    assert 'data-class-name="5А"' in grade_html
+    assert "Математика" in grade_html
+
+    empty_grade_response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO&grade=6"
+    )
+    empty_grade_html = empty_grade_response.get_data(as_text=True)
+    assert empty_grade_response.status_code == 200
+    assert 'data-class-name="5А"' not in empty_grade_html
+    assert (
+        "Для выбранного уровня и параллели"
+        in empty_grade_html
+    )
 
     xlsx_response = client.get(
         f"/workload/plan-bindings/matrix/export.xlsx"
@@ -388,6 +411,7 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     ]
     assert "Свод учебных планов по классам" in values
     assert "Математика" in values
+    assert "Всего по учебному плану" in values
 
     pdf_response = client.get(
         f"/workload/plan-bindings/matrix/export.pdf"
@@ -534,6 +558,28 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert 'data-activity-name="Математика"' in html
     assert 'data-original-value="1"' in html
     assert "Без УП" in html
+    assert 'aria-label="Параллель"' in html
+    assert 'class="workload-indicators"' not in html
+
+    grade_response = client.get(
+        f"/workload/groups/"
+        f"?version_id={version_id}&level=OOO&grade=5"
+    )
+    grade_html = grade_response.get_data(as_text=True)
+    assert grade_response.status_code == 200
+    assert "5А" in grade_html
+    assert 'data-activity-name="Математика"' in grade_html
+
+    empty_grade_response = client.get(
+        f"/workload/groups/"
+        f"?version_id={version_id}&level=OOO&grade=6"
+    )
+    empty_grade_html = empty_grade_response.get_data(as_text=True)
+    assert empty_grade_response.status_code == 200
+    assert 'data-activity-name="Математика"' not in empty_grade_html
+    assert "Для выбранного уровня и параллели нет классов." in (
+        empty_grade_html
+    )
     with app.app_context():
         assert TeachingGroup.query.count() == 0
 
@@ -592,6 +638,15 @@ def test_group_matrix_creates_split_groups_and_restores_whole_class(
         assert {group.status for group in groups} == {"DRAFT"}
         assert all(group.actual_size == 0 for group in groups)
         assert all(not group.members for group in groups)
+
+    matrix_response = client.get(
+        f"/workload/groups/"
+        f"?version_id={context['version_id']}&level=OOO&grade=5"
+    )
+    matrix_html = matrix_response.get_data(as_text=True)
+    assert matrix_response.status_code == 200
+    assert "is-divided" in matrix_html
+    assert "needs-composition" in matrix_html
 
     response = client.post(
         "/workload/groups/matrix/cell",
@@ -662,7 +717,8 @@ def test_group_composition_assigns_students_to_split_groups(
 
     response = client.get(
         f"/workload/groups/composition/"
-        f"?version_id={context['version_id']}&level=OOO&item={item_key}"
+        f"?version_id={context['version_id']}&level=OOO"
+        f"&grade=5&item={item_key}"
     )
     html = response.get_data(as_text=True)
     assert response.status_code == 200
@@ -670,6 +726,9 @@ def test_group_composition_assigns_students_to_split_groups(
     assert "Иванов Иван" in html
     assert "Петрова Анна" in html
     assert "Распределить по порядку" in html
+    assert 'aria-label="Параллель"' in html
+    assert 'name="grade" value="5"' in html
+    assert 'class="workload-indicators"' not in html
 
     with app.app_context():
         group_ids = [
@@ -683,6 +742,7 @@ def test_group_composition_assigns_students_to_split_groups(
         data={
             "version_id": context["version_id"],
             "level": "OOO",
+            "grade": "5",
             "item_key": item_key,
             f"member_{enrollment_ids[0]}": group_ids[0],
             f"member_{enrollment_ids[1]}": group_ids[1],

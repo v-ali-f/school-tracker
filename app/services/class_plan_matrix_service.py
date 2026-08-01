@@ -99,13 +99,25 @@ def _assigned_columns(snapshot_class, plans):
     return columns
 
 
-def build_class_plan_matrix(snapshot, plans, education_level):
+def build_class_plan_matrix(
+    snapshot,
+    plans,
+    education_level,
+    grade=None,
+):
     grades = EDUCATION_LEVEL_GRADES.get(education_level, set())
+    selected_grade = grade if grade in grades else None
     snapshot_classes = sorted(
         (
             item
             for item in (snapshot.classes if snapshot else [])
-            if item.grade_snapshot in grades
+            if (
+                item.grade_snapshot in grades
+                and (
+                    selected_grade is None
+                    or item.grade_snapshot == selected_grade
+                )
+            )
         ),
         key=lambda item: (
             item.grade_snapshot or 0,
@@ -139,6 +151,7 @@ def build_class_plan_matrix(snapshot, plans, education_level):
 
     row_map = {}
     section_column_totals = defaultdict(lambda: defaultdict(Decimal))
+    plan_kind_column_totals = defaultdict(lambda: defaultdict(Decimal))
     column_totals = defaultdict(Decimal)
     plan_kind_order = {
         value: index for index, value in enumerate(PLAN_BUNDLE_KINDS)
@@ -195,6 +208,9 @@ def build_class_plan_matrix(snapshot, plans, education_level):
                     )][
                         column["key"]
                     ] += hours
+                    plan_kind_column_totals[plan_kind][
+                        column["key"]
+                    ] += hours
                     column_totals[column["key"]] += hours
 
     rows = sorted(
@@ -236,12 +252,20 @@ def build_class_plan_matrix(snapshot, plans, education_level):
             component_order.get(section["component_kind"], 99),
         ),
     )
+    for index, section in enumerate(sections):
+        section["is_plan_kind_end"] = (
+            index == len(sections) - 1
+            or sections[index + 1]["plan_kind"]
+            != section["plan_kind"]
+        )
     return {
         "education_level": education_level,
+        "selected_grade": selected_grade,
         "level_label": EDUCATION_LEVEL_LABELS[education_level],
         "class_groups": class_groups,
         "columns": columns,
         "sections": sections,
+        "plan_kind_column_totals": plan_kind_column_totals,
         "column_totals": column_totals,
         "class_count": len(snapshot_classes),
     }

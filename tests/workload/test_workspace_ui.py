@@ -47,3 +47,24 @@ def test_metagroup_filter_selects_metagroup_workspace_mode(
     assert 'data-active-mode="metagroups"' in response.get_data(
         as_text=True
     )
+
+
+def test_binding_and_group_pages_hide_summary_indicators(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    login(make_user("ADMIN"))
+
+    for path in (
+        "/workload/plan-bindings/",
+        "/workload/groups/",
+        "/workload/groups/composition/",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert 'class="workload-indicators"' not in response.get_data(
+            as_text=True
+        )

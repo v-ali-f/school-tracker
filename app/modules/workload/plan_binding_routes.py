@@ -236,7 +236,7 @@ def _class_binding_rows(classes, version):
     return rows, all_plans, unassigned_total
 
 
-def _matrix_context(version_id, requested_level):
+def _matrix_context(version_id, requested_level, requested_grade=None):
     versions = _available_versions()
     version = _selected_version(versions, version_id)
     snapshot = (
@@ -274,6 +274,13 @@ def _matrix_context(version_id, requested_level):
             ),
             "NOO",
         )
+    level_grades = sorted(EDUCATION_LEVEL_GRADES[selected_level])
+    try:
+        selected_grade = int(requested_grade)
+    except (TypeError, ValueError):
+        selected_grade = None
+    if selected_grade not in EDUCATION_LEVEL_GRADES[selected_level]:
+        selected_grade = None
     return {
         "versions": versions,
         "selected_version": version,
@@ -283,8 +290,11 @@ def _matrix_context(version_id, requested_level):
             snapshot,
             plans,
             selected_level,
+            grade=selected_grade,
         ),
         "selected_level": selected_level,
+        "selected_grade": selected_grade,
+        "level_grades": level_grades,
         "level_labels": EDUCATION_LEVEL_LABELS,
         "level_counts": level_counts,
         "class_count": len(classes),
@@ -383,6 +393,7 @@ def register_plan_binding_routes(workload_bp):
         context = _matrix_context(
             request.args.get("version_id", type=int),
             request.args.get("level"),
+            request.args.get("grade"),
         )
         return render_template(
             "workload/plan_bindings_matrix.html",
@@ -396,6 +407,7 @@ def register_plan_binding_routes(workload_bp):
         context = _matrix_context(
             request.args.get("version_id", type=int),
             request.args.get("level"),
+            request.args.get("grade"),
         )
         version = context["selected_version"]
         if version is None:
@@ -405,13 +417,19 @@ def register_plan_binding_routes(workload_bp):
             context["matrix"],
             year_name,
         )
+        grade_suffix = (
+            f"_{context['selected_grade']}_grade"
+            if context["selected_grade"] else ""
+        )
         return send_file(
             stream,
             as_attachment=True,
             download_name=(
                 f"Altair_class_plan_summary_"
                 f"{year_name.replace('/', '-')}_"
-                f"{context['selected_level']}.xlsx"
+                f"{context['selected_level']}"
+                f"{grade_suffix}"
+                f".xlsx"
             ),
             mimetype=(
                 "application/vnd.openxmlformats-officedocument."
@@ -426,6 +444,7 @@ def register_plan_binding_routes(workload_bp):
         context = _matrix_context(
             request.args.get("version_id", type=int),
             request.args.get("level"),
+            request.args.get("grade"),
         )
         version = context["selected_version"]
         if version is None:
@@ -435,13 +454,19 @@ def register_plan_binding_routes(workload_bp):
             context["matrix"],
             year_name,
         )
+        grade_suffix = (
+            f"_{context['selected_grade']}_grade"
+            if context["selected_grade"] else ""
+        )
         return send_file(
             stream,
             as_attachment=True,
             download_name=(
                 f"Altair_class_plan_summary_"
                 f"{year_name.replace('/', '-')}_"
-                f"{context['selected_level']}.pdf"
+                f"{context['selected_level']}"
+                f"{grade_suffix}"
+                f".pdf"
             ),
             mimetype="application/pdf",
         )

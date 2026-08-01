@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260731_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_3">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260801_1">
 {% endblock %}
 
@@ -30,6 +30,7 @@
         </select>
       </label>
       <input type="hidden" name="level" value="{{ selected_level }}">
+      {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
     </form>
 
     <nav class="class-plan-levels" aria-label="Уровень образования">
@@ -44,6 +45,23 @@
       {% endfor %}
     </nav>
   </div>
+
+  <nav class="class-plan-grades" aria-label="Параллель">
+    <span class="class-plan-grades__label">Параллель</span>
+    <a
+      class="{% if not selected_grade %}is-active{% endif %}"
+      href="{{ url_for('workload.group_composition', version_id=selected_version.id if selected_version else none, level=selected_level) }}"
+    >Все</a>
+    {% for grade in level_grades %}
+    <a
+      class="{% if selected_grade == grade %}is-active{% endif %}"
+      href="{{ url_for('workload.group_composition', version_id=selected_version.id if selected_version else none, level=selected_level, grade=grade) }}"
+      title="{{ grade }}-я параллель"
+    >
+      <span>{{ grade }}</span>
+    </a>
+    {% endfor %}
+  </nav>
 
   {% if not selected_version %}
   <div class="class-plan-empty">Нет учебного года с рабочей версией.</div>
@@ -62,7 +80,7 @@
         {% for item in composition['items'] %}
         <a
           class="group-composition-list__item {% if selected_item and selected_item.key == item.key %}is-active{% endif %}"
-          href="{{ url_for('workload.group_composition', version_id=selected_version.id, level=selected_level, item=item.key) }}"
+          href="{{ url_for('workload.group_composition', version_id=selected_version.id, level=selected_level, grade=selected_grade, item=item.key) }}"
           data-composition-item="{{ item.key }}"
         >
           <span class="group-composition-list__title">
@@ -98,6 +116,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="version_id" value="{{ selected_version.id }}">
         <input type="hidden" name="level" value="{{ selected_level }}">
+        {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
         <input type="hidden" name="item_key" value="{{ selected_item.key }}">
 
         <div class="group-composition-actions">

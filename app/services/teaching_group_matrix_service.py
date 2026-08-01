@@ -21,8 +21,19 @@ from app.services.teaching_group_service import (
 AUTO_GROUP_CODE_PREFIX = "AUTO_L"
 
 
-def build_teaching_group_matrix(snapshot, plans, education_level, version_id):
-    matrix = build_class_plan_matrix(snapshot, plans, education_level)
+def build_teaching_group_matrix(
+    snapshot,
+    plans,
+    education_level,
+    version_id,
+    grade=None,
+):
+    matrix = build_class_plan_matrix(
+        snapshot,
+        plans,
+        education_level,
+        grade=grade,
+    )
     line_ids = {
         cell["line"].id
         for section in matrix["sections"]
