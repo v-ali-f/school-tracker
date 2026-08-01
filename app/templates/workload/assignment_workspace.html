@@ -125,17 +125,6 @@
       <tr>
         <th class="workload-assignment-matrix__teacher" rowspan="2">
           <span>ФИО преподавателя</span>
-          {% if can_update and selected_version %}
-          <button
-            class="workload-matrix-head-add"
-            type="button"
-            title="Добавить преподавателя"
-            aria-label="Добавить преподавателя"
-            data-open-teacher-dialog
-          >
-            <i class="bi bi-plus-lg" aria-hidden="true"></i>
-          </button>
-          {% endif %}
         </th>
         <th class="workload-assignment-matrix__subject" rowspan="2" data-matrix-subject-column>Предмет</th>
         <th class="workload-assignment-matrix__teacher-total" rowspan="2" data-matrix-total-column>Всего</th>
@@ -196,9 +185,6 @@
                   <option value="{{ option.activity.id }}:{{ option.plan_kind }}">{{ option.activity.name }} · {{ option.plan_kind_label }}</option>
                   {% endfor %}
                 </select>
-                <input type="hidden" name="activity_id" data-activity-id>
-                <input type="hidden" name="plan_kind" data-plan-kind>
-                <button class="btn btn-primary btn-sm" type="submit">Добавить</button>
               </form>
             </details>
             {% endif %}
@@ -252,10 +238,24 @@
         </tr>
         {% endfor %}
       {% endfor %}
-      {% if not matrix.blocks %}
+      {% if not matrix.blocks and not can_update %}
       <tr>
         <td class="workload-assignment-matrix__no-teachers" colspan="{{ 4 + matrix.columns|length }}">
-          Добавьте преподавателя кнопкой «+» в заголовке таблицы.
+          Нет преподавателей для отображения.
+        </td>
+      </tr>
+      {% endif %}
+      {% if can_update and selected_version %}
+      <tr class="workload-add-teacher-row">
+        <td colspan="{{ 4 + matrix.columns|length }}">
+          <button
+            class="workload-add-teacher-row__button"
+            type="button"
+            data-open-teacher-dialog
+          >
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            <span>Добавить преподавателя</span>
+          </button>
         </td>
       </tr>
       {% endif %}
@@ -322,15 +322,33 @@
 
   document.querySelectorAll("[data-activity-plan-kind]").forEach((select) => {
     const form = select.closest("form");
-    form?.addEventListener("submit", (event) => {
-      const [activityId, planKind] = select.value.split(":");
-      if (!activityId || !planKind) {
-        event.preventDefault();
-        return;
-      }
-      form.querySelector("[data-activity-id]").value = activityId;
-      form.querySelector("[data-plan-kind]").value = planKind;
+    select.addEventListener("change", () => {
+      if (!form || !select.value) return;
+      select.closest("details")?.removeAttribute("open");
+      form.requestSubmit();
     });
+  });
+
+  const subjectPickers = Array.from(
+    document.querySelectorAll(".workload-subject-add")
+  );
+  subjectPickers.forEach((details) => {
+    details.querySelector("summary")?.addEventListener("click", () => {
+      subjectPickers.forEach((other) => {
+        if (other !== details) other.removeAttribute("open");
+      });
+    });
+  });
+  document.addEventListener("click", (event) => {
+    subjectPickers.forEach((details) => {
+      if (details.open && !details.contains(event.target)) {
+        details.removeAttribute("open");
+      }
+    });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    subjectPickers.forEach((details) => details.removeAttribute("open"));
   });
 
   const teacherDialog = document.querySelector("[data-teacher-dialog]");
