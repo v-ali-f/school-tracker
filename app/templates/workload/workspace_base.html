@@ -17,6 +17,8 @@
   {% set workspace_mode = 'class_matrix' %}
 {% elif workspace_endpoint.startswith('workload.plan_bindings') %}
   {% set workspace_mode = 'bindings' %}
+{% elif workspace_endpoint.startswith('workload.group_composition') %}
+  {% set workspace_mode = 'group_composition' %}
 {% elif workspace_endpoint.startswith('workload.group') %}
   {% if request.args.get('group_type') == 'METAGROUP' or (group is defined and group and group.group_type == 'METAGROUP') %}
     {% set workspace_mode = 'metagroups' %}
@@ -128,6 +130,9 @@
     <a class="workload-mode {% if workspace_mode == 'groups' %}is-active{% endif %}" href="{{ url_for('workload.groups') }}">
       <i class="bi bi-people" aria-hidden="true"></i><span>Группы</span>
     </a>
+    <a class="workload-mode {% if workspace_mode == 'group_composition' %}is-active{% endif %}" href="{{ url_for('workload.group_composition') }}">
+      <i class="bi bi-person-check" aria-hidden="true"></i><span>Состав групп</span>
+    </a>
     <a class="workload-mode {% if workspace_mode == 'workload' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace') }}">
       <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Нагрузка</span>
     </a>
@@ -170,6 +175,25 @@
     <div class="workload-indicator workload-indicator--state">
       <span class="workload-indicator__label">Нужно распределить состав</span>
       <strong>{{ matrix.incomplete_count }}</strong>
+    </div>
+  </section>
+  {% elif workspace_mode == 'group_composition' and composition is defined %}
+  <section class="workload-indicators" aria-label="Состояние состава групп">
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Делений</span>
+      <strong>{{ composition['items']|length }}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Готово</span>
+      <strong>{{ composition.complete_count }}</strong>
+    </div>
+    <div class="workload-indicator">
+      <span class="workload-indicator__label">Не завершено</span>
+      <strong>{{ composition.incomplete_count }}</strong>
+    </div>
+    <div class="workload-indicator workload-indicator--state">
+      <span class="workload-indicator__label">Назначено учеников</span>
+      <strong>{{ composition.assigned_count }} / {{ composition.student_count }}</strong>
     </div>
   </section>
   {% elif workspace_mode != 'hours' %}

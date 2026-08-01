@@ -609,6 +609,100 @@ def test_group_matrix_creates_split_groups_and_restores_whole_class(
         assert len(group.members) == 2
 
 
+def test_group_composition_assigns_students_to_split_groups(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        enrollment_ids = [
+            item.id for item in snapshot_class.enrollments
+        ]
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            set(enrollment_ids),
+            user_id=user_id,
+        )
+        db.session.commit()
+        matrix_payload = {
+            "version_id": context["version_id"],
+            "plan_line_id": line.id,
+            "snapshot_class_id": snapshot_class.id,
+            "plan_id": line.education_plan_id,
+            "group_count": 2,
+        }
+        item_key = f"line-{line.id}-class-{snapshot_class.id}"
+
+    login(user_id)
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data=matrix_payload,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert response.status_code == 200
+
+    response = client.get(
+        f"/workload/groups/composition/"
+        f"?version_id={context['version_id']}&level=OOO&item={item_key}"
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Состав учебных групп" in html
+    assert "Иванов Иван" in html
+    assert "Петрова Анна" in html
+    assert "Распределить по порядку" in html
+
+    with app.app_context():
+        group_ids = [
+            group.id
+            for group in TeachingGroup.query.order_by(
+                TeachingGroup.id.asc()
+            )
+        ]
+    response = client.post(
+        "/workload/groups/composition/",
+        data={
+            "version_id": context["version_id"],
+            "level": "OOO",
+            "item_key": item_key,
+            f"member_{enrollment_ids[0]}": group_ids[0],
+            f"member_{enrollment_ids[1]}": group_ids[1],
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["complete"] is True
+    assert payload["assigned_count"] == 2
+    with app.app_context():
+        groups = TeachingGroup.query.order_by(
+            TeachingGroup.id.asc()
+        ).all()
+        assert {group.status for group in groups} == {"READY"}
+        assert [group.actual_size for group in groups] == [1, 1]
+        assert sum(len(group.members) for group in groups) == 2
+
+
 def test_generating_needs_materializes_default_one_group(
     app,
     make_user,
