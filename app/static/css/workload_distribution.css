@@ -141,6 +141,11 @@
   border-bottom: 1px solid var(--workload-border);
 }
 
+.workload-matrix-toolbar__hint {
+  color: var(--workload-muted);
+  font-size: 10px;
+}
+
 .workload-matrix-totals {
   display: flex;
   align-items: center;
@@ -373,7 +378,7 @@
 
 .workload-assignment-matrix {
   width: max-content;
-  min-width: max(100%, calc(454px + var(--matrix-column-count) * 82px));
+  min-width: max(100%, calc(528px + var(--matrix-column-count) * 82px));
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -402,7 +407,7 @@
   position: sticky;
   top: 0;
   z-index: 5;
-  height: 48px;
+  height: 40px;
   padding: 5px 6px;
   color: #56637a;
   background: #f5f7fa;
@@ -414,7 +419,7 @@
 
 .workload-assignment-matrix thead tr:nth-child(2) th {
   top: 40px;
-  height: 26px;
+  height: 34px;
 }
 
 .workload-assignment-matrix thead em {
@@ -459,23 +464,25 @@
   max-width: 180px;
 }
 
-.workload-assignment-matrix__total,
-.workload-assignment-matrix__row-total {
+.workload-assignment-matrix__teacher-total,
+.workload-assignment-matrix__teacher-total-cell {
   left: 390px;
-  width: 64px;
-  min-width: 64px;
-  max-width: 64px;
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
 }
 
 .workload-assignment-matrix__teacher,
 .workload-assignment-matrix__subject,
-.workload-assignment-matrix__total {
+.workload-assignment-matrix__teacher-total,
+.workload-assignment-matrix__subject-total {
   z-index: 8 !important;
 }
 
 .workload-assignment-matrix__teacher-cell,
 .workload-assignment-matrix__subject-cell,
-.workload-assignment-matrix__row-total {
+.workload-assignment-matrix__teacher-total-cell,
+.workload-assignment-matrix__subject-total-cell {
   position: sticky;
   z-index: 3;
   background: #fff;
@@ -500,10 +507,7 @@
 }
 
 .workload-assignment-matrix__teacher-cell > strong {
-  margin: 3px 0 5px;
-  display: block;
-  color: #123d74;
-  font-size: 15px;
+  display: none;
 }
 
 .workload-assignment-matrix__teacher-cell span,
@@ -524,12 +528,26 @@
   background: #fff8f8;
 }
 
-.workload-assignment-matrix__row-total {
+.workload-assignment-matrix__teacher-total-cell {
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.workload-assignment-matrix__subject-total,
+.workload-assignment-matrix__subject-total-cell {
+  left: 448px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+}
+
+.workload-assignment-matrix__subject-total-cell {
   border-right: 2px solid #b8c5d6 !important;
   font-weight: 750;
 }
 
-.workload-assignment-matrix__class,
+.workload-assignment-matrix__class-group,
+.workload-assignment-matrix__class-plan,
 .workload-assignment-matrix__class-total,
 .workload-assignment-matrix__cell {
   width: 82px;
@@ -537,10 +555,44 @@
   max-width: 82px;
 }
 
-.workload-assignment-matrix__class.is-alt,
+.workload-assignment-matrix__class-group.is-alt,
+.workload-assignment-matrix__class-plan.is-alt,
 .workload-assignment-matrix__class-total.is-alt,
 .workload-assignment-matrix__cell.is-alt {
   background: #f8faff;
+}
+
+.workload-assignment-matrix__class-group {
+  border-bottom: 1px solid var(--workload-border-strong) !important;
+  font-size: 11px !important;
+  text-transform: none !important;
+}
+
+.workload-assignment-matrix__class-plan > span,
+.workload-assignment-matrix__class-plan > small {
+  display: block;
+}
+
+.workload-assignment-matrix__class-plan > span {
+  overflow: hidden;
+  color: #33425e;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.workload-assignment-matrix__class-plan > small {
+  color: var(--workload-success);
+  font-size: 8px;
+  text-transform: none;
+}
+
+.workload-assignment-matrix__class-plan.has-remaining > small {
+  color: #a22d2d;
+}
+
+.workload-assignment-matrix__class-plan > small:last-child {
+  margin-top: 2px;
 }
 
 .workload-assignment-matrix__class-total {
@@ -715,6 +767,96 @@
   box-shadow: 0 10px 24px rgba(31, 45, 69, 0.16);
 }
 
+.workload-matrix-head-add {
+  width: 22px;
+  height: 22px;
+  margin-left: 5px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1766d6;
+  background: #fff;
+  border: 1px solid #9fc2f7;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.workload-matrix-head-add:hover,
+.workload-matrix-head-add:focus-visible {
+  color: #fff;
+  background: #1766d6;
+  outline: 0;
+}
+
+.workload-teacher-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 0;
+  color: var(--workload-text);
+  border: 1px solid var(--workload-border-strong);
+  border-radius: 6px;
+  box-shadow: 0 18px 50px rgba(31, 45, 69, 0.22);
+}
+
+.workload-teacher-dialog::backdrop {
+  background: rgba(25, 35, 53, 0.28);
+}
+
+.workload-teacher-dialog form {
+  padding: 16px;
+}
+
+.workload-teacher-dialog__head {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workload-teacher-dialog__head strong,
+.workload-teacher-dialog__head small {
+  display: block;
+}
+
+.workload-teacher-dialog__head strong {
+  font-size: 15px;
+}
+
+.workload-teacher-dialog__head small {
+  margin-top: 3px;
+  color: var(--workload-muted);
+  font-size: 11px;
+}
+
+.workload-teacher-dialog__head > button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6e86;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.workload-teacher-dialog label {
+  margin-bottom: 4px;
+  color: #657188;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workload-teacher-dialog__actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
 @media (max-width: 1180px) {
   .workload-matrix-filterbar {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
@@ -758,7 +900,9 @@
 .workload-assignment-matrix .is-unassigned-row
   .workload-assignment-matrix__subject-cell,
 .workload-assignment-matrix .is-unassigned-row
-  .workload-assignment-matrix__row-total {
+  .workload-assignment-matrix__teacher-total-cell,
+.workload-assignment-matrix .is-unassigned-row
+  .workload-assignment-matrix__subject-total-cell {
   background: #fffafa;
 }
 
@@ -821,9 +965,14 @@
     max-width: 160px;
   }
 
-  .workload-assignment-matrix__total,
-  .workload-assignment-matrix__row-total {
+  .workload-assignment-matrix__teacher-total,
+  .workload-assignment-matrix__teacher-total-cell {
     left: 310px;
+  }
+
+  .workload-assignment-matrix__subject-total,
+  .workload-assignment-matrix__subject-total-cell {
+    left: 368px;
   }
 }
 

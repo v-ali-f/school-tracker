@@ -16,6 +16,7 @@ from flask import (
 from flask_login import current_user, login_required
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
@@ -1086,27 +1087,63 @@ def register_assignment_routes(workload_bp):
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "Нагрузка"
-        headers = [
-            "Преподаватель",
-            "Предмет / деятельность",
+        sheet.append([
+            "ФИО преподавателя",
+            "Предмет",
             "Всего",
-            *[column["label"] for column in matrix["columns"]],
-        ]
-        sheet.append(headers)
-        for cell in sheet[1]:
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill("solid", fgColor="2F6FED")
-            cell.alignment = Alignment(
-                horizontal="center",
-                vertical="center",
+            "По предмету",
+            *[
+                class_group["label"]
+                for class_group in matrix["class_groups"]
+                for _ in class_group["columns"]
+            ],
+        ])
+        sheet.append([
+            "",
+            "",
+            "",
+            "",
+            *[
+                column["subheader_label"]
+                for column in matrix["columns"]
+            ],
+        ])
+        for column_index in range(1, 5):
+            sheet.merge_cells(
+                start_row=1,
+                start_column=column_index,
+                end_row=2,
+                end_column=column_index,
             )
+        class_column_index = 5
+        for class_group in matrix["class_groups"]:
+            group_width = len(class_group["columns"])
+            if group_width > 1:
+                sheet.merge_cells(
+                    start_row=1,
+                    start_column=class_column_index,
+                    end_row=1,
+                    end_column=class_column_index + group_width - 1,
+                )
+            class_column_index += group_width
+        for row in sheet.iter_rows(min_row=1, max_row=2):
+            for cell in row:
+                cell.font = Font(bold=True, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor="2F6FED")
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True,
+                )
         for block in matrix["blocks"]:
+            block_start_row = sheet.max_row + 1
             for row in block["rows"]:
                 if row.get("placeholder"):
                     continue
                 values = [
                     block["label"],
                     row["activity"].name,
+                    float(block["total"]),
                     float(row["total"]),
                 ]
                 for column in matrix["columns"]:
@@ -1121,15 +1158,40 @@ def register_assignment_routes(workload_bp):
                         ZERO,
                     )))
                 sheet.append(values)
-        sheet.freeze_panes = "D2"
+            block_end_row = sheet.max_row
+            if block_end_row > block_start_row:
+                sheet.merge_cells(
+                    start_row=block_start_row,
+                    start_column=1,
+                    end_row=block_end_row,
+                    end_column=1,
+                )
+                sheet.merge_cells(
+                    start_row=block_start_row,
+                    start_column=3,
+                    end_row=block_end_row,
+                    end_column=3,
+                )
+                sheet.cell(block_start_row, 1).alignment = Alignment(
+                    vertical="top",
+                    wrap_text=True,
+                )
+                sheet.cell(block_start_row, 3).alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                )
+        sheet.freeze_panes = "E3"
         sheet.column_dimensions["A"].width = 28
-        sheet.column_dimensions["B"].width = 30
-        sheet.column_dimensions["C"].width = 10
+        sheet.column_dimensions["B"].width = 26
+        sheet.column_dimensions["C"].width = 9
+        sheet.column_dimensions["D"].width = 12
         for column_cells in sheet.iter_cols(
-            min_col=4,
+            min_col=5,
             max_col=sheet.max_column,
         ):
-            sheet.column_dimensions[column_cells[0].column_letter].width = 12
+            sheet.column_dimensions[
+                get_column_letter(column_cells[0].column)
+            ].width = 12
         stream = BytesIO()
         workbook.save(stream)
         stream.seek(0)
