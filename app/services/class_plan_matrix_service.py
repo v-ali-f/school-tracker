@@ -81,6 +81,7 @@ def _assigned_columns(snapshot_class, plans):
             "snapshot_class": snapshot_class,
             "plan": plan,
             "student_count": len(member_ids),
+            "member_ids": frozenset(member_ids),
             "is_unassigned": False,
         })
     columns.sort(key=lambda item: item["plan"].name.casefold())
@@ -92,6 +93,7 @@ def _assigned_columns(snapshot_class, plans):
             "snapshot_class": snapshot_class,
             "plan": None,
             "student_count": unassigned_count,
+            "member_ids": frozenset(),
             "is_unassigned": True,
         })
     return columns

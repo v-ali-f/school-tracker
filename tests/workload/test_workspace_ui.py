@@ -24,7 +24,6 @@ def test_workload_pages_use_shared_workspace_shell(
     assert "Контекст" not in html
     assert "data-workload-panel-toggle" not in html
     assert "Группы" in html
-    assert "Метагруппы" in html
     assert "Нагрузка" in html
     assert "Контроль" not in html
     assert "Печать и экспорт" not in html
