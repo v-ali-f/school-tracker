@@ -558,6 +558,16 @@ def register_plan_binding_routes(workload_bp):
     def plan_bindings_assign_class():
         _require_bindings_update()
         version_id = request.form.get("version_id", type=int)
+        if "plan_id" not in request.form:
+            response = _binding_error_response(
+                "Не передан выбранный учебный план. Обновите страницу."
+            )
+            if response is not None:
+                return response
+            return redirect(url_for(
+                "workload.plan_bindings",
+                version_id=version_id,
+            ))
         class_id = request.form.get("class_id", type=int)
         plan_id = request.form.get("plan_id", type=int)
         version = db.session.get(TariffVersion, version_id)
@@ -606,6 +616,16 @@ def register_plan_binding_routes(workload_bp):
     def plan_bindings_assign_student():
         _require_bindings_update()
         version_id = request.form.get("version_id", type=int)
+        if "plan_id" not in request.form:
+            response = _binding_error_response(
+                "Не передан выбранный учебный план. Обновите страницу."
+            )
+            if response is not None:
+                return response
+            return redirect(url_for(
+                "workload.plan_bindings",
+                version_id=version_id,
+            ))
         class_id = request.form.get("class_id", type=int)
         enrollment_id = request.form.get("enrollment_id", type=int)
         plan_id = request.form.get("plan_id", type=int)
