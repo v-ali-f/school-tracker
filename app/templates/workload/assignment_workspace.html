@@ -48,7 +48,7 @@
     <select class="form-select form-select-sm" id="workspace-version" name="version_id">
       {% for item in versions %}
       <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>
-        {{ item.tariff_cycle.academic_year.name }} · версия {{ item.version_no }}
+        {{ item.tariff_cycle.academic_year.name }}
       </option>
       {% endfor %}
     </select>
