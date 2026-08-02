@@ -1797,6 +1797,7 @@ def contingent():
         "by_grade": {},
         "by_building": {},
         "education_forms": {},
+        "level_stats": {},
 
         "classes_total": 0,
         "classes_1_4": 0,
@@ -2015,6 +2016,28 @@ def contingent():
         transferred_total = sum(class_transfer_types.get(k, 0) for k in ["PROMOTED", "CONDITIONAL", "REPEAT"])
         pending_transfer = max(total - transferred_total, 0)
 
+        grade = c.grade
+        if grade is not None and 1 <= grade <= 4:
+            level_code = "NOO"
+            level_display_code = "НОО"
+            level_label = "Начальное общее образование"
+            level_range = "1–4"
+        elif grade is not None and 5 <= grade <= 9:
+            level_code = "OOO"
+            level_display_code = "ООО"
+            level_label = "Основное общее образование"
+            level_range = "5–9"
+        elif grade is not None and 10 <= grade <= 11:
+            level_code = "SOO"
+            level_display_code = "СОО"
+            level_label = "Среднее общее образование"
+            level_range = "10–11"
+        else:
+            level_code = "OTHER"
+            level_display_code = "—"
+            level_label = "Классы без уровня образования"
+            level_range = ""
+
         rows.append({
             "class": c,
             "total": total,
@@ -2026,6 +2049,10 @@ def contingent():
             "profile_names": profiles_by_class.get(c.id, []),
             "applications_count": int(c.applications_count or 0),
             "building_tone": building_tone_map.get(c.building_id, 5),
+            "level_code": level_code,
+            "level_display_code": level_display_code,
+            "level_label": level_label,
+            "level_range": level_range,
             "sc_in_club": sc_count,
             "do_count": do_count,
             "pending_transfer": pending_transfer,
@@ -2052,7 +2079,30 @@ def contingent():
         bname = building.name if building else "Без здания"
         totals["by_building"][bname] = totals["by_building"].get(bname, 0) + total
 
-        grade = c.grade
+        if level_code not in totals["level_stats"]:
+            totals["level_stats"][level_code] = {
+                "code": level_code,
+                "display_code": level_display_code,
+                "label": level_label,
+                "range": level_range,
+                "classes": 0,
+                "children": 0,
+                "boys": 0,
+                "girls": 0,
+                "applications": 0,
+                "capacity": 0,
+                "free": 0,
+            }
+
+        level_stats = totals["level_stats"][level_code]
+        level_stats["classes"] += 1
+        level_stats["children"] += total
+        level_stats["boys"] += boys_count
+        level_stats["girls"] += girls_count
+        level_stats["applications"] += int(c.applications_count or 0)
+        level_stats["capacity"] += int(c.max_students or 0)
+        level_stats["free"] += free
+
         if grade is not None:
             totals["by_grade"][grade] = totals["by_grade"].get(grade, 0) + total
 
