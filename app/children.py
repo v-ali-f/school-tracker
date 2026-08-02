@@ -1488,6 +1488,7 @@ def add_debt(child_id: int):
         due_date=due_date,
         status="OPEN",
         created_at=datetime.utcnow(),
+        created_by_user_id=current_user.id,
     )
     assign_subject_activity(debt, activity)
 

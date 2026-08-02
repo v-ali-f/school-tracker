@@ -816,11 +816,18 @@ class Debt(db.Model):
 
     status = db.Column(db.String(20), default="OPEN", nullable=False)   # OPEN / CLOSED
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
 
     closed_at = db.Column(db.DateTime, nullable=True)
     closed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
     closed_by = db.relationship("User", foreign_keys=[closed_by_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
     subject = db.relationship("Subject")
     education_activity = db.relationship(
         "EducationActivity",

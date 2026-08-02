@@ -39,7 +39,9 @@ from .models import (
     Department,
     DepartmentLeader,
     DepartmentSubject,
+    Debt,
     EducationActivity,
+    Incident,
     TeacherAttestation,
     TeacherCourse,
     TeacherLoad,
@@ -52,6 +54,7 @@ from .permissions import (
     DEPARTMENT_HEAD,
     METHODIST,
     TEACHER,
+    has_permission,
     has_role,
     is_admin,
 )
@@ -1391,6 +1394,104 @@ def teacher_cabinet():
     ))
 
 
+@departments_bp.get("/teachers")
+@login_required
+def teacher_registry():
+    current_year = AcademicYear.query.filter_by(is_current=True).first()
+    academic_year_id = request.args.get("academic_year_id", type=int) or (
+        current_year.id if current_year else None
+    )
+    years = AcademicYear.query.order_by(
+        AcademicYear.start_date.desc().nullslast(),
+        AcademicYear.name.desc(),
+    ).all()
+    load_rows, workload_version = (
+        current_department_load_rows(academic_year_id)
+        if academic_year_id
+        else ([], None)
+    )
+    load_by_teacher = defaultdict(lambda: {
+        "hours": 0,
+        "departments": set(),
+    })
+    for row in load_rows:
+        if row.teacher is None:
+            continue
+        bucket = load_by_teacher[row.teacher.id]
+        bucket["hours"] += row.hours
+        if row.department:
+            bucket["departments"].add(row.department.name)
+
+    users = (
+        User.query
+        .filter(
+            User.is_active_user.is_(True),
+            User.employment_status == "ACTIVE",
+        )
+        .order_by(
+            User.last_name.asc().nullslast(),
+            User.first_name.asc().nullslast(),
+            User.middle_name.asc().nullslast(),
+            User.username.asc(),
+        )
+        .all()
+    )
+    teacher_role_codes = {
+        TEACHER,
+        CLASS_TEACHER,
+        DEPARTMENT_HEAD,
+    }
+    workload_teacher_ids = set(load_by_teacher)
+    candidates = [
+        user for user in users
+        if (
+            teacher_role_codes.intersection(user.role_codes)
+            or user.id in workload_teacher_ids
+        )
+    ]
+
+    if is_admin(current_user) or has_role(METHODIST):
+        visible_teachers = candidates
+    elif has_role(DEPARTMENT_HEAD):
+        visible_ids = {current_user.id}
+        for department_id in _managed_department_ids():
+            if academic_year_id:
+                visible_ids.update(
+                    department_teacher_ids(
+                        academic_year_id,
+                        department_id,
+                    )
+                )
+        visible_teachers = [
+            user for user in candidates
+            if user.id in visible_ids
+        ]
+    else:
+        visible_teachers = [
+            user for user in candidates
+            if user.id == current_user.id
+        ]
+        if not visible_teachers:
+            visible_teachers = [current_user]
+
+    teacher_rows = []
+    for teacher in visible_teachers:
+        load = load_by_teacher.get(teacher.id, {})
+        teacher_rows.append({
+            "teacher": teacher,
+            "hours": load.get("hours", 0),
+            "departments": sorted(load.get("departments", set())),
+        })
+
+    return render_template(
+        "departments/teacher_registry.html",
+        teacher_rows=teacher_rows,
+        years=years,
+        academic_year_id=academic_year_id,
+        workload_version=workload_version,
+    )
+
+
 @departments_bp.get("/teachers/<int:teacher_id>")
 @login_required
 def teacher_profile(teacher_id):
@@ -1441,6 +1542,26 @@ def teacher_profile(teacher_id):
         )
         .all()
     )
+    debt_rows = (
+        Debt.query
+        .filter_by(created_by_user_id=teacher.id)
+        .order_by(
+            Debt.detected_date.desc(),
+            Debt.created_at.desc(),
+        )
+        .limit(100)
+        .all()
+    )
+    incident_rows = (
+        Incident.query
+        .filter_by(author_id=teacher.id)
+        .order_by(
+            Incident.occurred_at.desc(),
+            Incident.id.desc(),
+        )
+        .limit(100)
+        .all()
+    )
     return render_template(
         "departments/teacher_profile.html",
         teacher=teacher,
@@ -1454,12 +1575,18 @@ def teacher_profile(teacher_id):
         mcko_subjects=list_subject_activities(),
         course_rows=course_rows,
         attestation_rows=attestation_rows,
+        debt_rows=debt_rows,
+        incident_rows=incident_rows,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
         can_edit_professional=_can_manage_teacher_professional(
             teacher.id,
             academic_year_id=academic_year_id,
         ),
         is_self_profile=teacher.id == current_user.id,
+        can_add_incident=(
+            teacher.id == current_user.id
+            and has_permission("incident_add")
+        ),
         today=date.today(),
     )
 

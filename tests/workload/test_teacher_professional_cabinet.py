@@ -1,12 +1,18 @@
-from datetime import date
+from datetime import date, datetime
 
 from app.core.extensions import db
 from app.models import (
     AcademicYear,
+    Child,
+    Debt,
     EducationActivity,
+    Incident,
+    IncidentChild,
+    Subject,
     TeacherAttestation,
     TeacherCourse,
     TeacherMckoResult,
+    User,
 )
 from app.services.teacher_mcko_service import mcko_results_for_teachers
 
@@ -62,6 +68,9 @@ def test_teacher_manages_own_professional_records_only(
     other_teacher_id = make_user("TEACHER")
     with app.app_context():
         subject_id = _subject().id
+        teacher = db.session.get(User, teacher_id)
+        teacher.phone = "+7 (999) 123-45-67"
+        db.session.commit()
 
     login(teacher_id)
     mcko = client.post(
@@ -119,6 +128,7 @@ def test_teacher_manages_own_professional_records_only(
     assert "Современные методики обучения" in html
     assert "Высшая квалификационная категория" in html
     assert "Высокий" in html
+    assert "+7 (999) 123-45-67" in html
 
 
 def test_department_index_exposes_teacher_cabinet_links(
@@ -143,7 +153,60 @@ def test_department_index_exposes_teacher_cabinet_links(
 
     assert admin_page.status_code == 200
     assert "Кабинеты преподавателей" in admin_html
-    assert 'href="/departments/summary#department-teachers"' in admin_html
+    assert 'href="/departments/teachers"' in admin_html
+
+    registry_page = client.get("/departments/teachers")
+    registry_html = registry_page.get_data(as_text=True)
+    assert registry_page.status_code == 200
+    assert f'href="/departments/teachers/{teacher_id}"' in registry_html
+
+
+def test_teacher_cabinet_shows_authored_debts_and_incidents(
+    app,
+    client,
+    make_user,
+    login,
+):
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        child = Child(
+            last_name="Учеников",
+            first_name="Алексей",
+            gender="M",
+        )
+        subject = Subject(name="Алгебра")
+        db.session.add_all([child, subject])
+        db.session.flush()
+        db.session.add(Debt(
+            child_id=child.id,
+            subject_id=subject.id,
+            detected_date=date(2026, 2, 1),
+            due_date=date(2026, 3, 1),
+            created_by_user_id=teacher_id,
+        ))
+        incident = Incident(
+            occurred_at=datetime(2026, 2, 2, 10, 30),
+            category="Конфликт",
+            status="new",
+            author_id=teacher_id,
+        )
+        db.session.add(incident)
+        db.session.flush()
+        db.session.add(IncidentChild(
+            incident_id=incident.id,
+            child_id=child.id,
+        ))
+        db.session.commit()
+
+    login(teacher_id)
+    response = client.get(f"/departments/teachers/{teacher_id}")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Академические задолженности" in html
+    assert "Учеников Алексей" in html
+    assert "Инциденты" in html
+    assert "Конфликт" in html
 
 
 def test_mcko_history_can_be_filtered_by_academic_year(
