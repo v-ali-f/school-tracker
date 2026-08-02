@@ -480,6 +480,30 @@ def test_selected_empty_classes_can_be_deleted_together(
         ).all()
         assert [school_class.name for school_class in remaining] == ["2В"]
 
+    undo_page = client.get(
+        f"/classes?academic_year_id={year_id}",
+    )
+    assert "Отменить удаление (2)" in undo_page.get_data(as_text=True)
+
+    undo = client.post(
+        "/classes/delete/undo",
+        data={"academic_year_id": str(year_id)},
+    )
+    assert undo.status_code == 302
+    assert f"academic_year_id={year_id}" in undo.headers["Location"]
+    with app.app_context():
+        restored = (
+            SchoolClass.query
+            .filter_by(academic_year_id=year_id)
+            .order_by(SchoolClass.name.asc())
+            .all()
+        )
+        assert [school_class.name for school_class in restored] == [
+            "2А",
+            "2Б",
+            "2В",
+        ]
+
 
 def test_mass_transfer_skips_existing_target_year_enrollment(
     app,

@@ -56,6 +56,8 @@
 
   /* ── Таблица «По классам»: спокойная, читаемая, без зебры и заливок ── */
   .contingent-classes-table {
+    width: 100%;
+    table-layout: fixed;
     margin-bottom: 0;
     border-collapse: collapse;
   }
@@ -67,7 +69,8 @@
     color: #8a93a3;
     border: 1px solid #d6dfeb;
     padding: 6px 8px;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .contingent-classes-table tbody td {
     padding: 5px 8px;
@@ -296,20 +299,34 @@
   <div class="table-responsive">
     <table class="table align-middle contingent-classes-table">
       {% set _colspan = 12 %}
+      <colgroup>
+        <col class="col-class">
+        <col class="col-building">
+        <col class="col-count">
+        <col class="col-applications">
+        <col class="col-maximum">
+        <col class="col-profile">
+        <col class="col-teacher">
+        <col class="col-phone">
+        <col class="col-parallel-total">
+        <col class="col-boys">
+        <col class="col-girls">
+        <col class="col-free">
+      </colgroup>
       <thead>
         <tr>
-          <th style="width:66px;">Класс</th>
-          <th style="min-width:108px;">Здание</th>
-          <th class="num" style="width:74px;">Количество</th>
-          <th class="num" style="width:84px;">Заявления</th>
-          <th class="num" style="width:64px;">Макс.</th>
-          <th style="min-width:120px;">Профиль</th>
-          <th style="min-width:172px;">Классный руководитель</th>
-          <th style="min-width:118px;">Телефон</th>
-          <th class="num" style="width:88px;">Всего в параллели</th>
-          <th class="num" style="width:54px;">Мал.</th>
-          <th class="num" style="width:54px;">Дев.</th>
-          <th class="center" style="width:74px;">Свободно</th>
+          <th>Класс</th>
+          <th>Здание</th>
+          <th class="num">Всего</th>
+          <th class="num">Заявл.</th>
+          <th class="num">Макс.</th>
+          <th>Профиль</th>
+          <th>Классный<br>руководитель</th>
+          <th>Телефон</th>
+          <th class="num">В паралл.</th>
+          <th class="num">Мал.</th>
+          <th class="num">Дев.</th>
+          <th class="center">Свободно</th>
         </tr>
       </thead>
       <tbody>
@@ -331,7 +348,7 @@
               </a>
             </td>
 
-            <td class="text-muted">
+            <td class="text-muted fit-text-cell">
               {% if r.class.building %}{{ r.class.building.name }}{% else %}—{% endif %}
             </td>
 
@@ -343,26 +360,26 @@
                   type="text"
                   inputmode="numeric"
                   pattern="[0-9]*"
-                  value="{{ r.applications_count }}"
+                  value="{{ r.applications_count if r.applications_count else '' }}"
                   data-saved-value="{{ r.applications_count }}"
                   data-save-url="{{ url_for('children.class_applications_update', class_id=r.class.id) }}"
                   data-building-id="{{ building_id or '' }}"
                   aria-label="Количество заявлений для {{ r.class.name }}"
                 >
               {% else %}
-                {{ r.applications_count }}
+                {{ r.applications_count if r.applications_count else "" }}
               {% endif %}
             </td>
             <td class="num text-muted">{{ r.class.max_students }}</td>
-            <td>
+            <td class="fit-text-cell">
               {% if r.profile_names %}
                 {{ r.profile_names|join(", ") }}
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}
             </td>
-            <td>{{ r.teacher_fio or "—" }}</td>
-            <td class="text-muted">
+            <td class="fit-text-cell fit-nowrap">{{ r.teacher_fio or "—" }}</td>
+            <td class="text-muted fit-text-cell fit-nowrap">
               {% if r.teacher_phone %}
                 <a href="tel:{{ r.teacher_phone }}" class="text-decoration-none">{{ r.teacher_phone }}</a>
               {% else %}—{% endif %}
@@ -695,15 +712,37 @@
 
 <style id="contingent-table-plus2-css">
   /* Реестровая матрица: компактные строки и видимые границы ячеек. */
+  .contingent-page .table-responsive {
+    overflow-x: visible !important;
+  }
+
+  .contingent-page .contingent-classes-table col.col-class { width: 5%; }
+  .contingent-page .contingent-classes-table col.col-building { width: 16%; }
+  .contingent-page .contingent-classes-table col.col-count { width: 4%; }
+  .contingent-page .contingent-classes-table col.col-applications { width: 4%; }
+  .contingent-page .contingent-classes-table col.col-maximum { width: 4%; }
+  .contingent-page .contingent-classes-table col.col-profile { width: 11%; }
+  .contingent-page .contingent-classes-table col.col-teacher { width: 25%; }
+  .contingent-page .contingent-classes-table col.col-phone { width: 15%; }
+  .contingent-page .contingent-classes-table col.col-parallel-total { width: 4%; }
+  .contingent-page .contingent-classes-table col.col-boys { width: 3.5%; }
+  .contingent-page .contingent-classes-table col.col-girls { width: 3.5%; }
+  .contingent-page .contingent-classes-table col.col-free { width: 5%; }
+
   .contingent-page .contingent-classes-table th {
-    font-size: 13px !important;
+    padding: 5px 3px !important;
+    font-size: 11px !important;
     line-height: 1.15 !important;
     text-align: center;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere;
   }
 
   .contingent-page .contingent-classes-table td {
-    font-size: 14px !important;
+    padding: 4px 5px !important;
+    font-size: 13px !important;
     line-height: 1.15 !important;
+    overflow-wrap: anywhere;
   }
 
   .contingent-page .contingent-classes-table th,
@@ -714,7 +753,7 @@
 
   .contingent-page .contingent-classes-table a,
   .contingent-page .contingent-classes-table .class-link {
-    font-size: 14px !important;
+    font-size: inherit !important;
   }
 
   .contingent-page .contingent-classes-table .section-row td {
@@ -750,11 +789,25 @@
     padding: 0 !important;
   }
 
+  .contingent-page .contingent-classes-table .fit-text-cell,
+  .contingent-page .contingent-classes-table .fit-text-cell a {
+    font-size: var(--fit-font-size, 12px) !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .contingent-page .contingent-classes-table .fit-nowrap,
+  .contingent-page .contingent-classes-table .fit-nowrap a {
+    white-space: nowrap !important;
+    overflow: hidden;
+    overflow-wrap: normal;
+  }
+
   .contingent-page .applications-cell-input {
     width: 100% !important;
     height: 100% !important;
-    min-height: 38px !important;
-    padding: 5px 8px !important;
+    min-height: 31px !important;
+    padding: 4px 3px !important;
     border: 0 !important;
     border-radius: 0 !important;
     outline: 0 !important;
@@ -794,14 +847,15 @@
       async function saveApplicationsValue() {
         const previousValue = input.dataset.savedValue || "0";
         const nextValue = input.value.trim();
-        if (nextValue === "" || nextValue === previousValue) {
-          input.value = nextValue || previousValue;
+        const normalizedValue = nextValue === "" ? "0" : nextValue;
+        if (normalizedValue === previousValue) {
+          input.value = normalizedValue === "0" ? "" : normalizedValue;
           return;
         }
 
         input.classList.add("is-saving");
         const body = new URLSearchParams({
-          applications_count: nextValue,
+          applications_count: normalizedValue,
           building_id: input.dataset.buildingId || "",
         });
 
@@ -819,11 +873,11 @@
           if (!response.ok || !result.ok) {
             throw new Error(result.error || "Не удалось сохранить значение");
           }
-          input.value = String(result.applications_count);
+          input.value = result.applications_count ? String(result.applications_count) : "";
           input.dataset.savedValue = String(result.applications_count);
           input.removeAttribute("title");
         } catch (error) {
-          input.value = previousValue;
+          input.value = previousValue === "0" ? "" : previousValue;
           input.classList.add("is-invalid");
           input.title = error.message;
         } finally {
@@ -845,6 +899,27 @@
 
       input.addEventListener("blur", saveApplicationsValue);
     });
+  })();
+
+  (function fitContingentTextCells() {
+    function fitCell(cell) {
+      let fontSize = 12;
+      cell.style.setProperty("--fit-font-size", fontSize + "px");
+      while (
+        (cell.scrollWidth > cell.clientWidth || cell.scrollHeight > 42)
+        && fontSize > 9
+      ) {
+        fontSize -= 0.5;
+        cell.style.setProperty("--fit-font-size", fontSize + "px");
+      }
+    }
+
+    function fitAllCells() {
+      document.querySelectorAll(".contingent-classes-table .fit-text-cell").forEach(fitCell);
+    }
+
+    fitAllCells();
+    window.addEventListener("resize", fitAllCells);
   })();
 </script>
 

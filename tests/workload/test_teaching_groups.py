@@ -449,8 +449,10 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
     assert response.status_code == 200
     assert "Профиль".encode() in response.data
     assert "Математический".encode() in response.data
-    assert "Заявления".encode() in response.data
-    assert "Всего в параллели".encode() in response.data
+    assert "Заявл.".encode() in response.data
+    assert "В паралл.".encode() in response.data
+    assert b'value=""' in response.data
+    assert b'data-saved-value="0"' in response.data
 
 
 def test_plan_bindings_page_reads_snapshot_classes(

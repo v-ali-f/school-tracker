@@ -108,7 +108,7 @@ from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
 from app.core.extensions import db
-from app.core.cache import view_response_cache, make_key
+from app.core.cache import cache, view_response_cache, make_key
 from app.core.pagination import paginate_list, resolve_pagination, SimplePagination
 from app.services.education_activity_service import (
     assign_subject_activity,
@@ -2396,6 +2396,18 @@ def classes_registry():
         if last_copy.get("target_year_id") == year.id
         else None
     )
+    last_delete = session.get("last_class_delete") or {}
+    delete_undo = None
+    if last_delete.get("academic_year_id") == year.id:
+        delete_token = last_delete.get("token")
+        deleted_records = (
+            cache.get(make_key("deleted_classes", delete_token))
+            if delete_token else None
+        )
+        if deleted_records:
+            delete_undo = last_delete
+        else:
+            session.pop("last_class_delete", None)
     older_years = [
         candidate
         for candidate in all_years
@@ -2413,7 +2425,7 @@ def classes_registry():
     cache_key = make_key("classes_registry", year.id, q_text)
     cached_html = (
         None
-        if copy_undo
+        if copy_undo or delete_undo
         else view_response_cache.get(cache_key)
     )
     if cached_html is not None:
@@ -2513,8 +2525,9 @@ def classes_registry():
         is_admin=is_admin(current_user),
         copy_source_year=copy_source_year,
         copy_undo=copy_undo,
+        delete_undo=delete_undo,
     )
-    if not copy_undo:
+    if not copy_undo and not delete_undo:
         view_response_cache.set(cache_key, html, timeout=60)
     return html
 
@@ -7092,6 +7105,7 @@ def classes_delete_selected():
     blocked_with_links = []
     deleted_ids = []
     deleted_names = []
+    deleted_records = []
     teacher_ids = set()
 
     for school_class in selected_classes:
@@ -7103,10 +7117,25 @@ def classes_delete_selected():
                 teacher_user_id = school_class.teacher_user_id
                 class_id = school_class.id
                 class_name = school_class.name
+                restore_record = {
+                    "id": school_class.id,
+                    "academic_year_id": school_class.academic_year_id,
+                    "building_id": school_class.building_id,
+                    "name": school_class.name,
+                    "grade": school_class.grade,
+                    "letter": school_class.letter,
+                    "max_students": school_class.max_students,
+                    "applications_count": school_class.applications_count,
+                    "teacher_user_id": school_class.teacher_user_id,
+                    "is_active": school_class.is_active,
+                    "is_archived": school_class.is_archived,
+                    "created_at": school_class.created_at,
+                }
                 db.session.delete(school_class)
                 db.session.flush()
             deleted_ids.append(class_id)
             deleted_names.append(class_name)
+            deleted_records.append(restore_record)
             if teacher_user_id:
                 teacher_ids.add(teacher_user_id)
         except IntegrityError:
@@ -7115,6 +7144,18 @@ def classes_delete_selected():
     for teacher_id in teacher_ids:
         _sync_class_teacher_role(teacher_id)
     db.session.commit()
+    if deleted_records:
+        delete_token = str(uuid4())
+        cache.set(
+            make_key("deleted_classes", delete_token),
+            deleted_records,
+            timeout=900,
+        )
+        session["last_class_delete"] = {
+            "token": delete_token,
+            "academic_year_id": academic_year_id,
+            "deleted_count": len(deleted_records),
+        }
 
     last_copy = session.get("last_class_copy") or {}
     if last_copy.get("target_year_id") == academic_year_id:
@@ -7159,6 +7200,87 @@ def classes_delete_selected():
     ))
 
 
+@children_bp.route("/classes/delete/undo", methods=["POST"])
+@require_roles("ADMIN")
+def classes_delete_undo():
+    academic_year_id = request.form.get("academic_year_id", type=int)
+    last_delete = session.get("last_class_delete") or {}
+    delete_token = last_delete.get("token")
+    if (
+        not academic_year_id
+        or last_delete.get("academic_year_id") != academic_year_id
+        or not delete_token
+    ):
+        flash("Отмена удаления уже недоступна.", "warning")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=academic_year_id,
+        ))
+
+    cache_key = make_key("deleted_classes", delete_token)
+    deleted_records = cache.get(cache_key) or []
+    if not deleted_records:
+        session.pop("last_class_delete", None)
+        flash("Срок отмены удаления истёк.", "warning")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=academic_year_id,
+        ))
+
+    restored_names = []
+    skipped_names = []
+    teacher_ids = set()
+    for record in deleted_records:
+        record_name = record["name"]
+        id_exists = db.session.get(SchoolClass, record["id"]) is not None
+        if id_exists or _class_name_exists(academic_year_id, record_name):
+            skipped_names.append(record_name)
+            continue
+        restored = SchoolClass(**record)
+        db.session.add(restored)
+        restored_names.append(record_name)
+        if restored.teacher_user_id:
+            teacher_ids.add(restored.teacher_user_id)
+
+    try:
+        db.session.flush()
+        for teacher_id in teacher_ids:
+            _sync_class_teacher_role(teacher_id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Не удалось отменить удаление: один из классов уже используется "
+            "или его название занято.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=academic_year_id,
+        ))
+
+    cache.delete(cache_key)
+    session.pop("last_class_delete", None)
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
+    if restored_names:
+        flash(
+            f"Восстановлено классов: {len(restored_names)}.",
+            "success",
+        )
+    if skipped_names:
+        flash(
+            "Не восстановлены классы с уже занятыми названиями: "
+            + ", ".join(skipped_names)
+            + ".",
+            "warning",
+        )
+    return redirect(url_for(
+        "children.classes_registry",
+        academic_year_id=academic_year_id,
+    ))
+
+
 @children_bp.route("/classes/<int:class_id>/delete", methods=["POST"])
 @require_roles("ADMIN")
 def classes_delete(class_id: int):
@@ -7184,12 +7306,49 @@ def classes_delete(class_id: int):
             academic_year_id=academic_year_id,
         ))
 
-    db.session.delete(c)
-    db.session.flush()
+    restore_record = {
+        "id": c.id,
+        "academic_year_id": c.academic_year_id,
+        "building_id": c.building_id,
+        "name": c.name,
+        "grade": c.grade,
+        "letter": c.letter,
+        "max_students": c.max_students,
+        "applications_count": c.applications_count,
+        "teacher_user_id": c.teacher_user_id,
+        "is_active": c.is_active,
+        "is_archived": c.is_archived,
+        "created_at": c.created_at,
+    }
 
-    _sync_class_teacher_role(teacher_user_id)
+    try:
+        db.session.delete(c)
+        db.session.flush()
+        _sync_class_teacher_role(teacher_user_id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Нельзя удалить класс: он используется в учебных планах, "
+            "группах или других данных.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=academic_year_id,
+        ))
 
-    db.session.commit()
+    delete_token = str(uuid4())
+    cache.set(
+        make_key("deleted_classes", delete_token),
+        [restore_record],
+        timeout=900,
+    )
+    session["last_class_delete"] = {
+        "token": delete_token,
+        "academic_year_id": academic_year_id,
+        "deleted_count": 1,
+    }
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
     flash("Класс удалён", "success")
