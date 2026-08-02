@@ -11,15 +11,51 @@
     <div class="page-title">{{ bundle_root.name }}</div>
     <div class="page-sub">
       {{ bundle_labels[plan.plan_kind] }} · {{ bundle_root.education_level|education_level_label }}
+      {% if bundle_root.profile_name %} · {{ bundle_root.profile_name }}{% endif %}
       {% if bundle_root.building %} · {{ bundle_root.building.short_name or bundle_root.building.name }}{% endif %}
     </div>
   </div>
   <div class="page-actions d-flex gap-1">
+    {% if can_update %}
+    <button
+      class="btn btn-outline-secondary btn-sm"
+      type="button"
+      data-bs-toggle="modal"
+      data-bs-target="#plan-profile-modal"
+      title="Изменить профиль"
+      aria-label="Изменить профиль учебного плана"
+    >
+      <i class="bi bi-pencil" aria-hidden="true"></i>
+    </button>
+    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans', academic_year_id=bundle_root.tariff_version.tariff_cycle.academic_year_id) }}" title="К списку планов" aria-label="К списку планов">
       <i class="bi bi-arrow-left" aria-hidden="true"></i>
     </a>
   </div>
 </div>
+
+{% if can_update %}
+<div class="modal fade" id="plan-profile-modal" tabindex="-1" aria-labelledby="plan-profile-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{{ url_for('workload.plan_profile_update', plan_id=bundle_root.id) }}">
+      <div class="modal-header">
+        <h2 class="modal-title fs-6" id="plan-profile-title">Профиль учебного плана</h2>
+        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="revision" value="{{ bundle_root.revision }}">
+        <label class="form-label" for="plan-profile-name">Профиль</label>
+        <input class="form-control" id="plan-profile-name" name="profile_name" maxlength="160" value="{{ bundle_root.profile_name or '' }}" placeholder="Например, математический">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-primary btn-sm" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 {% include "workload/_nav.html" %}
 

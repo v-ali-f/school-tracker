@@ -283,6 +283,7 @@ class EducationPlan(db.Model):
     )
     plan_kind = db.Column(db.String(40), nullable=False, index=True)
     name = db.Column(db.String(255), nullable=False)
+    profile_name = db.Column(db.String(160), nullable=True)
     education_level = db.Column(db.String(20), nullable=True, index=True)
     building_id = db.Column(
         db.Integer,

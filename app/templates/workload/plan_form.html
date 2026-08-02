@@ -23,6 +23,7 @@
       <option
         value="{{ source.id }}"
         data-name="{{ source.name }}"
+        data-profile="{{ source.profile_name or '' }}"
         data-level="{{ source.education_level or '' }}"
         data-building="{{ source.building_id or '' }}"
         {% if selected_source_plan and selected_source_plan.id == source.id %}selected{% endif %}
@@ -62,7 +63,18 @@
       <option value="SOO" {% if selected_source_plan and selected_source_plan.education_level == 'SOO' %}selected{% endif %}>СОО — 10–11 классы</option>
     </select>
   </div>
-  <div class="col-md-8">
+  <div class="col-md-4">
+    <label class="form-label" for="plan-profile">Профиль</label>
+    <input
+      class="form-control"
+      id="plan-profile"
+      name="profile_name"
+      maxlength="160"
+      placeholder="Например, математический"
+      value="{{ request.form.get('profile_name', selected_source_plan.profile_name if selected_source_plan and selected_source_plan.profile_name else '') }}"
+    >
+  </div>
+  <div class="col-md-4">
     <label class="form-label" for="plan-building">Здание</label>
     <select class="form-select" id="plan-building" name="building_id">
       <option value="">Все здания</option>
@@ -82,9 +94,10 @@
 (() => {
   const source = document.querySelector("[data-plan-source]");
   const name = document.querySelector("#plan-name");
+  const profile = document.querySelector("#plan-profile");
   const level = document.querySelector("#plan-level");
   const building = document.querySelector("#plan-building");
-  if (!source || !name || !level || !building) return;
+  if (!source || !name || !profile || !level || !building) return;
 
   let generatedName = "";
   const refresh = () => {
@@ -95,6 +108,7 @@
     if (!copying) return;
     level.value = option.dataset.level || "";
     building.value = option.dataset.building || "";
+    profile.value = option.dataset.profile || "";
     const nextName = `${option.dataset.name} (копия)`;
     if (!name.value || name.value === generatedName) name.value = nextName;
     generatedName = nextName;

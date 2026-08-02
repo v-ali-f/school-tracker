@@ -89,6 +89,7 @@ def _copy_plan_bundles(source_year, target_year, *, user_id):
                 tariff_version_id=target_version.id,
                 plan_kind="CURRICULUM",
                 name=source_plan.name,
+                profile_name=source_plan.profile_name,
                 education_level=source_plan.education_level,
                 building_id=source_plan.building_id,
                 scope_code=plan_scope_code(

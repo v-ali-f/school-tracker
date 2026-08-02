@@ -78,6 +78,7 @@ def test_rollover_copies_independent_plans_without_groups_or_workload(
             tariff_version_id=source_version.id,
             plan_kind="CURRICULUM",
             name="ООО",
+            profile_name="Математический",
             education_level="OOO",
             scope_code=plan_scope_code("OOO"),
             status="DRAFT",
@@ -191,6 +192,7 @@ def test_rollover_copies_independent_plans_without_groups_or_workload(
         target_line = target_plan.lines[0]
         assert target_line.id != source_line.id
         assert target_line.source_line_id == source_line.id
+        assert target_plan.profile_name == "Математический"
         assert target_line.weekly_hours == Decimal("5")
         assert target_line.scopes[0].scope_kind == "GRADE"
         assert target_line.scopes[0].grade == 5

@@ -815,6 +815,10 @@ def register_plan_routes(workload_bp):
                 if academic_year_id else None
             )
             name = " ".join((request.form.get("name") or "").split())
+            profile_name = (
+                " ".join((request.form.get("profile_name") or "").split())
+                or None
+            )
             education_level = (
                 (request.form.get("education_level") or "").strip().upper()
                 or None
@@ -823,6 +827,7 @@ def register_plan_routes(workload_bp):
             if source_plan is not None:
                 education_level = source_plan.education_level
                 building_id = source_plan.building_id
+                profile_name = source_plan.profile_name
             building = (
                 db.session.get(Building, building_id)
                 if building_id else None
@@ -854,6 +859,7 @@ def register_plan_routes(workload_bp):
                     tariff_version_id=version.id,
                     plan_kind="CURRICULUM",
                     name=name,
+                    profile_name=profile_name,
                     education_level=education_level,
                     building_id=building_id,
                     scope_code=plan_scope_code(
@@ -914,6 +920,34 @@ def register_plan_routes(workload_bp):
             scope_label=_scope_label,
             can_update=can_update,
         )
+
+    @workload_bp.post("/plans/<int:plan_id>/profile")
+    @login_required
+    def plan_profile_update(plan_id):
+        plan = plan_bundle_root(_get_plan(plan_id, for_update=True))
+        try:
+            require_plan_editable(
+                plan,
+                expected_revision=request.form.get("revision", type=int),
+            )
+            profile_name = (
+                " ".join((request.form.get("profile_name") or "").split())
+                or None
+            )
+            for part in plan_bundle_parts(plan).values():
+                part.profile_name = profile_name
+                part.updated_by_user_id = current_user.id
+                part.revision += 1
+            db.session.commit()
+        except PlanValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            flash("Профиль учебного плана сохранён.", "success")
+        return redirect(url_for(
+            "workload.plan_matrix",
+            plan_id=plan.id,
+        ))
 
     @workload_bp.post("/plans/<int:plan_id>/delete")
     @login_required

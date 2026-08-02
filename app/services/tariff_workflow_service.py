@@ -867,6 +867,7 @@ def clone_correction_version(
             tariff_version_id=target.id,
             plan_kind=old_plan.plan_kind,
             name=old_plan.name,
+            profile_name=old_plan.profile_name,
             education_level=old_plan.education_level,
             building_id=old_plan.building_id,
             scope_code=old_plan.scope_code,

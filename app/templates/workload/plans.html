@@ -45,6 +45,7 @@
         <th>Учебный год</th>
         <th>Наименование</th>
         <th>Уровень</th>
+        <th>Профиль</th>
         <th class="text-end">Строк</th>
         <th class="text-end">Действие</th>
       </tr>
@@ -60,6 +61,7 @@
           {{ plan.education_level|education_level_label }}
           {% if plan.building %}<div class="small text-muted">{{ plan.building.short_name or plan.building.name }}</div>{% endif %}
         </td>
+        <td>{{ plan.profile_name or "—" }}</td>
         {% set line_count = namespace(value=plan.lines|length) %}
         {% for companion in plan.companion_plans %}
           {% set line_count.value = line_count.value + companion.lines|length %}
@@ -94,7 +96,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-center text-muted py-4">Учебные планы ещё не созданы.</td></tr>
+      <tr><td colspan="6" class="text-center text-muted py-4">Учебные планы ещё не созданы.</td></tr>
       {% endfor %}
     </tbody>
   </table>

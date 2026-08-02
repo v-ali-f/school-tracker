@@ -295,18 +295,19 @@
   </div>
   <div class="table-responsive">
     <table class="table align-middle contingent-classes-table">
-      {% set _colspan = 9 %}
+      {% set _colspan = 10 %}
       <thead>
         <tr>
           <th style="min-width:90px;">Класс</th>
           <th style="min-width:125px;">Здание</th>
-          <th style="min-width:190px;">Классный руководитель</th>
-          <th style="min-width:125px;">Телефон</th>
           <th class="num" style="width:68px;">Всего</th>
           <th class="num" style="width:62px;">Мал.</th>
           <th class="num" style="width:62px;">Дев.</th>
           <th class="center" style="width:78px;">Свободно</th>
           <th class="num" style="width:62px;">Макс.</th>
+          <th style="min-width:140px;">Профиль</th>
+          <th style="min-width:190px;">Классный руководитель</th>
+          <th style="min-width:125px;">Телефон</th>
         </tr>
       </thead>
       <tbody>
@@ -335,14 +336,6 @@
               {% if r.class.building %}{{ r.class.building.name }}{% else %}—{% endif %}
             </td>
 
-            <td>{{ r.teacher_fio or "—" }}</td>
-
-            <td class="text-muted">
-              {% if r.teacher_phone %}
-                <a href="tel:{{ r.teacher_phone }}" class="text-decoration-none">{{ r.teacher_phone }}</a>
-              {% else %}—{% endif %}
-            </td>
-
             <td class="num">{{ r.total }}</td>
             <td class="num">{{ r.boys }}</td>
             <td class="num">{{ r.girls }}</td>
@@ -362,6 +355,19 @@
             </td>
 
             <td class="num text-muted">{{ r.class.max_students }}</td>
+            <td>
+              {% if r.profile_names %}
+                {{ r.profile_names|join(", ") }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>{{ r.teacher_fio or "—" }}</td>
+            <td class="text-muted">
+              {% if r.teacher_phone %}
+                <a href="tel:{{ r.teacher_phone }}" class="text-decoration-none">{{ r.teacher_phone }}</a>
+              {% else %}—{% endif %}
+            </td>
           </tr>
         {% endfor %}
 
@@ -678,6 +684,12 @@
     line-height: 1.15 !important;
   }
 
+  .contingent-page .contingent-classes-table th,
+  .contingent-page .contingent-classes-table td {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
   .contingent-page .contingent-classes-table a,
   .contingent-page .contingent-classes-table .class-link {
     font-size: 14px !important;
@@ -926,5 +938,4 @@
 
 
 {% endblock %}
-
 
