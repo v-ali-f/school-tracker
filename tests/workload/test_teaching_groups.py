@@ -451,6 +451,8 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
     assert "Математический".encode() in response.data
     assert "Заяв.".encode() in response.data
     assert "В пар.".encode() in response.data
+    assert "Основное общее образование".encode() in response.data
+    assert "5–9 ·".encode() in response.data
     assert b'value=""' in response.data
     assert b'data-saved-value="0"' in response.data
 

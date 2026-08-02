@@ -332,7 +332,18 @@
       <tbody>
         {% for r in rows %}
           {% set parallel = totals.parallel_stats.get(r.class.grade, {}) %}
+          {% set level = totals.level_stats.get(r.level_code, {}) %}
+          {% set is_level_start = loop.first or rows[loop.index0 - 1].level_code != r.level_code %}
+          {% set is_level_end = loop.last or rows[loop.index0 + 1].level_code != r.level_code %}
           {% set is_parallel_start = loop.first or rows[loop.index0 - 1].class.grade != r.class.grade %}
+          {% if is_level_start %}
+            <tr class="section-row education-level-row">
+              <td colspan="{{ _colspan }}">
+                {{ r.level_display_code }} · {{ r.level_label }}
+                {% if r.level_range %}({{ r.level_range }} классы){% endif %}
+              </td>
+            </tr>
+          {% endif %}
           {% if is_parallel_start %}
             <tr class="section-row parallel-row">
               <td colspan="{{ _colspan }}">
@@ -408,6 +419,23 @@
               {% endif %}
             </td>
           </tr>
+          {% if is_level_end %}
+            <tr class="education-level-total">
+              <td colspan="2">
+                Итого:
+                {% if level.range %}{{ level.range }} · {% endif %}
+                {{ level.display_code }}
+              </td>
+              <td class="num">{{ level.children }}</td>
+              <td class="num">{{ level.applications if level.applications else "" }}</td>
+              <td class="num">{{ level.capacity }}</td>
+              <td colspan="3"></td>
+              <td class="num">—</td>
+              <td class="num">{{ level.boys }}</td>
+              <td class="num">{{ level.girls }}</td>
+              <td class="center">{{ level.free }}</td>
+            </tr>
+          {% endif %}
         {% endfor %}
 
         {% if rows|length == 0 %}
@@ -802,6 +830,29 @@
   .contingent-page .contingent-classes-table .parallel-row td {
     background: #e8eef7 !important;
     color: #263750 !important;
+    text-align: left !important;
+  }
+
+  .contingent-page .contingent-classes-table .education-level-row td {
+    padding: 7px 8px !important;
+    background: #d7e4f4 !important;
+    color: #183a67 !important;
+    font-weight: 700 !important;
+    text-align: left !important;
+    border-top: 2px solid #9db6d4 !important;
+  }
+
+  .contingent-page .contingent-classes-table .education-level-total td {
+    padding: 6px 5px !important;
+    background: #ffeca9 !important;
+    color: #27354b !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    border-top: 2px solid #d2ad36 !important;
+    border-bottom: 2px solid #d2ad36 !important;
+  }
+
+  .contingent-page .contingent-classes-table .education-level-total td:first-child {
     text-align: left !important;
   }
 
