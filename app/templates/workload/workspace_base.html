@@ -83,12 +83,6 @@
             <i class="bi bi-calendar3" aria-hidden="true"></i>
             {{ workspace_year.name if workspace_year else 'Учебный год не выбран' }}
           </span>
-          {% if workspace_version and workspace_mode != 'hours' %}
-          <span>
-            <i class="bi bi-layers" aria-hidden="true"></i>
-            Версия {{ workspace_version.version_no }}
-          </span>
-          {% endif %}
         </div>
       </div>
     </div>

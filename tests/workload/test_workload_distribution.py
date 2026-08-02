@@ -501,7 +501,8 @@ def test_admin_creates_assignment_through_route(
     assert "data-need-context" not in workspace_html
     assert "Назначено" in workspace_html
     assert 'name="version_id"' in workspace_html
-    assert "2026/2027 · версия 1" in workspace_html
+    assert "2026/2027" in workspace_html
+    assert "версия 1" not in workspace_html.lower()
     assert 'data-active-mode="workload"' in workspace_html
     assert client.get(f"/workload/needs/{need_id}").status_code == 200
     assert client.get("/workload/teachers/").status_code == 200
@@ -857,7 +858,8 @@ def test_workload_editor_settings_and_workspace_hide_draft_badge(
         "/workload/assignments/workspace",
         query_string={"version_id": context["version_id"]},
     ).get_data(as_text=True)
-    assert "Версия 1" in workspace
+    assert "2026/2027" in workspace
+    assert "Версия 1" not in workspace
     assert ">Черновик<" not in workspace
 
 
