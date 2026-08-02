@@ -523,49 +523,25 @@
   font-weight: 750;
 }
 
-.workload-holder-replace {
-  position: relative;
+.workload-holder-replace-button {
   margin-top: 8px;
-}
-
-.workload-holder-replace summary {
-  width: max-content;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   color: #1766d6;
+  background: transparent;
+  border: 0;
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
-  list-style: none;
 }
 
-.workload-holder-replace summary::-webkit-details-marker {
-  display: none;
-}
-
-.workload-holder-replace form {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 5px);
-  left: 0;
-  width: 300px;
-  padding: 10px;
-  display: grid;
-  gap: 7px;
-  background: #fff;
-  border: 1px solid var(--workload-border-strong);
-  box-shadow: 0 12px 30px rgba(31, 45, 69, 0.18);
-}
-
-.workload-holder-replace label {
-  color: var(--workload-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.workload-holder-replace .btn {
-  justify-self: end;
+.workload-holder-replace-button:hover,
+.workload-holder-replace-button:focus-visible {
+  color: #084fbd;
+  text-decoration: underline;
+  outline: 0;
 }
 
 .workload-assignment-matrix__teacher-cell span,
