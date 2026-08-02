@@ -117,3 +117,28 @@ def test_teacher_manages_own_professional_records_only(
     assert "Современные методики обучения" in html
     assert "Высшая квалификационная категория" in html
     assert "Высокий" in html
+
+
+def test_department_index_exposes_teacher_cabinet_links(
+    app,
+    client,
+    make_user,
+    login,
+):
+    teacher_id = make_user("TEACHER")
+    login(teacher_id)
+    teacher_page = client.get("/departments/")
+    teacher_html = teacher_page.get_data(as_text=True)
+
+    assert teacher_page.status_code == 200
+    assert "Мой кабинет" in teacher_html
+    assert 'href="/departments/teacher/cabinet"' in teacher_html
+
+    admin_id = make_user("ADMIN")
+    login(admin_id)
+    admin_page = client.get("/departments/")
+    admin_html = admin_page.get_data(as_text=True)
+
+    assert admin_page.status_code == 200
+    assert "Кабинеты преподавателей" in admin_html
+    assert 'href="/departments/summary#department-teachers"' in admin_html
