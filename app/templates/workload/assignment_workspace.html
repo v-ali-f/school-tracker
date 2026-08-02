@@ -191,7 +191,7 @@
             <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
               {% for slot in matrix_cell.slots %}
               <form
-                class="workload-cell-entry {% if slot.assignment %}is-assigned{% elif slot.assigned_elsewhere %}is-locked{% endif %}"
+                class="workload-cell-entry {% if slot.assignment %}is-assigned{% elif slot.assigned_elsewhere %}is-locked{% elif can_update %}is-available{% endif %}"
                 method="post"
                 action="{{ url_for('workload.assignment_workspace_cell_update') }}"
                 data-workload-cell-form
@@ -401,6 +401,10 @@
       const planned = form.dataset.planned;
       form.classList.toggle("is-assigned", assigned);
       form.classList.toggle("is-locked", locked);
+      form.classList.toggle(
+        "is-available",
+        !assigned && !locked && form.dataset.editable === "1"
+      );
       hours.value = assigned ? "0" : planned;
       if (value) value.textContent = assigned ? formatHours(planned) : "";
       if (label) label.hidden = !assigned;

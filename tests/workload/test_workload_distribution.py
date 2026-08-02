@@ -616,6 +616,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert matrix.status_code == 200
     assert "Предмет не выбран" not in html
     assert "data-workload-cell-toggle" in html
+    assert "workload-cell-entry is-available" in html
     assert "data-workload-cell-value></span>" in html
     assert 'name="hours"' in html
     assert 'type="hidden"' in html
@@ -756,7 +757,7 @@ def test_department_and_workspace_read_current_load_and_mcko(
     )
     assert profile.status_code == 200
     profile_html = profile.get_data(as_text=True)
-    assert "Подробная нагрузка" in profile_html
+    assert "Карточка преподавателя" in profile_html
     assert "5 ч/нед." in profile_html
     assert "Высокий" in profile_html
 

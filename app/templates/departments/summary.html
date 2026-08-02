@@ -95,10 +95,10 @@
     <h5 class="section-title" id="teacher-mcko">Результаты МЦКО педагогов</h5>
     <div class="small text-muted mb-2">Сертификат действует три календарных года с даты диагностики.</div>
     <div class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>Учитель</th><th>Предмет</th><th>Уровень</th><th>Дата</th><th>Действует до</th><th>Статус</th></tr></thead><tbody>{% for row in mcko_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
-    {% if is_admin or is_methodist or current_user.role in ['TEACHER','CLASS_TEACHER'] %}
+    {% if can_manage_professional %}
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2">
       <input type="hidden" name="department_id" value="{{ dep.id }}">
-      <div class="col-md-4"><select class="form-select" name="teacher_id">{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><select class="form-select" name="level" required><option value="">Уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><input class="form-control" type="date" name="passed_at" required></div>
@@ -109,11 +109,11 @@
   </div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-body">
     <h5 class="section-title">Курсы повышения квалификации</h5>
-    <div class="table-responsive mb-3"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Курс</th><th>Часы</th></tr></thead><tbody>{% for row in course_rows %}<tr><td>{{ row.teacher.fio if row.teacher else '—' }}</td><td>{{ row.title }}</td><td>{{ row.hours or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
-    {% if is_admin or is_methodist or current_user.role in ['TEACHER','CLASS_TEACHER'] %}
+    <div class="table-responsive mb-3"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Курс</th><th>Организация</th><th>Часы</th></tr></thead><tbody>{% for row in course_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td>{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+    {% if can_manage_professional %}
     <form method="post" action="{{ url_for('departments.add_course') }}" class="row g-2">
       <input type="hidden" name="department_id" value="{{ dep.id }}">
-      <div class="col-md-4"><select class="form-select" name="teacher_id">{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
       <div class="col-md-4"><input class="form-control" name="title" placeholder="Название курса" required></div>
       <div class="col-md-2"><input class="form-control" type="number" step="0.1" name="hours" placeholder="Часы"></div>
       <div class="col-md-2"><input class="form-control" type="date" name="start_date"></div>
@@ -123,6 +123,24 @@
     {% endif %}
   </div></div></div>
 </div>
+
+<div class="card mt-4"><div class="card-body">
+  <h5 class="section-title">Аттестация преподавателей</h5>
+  <div class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>Учитель</th><th>Результат</th><th>Должность</th><th>Дата решения</th><th>Действует до</th><th>Документ</th></tr></thead><tbody>{% for row in attestation_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ attestation_category_labels.get(row.category, row.category) }}</td><td>{{ row.position_title or '—' }}</td><td>{{ row.decision_date.strftime('%d.%m.%Y') }}</td><td>{{ row.valid_until.strftime('%d.%m.%Y') if row.valid_until else 'Без ограничения' }}</td><td>{{ row.order_number or '—' }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+  {% if can_manage_professional %}
+  <form method="post" action="{{ url_for('departments.add_attestation') }}" class="row g-2">
+    <input type="hidden" name="department_id" value="{{ dep.id }}">
+    <div class="col-md-3"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select class="form-select" name="category" required><option value="">Результат аттестации</option>{% for code, label in attestation_category_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><input class="form-control" name="position_title" placeholder="Должность"></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="decision_date" required title="Дата решения"></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="valid_until" title="Действует до"></div>
+    <div class="col-md-4"><input class="form-control" name="order_number" placeholder="Номер приказа/документа"></div>
+    <div class="col-md-6"><input class="form-control" name="notes" placeholder="Примечание"></div>
+    <div class="col-md-2 d-grid"><button class="btn btn-outline-primary">Добавить аттестацию</button></div>
+  </form>
+  {% endif %}
+</div></div>
 {% else %}
 <div class="alert alert-info">Для выбранной роли пока нет доступных кафедр или нагрузка ещё не загружена.</div>
 {% endif %}

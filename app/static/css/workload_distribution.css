@@ -355,8 +355,8 @@
 }
 
 .workload-matrix-legend i.is-available {
-  background: #fff;
-  border-color: #aeb9c9;
+  background: #fff4c2;
+  border-color: #d8b84f;
 }
 
 .workload-matrix-legend i.is-locked {
@@ -694,6 +694,15 @@
     transparent 53%
   );
   background-size: 10px 10px;
+}
+
+.workload-cell-entry.is-available {
+  background: #fff8d8;
+}
+
+.workload-cell-entry.is-available:hover,
+.workload-cell-entry.is-available:focus-within {
+  background: #fff1b8;
 }
 
 .workload-cell-entry.is-saving {

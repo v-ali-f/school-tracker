@@ -40,13 +40,21 @@ from .models import (
     DepartmentLeader,
     DepartmentSubject,
     EducationActivity,
+    TeacherAttestation,
     TeacherCourse,
     TeacherLoad,
     TeacherMckoResult,
     User,
 )
 from .models.diagnostics import DiagnosticResult, DiagnosticSession
-from .permissions import has_role, is_admin, METHODIST, TEACHER, CLASS_TEACHER
+from .permissions import (
+    CLASS_TEACHER,
+    DEPARTMENT_HEAD,
+    METHODIST,
+    TEACHER,
+    has_role,
+    is_admin,
+)
 from .services.olympiad_stats_service import department_stats as olympiad_department_stats, dashboard_stats as olympiad_dashboard_stats
 from app.users import register_unmatched_staff
 from app.utils.user_matching import find_existing_user
@@ -56,6 +64,12 @@ departments_bp = Blueprint("departments", __name__, url_prefix="/departments")
 
 
 VALID_MARK_VALUES = {"2", "3", "4", "5"}
+
+ATTESTATION_CATEGORY_LABELS = {
+    "POSITION_COMPLIANCE": "Соответствие занимаемой должности",
+    "FIRST": "Первая квалификационная категория",
+    "HIGHEST": "Высшая квалификационная категория",
+}
 
 
 def _safe_float(value):
@@ -236,9 +250,11 @@ def _ensure_default_departments():
 def _department_allowed(dep: Department) -> bool:
     if is_admin(current_user):
         return True
-    if current_user.role == METHODIST:
+    if has_role(METHODIST):
+        return True
+    if has_role(DEPARTMENT_HEAD):
         return DepartmentLeader.query.filter_by(department_id=dep.id, user_id=current_user.id).first() is not None
-    if current_user.role in {TEACHER, CLASS_TEACHER}:
+    if has_role(TEACHER) or has_role(CLASS_TEACHER):
         return True
     return False
 
@@ -246,12 +262,65 @@ def _department_allowed(dep: Department) -> bool:
 def _load_departments_for_user():
     _ensure_default_departments()
     deps = Department.query.order_by(Department.name.asc()).all()
-    if is_admin(current_user):
+    if is_admin(current_user) or has_role(METHODIST):
         return deps
-    if current_user.role == METHODIST:
+    if has_role(DEPARTMENT_HEAD):
         dep_ids = [x.department_id for x in DepartmentLeader.query.filter_by(user_id=current_user.id).all()]
         return [d for d in deps if d.id in dep_ids]
     return deps
+
+
+def _managed_department_ids(user=None) -> set[int]:
+    user = user or current_user
+    return {
+        row.department_id
+        for row in DepartmentLeader.query.filter_by(user_id=user.id).all()
+    }
+
+
+def _can_manage_teacher_professional(
+    teacher_id: int,
+    *,
+    academic_year_id: int | None = None,
+) -> bool:
+    if teacher_id == current_user.id:
+        return True
+    if is_admin(current_user) or has_role(METHODIST):
+        return True
+    if not has_role(DEPARTMENT_HEAD):
+        return False
+    current_year = AcademicYear.query.filter_by(is_current=True).first()
+    year_id = academic_year_id or (current_year.id if current_year else None)
+    if not year_id:
+        return False
+    return any(
+        teacher_id in department_teacher_ids(year_id, department_id)
+        for department_id in _managed_department_ids()
+    )
+
+
+def _professional_target_from_form() -> User | None:
+    teacher_id = request.form.get("teacher_id", type=int)
+    if not teacher_id:
+        flash("Сначала выберите преподавателя.", "danger")
+        return None
+    teacher = db.session.get(User, teacher_id)
+    if teacher is None:
+        flash("Преподаватель не найден.", "danger")
+        return None
+    if not _can_manage_teacher_professional(teacher.id):
+        abort(403)
+    return teacher
+
+
+def _professional_redirect(teacher_id: int | None = None):
+    return redirect(
+        request.referrer
+        or url_for(
+            "departments.teacher_profile",
+            teacher_id=teacher_id or current_user.id,
+        )
+    )
 
 
 def _subject_activity_ids_for_department(dep: Department):
@@ -765,7 +834,11 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
 
 def _teacher_scope_user_id():
     teacher_id = request.args.get("teacher_id", type=int)
-    if is_admin(current_user) or current_user.role == METHODIST:
+    if (
+        is_admin(current_user)
+        or has_role(METHODIST)
+        or has_role(DEPARTMENT_HEAD)
+    ):
         return teacher_id
     return current_user.id
 
@@ -1173,12 +1246,19 @@ def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_ye
 @login_required
 def summary():
     deps = _load_departments_for_user()
+    can_manage_department = (
+        is_admin(current_user)
+        or has_role(METHODIST)
+        or has_role(DEPARTMENT_HEAD)
+    )
     selected_dep_id = request.args.get("department_id", type=int)
     selected_teacher_id = _teacher_scope_user_id()
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
-    if current_user.role in {TEACHER, CLASS_TEACHER}:
+    if not can_manage_department and (
+        has_role(TEACHER) or has_role(CLASS_TEACHER)
+    ):
         deps = [
             department for department in deps
             if current_user.id in department_teacher_ids(
@@ -1219,7 +1299,9 @@ def summary():
             for row in department_load_rows
             if row.teacher is not None
         })
-        if current_user.role in {TEACHER, CLASS_TEACHER}:
+        if not can_manage_department and (
+            has_role(TEACHER) or has_role(CLASS_TEACHER)
+        ):
             teacher_ids = [x for x in teacher_ids if x == current_user.id]
             department_load_rows = [
                 row for row in department_load_rows
@@ -1242,14 +1324,31 @@ def summary():
             teacher_ids,
             teacher_id=selected_teacher_id,
         )
-        course_q = TeacherCourse.query.filter(TeacherCourse.teacher_id.in_(teacher_ids)) if teacher_ids else TeacherCourse.query.filter(db.text("0=1"))
+        course_q = TeacherCourse.query.filter(
+            TeacherCourse.teacher_id.in_(teacher_ids),
+            TeacherCourse.is_archived.is_(False),
+        ) if teacher_ids else TeacherCourse.query.filter(db.text("0=1"))
         if academic_year_id:
             course_q = course_q.filter(db.or_(TeacherCourse.academic_year_id == academic_year_id, TeacherCourse.academic_year_id.is_(None)))
         if selected_teacher_id:
             course_q = course_q.filter_by(teacher_id=selected_teacher_id)
         course_rows = course_q.order_by(TeacherCourse.start_date.desc().nullslast(), TeacherCourse.created_at.desc()).all()
+        attestation_q = TeacherAttestation.query.filter(
+            TeacherAttestation.teacher_id.in_(teacher_ids),
+            TeacherAttestation.is_archived.is_(False),
+        ) if teacher_ids else TeacherAttestation.query.filter(db.text("0=1"))
+        if selected_teacher_id:
+            attestation_q = attestation_q.filter_by(
+                teacher_id=selected_teacher_id,
+            )
+        attestation_rows = attestation_q.order_by(
+            TeacherAttestation.decision_date.desc(),
+            TeacherAttestation.created_at.desc(),
+        ).all()
         olympiad_stats = olympiad_department_stats(academic_year_id=academic_year_id, department_id=dep.id)
         diagnostics_stats = _diagnostics_department_stats(dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id, selected_teacher_id=selected_teacher_id)
+    else:
+        attestation_rows = []
 
     return render_template(
         "departments/summary.html",
@@ -1272,17 +1371,29 @@ def summary():
         department_load_rows=department_load_rows,
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
+        attestation_rows=attestation_rows,
+        attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
+        can_manage_professional=bool(
+            dep
+            and can_manage_department
+        ),
     )
+
+
+@departments_bp.get("/teacher/cabinet")
+@login_required
+def teacher_cabinet():
+    return redirect(url_for(
+        "departments.teacher_profile",
+        teacher_id=current_user.id,
+        academic_year_id=request.args.get("academic_year_id", type=int),
+    ))
 
 
 @departments_bp.get("/teachers/<int:teacher_id>")
 @login_required
 def teacher_profile(teacher_id):
-    if not (
-        is_admin(current_user)
-        or current_user.role == METHODIST
-        or current_user.id == teacher_id
-    ):
+    if not _can_manage_teacher_professional(teacher_id):
         abort(403)
     teacher = User.query.get_or_404(teacher_id)
     years = AcademicYear.query.order_by(
@@ -1309,6 +1420,25 @@ def teacher_profile(teacher_id):
         [teacher.id],
         teacher_id=teacher.id,
     )
+    course_rows = (
+        TeacherCourse.query
+        .filter_by(teacher_id=teacher.id, is_archived=False)
+        .order_by(
+            TeacherCourse.end_date.desc().nullslast(),
+            TeacherCourse.start_date.desc().nullslast(),
+            TeacherCourse.created_at.desc(),
+        )
+        .all()
+    )
+    attestation_rows = (
+        TeacherAttestation.query
+        .filter_by(teacher_id=teacher.id, is_archived=False)
+        .order_by(
+            TeacherAttestation.decision_date.desc(),
+            TeacherAttestation.created_at.desc(),
+        )
+        .all()
+    )
     return render_template(
         "departments/teacher_profile.html",
         teacher=teacher,
@@ -1320,15 +1450,24 @@ def teacher_profile(teacher_id):
         mcko_rows=mcko_rows,
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
+        course_rows=course_rows,
+        attestation_rows=attestation_rows,
+        attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
+        can_edit_professional=_can_manage_teacher_professional(
+            teacher.id,
+            academic_year_id=academic_year_id,
+        ),
+        is_self_profile=teacher.id == current_user.id,
+        today=date.today(),
     )
 
 
 @departments_bp.route("/teacher/mcko/add", methods=["POST"])
 @login_required
 def add_mcko():
-    teacher_id = request.form.get("teacher_id", type=int) or current_user.id
-    if not (is_admin(current_user) or current_user.role == METHODIST or teacher_id == current_user.id):
-        abort(403)
+    teacher = _professional_target_from_form()
+    if teacher is None:
+        return _professional_redirect()
     passed_at_raw = request.form.get("passed_at") or None
     passed_at = datetime.strptime(passed_at_raw, "%Y-%m-%d").date() if passed_at_raw else None
     subject_id = request.form.get("subject_id", type=int)
@@ -1349,7 +1488,7 @@ def add_mcko():
         except Exception:
             retention_until = None
     result = TeacherMckoResult(
-        teacher_id=teacher_id,
+        teacher_id=teacher.id,
         academic_year_id=current_year.id if current_year else None,
         passed_at=passed_at,
         expires_at=mcko_expires_at(passed_at),
@@ -1361,21 +1500,21 @@ def add_mcko():
     db.session.add(result)
     db.session.commit()
     flash("Результат МЦКО сохранён.", "success")
-    return redirect(request.referrer or url_for(
-        "departments.summary",
-        department_id=request.form.get("department_id"),
-        teacher_id=teacher_id,
-    ))
+    return _professional_redirect(teacher.id)
 
 
 @departments_bp.route("/teacher/course/add", methods=["POST"])
 @login_required
 def add_course():
-    teacher_id = request.form.get("teacher_id", type=int) or current_user.id
-    if not (is_admin(current_user) or current_user.role == METHODIST or teacher_id == current_user.id):
-        abort(403)
+    teacher = _professional_target_from_form()
+    if teacher is None:
+        return _professional_redirect()
     start_date_raw = request.form.get("start_date") or None
     end_date_raw = request.form.get("end_date") or None
+    title = (request.form.get("title") or "").strip()
+    if not title:
+        flash("Укажите название курса.", "danger")
+        return _professional_redirect(teacher.id)
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     retention_until = None
     if current_year and current_year.end_date:
@@ -1384,9 +1523,9 @@ def add_course():
         except Exception:
             retention_until = None
     db.session.add(TeacherCourse(
-        teacher_id=teacher_id,
+        teacher_id=teacher.id,
         academic_year_id=current_year.id if current_year else None,
-        title=(request.form.get("title") or "").strip(),
+        title=title,
         provider=(request.form.get("provider") or "").strip() or None,
         hours=request.form.get("hours", type=float),
         start_date=datetime.strptime(start_date_raw, "%Y-%m-%d").date() if start_date_raw else None,
@@ -1396,5 +1535,76 @@ def add_course():
     ))
     db.session.commit()
     flash("Курс повышения квалификации сохранён.", "success")
-    return redirect(url_for("departments.summary", department_id=request.form.get("department_id"), teacher_id=teacher_id))
+    return _professional_redirect(teacher.id)
+
+
+@departments_bp.post("/teacher/attestation/add")
+@login_required
+def add_attestation():
+    teacher = _professional_target_from_form()
+    if teacher is None:
+        return _professional_redirect()
+    category = (request.form.get("category") or "").strip().upper()
+    decision_date_raw = (request.form.get("decision_date") or "").strip()
+    valid_until_raw = (request.form.get("valid_until") or "").strip()
+    if category not in ATTESTATION_CATEGORY_LABELS or not decision_date_raw:
+        flash("Укажите вид аттестации и дату решения.", "danger")
+        return _professional_redirect(teacher.id)
+    decision_date = datetime.strptime(decision_date_raw, "%Y-%m-%d").date()
+    valid_until = (
+        datetime.strptime(valid_until_raw, "%Y-%m-%d").date()
+        if valid_until_raw
+        else None
+    )
+    if valid_until and valid_until < decision_date:
+        flash("Срок действия не может завершаться раньше даты решения.", "danger")
+        return _professional_redirect(teacher.id)
+    db.session.add(TeacherAttestation(
+        teacher_id=teacher.id,
+        category=category,
+        position_title=(request.form.get("position_title") or "").strip() or None,
+        decision_date=decision_date,
+        valid_until=valid_until,
+        order_number=(request.form.get("order_number") or "").strip() or None,
+        notes=(request.form.get("notes") or "").strip() or None,
+    ))
+    db.session.commit()
+    flash("Сведения об аттестации сохранены.", "success")
+    return _professional_redirect(teacher.id)
+
+
+def _archive_professional_record(record, *, label: str):
+    if not _can_manage_teacher_professional(record.teacher_id):
+        abort(403)
+    record.is_archived = True
+    db.session.commit()
+    flash(f"{label} удалён из действующих сведений.", "success")
+    return _professional_redirect(record.teacher_id)
+
+
+@departments_bp.post("/teacher/mcko/<int:record_id>/archive")
+@login_required
+def archive_mcko(record_id):
+    return _archive_professional_record(
+        TeacherMckoResult.query.get_or_404(record_id),
+        label="Результат МЦКО",
+    )
+
+
+@departments_bp.post("/teacher/course/<int:record_id>/archive")
+@login_required
+def archive_course(record_id):
+    return _archive_professional_record(
+        TeacherCourse.query.get_or_404(record_id),
+        label="Курс",
+    )
+
+
+@departments_bp.post("/teacher/attestation/<int:record_id>/archive")
+@login_required
+def archive_attestation(record_id):
+    return _archive_professional_record(
+        TeacherAttestation.query.get_or_404(record_id),
+        label="Запись об аттестации",
+    )
 
