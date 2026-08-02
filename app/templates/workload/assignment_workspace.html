@@ -172,25 +172,18 @@
             {% endif %}
             {% endif %}
             {% if can_update %}
-            <details class="workload-holder-replace">
-              <summary><i class="bi bi-pencil" aria-hidden="true"></i>Изменить</summary>
-              <form method="post" action="{{ url_for('workload.assignment_workspace_holder_replace') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {{ workspace_fields() }}
-                <input type="hidden" name="source_type" value="{{ 'vacancy' if block.is_vacancy else 'teacher' }}">
-                <input type="hidden" name="source_teacher_id" value="{{ block.teacher_id or '' }}">
-                <input type="hidden" name="source_vacancy_key" value="{{ block.vacancy_key or '' }}">
-                <label>Передать всю нагрузку</label>
-                <select class="form-select form-select-sm" name="target_holder" required>
-                  <option value="">Выберите</option>
-                  <option value="vacancy">Новая вакансия</option>
-                  {% for item in replacement_choices %}
-                  {% if item.id != block.teacher_id %}<option value="teacher:{{ item.id }}">{{ item.fio }}</option>{% endif %}
-                  {% endfor %}
-                </select>
-                <button class="btn btn-primary btn-sm" type="submit">Заменить</button>
-              </form>
-            </details>
+            <button
+              class="workload-holder-replace-button"
+              type="button"
+              data-open-holder-dialog
+              data-source-type="{{ 'vacancy' if block.is_vacancy else 'teacher' }}"
+              data-source-teacher-id="{{ block.teacher_id or '' }}"
+              data-source-vacancy-key="{{ block.vacancy_key or '' }}"
+              data-source-label="{{ block.label }}"
+            >
+              <i class="bi bi-pencil" aria-hidden="true"></i>
+              <span>Изменить</span>
+            </button>
             {% endif %}
           </th>
           {% endif %}
@@ -358,6 +351,37 @@
     </div>
   </form>
 </dialog>
+
+<dialog class="workload-teacher-dialog" data-holder-dialog>
+  <form method="post" action="{{ url_for('workload.assignment_workspace_holder_replace') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ workspace_fields() }}
+    <input type="hidden" name="source_type" value="" data-holder-source-type>
+    <input type="hidden" name="source_teacher_id" value="" data-holder-source-teacher>
+    <input type="hidden" name="source_vacancy_key" value="" data-holder-source-vacancy>
+    <div class="workload-teacher-dialog__head">
+      <div>
+        <strong>Изменить преподавателя</strong>
+        <small>Вся нагрузка <span data-holder-source-label></span> будет передана выбранному преподавателю или в вакансию.</small>
+      </div>
+      <button type="button" title="Закрыть" aria-label="Закрыть" data-close-holder-dialog>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <label for="matrix-replacement-holder">Новый преподаватель</label>
+    <select class="form-select" id="matrix-replacement-holder" name="target_holder" required data-holder-target>
+      <option value="">Выберите преподавателя</option>
+      <option value="vacancy">Вакансия</option>
+      {% for item in replacement_choices %}
+      <option value="teacher:{{ item.id }}" data-teacher-id="{{ item.id }}">{{ item.fio }}</option>
+      {% endfor %}
+    </select>
+    <div class="workload-teacher-dialog__actions">
+      <button class="btn btn-outline-secondary" type="button" data-close-holder-dialog>Отмена</button>
+      <button class="btn btn-primary" type="submit">Заменить</button>
+    </div>
+  </form>
+</dialog>
 {% endif %}
 
 <script>
@@ -412,6 +436,36 @@
   });
   teacherDialog?.addEventListener("click", (event) => {
     if (event.target === teacherDialog) teacherDialog.close();
+  });
+
+  const holderDialog = document.querySelector("[data-holder-dialog]");
+  const holderSourceType = holderDialog?.querySelector("[data-holder-source-type]");
+  const holderSourceTeacher = holderDialog?.querySelector("[data-holder-source-teacher]");
+  const holderSourceVacancy = holderDialog?.querySelector("[data-holder-source-vacancy]");
+  const holderSourceLabel = holderDialog?.querySelector("[data-holder-source-label]");
+  const holderTarget = holderDialog?.querySelector("[data-holder-target]");
+  document.querySelectorAll("[data-open-holder-dialog]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!holderDialog || !holderTarget) return;
+      holderSourceType.value = button.dataset.sourceType || "teacher";
+      holderSourceTeacher.value = button.dataset.sourceTeacherId || "";
+      holderSourceVacancy.value = button.dataset.sourceVacancyKey || "";
+      holderSourceLabel.textContent = `«${button.dataset.sourceLabel || "выбранной строки"}»`;
+      holderTarget.value = "";
+      holderTarget.querySelectorAll("[data-teacher-id]").forEach((option) => {
+        const isCurrent = option.dataset.teacherId === button.dataset.sourceTeacherId;
+        option.hidden = isCurrent;
+        option.disabled = isCurrent;
+      });
+      holderDialog.showModal();
+      holderTarget.focus();
+    });
+  });
+  document.querySelectorAll("[data-close-holder-dialog]").forEach((button) => {
+    button.addEventListener("click", () => holderDialog?.close());
+  });
+  holderDialog?.addEventListener("click", (event) => {
+    if (event.target === holderDialog) holderDialog.close();
   });
 
   const formatHours = (value) => {
