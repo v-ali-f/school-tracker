@@ -666,7 +666,6 @@ def _theme_configs():
                     "title": "Мой профиль преподавателя",
                     "description": "Моя нагрузка, результаты МЦКО, аттестация и повышение квалификации.",
                     "endpoint": "departments.my_teacher_profile",
-                    "roles_any": ["TEACHER", "CLASS_TEACHER", "DEPARTMENT_HEAD"],
                 },
             ]),
         },
