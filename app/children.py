@@ -139,7 +139,13 @@ from .models import (
     ControlWorkResult,
     OlympiadResult,
     Task,
+    EducationPlan,
+    EducationPlanBinding,
+    PopulationSnapshotClass,
+    TariffCycle,
+    TariffVersion,
 )
+from app.services.teaching_group_service import current_population_snapshot
 from .ovz_rules import OVZ_LEVELS, OVZ_NOZOLOGIES, allowed_variants, is_allowed
 from .roles import require_roles
 from app.service_staff import child_support_assignments, can_view_child_service_block
@@ -1780,6 +1786,76 @@ def contingent():
     from collections import defaultdict
 
     class_ids = [c.id for c in classes]
+    profiles_by_class: dict[int, list[str]] = {}
+    if year_id and class_ids:
+        versions = (
+            TariffVersion.query
+            .join(TariffCycle)
+            .filter(TariffCycle.academic_year_id == year_id)
+            .all()
+        )
+        version_priority = {
+            "DRAFT": 7,
+            "EFFECTIVE": 6,
+            "APPROVED": 5,
+            "APPROVAL": 4,
+            "VALIDATION": 3,
+            "SUPERSEDED": 1,
+            "ARCHIVED": 0,
+        }
+        selected_version = (
+            max(
+                versions,
+                key=lambda item: (
+                    version_priority.get(item.status, -1),
+                    item.version_no,
+                    item.id,
+                ),
+            )
+            if versions else None
+        )
+        snapshot = (
+            current_population_snapshot(selected_version.id)
+            if selected_version else None
+        )
+        if snapshot is not None:
+            profile_rows = (
+                db.session.query(
+                    PopulationSnapshotClass.source_school_class_id,
+                    EducationPlan.profile_name,
+                )
+                .join(
+                    EducationPlanBinding,
+                    EducationPlanBinding.population_snapshot_class_id
+                    == PopulationSnapshotClass.id,
+                )
+                .join(
+                    EducationPlan,
+                    EducationPlan.id
+                    == EducationPlanBinding.education_plan_id,
+                )
+                .filter(
+                    PopulationSnapshotClass.population_snapshot_id
+                    == snapshot.id,
+                    PopulationSnapshotClass.source_school_class_id.in_(
+                        class_ids
+                    ),
+                    EducationPlan.plan_kind == "CURRICULUM",
+                    EducationPlan.root_plan_id.is_(None),
+                )
+                .all()
+            )
+            profile_sets = defaultdict(set)
+            for school_class_id, profile_name in profile_rows:
+                if profile_name:
+                    profile_sets[school_class_id].add(profile_name)
+            profiles_by_class = {
+                class_id: sorted(
+                    profile_names,
+                    key=str.casefold,
+                )
+                for class_id, profile_names in profile_sets.items()
+            }
     boys_by_class = {}
     girls_by_class = {}
     ovz_by_class = {}
@@ -1919,6 +1995,7 @@ def contingent():
             "girls": girls_count,
             "teacher_fio": teacher_fio,
             "teacher_phone": teacher_phone,
+            "profile_names": profiles_by_class.get(c.id, []),
             "sc_in_club": sc_count,
             "do_count": do_count,
             "pending_transfer": pending_transfer,

@@ -37,10 +37,13 @@ from app.services.education_plan_service import (
     plan_scope_code,
 )
 from app.services.education_plan_binding_service import (
+    assign_class_plan,
+    class_level_plan_ids,
     class_plan_allocations,
     replace_plan_binding_members,
 )
 from app.services.class_plan_matrix_service import (
+    build_class_plan_matrix,
     class_period_label,
     effective_line_weekly_hours,
 )
@@ -331,6 +334,121 @@ def test_class_students_can_be_split_between_two_curricula(app, make_user):
         )
         assert student_plan_ids[moved_enrollment_id] == second_plan.id
         assert EducationPlanBinding.query.count() == 2
+
+
+def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
+    app,
+    client,
+    make_user,
+    login,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        year = version.tariff_cycle.academic_year
+        empty_class = SchoolClass(
+            academic_year_id=year.id,
+            building_id=context["building_id"],
+            name="5В",
+            grade=5,
+            letter="В",
+        )
+        db.session.add(empty_class)
+        db.session.commit()
+
+        first_snapshot_id = _snapshot(user_id, version.id)
+        first_snapshot = db.session.get(
+            PopulationSnapshot,
+            first_snapshot_id,
+        )
+        snapshot_class = next(
+            item
+            for item in first_snapshot.classes
+            if item.source_school_class_id == empty_class.id
+        )
+        plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        plan.profile_name = "Математический"
+        assign_class_plan(
+            snapshot_class,
+            [plan],
+            plan.id,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert class_level_plan_ids(snapshot_class, [plan]) == {plan.id}
+        allocations, student_plan_ids = class_plan_allocations(
+            snapshot_class,
+            [plan],
+        )
+        assert allocations[plan.id] == set()
+        assert student_plan_ids == {}
+        matrix = build_class_plan_matrix(
+            first_snapshot,
+            [plan],
+            "OOO",
+            grade=5,
+        )
+        empty_group = next(
+            item
+            for item in matrix["class_groups"]
+            if item["snapshot_class"].id == snapshot_class.id
+        )
+        assert len(empty_group["columns"]) == 1
+        assert empty_group["columns"][0]["plan"].id == plan.id
+        assert empty_group["columns"][0]["student_count"] == 0
+        assert not empty_group["columns"][0]["is_unassigned"]
+
+        child = _child("Новый", "Ученик")
+        db.session.add(ChildEnrollment(
+            child_id=child.id,
+            academic_year_id=year.id,
+            school_class_id=empty_class.id,
+            status="ACTIVE",
+            enrolled_at=datetime(2026, 9, 2),
+        ))
+        db.session.commit()
+        second_snapshot = build_population_snapshot(
+            version,
+            user_id=user_id,
+            snapshot_date=date(2026, 9, 2),
+        )
+        db.session.commit()
+        new_snapshot_class = next(
+            item
+            for item in second_snapshot.classes
+            if item.source_school_class_id == empty_class.id
+        )
+        allocations, student_plan_ids = class_plan_allocations(
+            new_snapshot_class,
+            [plan],
+        )
+        new_enrollment_id = new_snapshot_class.enrollments[0].id
+        assert allocations[plan.id] == {new_enrollment_id}
+        assert student_plan_ids[new_enrollment_id] == plan.id
+        assert (
+            EducationPlanBinding.query
+            .filter_by(
+                population_snapshot_class_id=new_snapshot_class.id,
+            )
+            .one()
+            .binding_mode
+            == "CLASS"
+        )
+        year_id = year.id
+
+    login(user_id)
+    response = client.get(f"/contingent?year_id={year_id}")
+    assert response.status_code == 200
+    assert "Профиль".encode() in response.data
+    assert "Математический".encode() in response.data
 
 
 def test_plan_bindings_page_reads_snapshot_classes(

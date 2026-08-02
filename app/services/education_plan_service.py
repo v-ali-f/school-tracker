@@ -198,6 +198,7 @@ def create_plan_bundle(root_plan, *, user_id):
             name=(
                 f"{root_plan.name} · {PLAN_BUNDLE_LABELS[plan_kind]}"
             )[:255],
+            profile_name=root_plan.profile_name,
             education_level=root_plan.education_level,
             building_id=root_plan.building_id,
             scope_code=root_plan.scope_code,

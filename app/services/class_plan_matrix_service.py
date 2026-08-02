@@ -4,6 +4,7 @@ from decimal import Decimal
 from app.models import PLAN_COMPONENT_KINDS, PLAN_COMPONENT_LABELS
 from app.services.education_plan_binding_service import (
     EDUCATION_LEVEL_GRADES,
+    class_level_plan_ids,
     class_plan_allocations,
     plan_matches_snapshot_class,
 )
@@ -105,13 +106,17 @@ def _assigned_columns(snapshot_class, plans):
         snapshot_class,
         compatible_plans,
     )
+    whole_class_plan_ids = class_level_plan_ids(
+        snapshot_class,
+        compatible_plans,
+    )
     enrollment_ids = {item.id for item in snapshot_class.enrollments}
     assigned_ids = set()
     columns = []
     plans_by_id = {item.id: item for item in compatible_plans}
     for plan_id, member_ids in allocations.items():
         member_ids = set(member_ids) & enrollment_ids
-        if not member_ids:
+        if not member_ids and plan_id not in whole_class_plan_ids:
             continue
         assigned_ids.update(member_ids)
         plan = plans_by_id.get(plan_id)
@@ -128,7 +133,9 @@ def _assigned_columns(snapshot_class, plans):
     columns.sort(key=lambda item: item["plan"].name.casefold())
 
     unassigned_count = len(enrollment_ids - assigned_ids)
-    if unassigned_count or not enrollment_ids:
+    if unassigned_count or (
+        not enrollment_ids and not whole_class_plan_ids
+    ):
         columns.append({
             "key": f"class-{snapshot_class.id}-unassigned",
             "snapshot_class": snapshot_class,

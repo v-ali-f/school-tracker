@@ -251,6 +251,68 @@ def replace_class_plan_assignments(
     return bindings_by_plan_id
 
 
+def assign_class_plan(
+    snapshot_class,
+    plans,
+    plan_id,
+    *,
+    user_id,
+):
+    """Assign one plan to a whole class, including a class with no pupils."""
+    plans = list(plans)
+    plans_by_id = {item.id: item for item in plans}
+    if plan_id is not None and plan_id not in plans_by_id:
+        raise PlanBindingValidationError(
+            "Выбран недоступный учебный план."
+        )
+
+    enrollment_ids = {
+        item.id for item in snapshot_class.enrollments
+    }
+    bindings = replace_class_plan_assignments(
+        snapshot_class,
+        plans,
+        (
+            {enrollment_id: plan_id for enrollment_id in enrollment_ids}
+            if plan_id is not None else {}
+        ),
+        user_id=user_id,
+    )
+    if enrollment_ids or plan_id is None:
+        return bindings.get(plan_id) if plan_id is not None else None
+
+    binding = EducationPlanBinding(
+        education_plan_id=plan_id,
+        population_snapshot_class_id=snapshot_class.id,
+        binding_mode="CLASS",
+        revision=1,
+        created_by_user_id=user_id,
+        updated_by_user_id=user_id,
+    )
+    db.session.add(binding)
+    db.session.flush()
+    return binding
+
+
+def class_level_plan_ids(snapshot_class, plans):
+    plan_ids = [item.id for item in plans]
+    if not plan_ids:
+        return set()
+    return {
+        plan_id
+        for plan_id, in (
+            db.session.query(EducationPlanBinding.education_plan_id)
+            .filter(
+                EducationPlanBinding.population_snapshot_class_id
+                == snapshot_class.id,
+                EducationPlanBinding.education_plan_id.in_(plan_ids),
+                EducationPlanBinding.binding_mode == "CLASS",
+            )
+            .all()
+        )
+    }
+
+
 def class_plan_allocations(snapshot_class, plans):
     enrollment_ids = {
         item.id for item in snapshot_class.enrollments
@@ -324,7 +386,7 @@ def carry_forward_plan_bindings(previous_snapshot, new_snapshot, *, user_id):
                 or enrollment.source_child_id in old_child_ids
             )
         }
-        if not new_member_ids:
+        if not new_member_ids and old_binding.binding_mode != "CLASS":
             continue
         binding = EducationPlanBinding(
             education_plan_id=old_binding.education_plan_id,
@@ -348,7 +410,9 @@ def carry_forward_plan_bindings(previous_snapshot, new_snapshot, *, user_id):
 __all__ = [
     "EDUCATION_LEVEL_GRADES",
     "PlanBindingValidationError",
+    "assign_class_plan",
     "carry_forward_plan_bindings",
+    "class_level_plan_ids",
     "class_plan_allocations",
     "effective_binding_member_ids",
     "plan_matches_snapshot_class",

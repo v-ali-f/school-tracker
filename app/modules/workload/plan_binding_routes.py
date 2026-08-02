@@ -23,6 +23,8 @@ from app.models import (
 )
 from app.services.education_plan_binding_service import (
     PlanBindingValidationError,
+    assign_class_plan,
+    class_level_plan_ids,
     class_plan_allocations,
     plan_matches_snapshot_class,
     replace_class_plan_assignments,
@@ -197,6 +199,10 @@ def _class_binding_rows(classes, version):
     unassigned_total = 0
     for snapshot_class in classes:
         plans = _compatible_plans(version, snapshot_class, all_plans)
+        whole_class_plan_ids = class_level_plan_ids(
+            snapshot_class,
+            plans,
+        )
         _, student_plan_ids = class_plan_allocations(
             snapshot_class,
             plans,
@@ -221,6 +227,8 @@ def _class_binding_rows(classes, version):
             )
             else None
         )
+        if not enrollment_ids and len(whole_class_plan_ids) == 1:
+            uniform_plan_id = next(iter(whole_class_plan_ids))
         unassigned_count = len(enrollment_ids) - assigned_count
         unassigned_total += unassigned_count
         rows.append({
@@ -578,15 +586,11 @@ def register_plan_binding_routes(workload_bp):
         plans = _compatible_plans(version, snapshot_class)
         if plan_id is not None and plan_id not in {item.id for item in plans}:
             abort(400)
-        assignments = (
-            {item.id: plan_id for item in snapshot_class.enrollments}
-            if plan_id is not None else {}
-        )
         try:
-            replace_class_plan_assignments(
+            assign_class_plan(
                 snapshot_class,
                 plans,
-                assignments,
+                plan_id,
                 user_id=current_user.id,
             )
             db.session.commit()
