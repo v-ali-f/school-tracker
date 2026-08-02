@@ -15,11 +15,14 @@ from app.models import (
     EDUCATION_LEVEL_LABELS,
     AcademicYear,
     Department,
+    DepartmentLeader,
     EducationActivity,
     EducationActivityAlias,
     EducationActivityDepartment,
     EducationActivityLevel,
     OrganizationSettings,
+    User,
+    WorkloadEditorAccess,
 )
 from app.services.education_activity_service import (
     normalize_activity_name,
@@ -28,6 +31,7 @@ from app.services.education_activity_service import (
 )
 
 from .access import (
+    WORKLOAD_DEFAULT_EDITOR_ROLES,
     can_access_workload_module,
     can_use_workload_permission,
     require_workload_module,
@@ -119,6 +123,65 @@ def index():
             user_id=current_user.id,
         ))
     return redirect(url_for("workload.plans"))
+
+
+@workload_bp.route("/settings/editors", methods=["GET", "POST"])
+@login_required
+def editor_access():
+    _require_catalog_manage()
+    users = (
+        User.query
+        .filter(
+            User.is_active_user.is_(True),
+            User.archived_at.is_(None),
+        )
+        .order_by(
+            User.last_name.asc(),
+            User.first_name.asc(),
+            User.middle_name.asc(),
+        )
+        .all()
+    )
+    default_user_ids = {
+        item.id
+        for item in users
+        if set(item.role_codes).intersection(WORKLOAD_DEFAULT_EDITOR_ROLES)
+    }
+    if request.method == "POST":
+        selected_ids = {
+            int(value)
+            for value in request.form.getlist("editor_ids")
+            if value.isdigit()
+        }
+        allowed_ids = {item.id for item in users}
+        selected_ids.intersection_update(allowed_ids)
+        WorkloadEditorAccess.query.delete(synchronize_session=False)
+        for user_id in sorted(selected_ids - default_user_ids):
+            db.session.add(WorkloadEditorAccess(
+                user_id=user_id,
+                is_active=True,
+                created_by_user_id=current_user.id,
+            ))
+        db.session.commit()
+        flash("Ответственные за учебные планы и нагрузку сохранены.", "success")
+        return redirect(url_for("workload.editor_access"))
+
+    selected_ids = default_user_ids | {
+        item.user_id
+        for item in WorkloadEditorAccess.query.filter_by(is_active=True).all()
+    }
+    department_heads = (
+        DepartmentLeader.query
+        .order_by(DepartmentLeader.department_id.asc())
+        .all()
+    )
+    return render_template(
+        "workload/editor_access.html",
+        users=users,
+        selected_ids=selected_ids,
+        default_user_ids=default_user_ids,
+        department_heads=department_heads,
+    )
 
 
 def _require_catalog_manage():

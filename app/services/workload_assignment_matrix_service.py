@@ -173,11 +173,30 @@ def _new_row(teacher, activity, plan_kind):
     }
 
 
-def _new_block(teacher=None, *, unassigned=False):
+def _new_block(
+    teacher=None,
+    *,
+    vacancy_key=None,
+    vacancy_label=None,
+    unassigned=False,
+):
+    is_vacancy = vacancy_key is not None
     return {
         "teacher": teacher,
+        "teacher_id": teacher.id if teacher is not None else None,
+        "vacancy_key": vacancy_key,
+        "is_vacancy": is_vacancy,
+        "holder_key": (
+            f"vacancy:{vacancy_key}"
+            if is_vacancy else f"teacher:{teacher.id}"
+            if teacher is not None else "unassigned"
+        ),
         "unassigned": unassigned,
-        "label": "Не распределено" if unassigned else teacher.fio,
+        "label": (
+            "Не распределено"
+            if unassigned else vacancy_label or "Вакансия"
+            if is_vacancy else teacher.fio
+        ),
         "total": ZERO,
         "rows_by_key": {},
         "rows": [],
@@ -219,23 +238,34 @@ def _segment(need, hours, *, unassigned):
 
 def _editable_slot(
     need,
-    teacher,
+    block,
     source_group,
     group_index,
     group_count,
     assignments,
 ):
+    def belongs_to_holder(item):
+        if block["is_vacancy"]:
+            return (
+                item.assignment_kind == "VACANCY"
+                and item.position_code == block["vacancy_key"]
+            )
+        return (
+            item.assignment_kind != "VACANCY"
+            and item.employee_user_id == block["teacher_id"]
+        )
+
     own_assignment = next(
         (
             item for item in assignments
-            if item.employee_user_id == teacher.id
+            if belongs_to_holder(item)
         ),
         None,
     )
     assigned_elsewhere = next(
         (
             item for item in assignments
-            if item.employee_user_id != teacher.id
+            if not belongs_to_holder(item)
         ),
         None,
     )
@@ -270,7 +300,9 @@ def build_workload_assignment_matrix(
     *,
     plan_matrices=(),
     extra_teachers=(),
+    extra_vacancies=(),
     draft_rows=(),
+    draft_vacancy_rows=(),
     teacher_metadata=None,
 ):
     needs = list(needs)
@@ -367,11 +399,7 @@ def build_workload_assignment_matrix(
 
     assignments_by_need = defaultdict(list)
     for assignment in assignments:
-        if (
-            assignment.status == "CANCELLED"
-            or assignment.assignment_kind == "VACANCY"
-            or assignment.employee_user_id is None
-        ):
+        if assignment.status == "CANCELLED":
             continue
         assignments_by_need[assignment.workload_need_id].append(assignment)
 
@@ -386,11 +414,23 @@ def build_workload_assignment_matrix(
             column["remaining"] += Decimal(need.remaining_weekly_hours or ZERO)
 
         for assignment in assignments_by_need.get(need.id, []):
-            teacher = assignment.employee
-            block = blocks_by_teacher.setdefault(
-                teacher.id,
-                _new_block(teacher),
-            )
+            if assignment.assignment_kind == "VACANCY":
+                vacancy_key = assignment.position_code
+                block_key = ("vacancy", vacancy_key)
+                block = blocks_by_teacher.setdefault(
+                    block_key,
+                    _new_block(
+                        vacancy_key=vacancy_key,
+                        vacancy_label=assignment.position_title,
+                    ),
+                )
+            else:
+                teacher = assignment.employee
+                block_key = ("teacher", teacher.id)
+                block = blocks_by_teacher.setdefault(
+                    block_key,
+                    _new_block(teacher),
+                )
             row = _row_for(block, need, context)
             hours = Decimal(assignment.weekly_hours or ZERO)
             row["total"] += hours
@@ -402,8 +442,16 @@ def build_workload_assignment_matrix(
 
     for teacher in extra_teachers:
         blocks_by_teacher.setdefault(
-            teacher.id,
+            ("teacher", teacher.id),
             _new_block(teacher),
+        )
+    for vacancy in extra_vacancies:
+        blocks_by_teacher.setdefault(
+            ("vacancy", vacancy["key"]),
+            _new_block(
+                vacancy_key=vacancy["key"],
+                vacancy_label=vacancy["label"],
+            ),
         )
 
     needs_by_activity = defaultdict(list)
@@ -418,13 +466,36 @@ def build_workload_assignment_matrix(
 
     for teacher, activity, plan_kind in draft_rows:
         block = blocks_by_teacher.setdefault(
-            teacher.id,
+            ("teacher", teacher.id),
             _new_block(teacher),
         )
         key = (activity.id, plan_kind)
         if key not in block["rows_by_key"]:
             block["rows_by_key"][key] = _new_row(
                 teacher,
+                activity,
+                plan_kind,
+            )
+    vacancies_by_key = {
+        item["key"]: item
+        for item in extra_vacancies
+    }
+    for vacancy_key, activity, plan_kind in draft_vacancy_rows:
+        vacancy = vacancies_by_key.get(vacancy_key, {
+            "key": vacancy_key,
+            "label": "Вакансия",
+        })
+        block = blocks_by_teacher.setdefault(
+            ("vacancy", vacancy_key),
+            _new_block(
+                vacancy_key=vacancy_key,
+                vacancy_label=vacancy["label"],
+            ),
+        )
+        key = (activity.id, plan_kind)
+        if key not in block["rows_by_key"]:
+            block["rows_by_key"][key] = _new_row(
+                None,
                 activity,
                 plan_kind,
             )
@@ -510,7 +581,7 @@ def build_workload_assignment_matrix(
                         seen_need_ids.add(need.id)
                         slots.append(_editable_slot(
                             need,
-                            block["teacher"],
+                            block,
                             source_group,
                             group_index,
                             len(groups),
@@ -521,7 +592,7 @@ def build_workload_assignment_matrix(
                             continue
                         slots.append(_editable_slot(
                             need,
-                            block["teacher"],
+                            block,
                             need.teaching_group,
                             len(slots) + 1,
                             len(available_needs),
@@ -543,9 +614,9 @@ def build_workload_assignment_matrix(
                 "matrix_cells": {},
                 "placeholder": True,
             }]
-        block["metadata"] = (teacher_metadata or {}).get(
-            block["teacher"].id if block["teacher"] is not None else None,
-            {},
+        block["metadata"] = (
+            (teacher_metadata or {}).get(block["teacher_id"], {})
+            if not block["is_vacancy"] else {}
         )
 
     total_weekly = sum(

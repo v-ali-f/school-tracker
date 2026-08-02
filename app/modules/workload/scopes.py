@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from app.models import DepartmentLeader, UserBuilding
 from app.permissions import _user_role_codes
 
+from .access import is_workload_global_editor
+
 
 UNRESTRICTED_ROLES = frozenset({
     "ADMIN",
@@ -40,7 +42,10 @@ class WorkloadAccessScope:
 
 def resolve_workload_scope(user) -> WorkloadAccessScope:
     role_codes = _user_role_codes(user)
-    if role_codes.intersection(UNRESTRICTED_ROLES):
+    if (
+        role_codes.intersection(UNRESTRICTED_ROLES)
+        or is_workload_global_editor(user)
+    ):
         return WorkloadAccessScope(unrestricted=True)
 
     user_id = getattr(user, "id", None)
