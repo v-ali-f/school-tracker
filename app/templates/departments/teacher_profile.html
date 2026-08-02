@@ -2,17 +2,19 @@
 {% block content %}
 <div class="page-head mb-3">
   <div>
-    <h1 class="page-title">{{ teacher.fio or teacher.username }}</h1>
-    <div class="page-sub">Нагрузка и результаты МЦКО · только для просмотра</div>
+    <h1 class="page-title">{% if is_self_profile %}Кабинет преподавателя{% else %}Карточка преподавателя{% endif %}</h1>
+    <div class="page-sub">{{ teacher.fio or teacher.username }}</div>
   </div>
   <div class="page-actions">
+    {% if not is_self_profile %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary', academic_year_id=academic_year_id) }}"><i class="bi bi-arrow-left"></i> К кафедрам</a>
+    {% endif %}
   </div>
 </div>
 
 <form method="get" class="row g-2 mb-3">
   <div class="col-md-4">
-    <label class="form-label" for="teacher-profile-year">Учебный год</label>
+    <label class="form-label" for="teacher-profile-year">Учебный год нагрузки</label>
     <select class="form-select" id="teacher-profile-year" name="academic_year_id" onchange="this.form.submit()">
       {% for year in years %}<option value="{{ year.id }}" {% if year.id == academic_year_id %}selected{% endif %}>{{ year.name }}</option>{% endfor %}
     </select>
@@ -27,19 +29,85 @@
 </div>
 
 <div class="card mb-4"><div class="card-body p-0">
-  <div class="px-3 pt-3"><h2 class="section-title">Подробная нагрузка</h2><div class="small text-muted mb-2">{% if workload_version %}Версия {{ workload_version.version_no }}{% else %}Версия нагрузки не создана{% endif %}</div></div>
+  <div class="px-3 pt-3">
+    <h2 class="section-title">Нагрузка</h2>
+    <div class="small text-muted mb-2">Только для просмотра{% if workload_version %} · версия {{ workload_version.version_no }}{% endif %}. Изменения выполняются в матрице нагрузки.</div>
+  </div>
   <div class="table-responsive"><table class="table table-sm align-middle mb-0">
     <thead><tr><th>Предмет или курс</th><th>Класс или группа</th><th>Раздел</th><th>Кафедра</th><th>Здание</th><th class="text-end">Часы/нед.</th></tr></thead>
     <tbody>{% for row in load_rows %}<tr><td>{{ row.subject_name }}</td><td>{{ row.group_name or '—' }}</td><td>{% if row.plan_kind == 'CURRICULUM' %}Учебный план{% elif row.plan_kind == 'EXTRACURRICULAR' %}Внеурочная деятельность{% else %}Дополнительное образование{% endif %}</td><td>{{ row.department.name if row.department else '—' }}</td><td>{{ row.building_name or '—' }}</td><td class="text-end fw-semibold">{{ row.hours|compact_decimal }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted text-center py-4">Назначенной нагрузки нет.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div></div>
 
-<div class="card"><div class="card-body">
-  <h2 class="section-title" id="teacher-mcko">Результаты МЦКО</h2>
-  <div class="small text-muted mb-3">Актуальность определяется по сроку три календарных года с даты диагностики.</div>
-  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-    <thead><tr><th>Предмет</th><th>Уровень</th><th>Дата диагностики</th><th>Действует до</th><th>Статус</th><th>Примечание</th></tr></thead>
-    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td><td>{{ row.result_text or '—' }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted text-center py-4">Результаты МЦКО не внесены.</td></tr>{% endfor %}</tbody>
+<div class="card mb-4"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-start gap-3">
+    <div>
+      <h2 class="section-title mb-1" id="teacher-mcko">Результаты МЦКО</h2>
+      <div class="small text-muted">Актуальность определяется по сроку три календарных года с даты диагностики.</div>
+    </div>
+  </div>
+  <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Предмет</th><th>Уровень</th><th>Дата диагностики</th><th>Действует до</th><th>Статус</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td><td>{{ row.result_text or '—' }}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_mcko', record_id=row.record.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% else %}<tr><td colspan="{{ 7 if can_edit_professional else 6 }}" class="text-muted text-center py-4">Результаты МЦКО не внесены.</td></tr>{% endfor %}</tbody>
   </table></div>
+  {% if can_edit_professional %}
+  <details class="mt-3">
+    <summary class="btn btn-outline-primary btn-sm">Добавить результат МЦКО</summary>
+    <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2 mt-1">
+      <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
+      <div class="col-md-4"><label class="form-label">Предмет</label><select class="form-select" name="subject_id" required><option value="">Выберите предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">Уровень</label><select class="form-select" name="level" required><option value="">Выберите уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">Дата диагностики</label><input class="form-control" type="date" name="passed_at" required></div>
+      <div class="col-md-8"><label class="form-label">Примечание или номер сертификата</label><input class="form-control" name="result_text"></div>
+      <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
+    </form>
+  </details>
+  {% endif %}
+</div></div>
+
+<div class="card mb-4"><div class="card-body">
+  <h2 class="section-title">Курсы повышения квалификации</h2>
+  <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Курс</th><th>Организация</th><th class="text-end">Часы</th><th>Период</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="text-end">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}{% if row.end_date %} — {{ row.end_date.strftime('%d.%m.%Y') }}{% endif %}</td><td>{{ row.notes or '—' }}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_course', record_id=row.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% else %}<tr><td colspan="{{ 6 if can_edit_professional else 5 }}" class="text-muted text-center py-4">Курсы не внесены.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if can_edit_professional %}
+  <details class="mt-3">
+    <summary class="btn btn-outline-primary btn-sm">Добавить курс</summary>
+    <form method="post" action="{{ url_for('departments.add_course') }}" class="row g-2 mt-1">
+      <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
+      <div class="col-md-6"><label class="form-label">Название курса</label><input class="form-control" name="title" required></div>
+      <div class="col-md-4"><label class="form-label">Организация</label><input class="form-control" name="provider"></div>
+      <div class="col-md-2"><label class="form-label">Часы</label><input class="form-control" type="number" min="0" step="0.1" name="hours"></div>
+      <div class="col-md-3"><label class="form-label">Дата начала</label><input class="form-control" type="date" name="start_date"></div>
+      <div class="col-md-3"><label class="form-label">Дата окончания</label><input class="form-control" type="date" name="end_date"></div>
+      <div class="col-md-4"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
+      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
+    </form>
+  </details>
+  {% endif %}
+</div></div>
+
+<div class="card"><div class="card-body">
+  <h2 class="section-title">Аттестация</h2>
+  <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Результат</th><th>Должность</th><th>Дата решения</th><th>Действует до</th><th>Документ</th><th>Статус</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for row in attestation_rows %}<tr><td>{{ attestation_category_labels.get(row.category, row.category) }}</td><td>{{ row.position_title or '—' }}</td><td>{{ row.decision_date.strftime('%d.%m.%Y') }}</td><td>{{ row.valid_until.strftime('%d.%m.%Y') if row.valid_until else 'Без ограничения' }}</td><td>{{ row.order_number or '—' }}</td><td>{% if row.valid_until and row.valid_until < today %}<span class="badge text-bg-danger">Истёк</span>{% else %}<span class="badge text-bg-success">Действует</span>{% endif %}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_attestation', record_id=row.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% else %}<tr><td colspan="{{ 7 if can_edit_professional else 6 }}" class="text-muted text-center py-4">Сведения об аттестации не внесены.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if can_edit_professional %}
+  <details class="mt-3">
+    <summary class="btn btn-outline-primary btn-sm">Добавить аттестацию</summary>
+    <form method="post" action="{{ url_for('departments.add_attestation') }}" class="row g-2 mt-1">
+      <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
+      <div class="col-md-4"><label class="form-label">Результат</label><select class="form-select" name="category" required><option value="">Выберите результат</option>{% for code, label in attestation_category_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label">Должность</label><input class="form-control" name="position_title"></div>
+      <div class="col-md-2"><label class="form-label">Дата решения</label><input class="form-control" type="date" name="decision_date" required></div>
+      <div class="col-md-2"><label class="form-label">Действует до</label><input class="form-control" type="date" name="valid_until"></div>
+      <div class="col-md-4"><label class="form-label">Номер приказа/документа</label><input class="form-control" name="order_number"></div>
+      <div class="col-md-6"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
+      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
+    </form>
+  </details>
+  {% endif %}
 </div></div>
 {% endblock %}

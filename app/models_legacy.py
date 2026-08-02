@@ -759,6 +759,28 @@ class TeacherCourse(db.Model):
     teacher = db.relationship("User", foreign_keys=[teacher_id])
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
 
+
+class TeacherAttestation(db.Model):
+    __tablename__ = "teacher_attestation"
+
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    category = db.Column(db.String(80), nullable=False)
+    position_title = db.Column(db.String(255), nullable=True)
+    decision_date = db.Column(db.Date, nullable=False)
+    valid_until = db.Column(db.Date, nullable=True)
+    order_number = db.Column(db.String(120), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    is_archived = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    teacher = db.relationship("User", foreign_keys=[teacher_id])
+
 # =========================
 # DEBT
 # =========================
