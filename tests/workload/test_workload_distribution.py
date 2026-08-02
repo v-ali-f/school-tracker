@@ -757,18 +757,21 @@ def test_department_and_workspace_read_current_load_and_mcko(
     )
     assert profile.status_code == 200
     profile_html = profile.get_data(as_text=True)
-    assert "Карточка преподавателя" in profile_html
+    assert "Профиль преподавателя" in profile_html
     assert "5 ч/нед." in profile_html
     assert "Высокий" in profile_html
 
-    registry = client.get(
-        "/departments/teachers",
-        query_string={"academic_year_id": year_id},
+    summary = client.get(
+        "/departments/summary",
+        query_string={
+            "academic_year_id": year_id,
+            "department_id": context["department_id"],
+        },
     )
-    registry_html = registry.get_data(as_text=True)
-    assert registry.status_code == 200
-    assert f"/departments/teachers/{teacher_id}" in registry_html
-    assert "5" in registry_html
+    summary_html = summary.get_data(as_text=True)
+    assert summary.status_code == 200
+    assert f"/departments/teachers/{teacher_id}" in summary_html
+    assert "5" in summary_html
 
 
 def test_teacher_can_view_only_own_workload(

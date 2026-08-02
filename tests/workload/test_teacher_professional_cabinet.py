@@ -121,17 +121,17 @@ def test_teacher_manages_own_professional_records_only(
         assert record.valid_until == date(2031, 4, 15)
         assert TeacherCourse.query.filter_by(teacher_id=other_teacher_id).count() == 0
 
-    cabinet = client.get(f"/departments/teachers/{teacher_id}")
-    html = cabinet.get_data(as_text=True)
-    assert cabinet.status_code == 200
-    assert "Кабинет преподавателя" in html
+    profile = client.get(f"/departments/teachers/{teacher_id}")
+    html = profile.get_data(as_text=True)
+    assert profile.status_code == 200
+    assert "Мой профиль преподавателя" in html
     assert "Современные методики обучения" in html
     assert "Высшая квалификационная категория" in html
     assert "Высокий" in html
     assert "+7 (999) 123-45-67" in html
 
 
-def test_department_index_exposes_teacher_cabinet_links(
+def test_department_hub_exposes_only_personal_teacher_profile(
     app,
     client,
     make_user,
@@ -139,29 +139,33 @@ def test_department_index_exposes_teacher_cabinet_links(
 ):
     teacher_id = make_user("TEACHER")
     login(teacher_id)
-    teacher_page = client.get("/departments/")
+    teacher_page = client.get("/hub/departments")
     teacher_html = teacher_page.get_data(as_text=True)
 
     assert teacher_page.status_code == 200
-    assert "Мой кабинет" in teacher_html
-    assert 'href="/departments/teacher/cabinet"' in teacher_html
+    assert "Мой профиль преподавателя" in teacher_html
+    assert 'href="/departments/teacher/profile"' in teacher_html
+    assert "Аналитика по кафедрам" not in teacher_html
 
     admin_id = make_user("ADMIN")
     login(admin_id)
-    admin_page = client.get("/departments/")
+    admin_page = client.get("/hub/departments")
     admin_html = admin_page.get_data(as_text=True)
 
     assert admin_page.status_code == 200
-    assert "Кабинеты преподавателей" in admin_html
-    assert 'href="/departments/teachers"' in admin_html
+    assert "Мой профиль преподавателя" not in admin_html
+    assert "Аналитика по кафедрам" not in admin_html
+
+    legacy_page = client.get("/departments/")
+    assert legacy_page.status_code == 302
+    assert legacy_page.headers["Location"].endswith("/hub/departments")
 
     registry_page = client.get("/departments/teachers")
-    registry_html = registry_page.get_data(as_text=True)
-    assert registry_page.status_code == 200
-    assert f'href="/departments/teachers/{teacher_id}"' in registry_html
+    assert registry_page.status_code == 302
+    assert "/departments/summary" in registry_page.headers["Location"]
 
 
-def test_teacher_cabinet_shows_authored_debts_and_incidents(
+def test_teacher_profile_shows_authored_debts_and_incidents(
     app,
     client,
     make_user,
