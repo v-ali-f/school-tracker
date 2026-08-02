@@ -378,6 +378,21 @@ def test_class_structure_copy_promotes_and_can_be_undone(
             class_2a_id,
         ).applications_count == 7
 
+    ajax_applications = client.post(
+        f"/classes/{class_2a_id}/applications",
+        data={"applications_count": "8"},
+        headers={
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+        },
+    )
+    assert ajax_applications.status_code == 200
+    assert ajax_applications.get_json() == {
+        "ok": True,
+        "class_id": class_2a_id,
+        "applications_count": 8,
+    }
+
     undo = client.post(
         "/classes/copy-from-year/undo",
         data={"target_year_id": target_year_id},
@@ -388,6 +403,82 @@ def test_class_structure_copy_promotes_and_can_be_undone(
         assert SchoolClass.query.filter_by(
             academic_year_id=target_year_id,
         ).count() == 0
+
+
+def test_selected_empty_classes_can_be_deleted_together(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        year = AcademicYear(
+            name="2028/2029",
+            start_date=date(2028, 9, 1),
+            end_date=date(2029, 8, 31),
+            is_current=True,
+        )
+        db.session.add(year)
+        db.session.flush()
+        first = SchoolClass(
+            academic_year_id=year.id,
+            name="2А",
+            grade=2,
+            letter="А",
+            max_students=30,
+        )
+        second = SchoolClass(
+            academic_year_id=year.id,
+            name="2Б",
+            grade=2,
+            letter="Б",
+            max_students=30,
+        )
+        protected = SchoolClass(
+            academic_year_id=year.id,
+            name="2В",
+            grade=2,
+            letter="В",
+            max_students=30,
+        )
+        child = Child(last_name="Петров", first_name="Пётр")
+        db.session.add_all([first, second, protected, child])
+        db.session.flush()
+        db.session.add(ChildEnrollment(
+            child_id=child.id,
+            academic_year_id=year.id,
+            school_class_id=protected.id,
+            status="ACTIVE",
+        ))
+        db.session.commit()
+        year_id = year.id
+        class_ids = [first.id, second.id, protected.id]
+
+    login(admin_id)
+    registry = client.get(
+        f"/classes?academic_year_id={year_id}",
+    )
+    registry_html = registry.get_data(as_text=True)
+    assert registry.status_code == 200
+    assert "Удалить выбранные" in registry_html
+    assert 'class="form-check-input class-selection"' in registry_html
+
+    response = client.post(
+        "/classes/delete-selected",
+        data={
+            "academic_year_id": str(year_id),
+            "class_ids": [str(class_id) for class_id in class_ids],
+        },
+    )
+
+    assert response.status_code == 302
+    assert f"academic_year_id={year_id}" in response.headers["Location"]
+    with app.app_context():
+        remaining = SchoolClass.query.filter_by(
+            academic_year_id=year_id,
+        ).all()
+        assert [school_class.name for school_class in remaining] == ["2В"]
 
 
 def test_mass_transfer_skips_existing_target_year_enrollment(

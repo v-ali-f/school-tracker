@@ -295,25 +295,28 @@
   </div>
   <div class="table-responsive">
     <table class="table align-middle contingent-classes-table">
-      {% set _colspan = 11 %}
+      {% set _colspan = 12 %}
       <thead>
         <tr>
           <th style="width:66px;">Класс</th>
           <th style="min-width:108px;">Здание</th>
+          <th class="num" style="width:74px;">Количество</th>
+          <th class="num" style="width:84px;">Заявления</th>
+          <th class="num" style="width:64px;">Макс.</th>
           <th style="min-width:120px;">Профиль</th>
           <th style="min-width:172px;">Классный руководитель</th>
           <th style="min-width:118px;">Телефон</th>
-          <th class="num" style="width:58px;">Всего</th>
+          <th class="num" style="width:88px;">Всего в параллели</th>
           <th class="num" style="width:54px;">Мал.</th>
           <th class="num" style="width:54px;">Дев.</th>
-          <th class="num" style="width:92px;">Заявления</th>
-          <th class="num" style="width:60px;">Макс.</th>
           <th class="center" style="width:74px;">Свободно</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
-          {% if loop.first or rows[loop.index0 - 1].class.grade != r.class.grade %}
+          {% set parallel = totals.parallel_stats.get(r.class.grade, {}) %}
+          {% set is_parallel_start = loop.first or rows[loop.index0 - 1].class.grade != r.class.grade %}
+          {% if is_parallel_start %}
             <tr class="section-row parallel-row">
               <td colspan="{{ _colspan }}">
                 {% if r.class.grade %}{{ r.class.grade }}-я параллель{% else %}Без параллели{% endif %}
@@ -332,6 +335,25 @@
               {% if r.class.building %}{{ r.class.building.name }}{% else %}—{% endif %}
             </td>
 
+            <td class="num">{{ r.total }}</td>
+            <td class="applications-cell">
+              {% if can_edit_applications %}
+                <input
+                  class="applications-cell-input"
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  value="{{ r.applications_count }}"
+                  data-saved-value="{{ r.applications_count }}"
+                  data-save-url="{{ url_for('children.class_applications_update', class_id=r.class.id) }}"
+                  data-building-id="{{ building_id or '' }}"
+                  aria-label="Количество заявлений для {{ r.class.name }}"
+                >
+              {% else %}
+                {{ r.applications_count }}
+              {% endif %}
+            </td>
+            <td class="num text-muted">{{ r.class.max_students }}</td>
             <td>
               {% if r.profile_names %}
                 {{ r.profile_names|join(", ") }}
@@ -345,29 +367,16 @@
                 <a href="tel:{{ r.teacher_phone }}" class="text-decoration-none">{{ r.teacher_phone }}</a>
               {% else %}—{% endif %}
             </td>
-            <td class="num">{{ r.total }}</td>
+            {% if is_parallel_start or not r.class.grade %}
+              <td
+                class="parallel-population"
+                {% if r.class.grade and parallel.classes %}rowspan="{{ parallel.classes }}"{% endif %}
+              >
+                {{ parallel.children if r.class.grade else r.total }}
+              </td>
+            {% endif %}
             <td class="num">{{ r.boys }}</td>
             <td class="num">{{ r.girls }}</td>
-            <td class="num">
-              {% if can_edit_applications %}
-                <form method="post" action="{{ url_for('children.class_applications_update', class_id=r.class.id) }}" class="applications-form">
-                  <input type="hidden" name="building_id" value="{{ building_id or '' }}">
-                  <input
-                    type="number"
-                    name="applications_count"
-                    value="{{ r.applications_count }}"
-                    min="0"
-                    aria-label="Количество заявлений для {{ r.class.name }}"
-                  >
-                  <button type="submit" class="application-save" title="Сохранить заявления" aria-label="Сохранить заявления для {{ r.class.name }}">
-                    <i class="bi bi-check-lg"></i>
-                  </button>
-                </form>
-              {% else %}
-                {{ r.applications_count }}
-              {% endif %}
-            </td>
-            <td class="num text-muted">{{ r.class.max_students }}</td>
             <td class="center">
               {% if r.free is not none %}
                 {% if r.free <= 0 %}
@@ -382,22 +391,6 @@
               {% endif %}
             </td>
           </tr>
-
-          {% if loop.last or rows[loop.index0 + 1].class.grade != r.class.grade %}
-            {% set parallel = totals.parallel_stats.get(r.class.grade, {}) %}
-            <tr class="parallel-total-row">
-              <td colspan="5">
-                Итого по {% if r.class.grade %}{{ r.class.grade }}-й параллели{% else %}классам без параллели{% endif %}
-                {% if parallel.classes %} · {{ parallel.classes }} кл.{% endif %}
-              </td>
-              <td>{{ parallel.children or 0 }}</td>
-              <td>{{ parallel.boys or 0 }}</td>
-              <td>{{ parallel.girls or 0 }}</td>
-              <td>{{ parallel.applications or 0 }}</td>
-              <td>{{ parallel.capacity or 0 }}</td>
-              <td>{{ parallel.free or 0 }}</td>
-            </tr>
-          {% endif %}
         {% endfor %}
 
         {% if rows|length == 0 %}
@@ -753,51 +746,107 @@
     text-align: left !important;
   }
 
-  .contingent-page .contingent-classes-table .parallel-total-row td {
-    background: #f3f6fa !important;
-    color: #25344d !important;
-    font-weight: 600 !important;
+  .contingent-page .contingent-classes-table td.applications-cell {
+    padding: 0 !important;
   }
 
-  .contingent-page .contingent-classes-table .parallel-total-row td:first-child {
-    text-align: left !important;
-  }
-
-  .contingent-page .applications-form {
-    display: inline-grid;
-    grid-template-columns: 42px 24px;
-    align-items: center;
-    gap: 3px;
-  }
-
-  .contingent-page .applications-form input {
-    width: 42px !important;
-    height: 26px !important;
-    min-height: 26px !important;
-    padding: 2px 4px !important;
-    border-radius: 6px !important;
+  .contingent-page .applications-cell-input {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 38px !important;
+    padding: 5px 8px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
+    background: transparent !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums;
+    box-shadow: none !important;
   }
 
-  .contingent-page .application-save {
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid #b8c7da;
-    border-radius: 6px;
-    background: #fff;
-    color: #2563eb;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .contingent-page .applications-cell-input:focus {
+    background: rgba(255, 255, 255, .72) !important;
+    box-shadow: inset 0 0 0 2px #2563eb !important;
   }
 
-  .contingent-page .application-save:hover {
-    border-color: #2563eb;
-    background: #eef5ff;
+  .contingent-page .applications-cell-input.is-saving {
+    box-shadow: inset 0 0 0 2px #93b4ec !important;
+  }
+
+  .contingent-page .applications-cell-input.is-invalid {
+    background: #fff4f4 !important;
+    box-shadow: inset 0 0 0 2px #dc3545 !important;
+  }
+
+  .contingent-page .contingent-classes-table .parallel-population {
+    background: #f3f6fa !important;
+    color: #25344d !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    border-left: 2px solid #b9c8db !important;
+    border-right: 2px solid #b9c8db !important;
   }
 </style>
+
+<script>
+  (function initializeApplicationsCells() {
+    document.querySelectorAll(".applications-cell-input").forEach(function (input) {
+      async function saveApplicationsValue() {
+        const previousValue = input.dataset.savedValue || "0";
+        const nextValue = input.value.trim();
+        if (nextValue === "" || nextValue === previousValue) {
+          input.value = nextValue || previousValue;
+          return;
+        }
+
+        input.classList.add("is-saving");
+        const body = new URLSearchParams({
+          applications_count: nextValue,
+          building_id: input.dataset.buildingId || "",
+        });
+
+        try {
+          const response = await fetch(input.dataset.saveUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "X-Requested-With": "XMLHttpRequest",
+              "Accept": "application/json",
+            },
+            body: body.toString(),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            throw new Error(result.error || "Не удалось сохранить значение");
+          }
+          input.value = String(result.applications_count);
+          input.dataset.savedValue = String(result.applications_count);
+          input.removeAttribute("title");
+        } catch (error) {
+          input.value = previousValue;
+          input.classList.add("is-invalid");
+          input.title = error.message;
+        } finally {
+          input.classList.remove("is-saving");
+        }
+      }
+
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          input.blur();
+        }
+      });
+
+      input.addEventListener("input", function () {
+        input.value = input.value.replace(/\D/g, "");
+        input.classList.remove("is-invalid");
+      });
+
+      input.addEventListener("blur", saveApplicationsValue);
+    });
+  })();
+</script>
 
 
 
