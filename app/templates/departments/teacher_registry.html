@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="page-head mb-3">
+  <div>
+    <h1 class="page-title">Кабинеты преподавателей</h1>
+    <div class="page-sub">Персональные сведения и действующая нагрузка преподавателей.</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.index') }}">
+      <i class="bi bi-arrow-left"></i> К кафедрам
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body border-bottom">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="teacher-registry-year">Учебный год нагрузки</label>
+        <select class="form-select" id="teacher-registry-year" name="academic_year_id" onchange="this.form.submit()">
+          {% for year in years %}
+          <option value="{{ year.id }}" {% if year.id == academic_year_id %}selected{% endif %}>{{ year.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if workload_version %}
+      <div class="col-md-auto small text-muted pb-2">Версия нагрузки: {{ workload_version.version_no }}</div>
+      {% endif %}
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>ФИО преподавателя</th>
+          <th>Телефон</th>
+          <th>Кафедры по нагрузке</th>
+          <th class="text-end">Всего часов</th>
+          <th class="text-end">Кабинет</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in teacher_rows %}
+        <tr>
+          <td class="fw-semibold">{{ item.teacher.fio or item.teacher.username }}</td>
+          <td>
+            {% if item.teacher.phone %}
+            <a href="tel:{{ item.teacher.phone }}" class="text-decoration-none">{{ item.teacher.phone }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ item.departments|join(", ") if item.departments else "—" }}</td>
+          <td class="text-end fw-semibold">{{ item.hours|compact_decimal }}</td>
+          <td class="text-end">
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">Открыть</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted text-center py-4">Преподаватели не найдены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
