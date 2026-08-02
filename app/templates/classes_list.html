@@ -6,6 +6,15 @@
     <h1 class="page-title">Классы учебного года</h1>
   </div>
   <div class="page-actions">
+    {% if delete_undo %}
+      <form method="post" action="{{ url_for('children.classes_delete_undo') }}" class="d-inline">
+        <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+        <button class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>
+          Отменить удаление ({{ delete_undo.deleted_count }})
+        </button>
+      </form>
+    {% endif %}
     {% if copy_undo %}
       <form method="post" action="{{ url_for('children.classes_copy_from_year_undo') }}" class="d-inline" onsubmit="return confirm('Удалить все классы, созданные последним массовым переносом?');">
         <input type="hidden" name="target_year_id" value="{{ year.id }}">
