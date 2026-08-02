@@ -318,12 +318,12 @@
           <th>Класс</th>
           <th>Здание</th>
           <th class="num">Всего</th>
-          <th class="num">Заявл.</th>
+          <th class="num tight-header">Заяв.</th>
           <th class="num">Макс.</th>
           <th>Профиль</th>
           <th class="wide-header">Классный руководитель</th>
           <th>Телефон</th>
-          <th class="num tight-header">В<br>паралл.</th>
+          <th class="num tight-header">В пар.</th>
           <th class="num">Мал.</th>
           <th class="num">Дев.</th>
           <th class="center tight-header">Своб.</th>
@@ -733,9 +733,14 @@
     padding: 5px 3px !important;
     font-size: 11px !important;
     line-height: 1.15 !important;
-    text-align: center;
+    text-align: center !important;
     letter-spacing: 0 !important;
     overflow-wrap: anywhere;
+  }
+
+  .contingent-page .contingent-classes-table thead th {
+    text-align: center !important;
+    vertical-align: middle !important;
   }
 
   .contingent-page .contingent-classes-table th.tight-header {
@@ -745,6 +750,7 @@
     line-height: 1.05 !important;
     white-space: normal !important;
     overflow-wrap: normal;
+    text-align: center !important;
   }
 
   .contingent-page .contingent-classes-table th.wide-header {
