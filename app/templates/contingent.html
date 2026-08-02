@@ -321,12 +321,12 @@
           <th class="num">Заявл.</th>
           <th class="num">Макс.</th>
           <th>Профиль</th>
-          <th>Классный<br>руководитель</th>
+          <th class="wide-header">Классный руководитель</th>
           <th>Телефон</th>
-          <th class="num">В паралл.</th>
+          <th class="num tight-header">В<br>паралл.</th>
           <th class="num">Мал.</th>
           <th class="num">Дев.</th>
-          <th class="center">Свободно</th>
+          <th class="center tight-header">Своб.</th>
         </tr>
       </thead>
       <tbody>
@@ -348,7 +348,7 @@
               </a>
             </td>
 
-            <td class="text-muted fit-text-cell">
+            <td class="text-muted fit-text-cell fit-nowrap">
               {% if r.class.building %}{{ r.class.building.name }}{% else %}—{% endif %}
             </td>
 
@@ -738,6 +738,20 @@
     overflow-wrap: anywhere;
   }
 
+  .contingent-page .contingent-classes-table th.tight-header {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+    font-size: 9px !important;
+    line-height: 1.05 !important;
+    white-space: normal !important;
+    overflow-wrap: normal;
+  }
+
+  .contingent-page .contingent-classes-table th.wide-header {
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+  }
+
   .contingent-page .contingent-classes-table td {
     padding: 4px 5px !important;
     font-size: 13px !important;
@@ -791,7 +805,7 @@
 
   .contingent-page .contingent-classes-table .fit-text-cell,
   .contingent-page .contingent-classes-table .fit-text-cell a {
-    font-size: var(--fit-font-size, 12px) !important;
+    font-size: var(--fit-font-size, 13px) !important;
     white-space: normal !important;
     overflow-wrap: anywhere;
   }
@@ -801,6 +815,14 @@
     white-space: nowrap !important;
     overflow: hidden;
     overflow-wrap: normal;
+  }
+
+  .contingent-page .contingent-classes-table .num,
+  .contingent-page .contingent-classes-table .center,
+  .contingent-page .contingent-classes-table .parallel-population {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
   }
 
   .contingent-page .applications-cell-input {
@@ -903,19 +925,16 @@
 
   (function fitContingentTextCells() {
     function fitCell(cell) {
-      let fontSize = 12;
+      let fontSize = 13;
       cell.style.setProperty("--fit-font-size", fontSize + "px");
-      while (
-        (cell.scrollWidth > cell.clientWidth || cell.scrollHeight > 42)
-        && fontSize > 9
-      ) {
+      while (cell.scrollWidth > cell.clientWidth && fontSize > 11) {
         fontSize -= 0.5;
         cell.style.setProperty("--fit-font-size", fontSize + "px");
       }
     }
 
     function fitAllCells() {
-      document.querySelectorAll(".contingent-classes-table .fit-text-cell").forEach(fitCell);
+      document.querySelectorAll(".contingent-classes-table .fit-nowrap").forEach(fitCell);
     }
 
     fitAllCells();
