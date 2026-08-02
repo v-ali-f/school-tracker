@@ -224,7 +224,13 @@ def plan_bundle_parts(plan):
     return parts
 
 
-def clone_plan_bundle(source_plan, target_plan, *, user_id):
+def clone_plan_bundle(
+    source_plan,
+    target_plan,
+    *,
+    user_id,
+    class_scope_fallback=False,
+):
     source_root = plan_bundle_root(source_plan)
     target_root = plan_bundle_root(target_plan)
     if source_root.plan_kind != "CURRICULUM":
@@ -271,6 +277,8 @@ def clone_plan_bundle(source_plan, target_plan, *, user_id):
             for old_scope in old_line.scopes:
                 school_class_id = None
                 building_id = old_scope.building_id
+                scope_kind = old_scope.scope_kind
+                grade = old_scope.grade
                 if old_scope.scope_kind == "CLASS":
                     source_class = old_scope.school_class
                     target_class = (
@@ -285,23 +293,28 @@ def clone_plan_bundle(source_plan, target_plan, *, user_id):
                         .first()
                     )
                     if target_class is None:
-                        raise PlanValidationError(
-                            "Не найден класс "
-                            f"«{source_class.name}» в учебном году "
-                            f"{target_year.name}."
-                        )
-                    school_class_id = target_class.id
-                    building_id = target_class.building_id
+                        if not class_scope_fallback or source_class.grade is None:
+                            raise PlanValidationError(
+                                "Не найден класс "
+                                f"«{source_class.name}» в учебном году "
+                                f"{target_year.name}."
+                            )
+                        scope_kind = "GRADE"
+                        grade = source_class.grade
+                        building_id = source_class.building_id
+                    else:
+                        school_class_id = target_class.id
+                        building_id = target_class.building_id
                 new_line.scopes.append(EducationPlanLineScope(
-                    scope_kind=old_scope.scope_kind,
+                    scope_kind=scope_kind,
                     school_class_id=school_class_id,
-                    grade=old_scope.grade,
+                    grade=grade,
                     profile_code=old_scope.profile_code,
                     building_id=building_id,
                     scope_key=line_scope_key(
-                        old_scope.scope_kind,
+                        scope_kind,
                         school_class_id=school_class_id,
-                        grade=old_scope.grade,
+                        grade=grade,
                         profile_code=old_scope.profile_code,
                         building_id=building_id,
                     ),

@@ -105,6 +105,7 @@
     {% if can_manage_professional %}
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2">
       <input type="hidden" name="department_id" value="{{ dep.id }}">
+      <input type="hidden" name="academic_year_id" value="{{ academic_year_id or '' }}">
       <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><select class="form-select" name="level" required><option value="">Уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>

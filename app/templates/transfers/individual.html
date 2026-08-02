@@ -10,6 +10,13 @@
   </div>
 </div>
 <div class="card soft-card"><div class="card-body">
+{% if year_id and not classes %}
+<div class="alert alert-info py-2">
+  В выбранном учебном году классы ещё не созданы.
+  <a href="{{ url_for('children.classes_registry', academic_year_id=year_id) }}">Создать классы и задать их буквы</a>,
+  затем вернуться к индивидуальному переводу.
+</div>
+{% endif %}
 <form method="post" class="row g-2">
   <div class="col-md-4"><label class="form-label">Ученик</label><select class="form-select" name="child_id" required><option value="">—</option>{% for c in children %}<option value="{{ c.id }}">{{ c.fio }}</option>{% endfor %}</select></div>
   <div class="col-md-2"><label class="form-label">Учебный год</label><select class="form-select" name="year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>

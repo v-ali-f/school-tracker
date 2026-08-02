@@ -2,11 +2,13 @@ from datetime import date
 
 from app.core.extensions import db
 from app.models import (
+    AcademicYear,
     EducationActivity,
     TeacherAttestation,
     TeacherCourse,
     TeacherMckoResult,
 )
+from app.services.teacher_mcko_service import mcko_results_for_teachers
 
 
 def _subject():
@@ -142,3 +144,53 @@ def test_department_index_exposes_teacher_cabinet_links(
     assert admin_page.status_code == 200
     assert "Кабинеты преподавателей" in admin_html
     assert 'href="/departments/summary#department-teachers"' in admin_html
+
+
+def test_mcko_history_can_be_filtered_by_academic_year(
+    app,
+    make_user,
+):
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        first_year = AcademicYear(
+            name="2025/2026",
+            start_date=date(2025, 9, 1),
+            end_date=date(2026, 8, 31),
+        )
+        second_year = AcademicYear(
+            name="2026/2027",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 8, 31),
+        )
+        subject = _subject()
+        db.session.add_all([first_year, second_year])
+        db.session.flush()
+        db.session.add_all([
+            TeacherMckoResult(
+                teacher_id=teacher_id,
+                education_activity_id=subject.id,
+                academic_year_id=first_year.id,
+                passed_at=date(2026, 5, 20),
+                level="BASIC",
+            ),
+            TeacherMckoResult(
+                teacher_id=teacher_id,
+                education_activity_id=subject.id,
+                academic_year_id=second_year.id,
+                passed_at=date(2027, 5, 20),
+                level="HIGH",
+            ),
+        ])
+        db.session.commit()
+
+        first_rows = mcko_results_for_teachers(
+            [teacher_id],
+            academic_year_id=first_year.id,
+        )
+        second_rows = mcko_results_for_teachers(
+            [teacher_id],
+            academic_year_id=second_year.id,
+        )
+
+        assert [row.level_code for row in first_rows] == ["BASIC"]
+        assert [row.level_code for row in second_rows] == ["HIGH"]

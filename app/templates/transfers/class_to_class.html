@@ -9,6 +9,13 @@
   </div>
 </div>
 <div class="card soft-card mb-3"><div class="card-body">
+{% if to_year_id and not to_classes %}
+<div class="alert alert-info py-2">
+  В целевом учебном году классы ещё не созданы.
+  <a href="{{ url_for('children.classes_registry', academic_year_id=to_year_id) }}">Создать классы и задать их буквы</a>,
+  затем вернуться к переводу.
+</div>
+{% endif %}
 <form method="get" class="row g-2 align-items-end">
   <div class="col-md-3"><label class="form-label">Год-источник</label><select class="form-select" name="from_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == from_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
   <div class="col-md-3"><label class="form-label">Год-назначение</label><select class="form-select" name="to_year_id">{% for y in years %}<option value="{{ y.id }}" {% if y.id == to_year_id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>

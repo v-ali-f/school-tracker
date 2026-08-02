@@ -200,9 +200,8 @@ class SchoolClass(db.Model):
     __table_args__ = (
         db.UniqueConstraint(
             "academic_year_id",
-            "building_id",
             "name",
-            name="uq_school_class_year_building_name"
+            name="uq_school_class_year_name"
         ),
         db.Index("ix_school_class_grade_building", "grade", "building_id"),
         db.Index("ix_school_class_year_archived", "academic_year_id", "is_archived"),
@@ -392,6 +391,14 @@ class ChildEnrollment(db.Model):
     __table_args__ = (
         db.Index("ix_child_enrollment_class_status", "school_class_id", "status"),
         db.Index("ix_child_enrollment_status", "status"),
+        db.Index(
+            "uq_child_enrollment_active_year",
+            "child_id",
+            "academic_year_id",
+            unique=True,
+            postgresql_where=db.text("ended_at IS NULL"),
+            sqlite_where=db.text("ended_at IS NULL"),
+        ),
     )
 
     def __repr__(self):

@@ -31,6 +31,18 @@
               <label class="form-check-label" for="is_current">Текущий</label>
             </div>
           </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="copy_structure" value="1" id="copy_structure" checked>
+              <label class="form-check-label" for="copy_structure">
+                Скопировать независимые комплекты учебных планов из текущего года
+              </label>
+            </div>
+            <div class="form-text">
+              Классы и ученики формируются через перевод. Привязки УП,
+              группы, метагруппы и нагрузка не копируются.
+            </div>
+          </div>
           <div class="col-12"><button class="btn btn-primary" type="submit">Добавить</button></div>
         </form>
       </div>
@@ -43,7 +55,11 @@
         <form method="post" action="{{ url_for('children.academic_year_create_next') }}">
           <button class="btn btn-outline-primary w-100">Создать следующий учебный год автоматически</button>
         </form>
-        <div class="small text-muted">Следующий год создаётся по текущему или последнему году реестра.</div>
+        <div class="small text-muted">
+          Из текущего или последнего года копируются только комплекты УП.
+          Классы и ученики формируются через перевод; группы и нагрузка
+          создаются заново.
+        </div>
       </div>
     </div>
   </div>

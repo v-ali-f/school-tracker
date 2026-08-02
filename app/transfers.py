@@ -147,6 +147,24 @@ def _active_enrollment_query(year_id=None):
     return q
 
 
+def _active_enrollment_for_year(child_id, academic_year_id):
+    return (
+        _active_enrollment_query(academic_year_id)
+        .filter(ChildEnrollment.child_id == child_id)
+        .first()
+    )
+
+
+def _target_class_for_year(class_id, academic_year_id):
+    if not class_id or not academic_year_id:
+        return None
+    return (
+        SchoolClass.query
+        .filter_by(id=class_id, academic_year_id=academic_year_id)
+        .first()
+    )
+
+
 @transfers_bp.route("/")
 @require_roles("ADMIN")
 def index():
@@ -219,14 +237,33 @@ def class_to_class():
             rows.append({"enrollment": e, "child": e.child, "target_class_id": target_class_id})
 
     if request.method == "POST" and request.form.get("action") == "execute":
-        target_class = SchoolClass.query.get_or_404(target_class_id)
+        target_class = _target_class_for_year(target_class_id, to_year_id)
+        if target_class is None:
+            flash(
+                "Выбранный класс не относится к целевому учебному году.",
+                "danger",
+            )
+            return redirect(url_for(
+                "transfers.class_to_class",
+                from_year_id=from_year_id,
+                to_year_id=to_year_id,
+                source_class_id=source_class_id,
+            ))
         transfer_date = _safe_date(request.form.get("transfer_date")) or date.today()
         order_number = (request.form.get("order_number") or "").strip() or None
         order_date = _safe_date(request.form.get("order_date"))
         selected_ids = {int(x) for x in request.form.getlist("enrollment_ids") if str(x).isdigit()}
         changed = 0
+        skipped = 0
         for e in _active_enrollment_query(from_year_id).filter(ChildEnrollment.school_class_id == source_class_id).all():
             if e.id not in selected_ids:
+                continue
+            target_enrollment = _active_enrollment_for_year(
+                e.child_id,
+                target_class.academic_year_id,
+            )
+            if target_enrollment is not None and target_enrollment.id != e.id:
+                skipped += 1
                 continue
             _close_enrollment(e, "PROMOTED")
             new_enrollment = ChildEnrollment(
@@ -246,7 +283,12 @@ def class_to_class():
                              comment="Массовый перевод класс → класс")
             changed += 1
         db.session.commit()
-        flash(f"Переведено учеников: {changed}", "success")
+        message = f"Переведено учеников: {changed}"
+        if skipped:
+            message += (
+                f". Пропущено уже зачисленных в целевой год: {skipped}"
+            )
+        flash(message, "success" if changed else "warning")
         return redirect(url_for("transfers.class_to_class", from_year_id=from_year_id, to_year_id=to_year_id, source_class_id=source_class_id, target_class_id=target_class_id))
 
     return render_template(
@@ -295,8 +337,17 @@ def parallel_to_parallel():
             target_class_id = request.form.get(f"target_class_{e.id}", type=int)
             if not target_class_id:
                 continue
-            target_class = SchoolClass.query.get(target_class_id)
+            target_class = _target_class_for_year(
+                target_class_id,
+                to_year_id,
+            )
             if not target_class:
+                continue
+            target_enrollment = _active_enrollment_for_year(
+                e.child_id,
+                target_class.academic_year_id,
+            )
+            if target_enrollment is not None and target_enrollment.id != e.id:
                 continue
             _close_enrollment(e, "PROMOTED")
             db.session.add(ChildEnrollment(
@@ -335,7 +386,42 @@ def individual():
         comment = (request.form.get("comment") or "").strip() or None
         child = Child.query.get_or_404(child_id)
         current_enrollment = _active_enrollment_query().filter_by(child_id=child.id).order_by(ChildEnrollment.id.desc()).first()
-        target_class = SchoolClass.query.get_or_404(to_class_id)
+        target_class = _target_class_for_year(to_class_id, year_id)
+        if target_class is None:
+            flash(
+                "Выбранный класс не относится к выбранному учебному году.",
+                "danger",
+            )
+            return redirect(url_for("transfers.individual", year_id=year_id))
+        target_enrollment = _active_enrollment_for_year(
+            child.id,
+            target_class.academic_year_id,
+        )
+        if (
+            target_enrollment is not None
+            and (
+                current_enrollment is None
+                or target_enrollment.id != current_enrollment.id
+            )
+        ):
+            flash(
+                "Ученик уже зачислен в класс этого учебного года. "
+                "Повторное активное зачисление не создано.",
+                "warning",
+            )
+            return redirect(url_for(
+                "transfers.individual",
+                year_id=target_class.academic_year_id,
+            ))
+        if (
+            current_enrollment is not None
+            and current_enrollment.school_class_id == target_class.id
+        ):
+            flash("Ученик уже находится в выбранном классе.", "info")
+            return redirect(url_for(
+                "transfers.individual",
+                year_id=target_class.academic_year_id,
+            ))
         if current_enrollment:
             _close_enrollment(current_enrollment, transfer_type)
         db.session.add(ChildEnrollment(
