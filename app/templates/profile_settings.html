@@ -52,8 +52,8 @@
       </li>
       {% if current_user.has_role('TEACHER') or current_user.has_role('CLASS_TEACHER') or current_user.has_role('DEPARTMENT_HEAD') %}
       <li class="nav-item" role="presentation">
-        <a class="nav-link" href="{{ url_for('departments.teacher_cabinet') }}">
-          <i class="bi bi-person-workspace me-1"></i>Кабинет преподавателя
+        <a class="nav-link" href="{{ url_for('departments.my_teacher_profile') }}">
+          <i class="bi bi-person-workspace me-1"></i>Мой профиль преподавателя
         </a>
       </li>
       {% endif %}

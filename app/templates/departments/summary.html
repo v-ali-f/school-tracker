@@ -7,7 +7,7 @@
   </div>
   <div class="page-actions">
     {% if current_user.has_role('TEACHER') or current_user.has_role('CLASS_TEACHER') or current_user.has_role('DEPARTMENT_HEAD') %}
-    <a class="btn btn-primary btn-sm" href="{{ url_for('departments.teacher_cabinet') }}"><i class="bi bi-person-vcard me-1"></i>Мой кабинет</a>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('departments.my_teacher_profile') }}"><i class="bi bi-person-vcard me-1"></i>Мой профиль</a>
     {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.loads') }}">Нагрузка</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
@@ -36,9 +36,9 @@
 
 <div class="row g-4 mb-4">
   <div class="col-lg-6" id="department-teachers"><div class="card h-100"><div class="card-body">
-    <h5 class="section-title mb-1">Преподаватели и кабинеты</h5>
-    <div class="small text-muted mb-3">Откройте кабинет, чтобы посмотреть нагрузку и профессиональные сведения преподавателя.</div>
-    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>ФИО</th><th class="text-end">Часы</th><th class="text-end">Предметы</th><th class="text-end">Группы</th><th class="text-end">Кабинет</th></tr></thead><tbody>{% for item in teacher_load_summaries %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">{{ item.teacher.fio or item.teacher.username }}</a></td><td class="text-end fw-semibold">{{ item.total|compact_decimal }}</td><td class="text-end">{{ item.subjects }}</td><td class="text-end">{{ item.groups }}</td><td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">Открыть</a></td></tr>{% else %}<tr><td colspan="5" class="text-muted">Нет назначенной нагрузки по выбранной кафедре</td></tr>{% endfor %}</tbody></table></div>
+    <h5 class="section-title mb-1">Преподаватели</h5>
+    <div class="small text-muted mb-3">Нажмите на ФИО, чтобы посмотреть нагрузку и профессиональные сведения преподавателя.</div>
+    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>ФИО</th><th class="text-end">Часы</th><th class="text-end">Предметы</th><th class="text-end">Группы</th></tr></thead><tbody>{% for item in teacher_load_summaries %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">{{ item.teacher.fio or item.teacher.username }}</a></td><td class="text-end fw-semibold">{{ item.total|compact_decimal }}</td><td class="text-end">{{ item.subjects }}</td><td class="text-end">{{ item.groups }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет назначенной нагрузки по выбранной кафедре</td></tr>{% endfor %}</tbody></table></div>
   </div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title">Результаты контрольных по предметам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет результатов</td></tr>{% endfor %}</tbody></table></div></div></div></div>
 </div>

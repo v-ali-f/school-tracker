@@ -218,10 +218,11 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'olympiads.imports':           [HOME, ('Олимпиады', 'olympiads.registry'), ('История импортов', None)],
             'olympiads.department_registry': [HOME, ('Олимпиады', 'olympiads.registry'), ('По кафедрам', None)],
             # Кафедры
-            'departments.index':           [HOME, ('Кафедры', None)],
-            'departments.settings':        [HOME, ('Кафедры', 'departments.index'), ('Настройка', None)],
-            'departments.loads':           [HOME, ('Кафедры', 'departments.index'), ('Нагрузка', None)],
-            'departments.summary':         [HOME, ('Кафедры', 'departments.index'), ('Сводка', None)],
+            'departments.index':           [HOME, ('Кафедры', 'hub.departments')],
+            'departments.settings':        [HOME, ('Кафедры', 'hub.departments'), ('Настройка', None)],
+            'departments.loads':           [HOME, ('Кафедры', 'hub.departments'), ('Нагрузка', None)],
+            'departments.summary':         [HOME, ('Кафедры', 'hub.departments'), ('Сводка', None)],
+            'departments.teacher_profile': [HOME, ('Кафедры', 'hub.departments'), ('Профиль преподавателя', None)],
             # Диагностика
             'diagnostics.list':            [HOME, ('Диагностика МЦКО', None)],
             'diagnostics.create':          [HOME, ('Диагностика МЦКО', 'diagnostics.list'), ('Новая', None)],
@@ -292,7 +293,7 @@ def register_context_processors(app, has_permission, build_menu_flags):
 
         # Fallback: если endpoint не в MAP — показываем [Главная] > [Раздел] по имени blueprint
         BLUEPRINT_SECTIONS = {
-            'departments':         ('Кафедры',              'departments.index'),
+            'departments':         ('Кафедры',              'hub.departments'),
             'orders':              ('Приказы',              'orders.registry'),
             'olympiads':           ('Олимпиады',            'olympiads.registry'),
             'diagnostics':         ('Диагностика МЦКО',     'diagnostics.list'),

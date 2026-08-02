@@ -2,11 +2,11 @@
 {% block content %}
 <div class="page-head mb-3">
   <div>
-    <h1 class="page-title">{% if is_self_profile %}Кабинет преподавателя{% else %}Карточка преподавателя{% endif %}</h1>
+    <h1 class="page-title">{% if is_self_profile %}Мой профиль преподавателя{% else %}Профиль преподавателя{% endif %}</h1>
     <div class="page-sub">Персональные сведения, профессиональное развитие и педагогическая нагрузка</div>
   </div>
   <div class="page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.teacher_registry', academic_year_id=academic_year_id) }}"><i class="bi bi-arrow-left"></i> К кабинетам</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary', academic_year_id=academic_year_id) }}"><i class="bi bi-arrow-left"></i> К своду кафедр</a>
   </div>
 </div>
 

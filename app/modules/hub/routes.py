@@ -87,7 +87,6 @@ ICON_MAP = {
     "Свод по кафедрам": ("bi-diagram-3", "accent-blue"),
     "Нагрузка учителей": ("bi-person-lines-fill", "accent-blue"),
     "Нагрузка и тарификация": ("bi-calculator", "accent-blue"),
-    "Аналитика по кафедрам": ("bi-bar-chart-line", "accent-blue"),
     "Список диагностик": ("bi-clipboard-check", "accent-orange"),
     "Импорт результатов": ("bi-upload", "accent-orange"),
     "Аналитика диагностик": ("bi-bar-chart-line", "accent-orange"),
@@ -663,7 +662,12 @@ def _theme_configs():
                 {"title": "Настройка предметных кафедр", "description": "Структура кафедр и состав участников.", "endpoint": "departments.settings"},
                 {"title": "Свод по кафедрам", "description": "Итоги и показатели по кафедрам.", "endpoint": "departments.summary"},
                 {"title": "Нагрузка учителей", "description": "Распределение часов и учебной нагрузки.", "endpoint": "departments.loads"},
-                {"title": "Аналитика по кафедрам", "description": "Общий экран кафедральной аналитики.", "endpoint": "departments.index"},
+                {
+                    "title": "Мой профиль преподавателя",
+                    "description": "Моя нагрузка, результаты МЦКО, аттестация и повышение квалификации.",
+                    "endpoint": "departments.my_teacher_profile",
+                    "roles_any": ["TEACHER", "CLASS_TEACHER", "DEPARTMENT_HEAD"],
+                },
             ]),
         },
         "diagnostics": {
