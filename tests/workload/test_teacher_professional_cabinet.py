@@ -153,7 +153,8 @@ def test_department_hub_exposes_only_personal_teacher_profile(
     admin_html = admin_page.get_data(as_text=True)
 
     assert admin_page.status_code == 200
-    assert "Мой профиль преподавателя" not in admin_html
+    assert "Мой профиль преподавателя" in admin_html
+    assert 'href="/departments/teacher/profile"' in admin_html
     assert "Аналитика по кафедрам" not in admin_html
 
     legacy_page = client.get("/departments/")
