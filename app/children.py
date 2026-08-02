@@ -7049,6 +7049,116 @@ def classes_copy_from_year_undo():
     ))
 
 
+@children_bp.route("/classes/delete-selected", methods=["POST"])
+@require_roles("ADMIN")
+def classes_delete_selected():
+    academic_year_id = request.form.get("academic_year_id", type=int)
+    class_ids = {
+        int(class_id)
+        for class_id in request.form.getlist("class_ids")
+        if str(class_id).isdigit()
+    }
+    if not academic_year_id or not class_ids:
+        flash("Выберите хотя бы один класс для удаления.", "warning")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=academic_year_id,
+        ))
+
+    selected_classes = (
+        SchoolClass.query
+        .filter(
+            SchoolClass.academic_year_id == academic_year_id,
+            SchoolClass.id.in_(class_ids),
+        )
+        .order_by(SchoolClass.name.asc())
+        .all()
+    )
+    active_class_ids = {
+        class_id
+        for class_id, in (
+            db.session.query(ChildEnrollment.school_class_id)
+            .filter(
+                ChildEnrollment.school_class_id.in_(
+                    [school_class.id for school_class in selected_classes]
+                ),
+                ChildEnrollment.ended_at.is_(None),
+            )
+            .distinct()
+            .all()
+        )
+    }
+    blocked_with_children = []
+    blocked_with_links = []
+    deleted_ids = []
+    deleted_names = []
+    teacher_ids = set()
+
+    for school_class in selected_classes:
+        if school_class.id in active_class_ids:
+            blocked_with_children.append(school_class.name)
+            continue
+        try:
+            with db.session.begin_nested():
+                teacher_user_id = school_class.teacher_user_id
+                class_id = school_class.id
+                class_name = school_class.name
+                db.session.delete(school_class)
+                db.session.flush()
+            deleted_ids.append(class_id)
+            deleted_names.append(class_name)
+            if teacher_user_id:
+                teacher_ids.add(teacher_user_id)
+        except IntegrityError:
+            blocked_with_links.append(school_class.name)
+
+    for teacher_id in teacher_ids:
+        _sync_class_teacher_role(teacher_id)
+    db.session.commit()
+
+    last_copy = session.get("last_class_copy") or {}
+    if last_copy.get("target_year_id") == academic_year_id:
+        remaining_ids = [
+            class_id
+            for class_id in last_copy.get("class_ids", [])
+            if class_id not in deleted_ids
+        ]
+        if remaining_ids:
+            last_copy["class_ids"] = remaining_ids
+            last_copy["created_count"] = len(remaining_ids)
+            session["last_class_copy"] = last_copy
+        else:
+            session.pop("last_class_copy", None)
+
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
+    if deleted_names:
+        flash(
+            f"Удалено классов: {len(deleted_names)}.",
+            "success",
+        )
+    if blocked_with_children:
+        flash(
+            "Не удалены классы с учениками: "
+            + ", ".join(blocked_with_children)
+            + ".",
+            "warning",
+        )
+    if blocked_with_links:
+        flash(
+            "Не удалены классы, используемые в учебных планах, группах "
+            "или других данных: "
+            + ", ".join(blocked_with_links)
+            + ".",
+            "warning",
+        )
+
+    return redirect(url_for(
+        "children.classes_registry",
+        academic_year_id=academic_year_id,
+    ))
+
+
 @children_bp.route("/classes/<int:class_id>/delete", methods=["POST"])
 @require_roles("ADMIN")
 def classes_delete(class_id: int):
@@ -7104,6 +7214,14 @@ def class_applications_update(class_id: int):
     school_class = SchoolClass.query.get_or_404(class_id)
     applications_count = request.form.get("applications_count", type=int)
     if applications_count is None or applications_count < 0:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({
+                "ok": False,
+                "error": (
+                    "Количество заявлений должно быть целым "
+                    "неотрицательным числом."
+                ),
+            }), 400
         flash(
             "Количество заявлений должно быть целым неотрицательным числом.",
             "danger",
@@ -7111,6 +7229,12 @@ def class_applications_update(class_id: int):
     else:
         school_class.applications_count = applications_count
         db.session.commit()
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({
+                "ok": True,
+                "class_id": school_class.id,
+                "applications_count": school_class.applications_count,
+            })
         flash(
             f"Количество заявлений для {school_class.name} сохранено.",
             "success",
