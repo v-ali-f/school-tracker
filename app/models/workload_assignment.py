@@ -480,6 +480,45 @@ class WorkloadAssignment(db.Model):
     )
 
 
+class WorkloadEditorAccess(db.Model):
+    __tablename__ = "workload_editor_access"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    is_active = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True,
+        server_default=db.true(),
+        index=True,
+    )
+    created_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+    )
+    created_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+    )
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+
 class WorkloadAssignmentChange(db.Model):
     __tablename__ = "workload_assignment_change"
 
@@ -544,6 +583,7 @@ __all__ = [
     "WORKLOAD_NEED_STATUS_LABELS",
     "WorkloadAssignment",
     "WorkloadAssignmentChange",
+    "WorkloadEditorAccess",
     "WorkloadNeed",
     "WorkloadNeedSource",
 ]

@@ -9,6 +9,7 @@ from app.models import (
     RoleModuleAccess,
     User,
     UserBuilding,
+    WorkloadEditorAccess,
 )
 from app.modules.workload.access import require_workload_write
 from app.modules.workload.scopes import resolve_workload_scope
@@ -165,6 +166,21 @@ def test_teacher_scope_is_self_only_and_keeps_building_boundary(app, make_user):
         assert scope.unrestricted is False
 
 
+def test_explicit_workload_editor_has_unrestricted_scope(app, make_user):
+    user_id = make_user("TEACHER")
+    with app.app_context():
+        db.session.add(WorkloadEditorAccess(
+            user_id=user_id,
+            is_active=True,
+        ))
+        db.session.commit()
+        user = db.session.get(User, user_id)
+        scope = resolve_workload_scope(user)
+
+        assert scope.unrestricted is True
+        assert scope.own_employee_only is False
+
+
 def test_registered_workload_business_tables_match_completed_stages():
     workload_tables = {
         table_name
@@ -175,6 +191,7 @@ def test_registered_workload_business_tables_match_completed_stages():
     assert workload_tables == {
         "workload_assignment",
         "workload_assignment_change",
+        "workload_editor_access",
         "workload_need",
         "workload_need_source",
         "workload_reconciliation_item",

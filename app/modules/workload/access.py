@@ -5,6 +5,7 @@ from app.core.feature_flags import (
     WORKLOAD_WRITE,
     is_feature_enabled,
 )
+from app.models import WorkloadEditorAccess
 from app.models.role_access import RoleModuleAccess
 from app.permissions import _user_role_codes, has_permission
 
@@ -20,6 +21,19 @@ WORKLOAD_DEFAULT_ROLES = frozenset({
     "ECONOMIST",
     "AUDITOR",
     "TEACHER",
+})
+WORKLOAD_DEFAULT_EDITOR_ROLES = frozenset({
+    "ADMIN",
+    "DIRECTOR",
+    "DEPUTY_DIRECTOR",
+})
+WORKLOAD_WRITE_PERMISSIONS = frozenset({
+    "workload.plan.update",
+    "workload.plan_bindings.update",
+    "workload.groups.update",
+    "workload.assignments.update",
+    "workload.calculate",
+    "workload.documents.generate",
 })
 
 
@@ -64,9 +78,24 @@ def _module_is_visible(user) -> bool:
     return False
 
 
+def _has_workload_editor_assignment(user) -> bool:
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+    try:
+        return WorkloadEditorAccess.query.filter_by(
+            user_id=user_id,
+            is_active=True,
+        ).first() is not None
+    except Exception:
+        return False
+
+
 def can_access_workload_module(user) -> bool:
     if not user or not getattr(user, "is_authenticated", False):
         return False
+    if _has_workload_editor_assignment(user):
+        return True
     if not (
         has_permission("workload.read", user=user)
         or has_permission("workload.self.read", user=user)
@@ -75,8 +104,24 @@ def can_access_workload_module(user) -> bool:
     return _module_is_visible(user)
 
 
+def is_workload_global_editor(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if _assigned_role_codes(user).intersection(WORKLOAD_DEFAULT_EDITOR_ROLES):
+        return True
+    return _has_workload_editor_assignment(user)
+
+
 def can_use_workload_permission(permission_code: str, user) -> bool:
-    return can_access_workload_module(user) and has_permission(permission_code, user=user)
+    if not can_access_workload_module(user):
+        return False
+    if permission_code in WORKLOAD_WRITE_PERMISSIONS:
+        if is_workload_global_editor(user):
+            return True
+        if permission_code == "workload.assignments.update":
+            return "DEPARTMENT_HEAD" in _assigned_role_codes(user)
+        return False
+    return has_permission(permission_code, user=user)
 
 
 def require_workload_module() -> None:
@@ -93,8 +138,10 @@ def require_workload_write() -> None:
 __all__ = [
     "WORKLOAD_MODULE_CODE",
     "WORKLOAD_DEFAULT_ROLES",
+    "WORKLOAD_DEFAULT_EDITOR_ROLES",
     "can_access_workload_module",
     "can_use_workload_permission",
+    "is_workload_global_editor",
     "require_workload_module",
     "require_workload_write",
 ]

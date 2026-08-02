@@ -58,6 +58,7 @@
     <select class="form-select form-select-sm" id="workspace-view" name="view" data-workload-view>
       <option value="all" {% if view_mode == 'all' %}selected{% endif %}>Вся нагрузка</option>
       <option value="department" {% if view_mode == 'department' %}selected{% endif %}>По кафедре</option>
+      <option value="vacancies" {% if view_mode == 'vacancies' %}selected{% endif %}>Вакансии</option>
     </select>
   </div>
   <div class="workload-filter-field workload-filter-field--department">
@@ -155,6 +156,10 @@
         <tr>
           {% if loop.first %}
           <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
+            {% if block.is_vacancy %}
+            <strong class="workload-holder-vacancy"><i class="bi bi-briefcase" aria-hidden="true"></i>{{ block.label }}</strong>
+            <small>Преподаватель не назначен</small>
+            {% else %}
             <a href="{{ url_for('departments.teacher_profile', teacher_id=block.teacher.id, academic_year_id=selected_version.tariff_cycle.academic_year_id) }}">{{ block.label }}</a>
             <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
             {% if block.metadata.mcko_items %}
@@ -164,6 +169,28 @@
               {% if block.metadata.mcko_items|length > 2 %}<small>Ещё: {{ block.metadata.mcko_items|length - 2 }}</small>{% endif %}
             {% else %}
               <small>МЦКО: —</small>
+            {% endif %}
+            {% endif %}
+            {% if can_update %}
+            <details class="workload-holder-replace">
+              <summary><i class="bi bi-pencil" aria-hidden="true"></i>Изменить</summary>
+              <form method="post" action="{{ url_for('workload.assignment_workspace_holder_replace') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {{ workspace_fields() }}
+                <input type="hidden" name="source_type" value="{{ 'vacancy' if block.is_vacancy else 'teacher' }}">
+                <input type="hidden" name="source_teacher_id" value="{{ block.teacher_id or '' }}">
+                <input type="hidden" name="source_vacancy_key" value="{{ block.vacancy_key or '' }}">
+                <label>Передать всю нагрузку</label>
+                <select class="form-select form-select-sm" name="target_holder" required>
+                  <option value="">Выберите</option>
+                  <option value="vacancy">Новая вакансия</option>
+                  {% for item in replacement_choices %}
+                  {% if item.id != block.teacher_id %}<option value="teacher:{{ item.id }}">{{ item.fio }}</option>{% endif %}
+                  {% endfor %}
+                </select>
+                <button class="btn btn-primary btn-sm" type="submit">Заменить</button>
+              </form>
+            </details>
             {% endif %}
           </th>
           {% endif %}
@@ -176,13 +203,13 @@
             {% endif %}
           </th>
           {% if loop.first %}
-          <td class="workload-assignment-matrix__teacher-total-cell" rowspan="{{ block_rowspan }}" data-teacher-total="{{ block.teacher.id }}">
+          <td class="workload-assignment-matrix__teacher-total-cell" rowspan="{{ block_rowspan }}" data-holder-total="{{ block.holder_key }}">
             {{ block.total|compact_decimal }}
           </td>
           {% endif %}
           <td
             class="workload-assignment-matrix__subject-total-cell"
-            data-subject-total="{{ block.teacher.id }}:{{ row.activity.id if row.activity else 0 }}:{{ row.plan_kind or '' }}"
+            data-subject-total="{{ block.holder_key }}:{{ row.activity.id if row.activity else 0 }}:{{ row.plan_kind or '' }}"
           >{{ row.total|compact_decimal }}</td>
           {% for column in matrix.columns %}
           {% set matrix_cell = row.matrix_cells.get(column.key) %}
@@ -196,15 +223,17 @@
                 action="{{ url_for('workload.assignment_workspace_cell_update') }}"
                 data-workload-cell-form
                 data-need-id="{{ slot.need.id }}"
-                data-teacher-id="{{ block.teacher.id }}"
-                data-row-key="{{ block.teacher.id }}:{{ row.activity.id }}:{{ row.plan_kind }}"
+                data-holder-key="{{ block.holder_key }}"
+                data-row-key="{{ block.holder_key }}:{{ row.activity.id }}:{{ row.plan_kind }}"
                 data-planned="{{ slot.planned|compact_decimal }}"
                 data-editable="{{ '1' if can_update else '0' }}"
               >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ workspace_fields() }}
                 <input type="hidden" name="need_id" value="{{ slot.need.id }}">
-                <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
+                <input type="hidden" name="holder_type" value="{{ 'vacancy' if block.is_vacancy else 'teacher' }}">
+                <input type="hidden" name="teacher_id" value="{{ block.teacher_id or '' }}">
+                <input type="hidden" name="vacancy_key" value="{{ block.vacancy_key or '' }}">
                 <input
                   type="hidden"
                   name="hours"
@@ -214,7 +243,7 @@
                 <button
                   class="workload-cell-toggle"
                   type="button"
-                  aria-label="Часы: {{ block.teacher.fio }}, {{ row.activity.name }}, {{ column.label }}{% if slot.label %}, {{ slot.label }}{% endif %}"
+                  aria-label="Часы: {{ block.label }}, {{ row.activity.name }}, {{ column.label }}{% if slot.label %}, {{ slot.label }}{% endif %}"
                   title="{% if slot.assignment %}Снять назначение {{ slot.planned|compact_decimal }} ч/нед.{% elif slot.assigned_elsewhere %}Назначено другому преподавателю.{% else %}Назначить полный объём {{ slot.planned|compact_decimal }} ч/нед.{% endif %}"
                   {% if not can_update or slot.assigned_elsewhere %}disabled{% endif %}
                   data-workload-cell-toggle
@@ -241,7 +270,9 @@
               <form method="post" action="{{ url_for('workload.assignment_workspace_subject_add') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ workspace_fields() }}
-                <input type="hidden" name="teacher_id" value="{{ block.teacher.id }}">
+                <input type="hidden" name="holder_type" value="{{ 'vacancy' if block.is_vacancy else 'teacher' }}">
+                <input type="hidden" name="teacher_id" value="{{ block.teacher_id or '' }}">
+                <input type="hidden" name="vacancy_key" value="{{ block.vacancy_key or '' }}">
                 <select class="form-select form-select-sm" name="activity_plan_kind" data-activity-plan-kind required>
                   <option value="">Выберите предмет</option>
                   {% for option in subject_options %}
@@ -322,7 +353,8 @@
     </select>
     <div class="workload-teacher-dialog__actions">
       <button class="btn btn-outline-secondary" type="button" data-close-teacher-dialog>Отмена</button>
-      <button class="btn btn-primary" type="submit">Добавить</button>
+      <button class="btn btn-outline-primary" type="submit" name="holder_type" value="vacancy" formnovalidate><i class="bi bi-briefcase me-1" aria-hidden="true"></i>Добавить вакансию</button>
+      <button class="btn btn-primary" type="submit" name="holder_type" value="teacher">Добавить преподавателя</button>
     </div>
   </form>
 </dialog>
@@ -395,9 +427,9 @@
       const hours = form.querySelector("[data-workload-cell-hours]");
       const value = form.querySelector("[data-workload-cell-value]");
       const label = form.querySelector("[data-workload-cell-label]");
-      const sameTeacher = Number(form.dataset.teacherId) === Number(payload.teacher_id);
-      const assigned = payload.value !== null && sameTeacher;
-      const locked = payload.value !== null && !sameTeacher;
+      const sameHolder = form.dataset.holderKey === payload.holder_key;
+      const assigned = payload.value !== null && sameHolder;
+      const locked = payload.value !== null && !sameHolder;
       const planned = form.dataset.planned;
       form.classList.toggle("is-assigned", assigned);
       form.classList.toggle("is-locked", locked);
@@ -415,8 +447,8 @@
           ? "Назначено другому преподавателю."
           : `Назначить полный объём ${formatHours(planned)} ч/нед.`;
     });
-    const teacherTotal = document.querySelector(`[data-teacher-total="${payload.teacher_id}"]`);
-    if (teacherTotal) teacherTotal.textContent = formatHours(payload.teacher_total);
+    const holderTotal = document.querySelector(`[data-holder-total="${payload.holder_key}"]`);
+    if (holderTotal) holderTotal.textContent = formatHours(payload.holder_total);
     const allocated = document.querySelector("[data-workload-total-allocated]");
     const remaining = document.querySelector("[data-workload-total-remaining]");
     if (allocated) allocated.textContent = formatHours(payload.allocated);

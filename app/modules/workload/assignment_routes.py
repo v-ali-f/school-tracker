@@ -225,8 +225,9 @@ def _workspace_state(version_id):
     key = f"workload_matrix_state_{version_id}"
     state = session.get(key)
     if not isinstance(state, dict):
-        state = {"teacher_ids": [], "rows": []}
+        state = {"teacher_ids": [], "vacancies": [], "rows": []}
     state.setdefault("teacher_ids", [])
+    state.setdefault("vacancies", [])
     state.setdefault("rows", [])
     return key, state
 
@@ -234,6 +235,31 @@ def _workspace_state(version_id):
 def _save_workspace_state(key, state):
     session[key] = state
     session.modified = True
+
+
+def _next_vacancy(version_id, state):
+    existing_codes = {
+        str(item.get("key"))
+        for item in state.get("vacancies", [])
+        if item.get("key")
+    }
+    existing_codes.update(
+        code for (code,) in db.session.query(
+            WorkloadAssignment.position_code,
+        ).filter(
+            WorkloadAssignment.tariff_version_id == version_id,
+            WorkloadAssignment.assignment_kind == "VACANCY",
+            WorkloadAssignment.status != "CANCELLED",
+        ).distinct().all()
+        if code
+    )
+    number = 1
+    while f"VACANCY_{number}" in existing_codes:
+        number += 1
+    return {
+        "key": f"VACANCY_{number}",
+        "label": f"Вакансия {number}",
+    }
 
 
 def _filter_workspace_needs(
@@ -855,7 +881,6 @@ def register_assignment_routes(workload_bp):
             .filter(
                 WorkloadAssignment.workload_need_id.in_(need_ids),
                 WorkloadAssignment.status != "CANCELLED",
-                WorkloadAssignment.assignment_kind != "VACANCY",
             )
             .all()
             if need_ids else []
@@ -870,7 +895,7 @@ def register_assignment_routes(workload_bp):
     def assignment_workspace():
         _require_assignments_read()
         view_mode = (request.args.get("view") or "all").strip().lower()
-        if view_mode not in {"all", "department"}:
+        if view_mode not in {"all", "department", "vacancies"}:
             view_mode = "all"
         department_id = (
             request.args.get("department_id", type=int)
@@ -947,7 +972,6 @@ def register_assignment_routes(workload_bp):
             .filter(
                 WorkloadAssignment.workload_need_id.in_(need_ids),
                 WorkloadAssignment.status != "CANCELLED",
-                WorkloadAssignment.assignment_kind != "VACANCY",
             )
             .all()
             if need_ids else []
@@ -960,6 +984,22 @@ def register_assignment_routes(workload_bp):
             for teacher_id in state["teacher_ids"]
             if teacher_id in employee_by_id
         ]
+        vacancies_by_key = {
+            item["key"]: item
+            for item in state["vacancies"]
+            if item.get("key")
+        }
+        for assignment in assignments:
+            if assignment.assignment_kind != "VACANCY":
+                continue
+            vacancies_by_key.setdefault(assignment.position_code, {
+                "key": assignment.position_code,
+                "label": assignment.position_title or "Вакансия",
+            })
+        if len(vacancies_by_key) != len(state["vacancies"]):
+            state["vacancies"] = list(vacancies_by_key.values())
+            _save_workspace_state(state_key, state)
+        extra_vacancies = list(vacancies_by_key.values())
         subject_options = _workspace_plan_subject_options(
             plan_matrices,
             department_id,
@@ -985,7 +1025,23 @@ def register_assignment_routes(workload_bp):
                 row["plan_kind"],
             )
             for row in state["rows"]
-            if row.get("teacher_id") in employee_by_id
+            if row.get("holder_type", "teacher") == "teacher"
+            and row.get("teacher_id") in employee_by_id
+            and row.get("activity_id") in activities
+            and (
+                row.get("activity_id"),
+                row.get("plan_kind"),
+            ) in allowed_subject_keys
+        ]
+        draft_vacancy_rows = [
+            (
+                row["vacancy_key"],
+                activities[row["activity_id"]],
+                row["plan_kind"],
+            )
+            for row in state["rows"]
+            if row.get("holder_type") == "vacancy"
+            and row.get("vacancy_key") in vacancies_by_key
             and row.get("activity_id") in activities
             and (
                 row.get("activity_id"),
@@ -1006,12 +1062,19 @@ def register_assignment_routes(workload_bp):
             assignments,
             plan_matrices=plan_matrices,
             extra_teachers=extra_teachers,
+            extra_vacancies=extra_vacancies,
             draft_rows=draft_rows,
+            draft_vacancy_rows=draft_vacancy_rows,
             teacher_metadata=_workspace_teacher_metadata(
                 list(matrix_teachers.values()),
                 selected_version,
             ),
         )
+        if view_mode == "vacancies":
+            matrix["blocks"] = [
+                block for block in matrix["blocks"]
+                if block["is_vacancy"]
+            ]
         departments, buildings = _scope_options()
         totals = {
             "weekly": sum(
@@ -1045,6 +1108,7 @@ def register_assignment_routes(workload_bp):
                 department_id,
                 assignments,
             ),
+            replacement_choices=employees,
             subject_options=subject_options,
             need_status_labels=WORKLOAD_NEED_STATUS_LABELS,
             assignment_kind_labels=WORKLOAD_ASSIGNMENT_KIND_LABELS,
@@ -1056,10 +1120,16 @@ def register_assignment_routes(workload_bp):
     def assignment_workspace_teacher_add():
         _require_assignments_update()
         version_id = request.form.get("version_id", type=int)
+        holder_type = (request.form.get("holder_type") or "teacher").strip()
         teacher_id = request.form.get("teacher_id", type=int)
         version = _draft_versions_query().filter(
             TariffVersion.id == version_id
         ).first_or_404()
+        key, state = _workspace_state(version.id)
+        if holder_type == "vacancy":
+            state["vacancies"].append(_next_vacancy(version.id, state))
+            _save_workspace_state(key, state)
+            return _workspace_redirect()
         teacher = db.session.get(User, teacher_id) if teacher_id else None
         if (
             teacher is None
@@ -1068,7 +1138,6 @@ def register_assignment_routes(workload_bp):
         ):
             flash("Выберите работающего преподавателя.", "danger")
             return _workspace_redirect()
-        key, state = _workspace_state(version.id)
         if teacher.id not in state["teacher_ids"]:
             state["teacher_ids"].append(teacher.id)
             _save_workspace_state(key, state)
@@ -1079,7 +1148,9 @@ def register_assignment_routes(workload_bp):
     def assignment_workspace_subject_add():
         _require_assignments_update()
         version_id = request.form.get("version_id", type=int)
+        holder_type = (request.form.get("holder_type") or "teacher").strip()
         teacher_id = request.form.get("teacher_id", type=int)
+        vacancy_key = (request.form.get("vacancy_key") or "").strip()
         activity_id = request.form.get("activity_id", type=int)
         plan_kind = (request.form.get("plan_kind") or "").strip().upper()
         activity_plan_kind = (
@@ -1103,8 +1174,33 @@ def register_assignment_routes(workload_bp):
             db.session.get(EducationActivity, activity_id)
             if activity_id else None
         )
-        if teacher is None or activity is None:
-            flash("Выберите преподавателя и предмет.", "danger")
+        key, state = _workspace_state(version.id)
+        vacancy = next(
+            (
+                item for item in state["vacancies"]
+                if item.get("key") == vacancy_key
+            ),
+            None,
+        )
+        if holder_type == "vacancy" and vacancy is None and vacancy_key:
+            existing_vacancy = WorkloadAssignment.query.filter(
+                WorkloadAssignment.tariff_version_id == version.id,
+                WorkloadAssignment.assignment_kind == "VACANCY",
+                WorkloadAssignment.position_code == vacancy_key,
+                WorkloadAssignment.status != "CANCELLED",
+            ).first()
+            if existing_vacancy is not None:
+                vacancy = {
+                    "key": vacancy_key,
+                    "label": existing_vacancy.position_title or "Вакансия",
+                }
+                state["vacancies"].append(vacancy)
+        if activity is None or (
+            holder_type == "vacancy" and vacancy is None
+        ) or (
+            holder_type != "vacancy" and teacher is None
+        ):
+            flash("Выберите строку нагрузки и предмет.", "danger")
             return _workspace_redirect()
         if plan_kind not in PLAN_KIND_LABELS:
             flash("Выберите допустимую часть учебного плана.", "danger")
@@ -1121,11 +1217,12 @@ def register_assignment_routes(workload_bp):
         if has_need is None:
             flash("В выбранной версии нет часов по этому предмету.", "danger")
             return _workspace_redirect()
-        key, state = _workspace_state(version.id)
-        if teacher.id not in state["teacher_ids"]:
+        if teacher is not None and teacher.id not in state["teacher_ids"]:
             state["teacher_ids"].append(teacher.id)
         row = {
-            "teacher_id": teacher.id,
+            "holder_type": holder_type,
+            "teacher_id": teacher.id if teacher is not None else None,
+            "vacancy_key": vacancy_key if holder_type == "vacancy" else None,
             "activity_id": activity.id,
             "plan_kind": plan_kind,
         }
@@ -1202,7 +1299,9 @@ def register_assignment_routes(workload_bp):
     def assignment_workspace_cell_update():
         _require_assignments_update()
         need_id = request.form.get("need_id", type=int)
+        holder_type = (request.form.get("holder_type") or "teacher").strip()
         teacher_id = request.form.get("teacher_id", type=int)
+        vacancy_key = (request.form.get("vacancy_key") or "").strip()
         need = _get_need(need_id, for_update=True)
         teacher = db.session.get(User, teacher_id) if teacher_id else None
         is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
@@ -1213,20 +1312,49 @@ def register_assignment_routes(workload_bp):
             flash(message, "danger")
             return _workspace_redirect()
 
-        if teacher is None or not teacher.is_active_user:
+        if holder_type == "vacancy":
+            state_key, state = _workspace_state(need.tariff_version_id)
+            vacancy = next(
+                (
+                    item for item in state["vacancies"]
+                    if item.get("key") == vacancy_key
+                ),
+                None,
+            )
+            if vacancy is None:
+                existing = WorkloadAssignment.query.filter(
+                    WorkloadAssignment.tariff_version_id == need.tariff_version_id,
+                    WorkloadAssignment.assignment_kind == "VACANCY",
+                    WorkloadAssignment.position_code == vacancy_key,
+                    WorkloadAssignment.status != "CANCELLED",
+                ).first()
+                vacancy = {
+                    "key": vacancy_key,
+                    "label": existing.position_title,
+                } if existing is not None else None
+            if vacancy is None:
+                return fail("Строка вакансии не найдена.")
+        elif teacher is None or not teacher.is_active_user:
             return fail("Преподаватель не найден.")
         raw_hours = (request.form.get("hours") or "").strip()
         active_assignments = [
             item for item in need.active_assignments
-            if item.assignment_kind != "VACANCY"
         ]
-        own_assignments = [
-            item for item in active_assignments
-            if item.employee_user_id == teacher.id
-        ]
+        if holder_type == "vacancy":
+            own_assignments = [
+                item for item in active_assignments
+                if item.assignment_kind == "VACANCY"
+                and item.position_code == vacancy_key
+            ]
+        else:
+            own_assignments = [
+                item for item in active_assignments
+                if item.assignment_kind != "VACANCY"
+                and item.employee_user_id == teacher.id
+            ]
         other_assignments = [
             item for item in active_assignments
-            if item.employee_user_id != teacher.id
+            if item not in own_assignments
         ]
         try:
             if not raw_hours or raw_hours.replace(",", ".") in {"0", "0.0"}:
@@ -1265,12 +1393,22 @@ def register_assignment_routes(workload_bp):
                         organization_id=need.organization_id,
                         tariff_version_id=need.tariff_version_id,
                         workload_need_id=need.id,
-                        employee_user_id=teacher.id,
-                        position_code="TEACHER",
-                        position_title="Учитель",
+                        employee_user_id=(
+                            None if holder_type == "vacancy" else teacher.id
+                        ),
+                        position_code=(
+                            vacancy_key
+                            if holder_type == "vacancy" else "TEACHER"
+                        ),
+                        position_title=(
+                            vacancy["label"]
+                            if holder_type == "vacancy" else "Учитель"
+                        ),
                         department_id=need.department_id,
                         building_id=need.building_id,
-                        assignment_kind="MAIN",
+                        assignment_kind=(
+                            "VACANCY" if holder_type == "vacancy" else "MAIN"
+                        ),
                         date_from=need.date_from,
                         date_to=need.date_to,
                         weekly_hours=planned,
@@ -1328,27 +1466,36 @@ def register_assignment_routes(workload_bp):
             (Decimal(item.weekly_hours or ZERO) for item in version_needs),
             ZERO,
         )
-        teacher_assignments = (
+        holder_assignments = (
             WorkloadAssignment.query
             .filter(
                 WorkloadAssignment.tariff_version_id == need.tariff_version_id,
-                WorkloadAssignment.employee_user_id == teacher.id,
                 WorkloadAssignment.status != "CANCELLED",
-                WorkloadAssignment.assignment_kind != "VACANCY",
             )
-            .all()
         )
-        teacher_total = sum(
-            (Decimal(item.weekly_hours or ZERO) for item in teacher_assignments),
+        if holder_type == "vacancy":
+            holder_assignments = holder_assignments.filter(
+                WorkloadAssignment.assignment_kind == "VACANCY",
+                WorkloadAssignment.position_code == vacancy_key,
+            )
+            holder_key = f"vacancy:{vacancy_key}"
+        else:
+            holder_assignments = holder_assignments.filter(
+                WorkloadAssignment.assignment_kind != "VACANCY",
+                WorkloadAssignment.employee_user_id == teacher.id,
+            )
+            holder_key = f"teacher:{teacher.id}"
+        holder_total = sum(
+            (Decimal(item.weekly_hours or ZERO) for item in holder_assignments.all()),
             ZERO,
         )
         if is_ajax:
             return jsonify({
                 "ok": True,
                 "need_id": need.id,
-                "teacher_id": teacher.id,
+                "holder_key": holder_key,
                 "value": float(value) if value is not None else None,
-                "teacher_total": float(teacher_total),
+                "holder_total": float(holder_total),
                 "allocated": float(allocated),
                 "remaining": float(planned_total - allocated),
             })
@@ -1374,6 +1521,179 @@ def register_assignment_routes(workload_bp):
             flash(str(exc), "danger")
         else:
             flash("Назначение снято. Часы снова доступны.", "success")
+        return _workspace_redirect()
+
+    @workload_bp.post("/assignments/workspace/holder/replace")
+    @login_required
+    def assignment_workspace_holder_replace():
+        _require_assignments_update()
+        version_id = request.form.get("version_id", type=int)
+        source_type = (request.form.get("source_type") or "teacher").strip()
+        source_teacher_id = request.form.get("source_teacher_id", type=int)
+        source_vacancy_key = (
+            request.form.get("source_vacancy_key") or ""
+        ).strip()
+        target_value = (request.form.get("target_holder") or "").strip()
+        version = _draft_versions_query().filter(
+            TariffVersion.id == version_id
+        ).first_or_404()
+
+        target_teacher = None
+        target_vacancy = None
+        if target_value.startswith("teacher:"):
+            try:
+                target_teacher_id = int(target_value.split(":", 1)[1])
+            except (TypeError, ValueError):
+                target_teacher_id = None
+            target_teacher = (
+                db.session.get(User, target_teacher_id)
+                if target_teacher_id else None
+            )
+            if (
+                target_teacher is None
+                or not target_teacher.is_active_user
+                or target_teacher.employment_status != "ACTIVE"
+            ):
+                flash("Выберите работающего преподавателя.", "danger")
+                return _workspace_redirect()
+        elif target_value == "vacancy":
+            state_key, state = _workspace_state(version.id)
+            target_vacancy = _next_vacancy(version.id, state)
+        else:
+            flash("Выберите нового преподавателя или вакансию.", "danger")
+            return _workspace_redirect()
+
+        source_query = WorkloadAssignment.query.filter(
+            WorkloadAssignment.tariff_version_id == version.id,
+            WorkloadAssignment.status != "CANCELLED",
+        )
+        if source_type == "vacancy":
+            source_assignments = source_query.filter(
+                WorkloadAssignment.assignment_kind == "VACANCY",
+                WorkloadAssignment.position_code == source_vacancy_key,
+            ).all()
+            source_label = next(
+                (
+                    item.position_title for item in source_assignments
+                    if item.position_title
+                ),
+                "Вакансия",
+            )
+        else:
+            source_assignments = source_query.filter(
+                WorkloadAssignment.assignment_kind != "VACANCY",
+                WorkloadAssignment.employee_user_id == source_teacher_id,
+            ).all()
+            source_teacher = db.session.get(User, source_teacher_id)
+            source_label = source_teacher.fio if source_teacher else "Преподаватель"
+
+        if target_teacher is not None:
+            if source_type != "vacancy" and source_teacher_id == target_teacher.id:
+                flash("Выбран тот же преподаватель.", "warning")
+                return _workspace_redirect()
+            target_has_workload = source_query.filter(
+                WorkloadAssignment.assignment_kind != "VACANCY",
+                WorkloadAssignment.employee_user_id == target_teacher.id,
+            ).first()
+            if target_has_workload is not None:
+                flash(
+                    f"Замена не выполнена: у {target_teacher.fio} уже есть "
+                    "нагрузка в выбранном учебном году.",
+                    "danger",
+                )
+                return _workspace_redirect()
+
+        key, state = _workspace_state(version.id)
+        try:
+            for assignment in source_assignments:
+                before = assignment_snapshot(assignment)
+                if target_teacher is not None:
+                    assignment.employee_user_id = target_teacher.id
+                    assignment.assignment_kind = "MAIN"
+                    assignment.position_code = "TEACHER"
+                    assignment.position_title = "Учитель"
+                else:
+                    assignment.employee_user_id = None
+                    assignment.assignment_kind = "VACANCY"
+                    assignment.position_code = target_vacancy["key"]
+                    assignment.position_title = target_vacancy["label"]
+                assignment.updated_by_user_id = current_user.id
+                assignment.revision += 1
+                validate_assignment(
+                    assignment.workload_need,
+                    assignment,
+                    exclude_assignment_id=assignment.id,
+                )
+                add_assignment_change(
+                    assignment,
+                    "UPDATE",
+                    user_id=current_user.id,
+                    before_data=before,
+                    reason="Замена владельца строки нагрузки",
+                )
+                refresh_need_status(assignment.workload_need)
+
+            if source_type == "vacancy":
+                state["vacancies"] = [
+                    item for item in state["vacancies"]
+                    if item.get("key") != source_vacancy_key
+                ]
+            else:
+                state["teacher_ids"] = [
+                    item for item in state["teacher_ids"]
+                    if item != source_teacher_id
+                ]
+
+            if target_teacher is not None:
+                if target_teacher.id not in state["teacher_ids"]:
+                    state["teacher_ids"].append(target_teacher.id)
+            else:
+                state["vacancies"].append(target_vacancy)
+
+            for row in state["rows"]:
+                row_matches_source = (
+                    source_type == "vacancy"
+                    and row.get("holder_type") == "vacancy"
+                    and row.get("vacancy_key") == source_vacancy_key
+                ) or (
+                    source_type != "vacancy"
+                    and row.get("holder_type", "teacher") == "teacher"
+                    and row.get("teacher_id") == source_teacher_id
+                )
+                if not row_matches_source:
+                    continue
+                if target_teacher is not None:
+                    row.update({
+                        "holder_type": "teacher",
+                        "teacher_id": target_teacher.id,
+                        "vacancy_key": None,
+                    })
+                else:
+                    row.update({
+                        "holder_type": "vacancy",
+                        "teacher_id": None,
+                        "vacancy_key": target_vacancy["key"],
+                    })
+            _save_workspace_state(key, state)
+            db.session.commit()
+        except (WorkloadDistributionError, IntegrityError) as exc:
+            db.session.rollback()
+            flash(
+                str(exc)
+                if isinstance(exc, WorkloadDistributionError)
+                else "Не удалось заменить владельца нагрузки.",
+                "danger",
+            )
+            return _workspace_redirect()
+
+        target_label = (
+            target_teacher.fio
+            if target_teacher is not None else target_vacancy["label"]
+        )
+        flash(
+            f"Вся нагрузка «{source_label}» передана: {target_label}.",
+            "success",
+        )
         return _workspace_redirect()
 
     @workload_bp.get("/assignments/workspace/export.xlsx")
@@ -1417,7 +1737,6 @@ def register_assignment_routes(workload_bp):
             .filter(
                 WorkloadAssignment.workload_need_id.in_(need_ids),
                 WorkloadAssignment.status != "CANCELLED",
-                WorkloadAssignment.assignment_kind != "VACANCY",
             )
             .all()
             if need_ids else []
@@ -1427,6 +1746,11 @@ def register_assignment_routes(workload_bp):
             assignments,
             plan_matrices=plan_matrices,
         )
+        if view_mode == "vacancies":
+            matrix["blocks"] = [
+                block for block in matrix["blocks"]
+                if block["is_vacancy"]
+            ]
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "Нагрузка"

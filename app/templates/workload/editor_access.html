@@ -1,0 +1,101 @@
+{% extends "workload/workspace_base.html" %}
+{% block title %}Ответственные за нагрузку{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div>
+    <div class="page-title">Ответственные за учебные планы и нагрузку</div>
+    <div class="page-sub">Назначенные пользователи могут создавать и изменять данные во всём модуле.</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.plans') }}">
+    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>К учебным планам
+  </a>
+</div>
+
+<form method="post" class="workload-editor-settings">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <section class="workload-editor-settings__panel">
+    <div class="workload-editor-settings__head">
+      <div>
+        <h2>Полный доступ к редактированию</h2>
+        <p>Администратор, директор и заместители директора включены по умолчанию. Дополнительно можно назначить методистов или других сотрудников.</p>
+      </div>
+      <input class="form-control" type="search" placeholder="Найти сотрудника" data-editor-search>
+    </div>
+    <div class="workload-editor-settings__list" data-editor-list>
+      {% for item in users %}
+      <label class="workload-editor-settings__user" data-editor-user data-search="{{ item.fio|lower }}">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          name="editor_ids"
+          value="{{ item.id }}"
+          {% if item.id in selected_ids %}checked{% endif %}
+          {% if item.id in default_user_ids %}disabled{% endif %}
+        >
+        {% if item.id in default_user_ids %}<input type="hidden" name="editor_ids" value="{{ item.id }}">{% endif %}
+        <span>
+          <strong>{{ item.fio }}</strong>
+          <small>{{ item.role_codes|join(', ') }}</small>
+        </span>
+        {% if item.id in default_user_ids %}<em>По умолчанию</em>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="workload-editor-settings__panel">
+    <div class="workload-editor-settings__head">
+      <div>
+        <h2>Руководители кафедр</h2>
+        <p>Они редактируют только распределение часов своей кафедры. Учебные планы и данные других кафедр для них недоступны для изменения.</p>
+      </div>
+    </div>
+    <div class="workload-editor-settings__scope-list">
+      {% for link in department_heads %}
+      <div><strong>{{ link.user.fio }}</strong><span>{{ link.department.name }}{% if link.building %} · {{ link.building.short_name or link.building.name }}{% endif %}</span></div>
+      {% else %}
+      <p class="text-muted mb-0">Руководители кафедр пока не назначены.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="workload-editor-settings__actions">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Сохранить</button>
+  </div>
+</form>
+
+<style>
+.workload-editor-settings { display: grid; gap: 16px; }
+.workload-editor-settings__panel { border: 1px solid #d9e2ef; background: #fff; padding: 16px; }
+.workload-editor-settings__head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
+.workload-editor-settings__head h2 { margin: 0 0 4px; font-size: 18px; }
+.workload-editor-settings__head p { margin: 0; color: #68758a; }
+.workload-editor-settings__head .form-control { width: min(320px, 100%); }
+.workload-editor-settings__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e4eaf2; }
+.workload-editor-settings__user { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; padding: 8px 10px; border-bottom: 1px solid #e4eaf2; cursor: pointer; }
+.workload-editor-settings__user:nth-child(odd) { border-right: 1px solid #e4eaf2; }
+.workload-editor-settings__user span { display: grid; }
+.workload-editor-settings__user small { color: #748096; font-size: 12px; }
+.workload-editor-settings__user em { color: #2867c8; font-size: 12px; font-style: normal; }
+.workload-editor-settings__scope-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+.workload-editor-settings__scope-list div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid #e4eaf2; }
+.workload-editor-settings__scope-list span { color: #68758a; text-align: right; }
+.workload-editor-settings__actions { display: flex; justify-content: flex-end; }
+@media (max-width: 800px) {
+  .workload-editor-settings__head { align-items: stretch; flex-direction: column; }
+  .workload-editor-settings__list, .workload-editor-settings__scope-list { grid-template-columns: 1fr; }
+  .workload-editor-settings__user:nth-child(odd) { border-right: 0; }
+}
+</style>
+<script>
+(() => {
+  const search = document.querySelector("[data-editor-search]");
+  search?.addEventListener("input", () => {
+    const query = search.value.trim().toLocaleLowerCase("ru");
+    document.querySelectorAll("[data-editor-user]").forEach((row) => {
+      row.hidden = Boolean(query) && !row.dataset.search.includes(query);
+    });
+  });
+})();
+</script>
+{% endblock %}

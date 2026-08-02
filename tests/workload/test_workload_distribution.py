@@ -30,6 +30,7 @@ from app.models import (
     User,
     WorkloadAssignment,
     WorkloadAssignmentChange,
+    WorkloadEditorAccess,
     WorkloadNeed,
     WorkloadNeedSource,
     WorkloadReconciliationRun,
@@ -707,6 +708,157 @@ def test_workspace_export_and_compact_hours(
     assert export.status_code == 200
     assert export.data.startswith(b"PK")
     assert "spreadsheetml.sheet" in export.content_type
+
+
+def test_workspace_vacancy_can_be_filled_by_teacher(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        need_id = need.id
+        activity_id = need.education_activity_id
+    login(admin_id)
+    filters = {
+        "version_id": str(context["version_id"]),
+        "view": "all",
+    }
+
+    assert client.post(
+        "/workload/assignments/workspace/teachers",
+        data={**filters, "holder_type": "vacancy"},
+    ).status_code == 302
+    assert client.post(
+        "/workload/assignments/workspace/subjects",
+        data={
+            **filters,
+            "holder_type": "vacancy",
+            "vacancy_key": "VACANCY_1",
+            "activity_plan_kind": f"{activity_id}:CURRICULUM",
+        },
+    ).status_code == 302
+    assigned = client.post(
+        "/workload/assignments/workspace/cell",
+        data={
+            **filters,
+            "holder_type": "vacancy",
+            "vacancy_key": "VACANCY_1",
+            "need_id": str(need_id),
+            "hours": "5",
+        },
+    )
+    assert assigned.status_code == 302
+    with app.app_context():
+        vacancy = WorkloadAssignment.query.one()
+        assert vacancy.assignment_kind == "VACANCY"
+        assert vacancy.employee_user_id is None
+        assert vacancy.position_code == "VACANCY_1"
+
+    vacancy_view = client.get(
+        "/workload/assignments/workspace",
+        query_string={**filters, "view": "vacancies"},
+    ).get_data(as_text=True)
+    assert "Вакансия 1" in vacancy_view
+    assert "Преподаватель не назначен" in vacancy_view
+
+    replaced = client.post(
+        "/workload/assignments/workspace/holder/replace",
+        data={
+            **filters,
+            "source_type": "vacancy",
+            "source_vacancy_key": "VACANCY_1",
+            "target_holder": f"teacher:{teacher_id}",
+        },
+    )
+    assert replaced.status_code == 302
+    with app.app_context():
+        assignment = WorkloadAssignment.query.one()
+        assert assignment.assignment_kind == "MAIN"
+        assert assignment.employee_user_id == teacher_id
+        assert assignment.position_code == "TEACHER"
+
+
+def test_workspace_rejects_transfer_to_teacher_with_existing_load(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    source_teacher_id = make_user("TEACHER")
+    occupied_teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        source = _assignment(need, source_teacher_id, "5")
+        occupied = _assignment(need, occupied_teacher_id, "1")
+        occupied.workload_need_id = need.id
+        db.session.add_all([source, occupied])
+        db.session.commit()
+    login(admin_id)
+
+    response = client.post(
+        "/workload/assignments/workspace/holder/replace",
+        data={
+            "version_id": str(context["version_id"]),
+            "view": "all",
+            "source_type": "teacher",
+            "source_teacher_id": str(source_teacher_id),
+            "target_holder": f"teacher:{occupied_teacher_id}",
+        },
+        follow_redirects=True,
+    )
+    assert "у Тестов Пользователь уже есть нагрузка" in response.get_data(as_text=True)
+    with app.app_context():
+        assert WorkloadAssignment.query.filter_by(
+            employee_user_id=source_teacher_id,
+        ).count() == 1
+
+
+def test_workload_editor_settings_and_workspace_hide_draft_badge(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    methodist_id = make_user("METHODIST")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+    login(admin_id)
+
+    settings = client.post(
+        "/workload/settings/editors",
+        data={"editor_ids": [str(admin_id), str(methodist_id)]},
+        follow_redirects=True,
+    )
+    assert settings.status_code == 200
+    assert "Ответственные за учебные планы и нагрузку сохранены" in settings.get_data(as_text=True)
+    with app.app_context():
+        assert WorkloadEditorAccess.query.filter_by(
+            user_id=methodist_id,
+            is_active=True,
+        ).count() == 1
+
+    workspace = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    ).get_data(as_text=True)
+    assert "Версия 1" in workspace
+    assert ">Черновик<" not in workspace
 
 
 def test_department_and_workspace_read_current_load_and_mcko(
