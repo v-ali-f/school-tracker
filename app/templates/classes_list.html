@@ -6,17 +6,24 @@
     <h1 class="page-title">Классы учебного года</h1>
   </div>
   <div class="page-actions">
-    {% if all_years|length > 1 and year %}
-      {% set source_year = (all_years|selectattr('id', 'ne', year.id)|list|first) %}
-      {% if source_year %}
-      <form method="post" action="{{ url_for('children.classes_copy_from_year') }}" class="d-inline">
+    {% if copy_undo %}
+      <form method="post" action="{{ url_for('children.classes_copy_from_year_undo') }}" class="d-inline" onsubmit="return confirm('Удалить все классы, созданные последним массовым переносом?');">
         <input type="hidden" name="target_year_id" value="{{ year.id }}">
-        <input type="hidden" name="source_year_id" value="{{ source_year.id }}">
-        <button class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-copy me-1"></i>Скопировать из {{ source_year.name }}
+        <button class="btn btn-outline-danger btn-sm">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>
+          Отменить перенос ({{ copy_undo.created_count }})
         </button>
       </form>
-      {% endif %}
+    {% endif %}
+    {% if copy_source_year and year %}
+      <form method="post" action="{{ url_for('children.classes_copy_from_year') }}" class="d-inline" onsubmit="return confirm('Создать классы следующей параллели? 1–8 классы будут переведены на ступень выше, 10 классы станут 11-ми. Первые, новые 10-е и выпускные классы не создаются.');">
+        <input type="hidden" name="target_year_id" value="{{ year.id }}">
+        <input type="hidden" name="source_year_id" value="{{ copy_source_year.id }}">
+        <button class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-copy me-1"></i>
+          Перенести структуру из {{ copy_source_year.name }}
+        </button>
+      </form>
     {% endif %}
   </div>
 </div>
@@ -106,6 +113,7 @@
               <i class="bi bi-pencil me-1"></i>Изменить
             </a>
             <form method="post" action="{{ url_for('children.classes_delete', class_id=c.id) }}" class="d-inline" onsubmit="return confirm('Удалить класс?');">
+              <input type="hidden" name="academic_year_id" value="{{ year.id }}">
               <button class="btn btn-sm btn-outline-danger" aria-label="Удалить класс"><i class="bi bi-trash"></i></button>
             </form>
           </td>
@@ -115,7 +123,8 @@
             <form method="post" action="{{ url_for('children.update_class', class_id=c.id) }}">
               <div class="row g-2 align-items-end">
                 <div class="col-md-2"><label class="form-label">Название / буква класса</label><input class="form-control" name="name" value="{{ c.name }}"></div>
-                <div class="col-md-2"><label class="form-label">Макс. мест</label><input class="form-control" type="number" name="max_students" value="{{ c.max_students or 25 }}" min="1"></div>
+                <div class="col-md-1"><label class="form-label">Макс.</label><input class="form-control" type="number" name="max_students" value="{{ c.max_students or 25 }}" min="1"></div>
+                <div class="col-md-1"><label class="form-label">Заявления</label><input class="form-control" type="number" name="applications_count" value="{{ c.applications_count or 0 }}" min="0"></div>
                 <div class="col-md-4"><label class="form-label">Классный руководитель</label><select class="form-select" name="teacher_user_id"><option value="">—</option>{% for u in teachers %}<option value="{{ u.id }}" {% if c.teacher_user_id == u.id %}selected{% endif %}>{{ u.fio }}{% if u.phone %} • {{ u.phone }}{% endif %}</option>{% endfor %}</select></div>
                 <div class="col-md-3"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">—</option>{% for b in buildings %}<option value="{{ b.id }}" {% if c.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
                 <div class="col-md-1 d-grid"><button class="btn btn-primary">OK</button></div>

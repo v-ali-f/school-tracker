@@ -181,6 +181,12 @@ class SchoolClass(db.Model):
     letter = db.Column(db.String(10), nullable=True)      # "А", "Б", "ИТ", "КРО" и т.п.
 
     max_students = db.Column(db.Integer, default=25, nullable=False)
+    applications_count = db.Column(
+        db.Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
 
     teacher_user_id = db.Column(
         db.Integer,

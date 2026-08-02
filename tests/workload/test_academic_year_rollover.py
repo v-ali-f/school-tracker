@@ -269,6 +269,127 @@ def test_class_name_is_unique_within_academic_year(
         assert classes[0].name == "7А"
 
 
+def test_class_structure_copy_promotes_and_can_be_undone(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        source_year = AcademicYear(
+            name="2026/2027",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 8, 31),
+            is_current=True,
+        )
+        target_year = AcademicYear(
+            name="2027/2028",
+            start_date=date(2027, 9, 1),
+            end_date=date(2028, 8, 31),
+        )
+        db.session.add_all([source_year, target_year])
+        db.session.flush()
+        db.session.add_all([
+            SchoolClass(
+                academic_year_id=source_year.id,
+                name="1А",
+                grade=1,
+                letter="А",
+                max_students=30,
+            ),
+            SchoolClass(
+                academic_year_id=source_year.id,
+                name="8Б",
+                grade=8,
+                letter="Б",
+                max_students=31,
+            ),
+            SchoolClass(
+                academic_year_id=source_year.id,
+                name="9В",
+                grade=9,
+                letter="В",
+                max_students=32,
+            ),
+            SchoolClass(
+                academic_year_id=source_year.id,
+                name="10Г",
+                grade=10,
+                letter="Г",
+                max_students=28,
+            ),
+            SchoolClass(
+                academic_year_id=source_year.id,
+                name="11Д",
+                grade=11,
+                letter="Д",
+                max_students=27,
+            ),
+        ])
+        db.session.commit()
+        source_year_id = source_year.id
+        target_year_id = target_year.id
+    login(admin_id)
+
+    response = client.post(
+        "/classes/copy-from-year",
+        data={
+            "source_year_id": source_year_id,
+            "target_year_id": target_year_id,
+        },
+    )
+
+    assert response.status_code == 302
+    assert f"academic_year_id={target_year_id}" in response.headers["Location"]
+    with app.app_context():
+        target_classes = (
+            SchoolClass.query
+            .filter_by(academic_year_id=target_year_id)
+            .order_by(SchoolClass.grade.asc())
+            .all()
+        )
+        assert [school_class.name for school_class in target_classes] == [
+            "2А",
+            "9Б",
+            "11Г",
+        ]
+        assert [school_class.applications_count for school_class in target_classes] == [
+            0,
+            0,
+            0,
+        ]
+        class_2a_id = target_classes[0].id
+
+    registry = client.get(
+        f"/classes?academic_year_id={target_year_id}",
+    )
+    assert "Отменить перенос (3)" in registry.get_data(as_text=True)
+
+    applications = client.post(
+        f"/classes/{class_2a_id}/applications",
+        data={"applications_count": "7"},
+    )
+    assert applications.status_code == 302
+    assert f"year_id={target_year_id}" in applications.headers["Location"]
+    with app.app_context():
+        assert db.session.get(
+            SchoolClass,
+            class_2a_id,
+        ).applications_count == 7
+
+    undo = client.post(
+        "/classes/copy-from-year/undo",
+        data={"target_year_id": target_year_id},
+    )
+    assert undo.status_code == 302
+    assert f"academic_year_id={target_year_id}" in undo.headers["Location"]
+    with app.app_context():
+        assert SchoolClass.query.filter_by(
+            academic_year_id=target_year_id,
+        ).count() == 0
+
+
 def test_mass_transfer_skips_existing_target_year_enrollment(
     app,
     client,

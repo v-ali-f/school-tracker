@@ -295,37 +295,33 @@
   </div>
   <div class="table-responsive">
     <table class="table align-middle contingent-classes-table">
-      {% set _colspan = 10 %}
+      {% set _colspan = 11 %}
       <thead>
         <tr>
-          <th style="min-width:90px;">Класс</th>
-          <th style="min-width:125px;">Здание</th>
-          <th class="num" style="width:68px;">Всего</th>
-          <th class="num" style="width:62px;">Мал.</th>
-          <th class="num" style="width:62px;">Дев.</th>
-          <th class="center" style="width:78px;">Свободно</th>
-          <th class="num" style="width:62px;">Макс.</th>
-          <th style="min-width:140px;">Профиль</th>
-          <th style="min-width:190px;">Классный руководитель</th>
-          <th style="min-width:125px;">Телефон</th>
+          <th style="width:66px;">Класс</th>
+          <th style="min-width:108px;">Здание</th>
+          <th style="min-width:120px;">Профиль</th>
+          <th style="min-width:172px;">Классный руководитель</th>
+          <th style="min-width:118px;">Телефон</th>
+          <th class="num" style="width:58px;">Всего</th>
+          <th class="num" style="width:54px;">Мал.</th>
+          <th class="num" style="width:54px;">Дев.</th>
+          <th class="num" style="width:92px;">Заявления</th>
+          <th class="num" style="width:60px;">Макс.</th>
+          <th class="center" style="width:74px;">Свободно</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
-
-          {% if loop.first and r.class.grade in [1, 2, 3, 4] %}
-            <tr class="section-row"><td colspan="{{ _colspan }}">Начальная школа (1–4)</td></tr>
+          {% if loop.first or rows[loop.index0 - 1].class.grade != r.class.grade %}
+            <tr class="section-row parallel-row">
+              <td colspan="{{ _colspan }}">
+                {% if r.class.grade %}{{ r.class.grade }}-я параллель{% else %}Без параллели{% endif %}
+              </td>
+            </tr>
           {% endif %}
 
-          {% if loop.index > 1 and rows[loop.index0 - 1].class.grade in [1, 2, 3, 4] and r.class.grade in [5, 6, 7, 8, 9] %}
-            <tr class="section-row"><td colspan="{{ _colspan }}">Основная школа (5–9)</td></tr>
-          {% endif %}
-
-          {% if loop.index > 1 and rows[loop.index0 - 1].class.grade in [5, 6, 7, 8, 9] and r.class.grade in [10, 11] %}
-            <tr class="section-row"><td colspan="{{ _colspan }}">Старшая школа (10–11)</td></tr>
-          {% endif %}
-
-          <tr>
+          <tr class="building-tone-{{ r.building_tone }}">
             <td>
               <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="class-link">
                 {{ r.class.name }}
@@ -336,25 +332,6 @@
               {% if r.class.building %}{{ r.class.building.name }}{% else %}—{% endif %}
             </td>
 
-            <td class="num">{{ r.total }}</td>
-            <td class="num">{{ r.boys }}</td>
-            <td class="num">{{ r.girls }}</td>
-
-            <td class="center">
-              {% if r.free is not none %}
-                {% if r.free <= 0 %}
-                  <span class="cont-free full">{{ r.free }}</span>
-                {% elif r.free <= 2 %}
-                  <span class="cont-free warn">{{ r.free }}</span>
-                {% else %}
-                  <span class="cont-free ok">{{ r.free }}</span>
-                {% endif %}
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </td>
-
-            <td class="num text-muted">{{ r.class.max_students }}</td>
             <td>
               {% if r.profile_names %}
                 {{ r.profile_names|join(", ") }}
@@ -368,7 +345,59 @@
                 <a href="tel:{{ r.teacher_phone }}" class="text-decoration-none">{{ r.teacher_phone }}</a>
               {% else %}—{% endif %}
             </td>
+            <td class="num">{{ r.total }}</td>
+            <td class="num">{{ r.boys }}</td>
+            <td class="num">{{ r.girls }}</td>
+            <td class="num">
+              {% if can_edit_applications %}
+                <form method="post" action="{{ url_for('children.class_applications_update', class_id=r.class.id) }}" class="applications-form">
+                  <input type="hidden" name="building_id" value="{{ building_id or '' }}">
+                  <input
+                    type="number"
+                    name="applications_count"
+                    value="{{ r.applications_count }}"
+                    min="0"
+                    aria-label="Количество заявлений для {{ r.class.name }}"
+                  >
+                  <button type="submit" class="application-save" title="Сохранить заявления" aria-label="Сохранить заявления для {{ r.class.name }}">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                </form>
+              {% else %}
+                {{ r.applications_count }}
+              {% endif %}
+            </td>
+            <td class="num text-muted">{{ r.class.max_students }}</td>
+            <td class="center">
+              {% if r.free is not none %}
+                {% if r.free <= 0 %}
+                  <span class="cont-free full">{{ r.free }}</span>
+                {% elif r.free <= 2 %}
+                  <span class="cont-free warn">{{ r.free }}</span>
+                {% else %}
+                  <span class="cont-free ok">{{ r.free }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
           </tr>
+
+          {% if loop.last or rows[loop.index0 + 1].class.grade != r.class.grade %}
+            {% set parallel = totals.parallel_stats.get(r.class.grade, {}) %}
+            <tr class="parallel-total-row">
+              <td colspan="5">
+                Итого по {% if r.class.grade %}{{ r.class.grade }}-й параллели{% else %}классам без параллели{% endif %}
+                {% if parallel.classes %} · {{ parallel.classes }} кл.{% endif %}
+              </td>
+              <td>{{ parallel.children or 0 }}</td>
+              <td>{{ parallel.boys or 0 }}</td>
+              <td>{{ parallel.girls or 0 }}</td>
+              <td>{{ parallel.applications or 0 }}</td>
+              <td>{{ parallel.capacity or 0 }}</td>
+              <td>{{ parallel.free or 0 }}</td>
+            </tr>
+          {% endif %}
         {% endfor %}
 
         {% if rows|length == 0 %}
@@ -698,6 +727,76 @@
   .contingent-page .contingent-classes-table .section-row td {
     font-size: 13px !important;
   }
+
+  .contingent-page .contingent-classes-table tr.building-tone-0 td {
+    background: #ffffff !important;
+  }
+  .contingent-page .contingent-classes-table tr.building-tone-1 td {
+    background: #edf7ed !important;
+  }
+  .contingent-page .contingent-classes-table tr.building-tone-2 td {
+    background: #fff8e6 !important;
+  }
+  .contingent-page .contingent-classes-table tr.building-tone-3 td {
+    background: #eef5ff !important;
+  }
+  .contingent-page .contingent-classes-table tr.building-tone-4 td {
+    background: #f6f0ff !important;
+  }
+  .contingent-page .contingent-classes-table tr.building-tone-5 td {
+    background: #fff1f3 !important;
+  }
+
+  .contingent-page .contingent-classes-table .parallel-row td {
+    background: #e8eef7 !important;
+    color: #263750 !important;
+    text-align: left !important;
+  }
+
+  .contingent-page .contingent-classes-table .parallel-total-row td {
+    background: #f3f6fa !important;
+    color: #25344d !important;
+    font-weight: 600 !important;
+  }
+
+  .contingent-page .contingent-classes-table .parallel-total-row td:first-child {
+    text-align: left !important;
+  }
+
+  .contingent-page .applications-form {
+    display: inline-grid;
+    grid-template-columns: 42px 24px;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .contingent-page .applications-form input {
+    width: 42px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    padding: 2px 4px !important;
+    border-radius: 6px !important;
+    text-align: center !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .contingent-page .application-save {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid #b8c7da;
+    border-radius: 6px;
+    background: #fff;
+    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .contingent-page .application-save:hover {
+    border-color: #2563eb;
+    background: #eef5ff;
+  }
 </style>
 
 
@@ -938,4 +1037,3 @@
 
 
 {% endblock %}
-
