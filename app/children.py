@@ -83,6 +83,7 @@ import os
 import shutil
 import re
 import mimetypes
+from uuid import uuid4
 from html import escape
 
 from flask import (
@@ -96,6 +97,7 @@ from flask import (
     abort,
     jsonify,
     send_file,
+    session,
     g,
 )
 from flask_login import login_required, current_user
@@ -355,6 +357,20 @@ def normalize_class_name(raw: str):
     s = s.replace(" ", "")
     s = s.replace("-", "")
     return s or None
+
+
+def promoted_class_identity(school_class):
+    grade = school_class.grade
+    letter = school_class.letter
+    if grade is None:
+        grade, letter = split_class_name(school_class.name)
+    if grade not in {*range(1, 9), 10}:
+        return None
+    target_grade = grade + 1
+    target_name = normalize_class_name(
+        f"{target_grade}{letter or ''}"
+    )
+    return target_name, target_grade, letter
 
 
 def _class_name_exists(academic_year_id, name, *, exclude_class_id=None):
@@ -1714,15 +1730,27 @@ def contingent():
     if building_id:
         q = q.filter(SchoolClass.building_id == building_id)
 
-    classes = q.order_by(
-        SchoolClass.grade.asc().nullslast(),
-        SchoolClass.letter.asc().nullslast(),
-        SchoolClass.name.asc()
-    ).all()
+    classes = (
+        q.outerjoin(
+            Building,
+            SchoolClass.building_id == Building.id,
+        )
+        .order_by(
+            SchoolClass.grade.asc().nullslast(),
+            Building.name.asc().nullslast(),
+            SchoolClass.letter.asc().nullslast(),
+            SchoolClass.name.asc(),
+        )
+        .all()
+    )
 
     teachers = User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()
     teachers_map = {u.id: u for u in teachers}
     buildings_map = {b.id: b for b in buildings}
+    building_tone_map = {
+        building.id: index % 6
+        for index, building in enumerate(buildings)
+    }
 
     class_counts = dict(
         db.session.query(
@@ -1996,6 +2024,8 @@ def contingent():
             "teacher_fio": teacher_fio,
             "teacher_phone": teacher_phone,
             "profile_names": profiles_by_class.get(c.id, []),
+            "applications_count": int(c.applications_count or 0),
+            "building_tone": building_tone_map.get(c.building_id, 5),
             "sc_in_club": sc_count,
             "do_count": do_count,
             "pending_transfer": pending_transfer,
@@ -2032,12 +2062,22 @@ def contingent():
                     "children": 0,
                     "boys": 0,
                     "girls": 0,
+                    "applications": 0,
+                    "capacity": 0,
+                    "free": 0,
                 }
 
             totals["parallel_stats"][grade]["classes"] += 1
             totals["parallel_stats"][grade]["children"] += total
             totals["parallel_stats"][grade]["boys"] += boys_count
             totals["parallel_stats"][grade]["girls"] += girls_count
+            totals["parallel_stats"][grade]["applications"] += int(
+                c.applications_count or 0
+            )
+            totals["parallel_stats"][grade]["capacity"] += int(
+                c.max_students or 0
+            )
+            totals["parallel_stats"][grade]["free"] += free
 
             if 1 <= grade <= 4:
                 totals["grades_1_4"] += total
@@ -2059,7 +2099,17 @@ def contingent():
         year_id=year_id,
         building_id=building_id,
         totals=totals,
-        transfer_counts=transfer_counts
+        transfer_counts=transfer_counts,
+        can_edit_applications=(
+            getattr(current_user, "role", None)
+            in {
+                "ADMIN",
+                "DIRECTOR",
+                "DEPUTY_DIRECTOR",
+                "SECRETARY",
+                "SECRETARY_ACADEMIC",
+            }
+        ),
     )
 # =========================================================
 # IMPORT CHILDREN
@@ -2274,6 +2324,13 @@ def update_class(class_id: int):
     if ms and ms.isdigit():
         c.max_students = int(ms)
 
+    applications_count = request.form.get("applications_count")
+    if applications_count is not None:
+        c.applications_count = max(
+            request.form.get("applications_count", type=int) or 0,
+            0,
+        )
+
     teacher_user_id = request.form.get("teacher_user_id")
     c.teacher_user_id = int(teacher_user_id) if (teacher_user_id and teacher_user_id.isdigit()) else None
 
@@ -2333,11 +2390,32 @@ def classes_registry():
 
     all_years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     q_text = (request.args.get("q") or "").strip()
+    last_copy = session.get("last_class_copy") or {}
+    copy_undo = (
+        last_copy
+        if last_copy.get("target_year_id") == year.id
+        else None
+    )
+    older_years = [
+        candidate
+        for candidate in all_years
+        if candidate.id != year.id
+        and (
+            candidate.start_date is None
+            or year.start_date is None
+            or candidate.start_date < year.start_date
+        )
+    ]
+    copy_source_year = older_years[0] if older_years else None
 
     # Response-кеш для /classes (~4.6 МБ HTML, ~650 мс рендера из-за inline-форм редактирования).
     # Все ADMIN видят одинаковое (данных привязанных к user_id нет), поэтому общий ключ.
     cache_key = make_key("classes_registry", year.id, q_text)
-    cached_html = view_response_cache.get(cache_key)
+    cached_html = (
+        None
+        if copy_undo
+        else view_response_cache.get(cache_key)
+    )
     if cached_html is not None:
         from flask import Response
         return Response(cached_html, mimetype="text/html; charset=utf-8")
@@ -2433,8 +2511,11 @@ def classes_registry():
         all_years=all_years,
         q=q_text,
         is_admin=is_admin(current_user),
+        copy_source_year=copy_source_year,
+        copy_undo=copy_undo,
     )
-    view_response_cache.set(cache_key, html, timeout=60)
+    if not copy_undo:
+        view_response_cache.set(cache_key, html, timeout=60)
     return html
 
 
@@ -2512,6 +2593,7 @@ def classes_new():
         grade=g,
         letter=l,
         max_students=max_students,
+        applications_count=0,
         teacher_user_id=teacher_user_id
     )
 
@@ -6802,39 +6884,176 @@ def classes_copy_from_year():
     source_year_id = request.form.get("source_year_id", type=int)
     target_year = AcademicYear.query.get_or_404(target_year_id)
     source_year = AcademicYear.query.get_or_404(source_year_id)
+    if (
+        source_year.start_date
+        and target_year.start_date
+        and source_year.start_date >= target_year.start_date
+    ):
+        flash(
+            "Структуру классов можно переносить только из более раннего "
+            "учебного года.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=target_year.id,
+        ))
 
     created = 0
+    skipped_release = 0
+    skipped_existing = 0
+    created_ids = []
     source_classes = SchoolClass.query.filter_by(academic_year_id=source_year.id).order_by(SchoolClass.name.asc()).all()
-    for sc in source_classes:
-        exists = SchoolClass.query.filter_by(
+    existing_names = {
+        normalize_class_name(name)
+        for name, in db.session.query(SchoolClass.name).filter_by(
             academic_year_id=target_year.id,
-            name=sc.name,
-        ).first()
-        if exists:
+        )
+    }
+    for sc in source_classes:
+        promoted = promoted_class_identity(sc)
+        if promoted is None:
+            skipped_release += 1
+            continue
+        target_name, target_grade, target_letter = promoted
+        if target_name in existing_names:
+            skipped_existing += 1
             continue
         clone = SchoolClass(
             academic_year_id=target_year.id,
             building_id=sc.building_id,
-            name=sc.name,
-            grade=sc.grade,
-            letter=sc.letter,
+            name=target_name,
+            grade=target_grade,
+            letter=target_letter,
             max_students=sc.max_students,
+            applications_count=0,
             teacher_user_id=sc.teacher_user_id,
             is_active=True,
         )
         db.session.add(clone)
+        db.session.flush()
+        created_ids.append(clone.id)
+        existing_names.add(target_name)
         created += 1
     db.session.commit()
+    if created_ids:
+        session["last_class_copy"] = {
+            "batch_id": str(uuid4()),
+            "source_year_id": source_year.id,
+            "source_year_name": source_year.name,
+            "target_year_id": target_year.id,
+            "class_ids": created_ids,
+            "created_count": created,
+        }
+    else:
+        session.pop("last_class_copy", None)
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
-    flash(f"Скопировано классов: {created}", "success")
+    flash(
+        f"Создано классов следующей параллели: {created}. "
+        f"Не перенесено выпускных и нераспознанных классов: "
+        f"{skipped_release}. Уже существовало: {skipped_existing}. "
+        "Первые классы создаются вручную.",
+        "success",
+    )
     return redirect(url_for("children.classes_registry", academic_year_id=target_year.id))
+
+
+@children_bp.route("/classes/copy-from-year/undo", methods=["POST"])
+@require_roles("ADMIN")
+def classes_copy_from_year_undo():
+    last_copy = session.get("last_class_copy") or {}
+    target_year_id = request.form.get("target_year_id", type=int)
+    if (
+        not target_year_id
+        or last_copy.get("target_year_id") != target_year_id
+    ):
+        flash("Последнее массовое копирование уже недоступно.", "warning")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=target_year_id,
+        ))
+
+    class_ids = [
+        int(class_id)
+        for class_id in last_copy.get("class_ids", [])
+        if str(class_id).isdigit()
+    ]
+    copied_classes = (
+        SchoolClass.query
+        .filter(
+            SchoolClass.academic_year_id == target_year_id,
+            SchoolClass.id.in_(class_ids),
+        )
+        .all()
+        if class_ids else []
+    )
+    copied_class_ids = [school_class.id for school_class in copied_classes]
+    has_children = (
+        ChildEnrollment.query
+        .filter(
+            ChildEnrollment.school_class_id.in_(copied_class_ids),
+            ChildEnrollment.ended_at.is_(None),
+        )
+        .first()
+        is not None
+        if copied_class_ids else False
+    )
+    if has_children:
+        flash(
+            "Отмена невозможна: в одном или нескольких созданных классах "
+            "уже есть ученики.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=target_year_id,
+        ))
+
+    teacher_ids = {
+        school_class.teacher_user_id
+        for school_class in copied_classes
+        if school_class.teacher_user_id
+    }
+    try:
+        for school_class in copied_classes:
+            db.session.delete(school_class)
+        db.session.flush()
+        for teacher_id in teacher_ids:
+            _sync_class_teacher_role(teacher_id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Отмена не выполнена: некоторые классы уже используются в "
+            "учебных планах, группах или других данных. Сначала удалите "
+            "эти связи.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=target_year_id,
+        ))
+
+    session.pop("last_class_copy", None)
+    view_response_cache.delete_prefix("classes_registry")
+    view_response_cache.delete_prefix("social_passport_registry")
+    flash(
+        f"Отменено последнее массовое копирование. Удалено классов: "
+        f"{len(copied_classes)}.",
+        "success",
+    )
+    return redirect(url_for(
+        "children.classes_registry",
+        academic_year_id=target_year_id,
+    ))
 
 
 @children_bp.route("/classes/<int:class_id>/delete", methods=["POST"])
 @require_roles("ADMIN")
 def classes_delete(class_id: int):
     c = SchoolClass.query.get_or_404(class_id)
+    academic_year_id = c.academic_year_id
 
     teacher_user_id = c.teacher_user_id
 
@@ -6850,7 +7069,10 @@ def classes_delete(class_id: int):
 
     if has_children:
         flash("Нельзя удалить класс: в нём есть активные дети", "danger")
-        return redirect(url_for("children.classes_registry"))
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=academic_year_id,
+        ))
 
     db.session.delete(c)
     db.session.flush()
@@ -6861,7 +7083,44 @@ def classes_delete(class_id: int):
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
     flash("Класс удалён", "success")
-    return redirect(url_for("children.classes_registry"))
+    return redirect(url_for(
+        "children.classes_registry",
+        academic_year_id=academic_year_id,
+    ))
+
+
+@children_bp.route(
+    "/classes/<int:class_id>/applications",
+    methods=["POST"],
+)
+@require_roles(
+    "ADMIN",
+    "DIRECTOR",
+    "DEPUTY_DIRECTOR",
+    "SECRETARY",
+    "SECRETARY_ACADEMIC",
+)
+def class_applications_update(class_id: int):
+    school_class = SchoolClass.query.get_or_404(class_id)
+    applications_count = request.form.get("applications_count", type=int)
+    if applications_count is None or applications_count < 0:
+        flash(
+            "Количество заявлений должно быть целым неотрицательным числом.",
+            "danger",
+        )
+    else:
+        school_class.applications_count = applications_count
+        db.session.commit()
+        flash(
+            f"Количество заявлений для {school_class.name} сохранено.",
+            "success",
+        )
+
+    return redirect(url_for(
+        "children.contingent",
+        year_id=school_class.academic_year_id,
+        building_id=request.form.get("building_id", type=int),
+    ))
 
 @children_bp.route("/registry/kdn")
 @login_required
