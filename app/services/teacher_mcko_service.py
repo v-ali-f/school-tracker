@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 
+from app.core.extensions import db
 from app.models import TeacherMckoResult
 
 
@@ -102,7 +103,13 @@ def mcko_result_view(record, *, as_of=None):
     )
 
 
-def mcko_results_for_teachers(teacher_ids, *, teacher_id=None, as_of=None):
+def mcko_results_for_teachers(
+    teacher_ids,
+    *,
+    teacher_id=None,
+    academic_year_id=None,
+    as_of=None,
+):
     teacher_ids = list(teacher_ids or [])
     if not teacher_ids:
         return []
@@ -112,6 +119,13 @@ def mcko_results_for_teachers(teacher_ids, *, teacher_id=None, as_of=None):
     )
     if teacher_id:
         query = query.filter(TeacherMckoResult.teacher_id == teacher_id)
+    if academic_year_id is not None:
+        query = query.filter(
+            db.or_(
+                TeacherMckoResult.academic_year_id == academic_year_id,
+                TeacherMckoResult.academic_year_id.is_(None),
+            ),
+        )
     records = query.order_by(
         TeacherMckoResult.teacher_id.asc(),
         TeacherMckoResult.passed_at.desc().nullslast(),

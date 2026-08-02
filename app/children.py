@@ -100,6 +100,7 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, subqueryload, contains_eager, selectinload
 from openpyxl import load_workbook, Workbook
 from io import BytesIO
@@ -348,6 +349,25 @@ def normalize_class_name(raw: str):
     s = s.replace(" ", "")
     s = s.replace("-", "")
     return s or None
+
+
+def _class_name_exists(academic_year_id, name, *, exclude_class_id=None):
+    normalized = normalize_class_name(name)
+    if not normalized:
+        return False
+    query = SchoolClass.query.filter(
+        SchoolClass.academic_year_id == academic_year_id,
+        db.func.upper(
+            db.func.replace(
+                db.func.replace(SchoolClass.name, " ", ""),
+                "-",
+                "",
+            )
+        ) == normalized,
+    )
+    if exclude_class_id is not None:
+        query = query.filter(SchoolClass.id != exclude_class_id)
+    return query.first() is not None
 
 def _ensure_can_edit():
     if getattr(current_user, "role", "VIEWER") == "VIEWER":
@@ -2180,23 +2200,50 @@ def update_class(class_id: int):
     teacher_user_id = request.form.get("teacher_user_id")
     c.teacher_user_id = int(teacher_user_id) if (teacher_user_id and teacher_user_id.isdigit()) else None
 
-    name = (request.form.get("name") or "").strip()
+    name = normalize_class_name(request.form.get("name"))
     if name:
+        if _class_name_exists(
+            c.academic_year_id,
+            name,
+            exclude_class_id=c.id,
+        ):
+            db.session.rollback()
+            flash(
+                f"Класс «{name}» уже существует в этом учебном году. "
+                "Названия и буквы классов не должны совпадать.",
+                "danger",
+            )
+            return redirect(url_for(
+                "children.classes_registry",
+                academic_year_id=c.academic_year_id,
+            ))
         c.name = name
         g, l = split_class_name(name)
         c.grade = g
         c.letter = l
 
-    db.session.flush()
-
-    _sync_class_teacher_role(old_teacher_user_id)
-    _sync_class_teacher_role(c.teacher_user_id)
-
-    db.session.commit()
+    try:
+        db.session.flush()
+        _sync_class_teacher_role(old_teacher_user_id)
+        _sync_class_teacher_role(c.teacher_user_id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Такой класс уже существует в выбранном учебном году.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=c.academic_year_id,
+        ))
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
     flash("Сохранено", "success")
-    return redirect(url_for("children.classes_registry"))
+    return redirect(url_for(
+        "children.classes_registry",
+        academic_year_id=c.academic_year_id,
+    ))
 
 @children_bp.route("/classes")
 @require_roles("ADMIN")
@@ -2360,7 +2407,7 @@ def classes_new():
         flash("Не найден текущий учебный год", "danger")
         return redirect(url_for("children.classes_registry", academic_year_id=year.id if year else None))
 
-    name = (request.form.get("name") or "").strip()
+    name = normalize_class_name(request.form.get("name"))
     max_students = request.form.get("max_students", type=int) or 25
     teacher_user_id = request.form.get("teacher_user_id", type=int)
     building_id = request.form.get("building_id", type=int)
@@ -2368,6 +2415,16 @@ def classes_new():
     if not name:
         flash("Укажите класс", "danger")
         return redirect(url_for("children.classes_registry", academic_year_id=year.id if year else None))
+    if _class_name_exists(year.id, name):
+        flash(
+            f"Класс «{name}» уже существует в учебном году {year.name}. "
+            "Используйте другую букву или название.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=year.id,
+        ))
 
     g, l = split_class_name(name)
 
@@ -2381,12 +2438,21 @@ def classes_new():
         teacher_user_id=teacher_user_id
     )
 
-    db.session.add(c)
-    db.session.flush()
-
-    _sync_class_teacher_role(teacher_user_id)
-
-    db.session.commit()
+    try:
+        db.session.add(c)
+        db.session.flush()
+        _sync_class_teacher_role(teacher_user_id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Такой класс уже существует в выбранном учебном году.",
+            "danger",
+        )
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=year.id,
+        ))
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
     flash("Класс добавлен", "success")
@@ -6215,6 +6281,7 @@ def academic_years_new():
     start_date = parse_date(request.form.get("start_date"))
     end_date = parse_date(request.form.get("end_date"))
     make_current = as_checkbox(request.form, "is_current")
+    copy_structure = as_checkbox(request.form, "copy_structure")
 
     if not name:
         flash("Укажите название учебного года", "danger")
@@ -6225,19 +6292,62 @@ def academic_years_new():
         flash("Такой учебный год уже существует", "warning")
         return redirect(url_for("children.academic_years_registry"))
 
+    source_year = _get_current_year() or (
+        AcademicYear.query
+        .order_by(
+            AcademicYear.start_date.desc().nullslast(),
+            AcademicYear.name.desc(),
+        )
+        .first()
+    )
+    if copy_structure and source_year and (not start_date or not end_date):
+        flash(
+            "Для копирования учебных планов укажите даты начала и "
+            "окончания нового учебного года.",
+            "danger",
+        )
+        return redirect(url_for("children.academic_years_registry"))
     if make_current:
         AcademicYear.query.update({"is_current": False})
-
     y = AcademicYear(
         name=name,
         start_date=start_date,
         end_date=end_date,
         is_current=make_current,
     )
-    db.session.add(y)
-    db.session.commit()
+    try:
+        db.session.add(y)
+        db.session.flush()
+        rollover = None
+        if source_year and copy_structure:
+            from app.services.academic_year_rollover_service import (
+                initialize_academic_year,
+            )
 
-    flash("Учебный год добавлен", "success")
+            rollover = initialize_academic_year(
+                source_year,
+                y,
+                user_id=current_user.id,
+            )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Academic year creation failed")
+        flash(
+            "Не удалось создать учебный год и скопировать его структуру.",
+            "danger",
+        )
+        return redirect(url_for("children.academic_years_registry"))
+
+    if rollover:
+        flash(
+            f"Учебный год добавлен. Скопировано независимых комплектов УП: "
+            f"{rollover.plans_created}. Классы, ученики, группы и нагрузка "
+            "не копировались.",
+            "success",
+        )
+    else:
+        flash("Учебный год добавлен", "success")
     return redirect(url_for("children.academic_years_registry"))
 
 
@@ -6268,10 +6378,40 @@ def academic_year_create_next():
         flash(f"Учебный год {name} уже существует", "warning")
         return redirect(url_for("children.academic_years_registry"))
 
-    new_year = AcademicYear(name=name, start_date=start_date, end_date=end_date, is_current=False)
-    db.session.add(new_year)
-    db.session.commit()
-    flash(f"Создан следующий учебный год: {name}", "success")
+    new_year = AcademicYear(
+        name=name,
+        start_date=start_date,
+        end_date=end_date,
+        is_current=False,
+    )
+    try:
+        db.session.add(new_year)
+        db.session.flush()
+        from app.services.academic_year_rollover_service import (
+            initialize_academic_year,
+        )
+
+        rollover = initialize_academic_year(
+            base,
+            new_year,
+            user_id=current_user.id,
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Academic year rollover failed")
+        flash(
+            "Не удалось создать следующий учебный год. "
+            "Изменения отменены полностью.",
+            "danger",
+        )
+        return redirect(url_for("children.academic_years_registry"))
+    flash(
+        f"Создан учебный год {name}. Скопировано независимых комплектов УП: "
+        f"{rollover.plans_created}. Классы, ученики, группы и нагрузка "
+        "не копировались.",
+        "success",
+    )
     return redirect(url_for("children.academic_years_registry"))
 
 
@@ -6589,7 +6729,10 @@ def classes_copy_from_year():
     created = 0
     source_classes = SchoolClass.query.filter_by(academic_year_id=source_year.id).order_by(SchoolClass.name.asc()).all()
     for sc in source_classes:
-        exists = SchoolClass.query.filter_by(academic_year_id=target_year.id, building_id=sc.building_id, name=sc.name).first()
+        exists = SchoolClass.query.filter_by(
+            academic_year_id=target_year.id,
+            name=sc.name,
+        ).first()
         if exists:
             continue
         clone = SchoolClass(

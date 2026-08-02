@@ -55,6 +55,7 @@
     <summary class="btn btn-outline-primary btn-sm">Добавить результат МЦКО</summary>
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2 mt-1">
       <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
+      <input type="hidden" name="academic_year_id" value="{{ academic_year_id or '' }}">
       <div class="col-md-4"><label class="form-label">Предмет</label><select class="form-select" name="subject_id" required><option value="">Выберите предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><label class="form-label">Уровень</label><select class="form-select" name="level" required><option value="">Выберите уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><label class="form-label">Дата диагностики</label><input class="form-control" type="date" name="passed_at" required></div>

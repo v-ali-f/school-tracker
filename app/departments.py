@@ -1323,6 +1323,7 @@ def summary():
         mcko_rows = mcko_results_for_teachers(
             teacher_ids,
             teacher_id=selected_teacher_id,
+            academic_year_id=academic_year_id,
         )
         course_q = TeacherCourse.query.filter(
             TeacherCourse.teacher_id.in_(teacher_ids),
@@ -1419,6 +1420,7 @@ def teacher_profile(teacher_id):
     mcko_rows = mcko_results_for_teachers(
         [teacher.id],
         teacher_id=teacher.id,
+        academic_year_id=academic_year_id,
     )
     course_rows = (
         TeacherCourse.query
@@ -1480,7 +1482,12 @@ def add_mcko():
     if activity is None:
         flash("Выберите предмет из единого реестра.", "danger")
         return redirect(request.referrer or url_for("departments.summary"))
-    current_year = AcademicYear.query.filter_by(is_current=True).first()
+    selected_year_id = request.form.get("academic_year_id", type=int)
+    current_year = (
+        AcademicYear.query.get(selected_year_id)
+        if selected_year_id
+        else AcademicYear.query.filter_by(is_current=True).first()
+    )
     retention_until = None
     if current_year and current_year.end_date:
         try:
