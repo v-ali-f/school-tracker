@@ -70,6 +70,16 @@
         <td class="text-end">
           <div class="d-inline-flex gap-1">
           {% if can_update %}
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            type="button"
+            title="Изменить название и профиль"
+            aria-label="Изменить учебный план {{ plan.name }}"
+            data-bs-toggle="modal"
+            data-bs-target="#edit-plan-{{ plan.id }}"
+          >
+            <i class="bi bi-pencil" aria-hidden="true"></i>
+          </button>
           <a
             class="btn btn-sm btn-outline-secondary"
             href="{{ url_for('workload.plan_create', source_plan_id=plan.id) }}"
@@ -104,6 +114,53 @@
 
 {% if can_update %}
   {% for plan in plans %}
+  <div
+    class="modal fade"
+    id="edit-plan-{{ plan.id }}"
+    tabindex="-1"
+    aria-labelledby="edit-plan-title-{{ plan.id }}"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog modal-dialog-centered">
+      <form
+        class="modal-content"
+        method="post"
+        action="{{ url_for('workload.plan_profile_update', plan_id=plan.id) }}"
+      >
+        <div class="modal-header">
+          <h2 class="modal-title fs-6" id="edit-plan-title-{{ plan.id }}">Изменить учебный план</h2>
+          <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="revision" value="{{ plan.revision }}">
+          <input type="hidden" name="return_to" value="plans">
+          <label class="form-label" for="edit-plan-name-{{ plan.id }}">Название</label>
+          <input
+            class="form-control mb-3"
+            id="edit-plan-name-{{ plan.id }}"
+            name="name"
+            maxlength="255"
+            value="{{ plan.name }}"
+            required
+          >
+          <label class="form-label" for="edit-plan-profile-{{ plan.id }}">Профиль</label>
+          <input
+            class="form-control"
+            id="edit-plan-profile-{{ plan.id }}"
+            name="profile_name"
+            maxlength="160"
+            value="{{ plan.profile_name or '' }}"
+            placeholder="Например, математический"
+          >
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-dismiss="modal">Отмена</button>
+          <button class="btn btn-primary btn-sm" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <div
     class="modal fade"
     id="delete-plan-{{ plan.id }}"

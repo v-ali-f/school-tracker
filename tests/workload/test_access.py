@@ -53,7 +53,7 @@ def test_allowed_roles_can_open_scaffold(app, client, make_user, login, role):
     response = client.get("/workload/", follow_redirects=True)
 
     assert response.status_code == 200
-    assert "Учебное планирование и нагрузка".encode() in response.data
+    assert "Учебные планы и нагрузка".encode() in response.data
 
 
 def test_explicit_module_deny_overrides_default_role_access(
@@ -98,7 +98,7 @@ def test_dashboard_shows_workload_card_for_allowed_role_when_enabled(
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Нагрузка и тарификация".encode() in response.data
+    assert "Учебные планы и нагрузка".encode() in response.data
 
 
 def test_write_gate_stays_closed_until_its_flag_is_enabled(app):

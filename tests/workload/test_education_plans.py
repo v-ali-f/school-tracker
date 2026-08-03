@@ -287,6 +287,75 @@ def test_plan_registry_omits_redundant_bundle_column(
     assert "Удалить учебный план".encode() in response.data
 
 
+def test_plan_name_and_profile_can_be_edited_for_the_whole_bundle(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        year = _academic_year()
+        db.session.commit()
+        year_id = year.id
+    login(user_id)
+
+    created = client.post(
+        "/workload/plans/new",
+        data={
+            "academic_year_id": year_id,
+            "name": "Старое название",
+            "education_level": "OOO",
+        },
+    )
+    assert created.status_code == 302
+
+    with app.app_context():
+        root = EducationPlan.query.filter_by(
+            name="Старое название",
+            plan_kind="CURRICULUM",
+        ).one()
+        root_id = root.id
+        revision = root.revision
+
+    updated = client.post(
+        f"/workload/plans/{root_id}/profile",
+        data={
+            "revision": str(revision),
+            "name": "Новое название",
+            "profile_name": "Технологический",
+            "return_to": "plans",
+        },
+    )
+
+    assert updated.status_code == 302
+    assert updated.headers["Location"].startswith("/workload/plans/")
+    with app.app_context():
+        root = db.session.get(EducationPlan, root_id)
+        parts = plan_bundle_parts(root)
+        assert root.name == "Новое название"
+        assert root.profile_name == "Технологический"
+        assert parts["EXTRACURRICULAR"].name.startswith(
+            "Новое название · "
+        )
+        assert parts["ADDITIONAL_EDUCATION"].name.startswith(
+            "Новое название · "
+        )
+        assert {
+            part.profile_name
+            for part in parts.values()
+        } == {"Технологический"}
+
+    registry = client.get(
+        f"/workload/plans/?academic_year_id={year_id}",
+    )
+    assert registry.status_code == 200
+    assert "Новое название".encode() in registry.data
+    assert "Изменить название и профиль".encode() in registry.data
+
+
 def test_administrator_can_create_plan_from_existing_bundle(
     app,
     client,

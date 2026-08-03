@@ -138,7 +138,7 @@ def ensure_draft_tariff_version(
             organization_id=organization_id,
             academic_year_id=academic_year.id,
             code=f"AY_{academic_year.name.replace('/', '_')}",
-            name=f"Нагрузка и тарификация {academic_year.name}",
+            name=f"Учебные планы и нагрузка {academic_year.name}",
             status="OPEN",
             opened_at=datetime.utcnow(),
             created_by_user_id=user_id,

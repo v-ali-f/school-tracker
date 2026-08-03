@@ -978,7 +978,7 @@ def loads():
     if request.method == "POST":
         flash(
             "Импорт Excel отключён. Нагрузка формируется в разделе "
-            "«Учебное планирование и нагрузка».",
+            "«Учебные планы и нагрузка».",
             "warning",
         )
         return redirect(url_for("departments.loads"))

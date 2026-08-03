@@ -269,6 +269,92 @@ def test_class_name_is_unique_within_academic_year(
         assert classes[0].name == "7А"
 
 
+def test_class_registry_supports_same_row_ajax_editing(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        year = AcademicYear(
+            name="2027/2028",
+            start_date=date(2027, 9, 1),
+            end_date=date(2028, 8, 31),
+            is_current=True,
+        )
+        db.session.add(year)
+        db.session.flush()
+        class_a = SchoolClass(
+            academic_year_id=year.id,
+            name="7А",
+            grade=7,
+            letter="А",
+            max_students=25,
+        )
+        class_b = SchoolClass(
+            academic_year_id=year.id,
+            name="7Б",
+            grade=7,
+            letter="Б",
+            max_students=25,
+        )
+        db.session.add_all([class_a, class_b])
+        db.session.commit()
+        year_id = year.id
+        class_a_id = class_a.id
+    login(admin_id)
+
+    registry = client.get(f"/classes?academic_year_id={year_id}")
+    html = registry.get_data(as_text=True)
+
+    assert registry.status_code == 200
+    assert "data-inline-class-row" in html
+    assert "data-inline-class-form" in html
+    assert 'class="collapse"' not in html
+
+    update = client.post(
+        f"/classes/{class_a_id}/update",
+        data={
+            "name": "7В",
+            "max_students": "31",
+            "applications_count": "4",
+            "teacher_user_id": "",
+            "building_id": "",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert update.status_code == 200
+    payload = update.get_json()
+    assert payload["ok"] is True
+    assert payload["school_class"]["name"] == "7В"
+    assert payload["school_class"]["max_students"] == 31
+    assert payload["school_class"]["applications_count"] == 4
+    with app.app_context():
+        updated_class = db.session.get(SchoolClass, class_a_id)
+        assert updated_class.name == "7В"
+        assert updated_class.grade == 7
+        assert updated_class.letter == "В"
+
+    duplicate = client.post(
+        f"/classes/{class_a_id}/update",
+        data={
+            "name": "7Б",
+            "max_students": "31",
+            "applications_count": "4",
+            "teacher_user_id": "",
+            "building_id": "",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert duplicate.status_code == 409
+    assert duplicate.get_json()["ok"] is False
+    with app.app_context():
+        assert db.session.get(SchoolClass, class_a_id).name == "7В"
+
+
 def test_class_structure_copy_promotes_and_can_be_undone(
     app,
     client,
