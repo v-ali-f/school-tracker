@@ -58,6 +58,7 @@ from app.services.teaching_group_service import (
 from app.services.teaching_metagroup_service import create_metagroup
 from app.services.teaching_group_matrix_service import (
     build_teaching_group_matrix,
+    materialize_default_teaching_groups,
 )
 from app.services.workload_assignment_matrix_service import (
     build_workload_assignment_matrix,
@@ -865,6 +866,9 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert 'class="workload-indicators"' not in html
     assert 'class="class-plan-matrix__section-label"' in html
     assert 'class="class-plan-matrix__section-band"' in html
+    assert "group-matrix__cell--no-plan" in html
+    assert "Учебный план не назначен классу" in html
+    assert html.count("data-group-count") == 1
 
     grade_response = client.get(
         f"/workload/groups/"
@@ -906,6 +910,159 @@ def test_class_plan_matrix_section_and_total_labels_are_sticky(
     assert ".class-plan-matrix__curriculum-total th" in sticky_rule
     assert "position: sticky" in sticky_rule
     assert "left: 0" in sticky_rule
+
+
+def test_group_matrix_locks_zero_hour_subject_cells(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        classes = {
+            item.name_snapshot: item
+            for item in snapshot.classes
+        }
+        first_line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        first_plan = first_line.education_plan
+        english = EducationActivity(
+            code="ENGLISH_ZERO_MATRIX",
+            name="Английский язык",
+            activity_kind="SUBJECT",
+            is_global=True,
+            is_tariffable=True,
+            is_active=True,
+        )
+        second_plan = EducationPlan(
+            tariff_version_id=context["version_id"],
+            plan_kind="CURRICULUM",
+            name="План 5Б",
+            education_level="OOO",
+            building_id=context["building_id"],
+            scope_code="OOO_5B_ZERO_MATRIX",
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add_all([english, second_plan])
+        db.session.flush()
+
+        zero_line = EducationPlanLine(
+            education_plan_id=first_plan.id,
+            education_activity_id=english.id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("0"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("0"),
+            sort_order=20,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        positive_line = EducationPlanLine(
+            education_plan_id=second_plan.id,
+            education_activity_id=english.id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("3"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("102"),
+            sort_order=20,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add_all([zero_line, positive_line])
+        db.session.flush()
+        for line in (zero_line, positive_line):
+            db.session.add(EducationPlanLineScope(
+                education_plan_line_id=line.id,
+                scope_kind="GRADE",
+                grade=5,
+                building_id=context["building_id"],
+                scope_key=line_scope_key(
+                    "GRADE",
+                    grade=5,
+                    building_id=context["building_id"],
+                ),
+            ))
+
+        replace_plan_binding_members(
+            first_plan,
+            classes["5А"],
+            {
+                enrollment.id
+                for enrollment in classes["5А"].enrollments
+            },
+            user_id=user_id,
+        )
+        replace_plan_binding_members(
+            second_plan,
+            classes["5Б"],
+            {
+                enrollment.id
+                for enrollment in classes["5Б"].enrollments
+            },
+            user_id=user_id,
+        )
+        db.session.flush()
+        created_count = materialize_default_teaching_groups(
+            version=db.session.get(TariffVersion, context["version_id"]),
+            snapshot=snapshot,
+            plans=[first_plan, second_plan],
+            user_id=user_id,
+        )
+        db.session.commit()
+        zero_line_id = zero_line.id
+        positive_line_id = positive_line.id
+        class_5a_id = classes["5А"].id
+        first_plan_id = first_plan.id
+        version_id = context["version_id"]
+
+        assert created_count == 2
+        assert TeachingGroup.query.filter_by(
+            source_plan_line_id=zero_line_id,
+        ).count() == 0
+        assert TeachingGroup.query.filter_by(
+            source_plan_line_id=positive_line_id,
+        ).count() == 1
+
+    login(user_id)
+    response = client.get(
+        f"/workload/groups/?version_id={version_id}&level=OOO&grade=5"
+    )
+    html = response.get_data(as_text=True)
+    row_start = html.index('data-activity-name="Английский язык"')
+    row_end = html.index("</tr>", row_start)
+    english_row = html[row_start:row_end]
+
+    assert response.status_code == 200
+    assert english_row.count("data-group-count") == 1
+    assert "group-matrix__cell--not-in-plan" in english_row
+    assert "Предмет отсутствует в учебном плане класса" in english_row
+    assert f'data-plan-line-id="{positive_line_id}"' in english_row
+    assert f'data-plan-line-id="{zero_line_id}"' not in english_row
+    assert ">—<" not in english_row
+
+    rejected = client.post(
+        "/workload/groups/matrix/cell",
+        data={
+            "version_id": version_id,
+            "plan_line_id": zero_line_id,
+            "snapshot_class_id": class_5a_id,
+            "plan_id": first_plan_id,
+            "group_count": 1,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert rejected.status_code == 422
+    assert "Предмет отсутствует" in rejected.get_json()["message"]
 
 
 def test_group_matrix_creates_split_groups_and_restores_whole_class(
