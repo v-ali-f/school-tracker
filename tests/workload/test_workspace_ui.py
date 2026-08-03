@@ -26,8 +26,12 @@ def test_workload_pages_use_shared_workspace_shell(
     assert "Группы" in html
     assert "Состав групп" in html
     assert "Нагрузка" in html
+    assert "Предметы и курсы" in html
+    assert "Ответственные за нагрузку" in html
     assert "Контроль" not in html
     assert "Печать и экспорт" not in html
+    assert 'href="/workload/tariffication"' not in html
+    assert 'href="/workload/integration"' not in html
     assert "workload_workspace.css" in html
     assert "workload_workspace.js" not in html
 

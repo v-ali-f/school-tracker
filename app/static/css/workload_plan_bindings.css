@@ -26,8 +26,11 @@
 }
 
 .plan-binding-filters {
-  width: min(320px, 100%);
+  width: 100%;
   margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) minmax(160px, .8fr);
+  gap: 10px;
 }
 
 .plan-binding-filters label > span {
@@ -130,6 +133,12 @@
   padding: 5px 8px;
   border-color: var(--workload-border);
   vertical-align: middle;
+}
+
+@media (max-width: 800px) {
+  .plan-binding-filters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .plan-binding-class-row:hover > td,

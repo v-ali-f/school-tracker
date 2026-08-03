@@ -57,9 +57,7 @@ from .plan_routes import register_plan_routes
 from .plan_binding_routes import register_plan_binding_routes
 from .group_routes import register_group_routes
 from .assignment_routes import register_assignment_routes
-from .tariff_routes import register_tariff_routes
 from .workflow_routes import register_workflow_routes
-from .integration_routes import register_integration_routes
 
 
 workload_bp = Blueprint("workload", __name__, url_prefix="/workload")
@@ -186,6 +184,9 @@ def editor_access():
         item.user_id
         for item in WorkloadEditorAccess.query.filter_by(is_active=True).all()
     }
+    selected_users = [
+        item for item in users if item.id in selected_ids
+    ]
     department_heads = (
         DepartmentLeader.query
         .order_by(DepartmentLeader.department_id.asc())
@@ -194,6 +195,7 @@ def editor_access():
     return render_template(
         "workload/editor_access.html",
         users=users,
+        selected_users=selected_users,
         selected_ids=selected_ids,
         default_user_ids=default_user_ids,
         department_heads=department_heads,
@@ -803,9 +805,7 @@ register_plan_routes(workload_bp)
 register_plan_binding_routes(workload_bp)
 register_group_routes(workload_bp)
 register_assignment_routes(workload_bp)
-register_tariff_routes(workload_bp)
 register_workflow_routes(workload_bp)
-register_integration_routes(workload_bp)
 
 
 __all__ = ["workload_bp"]

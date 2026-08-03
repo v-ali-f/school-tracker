@@ -827,7 +827,6 @@ def register_plan_routes(workload_bp):
             if source_plan is not None:
                 education_level = source_plan.education_level
                 building_id = source_plan.building_id
-                profile_name = source_plan.profile_name
             building = (
                 db.session.get(Building, building_id)
                 if building_id else None

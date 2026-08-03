@@ -2,7 +2,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260801_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260803_1">
 {% endblock %}
 
 {% block workspace_content %}
@@ -16,6 +16,8 @@
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+      <input type="hidden" name="level" value="{{ selected_level or '' }}">
+      <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
       <button class="workload-icon-button" type="submit" title="Обновить данные из сводного контингента" aria-label="Обновить данные из сводного контингента">
         <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
       </button>
@@ -31,6 +33,24 @@
         <option value="{{ item.id }}" {% if selected_version and item.id == selected_version.id %}selected{% endif %}>
           {{ item.tariff_cycle.academic_year.name }}
         </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Уровень образования</span>
+      <select class="form-select form-select-sm" name="level" data-plan-binding-filter>
+        <option value="">Все уровни</option>
+        {% for level, label in level_labels.items() %}
+        <option value="{{ level }}" {% if selected_level == level %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Параллель</span>
+      <select class="form-select form-select-sm" name="grade" data-plan-binding-filter>
+        <option value="">Все параллели</option>
+        {% for grade in grade_options %}
+        <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
         {% endfor %}
       </select>
     </label>
@@ -50,6 +70,8 @@
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+      <input type="hidden" name="level" value="{{ selected_level or '' }}">
+      <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
       <button class="btn btn-primary btn-sm" type="submit">
         <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
         Обновить данные
@@ -72,6 +94,8 @@
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+      <input type="hidden" name="level" value="{{ selected_level or '' }}">
+      <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
       <button class="btn btn-primary btn-sm" type="submit">
         Загрузить из сводного контингента
       </button>
@@ -115,7 +139,7 @@
           <td class="text-center">
             <a
               class="plan-binding-expand"
-              href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, class_id=school_class.id) if not is_expanded else url_for('workload.plan_bindings', version_id=selected_version.id) }}"
+              href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, level=selected_level, grade=selected_grade, class_id=school_class.id) if not is_expanded else url_for('workload.plan_bindings', version_id=selected_version.id, level=selected_level, grade=selected_grade) }}"
               title="{{ 'Свернуть учеников' if is_expanded else 'Показать учеников' }}"
               aria-label="{{ 'Свернуть учеников' if is_expanded else 'Показать учеников' }} {{ school_class.name_snapshot }}"
             >
@@ -125,7 +149,7 @@
           <td>
             <a
               class="plan-binding-class-name"
-              href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, class_id=school_class.id) }}"
+              href="{{ url_for('workload.plan_bindings', version_id=selected_version.id, level=selected_level, grade=selected_grade, class_id=school_class.id) }}"
             >{{ school_class.name_snapshot }}</a>
           </td>
           <td>{{ school_class.building_name_snapshot or '—' }}</td>
@@ -149,6 +173,8 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="version_id" value="{{ selected_version.id }}">
               <input type="hidden" name="class_id" value="{{ school_class.id }}">
+              <input type="hidden" name="level" value="{{ selected_level or '' }}">
+              <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
               <select
                 class="form-select form-select-sm"
                 name="plan_id"
@@ -217,6 +243,8 @@
                         <input type="hidden" name="version_id" value="{{ selected_version.id }}">
                         <input type="hidden" name="class_id" value="{{ school_class.id }}">
                         <input type="hidden" name="enrollment_id" value="{{ enrollment.id }}">
+                        <input type="hidden" name="level" value="{{ selected_level or '' }}">
+                        <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
                         <select
                           class="form-select form-select-sm"
                           name="plan_id"

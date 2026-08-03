@@ -17,18 +17,10 @@
   <a class="nav-link {% if request.endpoint and (request.endpoint.startswith('workload.assignment') or request.endpoint.startswith('workload.need_') or request.endpoint.startswith('workload.workload_')) %}active{% endif %}" href="{{ url_for('workload.assignments') }}">
     Нагрузка
   </a>
-  <a class="nav-link {% if request.endpoint and (request.endpoint == 'workload.tariffication' or request.endpoint.startswith('workload.tariff_') and not request.endpoint.startswith('workload.tariff_document')) %}active{% endif %}" href="{{ url_for('workload.tariffication') }}">
-    Тарификация
-  </a>
   <a class="nav-link {% if request.endpoint and request.endpoint.startswith('workload.workflow') %}active{% endif %}" href="{{ url_for('workload.workflow') }}">
     Согласование
   </a>
   <a class="nav-link {% if request.endpoint and request.endpoint.startswith('workload.tariff_document') %}active{% endif %}" href="{{ url_for('workload.tariff_documents') }}">
     Документы
   </a>
-  {% if can('workload.settings.manage') %}
-  <a class="nav-link {% if request.endpoint and request.endpoint.startswith('workload.integration') %}active{% endif %}" href="{{ url_for('workload.integration') }}">
-    Интеграция
-  </a>
-  {% endif %}
 </nav>

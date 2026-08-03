@@ -203,49 +203,9 @@
   margin-bottom: 10px;
 }
 
-.workload-integration-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.workload-control-form {
-  padding: 11px;
-  border: 1px solid var(--workload-border);
-  border-radius: 6px;
-  background: #fff;
-}
-
-.workload-source-switch .workload-control-form {
-  border-color: #d7bf8d;
-  background: #fffdf7;
-}
-
-.workload-control-note {
-  margin-top: 12px;
-  padding: 8px;
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-  color: #59667b;
-  background: #f4f7fb;
-  border-radius: 5px;
-  font-size: 10px;
-  line-height: 1.45;
-}
-
-.workload-control-note i {
-  margin-top: 1px;
-  color: #31547f;
-}
-
 @media (max-width: 1100px) {
   .workload-control-summary--six {
     grid-template-columns: repeat(6, minmax(120px, 1fr));
-  }
-
-  .workload-integration-actions {
-    grid-template-columns: 1fr;
   }
 }
 

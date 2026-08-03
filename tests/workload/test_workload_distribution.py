@@ -837,6 +837,7 @@ def test_workload_editor_settings_and_workspace_hide_draft_badge(
     app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
     admin_id = make_user("ADMIN")
     methodist_id = make_user("METHODIST")
+    teacher_id = make_user("TEACHER")
     with app.app_context():
         context = _distribution_context(admin_id)
     login(admin_id)
@@ -847,7 +848,12 @@ def test_workload_editor_settings_and_workspace_hide_draft_badge(
         follow_redirects=True,
     )
     assert settings.status_code == 200
-    assert "Ответственные за учебные планы и нагрузку сохранены" in settings.get_data(as_text=True)
+    settings_html = settings.get_data(as_text=True)
+    assert "Ответственные за учебные планы и нагрузку сохранены" in settings_html
+    assert f'data-editor-user data-user-id="{methodist_id}"' in settings_html
+    assert f'data-editor-user data-user-id="{teacher_id}"' not in settings_html
+    assert f'data-editor-option' in settings_html
+    assert f'data-user-id="{teacher_id}"' in settings_html
     with app.app_context():
         assert WorkloadEditorAccess.query.filter_by(
             user_id=methodist_id,
@@ -1181,7 +1187,7 @@ def test_missing_rate_norm_produces_failed_diagnostic_run(app, make_user):
         assert TariffLine.query.count() == 0
 
 
-def test_tariff_routes_hide_money_without_finance_permission(
+def test_retired_tariffication_and_integration_routes_return_404(
     app,
     client,
     make_user,
@@ -1190,86 +1196,24 @@ def test_tariff_routes_hide_money_without_finance_permission(
     app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
     app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
     admin_id = make_user("ADMIN")
-    deputy_id = make_user("DEPUTY_DIRECTOR")
-    teacher_id = make_user("TEACHER")
-    with app.app_context():
-        context, _, parameter_set_id = _calculation_context(
-            admin_id,
-            teacher_id,
-        )
-        run, _ = calculate_tariff_version(
-            db.session.get(TariffVersion, context["version_id"]),
-            db.session.get(CalculationParameterSet, parameter_set_id),
-            user_id=admin_id,
-        )
-        db.session.commit()
-        line_id = run.lines[0].id
-
-    login(admin_id)
-    finance_response = client.get(
-        f"/workload/tariffication/lines/{line_id}"
-    )
-    assert finance_response.status_code == 200
-    assert "32249.17" in finance_response.get_data(as_text=True)
-
-    login(deputy_id)
-    limited_response = client.get(
-        f"/workload/tariffication/lines/{line_id}"
-    )
-    assert limited_response.status_code == 200
-    limited_html = limited_response.get_data(as_text=True)
-    assert "Доля ставки" in limited_html
-    assert "32249.17" not in limited_html
-    assert client.get("/workload/tariffication/settings/").status_code == 403
-
-
-def test_admin_creates_parameter_set_and_opens_all_tariff_views(
-    app,
-    client,
-    make_user,
-    login,
-):
-    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
-    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
-    admin_id = make_user("ADMIN")
-    with app.app_context():
-        context = _distribution_context(admin_id)
     login(admin_id)
 
-    response = client.post(
+    for path in (
+        "/workload/tariffication/",
+        "/workload/tariffication/runs/1",
+        "/workload/tariffication/lines/1",
+        "/workload/tariffication/settings/",
+        "/workload/tariffication/settings/1",
+        "/workload/integration/",
+    ):
+        assert client.get(path).status_code == 404
+    for path in (
+        "/workload/tariffication/calculate",
         "/workload/tariffication/settings/new",
-        data={
-            "version_id": str(context["version_id"]),
-            "code": "BASE-2026",
-            "name": "Основные параметры",
-            "valid_from": "2026-09-01",
-            "valid_to": "2027-08-31",
-            "student_hour_rate": "37,00",
-            "periods_per_year": "12",
-            "rounding_rule": "HALF_UP",
-            "currency_code": "RUB",
-        },
-    )
-
-    assert response.status_code == 302
-    with app.app_context():
-        parameter_set = CalculationParameterSet.query.one()
-        assert parameter_set.student_hour_rate == Decimal("37.000000")
-        parameter_set_id = parameter_set.id
-    tariff_page = client.get("/workload/tariffication/")
-    assert tariff_page.status_code == 200
-    tariff_html = tariff_page.get_data(as_text=True)
-    assert "workload-control-nav" in tariff_html
-    assert "workload_control.css" in tariff_html
-    assert "Расчёт ставок и оплаты" in tariff_html
-    settings_page = client.get(
-        f"/workload/tariffication/settings/?version_id={context['version_id']}"
-    )
-    assert settings_page.status_code == 200
-    assert "workload-control-nav" in settings_page.get_data(as_text=True)
-    assert client.get(
-        f"/workload/tariffication/settings/{parameter_set_id}"
-    ).status_code == 200
+        "/workload/integration/reconcile",
+        "/workload/integration/source",
+    ):
+        assert client.post(path).status_code == 404
 
 
 def test_workflow_validation_blocks_incomplete_draft(app, make_user):
@@ -1540,6 +1484,9 @@ def test_workflow_routes_and_permissions(app, client, make_user, login):
     workflow_html = workflow_page.get_data(as_text=True)
     assert "workload-control-nav" in workflow_html
     assert "workload-control-counts" in workflow_html
+    assert "Тарификация" not in workflow_html
+    assert "Источник кафедр" not in workflow_html
+    assert "/workload/integration" not in workflow_html
     documents_page = client.get(
         f"/workload/documents/?version_id={context['version_id']}"
     )
@@ -1547,6 +1494,9 @@ def test_workflow_routes_and_permissions(app, client, make_user, login):
     documents_html = documents_page.get_data(as_text=True)
     assert "workload-control-nav" in documents_html
     assert "workload-control-summary" in documents_html
+    assert "Документы учебных планов и нагрузки" in documents_html
+    assert "Тарификация" not in documents_html
+    assert "Источник кафедр" not in documents_html
     assert "Пакет версии" not in documents_html
 
     login(deputy_id)
@@ -1703,7 +1653,7 @@ def test_stage_eight_feature_flag_forces_legacy_fallback(app, make_user):
         assert state.effective_mode == "LEGACY"
 
 
-def test_stage_eight_routes_show_internal_department_load(
+def test_internal_department_load_remains_available_without_integration_page(
     app,
     client,
     make_user,
@@ -1737,12 +1687,7 @@ def test_stage_eight_routes_show_internal_department_load(
     integration_page = client.get(
         f"/workload/integration/?academic_year_id={year_id}&run_id={run_id}"
     )
-    assert integration_page.status_code == 200
-    integration_html = integration_page.get_data(as_text=True)
-    assert "Расхождений нет" in integration_html
-    assert "workload-control-nav" in integration_html
-    assert "workload-source-switch" in integration_html
-    assert 'data-active-mode="control"' in integration_html
+    assert integration_page.status_code == 404
 
     load_page = client.get(
         f"/departments/loads?academic_year_id={year_id}"
