@@ -21,6 +21,8 @@
 
 {% include "workload/_nav.html" %}
 
+{% include "workload/_activity_usage.html" %}
+
 {% set active_links = activity.department_links|selectattr('is_active')|list %}
 <div class="table-responsive border-top border-bottom">
   <table class="table table-sm align-middle mb-0">

@@ -1,0 +1,51 @@
+{% if activity %}
+<section class="border-top border-bottom py-3 mb-3" aria-labelledby="activity-usage-title">
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+    <div>
+      <h2 class="h6 mb-1" id="activity-usage-title">Где используется</h2>
+      <div class="text-muted small">
+        Смена вида не удаляет сохранённые результаты и историю.
+      </div>
+    </div>
+    {% if activity_usage.blocking_count %}
+      <span class="badge text-bg-warning">Расчётных связей: {{ activity_usage.blocking_count }}</span>
+    {% elif activity_usage.reference_count %}
+      <span class="badge text-bg-light border">Исторических связей: {{ activity_usage.reference_count }}</span>
+    {% else %}
+      <span class="badge text-bg-light border">Не используется</span>
+    {% endif %}
+  </div>
+
+  {% if activity_usage.blocking %}
+  <div class="alert alert-warning py-2 px-3 mb-2">
+    Вид записи нельзя изменить, пока существуют расчётные связи:
+    {% for item in activity_usage.blocking %}
+      {{ item.label }} — {{ item.count }}{% if not loop.last %}; {% endif %}
+    {% endfor %}.
+  </div>
+  {% endif %}
+
+  {% if activity_usage.plans %}
+  <div class="small mb-2">
+    <span class="text-muted">Учебные планы:</span>
+    {% for plan in activity_usage.plans %}
+      <a href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}">
+        {{ plan.name }}{% if plan.academic_year %} · {{ plan.academic_year }}{% endif %}
+      </a>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if activity_usage.references %}
+  <div class="small">
+    <span class="text-muted">Результаты и история:</span>
+    {% for item in activity_usage.references %}
+      {{ item.label }} — {{ item.count }}{% if not loop.last %}; {% endif %}
+    {% endfor %}.
+    Эти данные сохранятся при смене вида.
+  </div>
+  {% elif not activity_usage.blocking %}
+  <div class="small text-muted">Связей с учебными планами, результатами и нагрузкой нет.</div>
+  {% endif %}
+</section>
+{% endif %}
