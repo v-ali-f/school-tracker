@@ -1,17 +1,17 @@
-{% extends "workload/workspace_base.html" %}
+{% extends "layout.html" %}
 {% block title %}{{ "Редактирование" if activity else "Новая запись" }}{% endblock %}
-{% block workspace_content %}
+{% block content %}
+<section class="card shadow-sm border-0">
+<div class="card-body">
 <div class="page-head mb-3">
   <div>
-    <div class="page-title">{{ "Редактирование" if activity else "Новая запись" }}</div>
-    <div class="page-sub">Одна запись используется в учебных планах, кафедрах и других разделах системы</div>
+    <h1 class="page-title">{{ "Редактирование" if activity else "Новая запись" }}</h1>
+    <div class="page-sub">Единый реестр предметов и курсов</div>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.catalog', section=selected_section) }}">Отмена</a>
   </div>
 </div>
-
-{% include "workload/_nav.html" %}
 
 {% include "workload/_activity_usage.html" %}
 
@@ -100,9 +100,31 @@
   </fieldset>
 
   <div class="col-12 border-top pt-3">
-    <button class="btn btn-primary" type="submit">Сохранить</button>
+    <div class="d-flex flex-wrap justify-content-between gap-2">
+      <button class="btn btn-primary" type="submit">Сохранить</button>
+      {% if activity %}
+      <button
+        class="btn btn-outline-danger"
+        type="submit"
+        form="delete-activity-form"
+        {% if activity_usage.blocking_count or activity_usage.reference_count %}disabled title="Сначала устраните связи, указанные выше"{% endif %}
+      ><i class="bi bi-trash me-1" aria-hidden="true"></i>Удалить</button>
+      {% endif %}
+    </div>
   </div>
 </form>
+{% if activity %}
+<form
+  id="delete-activity-form"
+  method="post"
+  action="{{ url_for('workload.catalog_delete', activity_id=activity.id) }}"
+  onsubmit="return confirm('Удалить запись из единого реестра без возможности восстановления?');"
+>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endif %}
+</div>
+</section>
 <script>
 (() => {
   const all = document.querySelector("[data-all-departments]");

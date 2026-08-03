@@ -1,10 +1,12 @@
-{% extends "workload/workspace_base.html" %}
-{% block title %}Предметы и курсы{% endblock %}
-{% block workspace_content %}
+{% extends "layout.html" %}
+{% block title %}Единый реестр предметов и курсов{% endblock %}
+{% block content %}
+<section class="card shadow-sm border-0">
+<div class="card-body">
 <div class="page-head mb-3">
   <div>
-    <div class="page-title">Предметы и курсы</div>
-    <div class="page-sub">Единый каталог для учебных планов, внеурочной деятельности и дополнительного образования</div>
+    <h1 class="page-title">Единый реестр предметов и курсов</h1>
+    <div class="page-sub">Одна запись используется в учебных планах, кафедрах, результатах и нагрузке</div>
   </div>
   {% if can_manage %}
   <div class="page-actions">
@@ -20,12 +22,10 @@
   {% endif %}
 </div>
 
-{% include "workload/_nav.html" %}
-
-<nav class="workload-segmented-nav mb-3" aria-label="Раздел каталога">
+<nav class="nav nav-pills nav-fill gap-2 mb-3" aria-label="Раздел каталога">
   {% for code, item in catalog_sections.items() %}
   <a
-    class="{% if selected_section == code %}is-active{% endif %}"
+    class="nav-link border {% if selected_section == code %}active{% endif %}"
     href="{{ url_for('workload.catalog', section=code) }}"
   >{{ item.label }}</a>
   {% endfor %}
@@ -104,4 +104,6 @@
     </tbody>
   </table>
 </div>
+</div>
+</section>
 {% endblock %}
