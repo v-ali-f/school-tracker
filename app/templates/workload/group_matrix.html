@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_2">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260801_2">
 {% endblock %}
 
@@ -138,7 +138,8 @@
       <tbody>
         {% for section in matrix.sections %}
         <tr class="class-plan-matrix__section">
-          <th colspan="{{ matrix.columns|length + 1 }}">{{ section.label }}</th>
+          <th class="class-plan-matrix__section-label" scope="row">{{ section.label }}</th>
+          <td class="class-plan-matrix__section-band" colspan="{{ matrix.columns|length }}" aria-hidden="true"></td>
         </tr>
           {% for row in section.rows %}
           <tr data-activity-name="{{ row.activity.name }}">

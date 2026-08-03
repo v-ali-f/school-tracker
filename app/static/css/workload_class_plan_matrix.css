@@ -264,7 +264,9 @@
 
 .class-plan-matrix__subject,
 .class-plan-matrix__row-name,
+.class-plan-matrix__section-label,
 .class-plan-matrix__subtotal th,
+.class-plan-matrix__curriculum-total th,
 .class-plan-matrix tfoot th {
   position: sticky;
   left: 0;
@@ -328,15 +330,24 @@
   background: #fff9ec !important;
 }
 
-.class-plan-matrix__section th {
-  position: static;
+.class-plan-matrix__section-label,
+.class-plan-matrix__section-band {
   height: 30px;
-  padding-left: 10px;
   color: #214d84;
-  text-align: left;
   background: #eaf3ff;
   font-size: 11px;
   font-weight: 700;
+}
+
+.class-plan-matrix__section-label {
+  z-index: 4;
+  padding-left: 10px;
+  text-align: left;
+  background: #eaf3ff;
+}
+
+.class-plan-matrix__section-band {
+  padding: 0;
 }
 
 .class-plan-matrix__row-name span,
@@ -448,7 +459,9 @@
 
   .class-plan-matrix__subject,
   .class-plan-matrix__row-name,
+  .class-plan-matrix__section-label,
   .class-plan-matrix__subtotal th,
+  .class-plan-matrix__curriculum-total th,
   .class-plan-matrix tfoot th {
     width: 180px;
     min-width: 180px;
