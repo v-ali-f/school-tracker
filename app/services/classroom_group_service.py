@@ -26,42 +26,6 @@ def education_level_for_grade(grade):
     return None
 
 
-def build_classroom_student_matrix(composition, snapshot_class):
-    items = list(composition["items"])
-    if snapshot_class is None or not items:
-        return {"items": [], "rows": []}
-
-    eligible_ids_by_item = {
-        item["key"]: {
-            enrollment.id for enrollment in item["enrollments"]
-        }
-        for item in items
-    }
-    rows = []
-    for enrollment in sorted(
-        snapshot_class.enrollments,
-        key=lambda item: item.fio_snapshot.casefold(),
-    ):
-        cells = []
-        for item in items:
-            eligible = enrollment.id in eligible_ids_by_item[item["key"]]
-            cells.append({
-                "eligible": eligible,
-                "assigned_group_id": (
-                    item["assignment_by_member_id"].get(enrollment.id)
-                    if eligible else None
-                ),
-            })
-        rows.append({
-            "enrollment": enrollment,
-            "cells": cells,
-        })
-    return {
-        "items": items,
-        "rows": rows,
-    }
-
-
 def build_classroom_group_context(school_class):
     versions = (
         TariffVersion.query
@@ -133,10 +97,6 @@ def build_classroom_group_context(school_class):
         if snapshot is not None else None
     )
     composition = build_group_composition_workspace(matrix)
-    student_matrix = build_classroom_student_matrix(
-        composition,
-        snapshot_class,
-    )
     return {
         "school_class": school_class,
         "academic_year": school_class.academic_year,
@@ -146,7 +106,6 @@ def build_classroom_group_context(school_class):
         "plans": plans,
         "matrix": matrix,
         "composition": composition,
-        "student_matrix": student_matrix,
         "education_level": level,
     }
 
@@ -272,7 +231,6 @@ def build_classroom_group_xlsx(context):
 __all__ = [
     "build_classroom_group_context",
     "build_classroom_group_xlsx",
-    "build_classroom_student_matrix",
     "education_level_for_grade",
     "select_classroom_composition_item",
 ]

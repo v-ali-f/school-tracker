@@ -1403,8 +1403,6 @@ def test_class_teacher_distributes_approves_and_exports_groups(
     assert "Скачать Excel" in page_html
     assert "Согласовано классным руководителем" in page_html
     assert "group-composition-choice" in page_html
-    assert "Матрица распределения класса" in page_html
-    assert "classroom-student-matrix" in page_html
     assert (
         '<span class="group-composition-choice" '
         'aria-hidden="true">✓</span>'
@@ -1527,7 +1525,7 @@ def test_class_teacher_distributes_approves_and_exports_groups(
     assert "Новикова Анна" in refreshed_html
     assert "2 из 3" in refreshed_html
     assert "Требуют согласования: <strong>1</strong>" in refreshed_html
-    assert 'aria-label="Не распределён">•</span>' in refreshed_html
+    assert "Матрица распределения класса" not in refreshed_html
 
     reapprove_response = client.post(
         "/hub/classroom/groups/approve",
