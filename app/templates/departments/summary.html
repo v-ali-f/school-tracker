@@ -43,6 +43,80 @@
   <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title">Результаты контрольных по предметам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет результатов</td></tr>{% endfor %}</tbody></table></div></div></div></div>
 </div>
 
+{% if can_manage_professional and legacy_load_total %}
+<details class="card mb-4" id="legacy-loads">
+  <summary class="card-header d-flex align-items-center justify-content-between gap-3">
+    <span class="fw-semibold">Старая нагрузка из файлов</span>
+    <span class="badge text-bg-light border">{{ legacy_load_total }}</span>
+  </summary>
+  <div class="card-body">
+    <div class="small text-muted mb-3">
+      Здесь показаны строки прежнего файлового импорта. Архивные строки можно
+      удалить по одной; действующие строки защищены от удаления.
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Преподаватель</th>
+            <th>Предмет</th>
+            <th>Класс / группа</th>
+            <th class="text-center">Часы</th>
+            <th>Источник</th>
+            <th>Статус</th>
+            <th class="text-end">Действие</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in legacy_load_rows %}
+          <tr>
+            <td>{{ row.teacher.fio if row.teacher else '—' }}</td>
+            <td>{{ row.subject_name or (row.education_activity.name if row.education_activity else '—') }}</td>
+            <td>
+              {{ row.class_name or '—' }}
+              {% if row.group_name %}<span class="text-muted">· {{ row.group_name }}</span>{% endif %}
+            </td>
+            <td class="text-center">{{ row.hours|compact_decimal }}</td>
+            <td>{{ row.source_sheet or 'Старый импорт' }}</td>
+            <td>
+              {% if row.is_archived %}
+                <span class="badge text-bg-light border">Архив</span>
+              {% else %}
+                <span class="badge text-bg-warning">Не архивировано</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if row.is_archived %}
+              <form
+                method="post"
+                action="{{ url_for('departments.archived_load_delete', load_id=row.id) }}"
+                class="d-inline"
+                onsubmit="return confirm('Удалить эту строку архивной нагрузки без возможности восстановления?');"
+              >
+                <button class="btn btn-outline-danger btn-sm" type="submit" title="Удалить строку">
+                  <i class="bi bi-trash" aria-hidden="true"></i>
+                  <span class="visually-hidden">Удалить строку</span>
+                </button>
+              </form>
+              {% else %}
+                <span class="small text-muted">Сначала архивировать</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if legacy_load_total > legacy_load_rows|length %}
+    <div class="small text-muted mt-2">
+      Показаны первые {{ legacy_load_rows|length }} из {{ legacy_load_total }} строк.
+      Уточните кафедру, учебный год или здание.
+    </div>
+    {% endif %}
+  </div>
+</details>
+{% endif %}
+
 
 <div class="card mb-4"><div class="card-body">
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">

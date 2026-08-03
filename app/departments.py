@@ -1085,6 +1085,41 @@ def load_delete(load_id):
     return redirect(url_for("departments.loads"))
 
 
+@departments_bp.post("/loads/archive/<int:load_id>/delete")
+@login_required
+def archived_load_delete(load_id):
+    if not (
+        is_admin(current_user)
+        or has_role(METHODIST)
+        or has_role(DEPARTMENT_HEAD)
+    ):
+        abort(403)
+    load = TeacherLoad.query.filter_by(
+        id=load_id,
+        is_archived=True,
+    ).first_or_404()
+    if load.department_id is not None:
+        department = db.session.get(Department, load.department_id)
+        if department is not None and not _department_allowed(department):
+            abort(403)
+    elif not (is_admin(current_user) or has_role(METHODIST)):
+        abort(403)
+
+    department_id = load.department_id
+    academic_year_id = load.academic_year_id
+    db.session.delete(load)
+    db.session.commit()
+    flash("Строка архивной нагрузки удалена.", "success")
+    return redirect(
+        request.referrer
+        or url_for(
+            "departments.summary",
+            department_id=department_id,
+            academic_year_id=academic_year_id,
+        )
+    )
+
+
 
 
 def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
@@ -1287,10 +1322,37 @@ def summary():
     course_rows = []
     department_load_rows = []
     teacher_load_summaries = []
+    legacy_load_rows = []
+    legacy_load_total = 0
     workload_version = None
     building_id = request.args.get("building_id", type=int)
 
     if dep:
+        if can_manage_department:
+            legacy_load_query = TeacherLoad.query.filter(
+                TeacherLoad.department_id == dep.id,
+            )
+            if academic_year_id:
+                legacy_load_query = legacy_load_query.filter(or_(
+                    TeacherLoad.academic_year_id == academic_year_id,
+                    TeacherLoad.academic_year_id.is_(None),
+                ))
+            if building_id:
+                legacy_load_query = legacy_load_query.filter(
+                    TeacherLoad.building_id == building_id,
+                )
+            legacy_load_total = legacy_load_query.count()
+            legacy_load_rows = (
+                legacy_load_query
+                .order_by(
+                    TeacherLoad.is_archived.desc(),
+                    TeacherLoad.subject_name.asc().nullslast(),
+                    TeacherLoad.class_name.asc().nullslast(),
+                    TeacherLoad.id.asc(),
+                )
+                .limit(100)
+                .all()
+            )
         department_load_rows, workload_version = current_department_load_rows(
             academic_year_id,
             department_id=dep.id,
@@ -1372,6 +1434,8 @@ def summary():
         workload_version=workload_version,
         teacher_load_summaries=teacher_load_summaries,
         department_load_rows=department_load_rows,
+        legacy_load_rows=legacy_load_rows,
+        legacy_load_total=legacy_load_total,
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
         attestation_rows=attestation_rows,

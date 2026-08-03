@@ -5,12 +5,14 @@ from app.models import (
     AcademicYear,
     Child,
     Debt,
+    Department,
     EducationActivity,
     Incident,
     IncidentChild,
     Subject,
     TeacherAttestation,
     TeacherCourse,
+    TeacherLoad,
     TeacherMckoResult,
     User,
 )
@@ -56,6 +58,119 @@ def test_mcko_requires_explicit_teacher(
     assert "Сначала выберите преподавателя." in response.get_data(as_text=True)
     with app.app_context():
         assert TeacherMckoResult.query.count() == 0
+
+
+def test_admin_can_delete_one_archived_department_load(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        department = Department(name="Тестовая кафедра")
+        db.session.add(department)
+        db.session.flush()
+        load = TeacherLoad(
+            teacher_id=teacher_id,
+            department_id=department.id,
+            subject_name="Тестовый старый предмет",
+            class_name="5А",
+            hours=2,
+            source_sheet="Тестовый импорт",
+            is_archived=True,
+        )
+        db.session.add(load)
+        db.session.commit()
+        load_id = load.id
+
+    login(admin_id)
+    response = client.post(
+        f"/departments/loads/archive/{load_id}/delete",
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(TeacherLoad, load_id) is None
+
+
+def test_archive_delete_does_not_remove_current_legacy_load(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        load = TeacherLoad(
+            teacher_id=teacher_id,
+            subject_name="Текущая старая нагрузка",
+            hours=1,
+            is_archived=False,
+        )
+        db.session.add(load)
+        db.session.commit()
+        load_id = load.id
+
+    login(admin_id)
+    response = client.post(
+        f"/departments/loads/archive/{load_id}/delete",
+    )
+
+    assert response.status_code == 404
+    with app.app_context():
+        assert db.session.get(TeacherLoad, load_id) is not None
+
+
+def test_department_summary_lists_legacy_loads_and_protects_current_rows(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        department = Department(name="Кафедра старой нагрузки")
+        db.session.add(department)
+        db.session.flush()
+        db.session.add_all([
+            TeacherLoad(
+                teacher_id=teacher_id,
+                department_id=department.id,
+                subject_name="Архивный предмет",
+                class_name="5А",
+                hours=2,
+                source_sheet="Архивный импорт",
+                is_archived=True,
+            ),
+            TeacherLoad(
+                teacher_id=teacher_id,
+                department_id=department.id,
+                subject_name="Неархивированный предмет",
+                class_name="6А",
+                hours=3,
+                source_sheet="Старый импорт",
+                is_archived=False,
+            ),
+        ])
+        db.session.commit()
+        department_id = department.id
+
+    login(admin_id)
+    response = client.get(
+        f"/departments/summary?department_id={department_id}",
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Старая нагрузка из файлов" in html
+    assert "Архивный предмет" in html
+    assert "Неархивированный предмет" in html
+    assert "Сначала архивировать" in html
+    assert html.count("/departments/loads/archive/") == 1
 
 
 def test_teacher_manages_own_professional_records_only(
