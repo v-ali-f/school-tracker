@@ -5,7 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_2">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260801_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260804_3">
 {% endblock %}
 
 {% block workspace_content %}
@@ -149,9 +149,11 @@
             </th>
             {% for column in matrix.columns %}
             {% set cell = row.cells.get(column.key) %}
+            {% set empty_label = 'Учебный план не назначен классу' if column.is_unassigned else 'Предмет отсутствует в учебном плане класса' if not cell else '' %}
             <td
-              class="group-matrix__cell {% if column.is_unassigned %}is-unassigned{% elif cell and cell.group_count > 1 %}is-divided{% endif %} {% if cell and cell.needs_composition %}needs-composition{% endif %}"
+              class="group-matrix__cell {% if column.is_unassigned %}is-unassigned group-matrix__cell--locked group-matrix__cell--no-plan{% elif not cell %}group-matrix__cell--locked group-matrix__cell--not-in-plan{% elif cell.group_count > 1 %}is-divided{% endif %} {% if cell and cell.needs_composition %}needs-composition{% endif %}"
               data-column-key="{{ column.key }}"
+              {% if empty_label %}title="{{ empty_label }}"{% endif %}
             >
               {% if cell and not column.is_unassigned %}
               <input
@@ -173,7 +175,7 @@
               <span class="group-matrix__marker" title="Нужно распределить учеников по группам" aria-label="Нужно распределить состав"></span>
               {% endif %}
               {% else %}
-              <span class="class-plan-matrix__empty-value">—</span>
+              <span class="group-matrix__locked-empty" aria-label="{{ empty_label }}"></span>
               {% endif %}
             </td>
             {% endfor %}

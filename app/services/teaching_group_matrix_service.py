@@ -1,3 +1,4 @@
+from decimal import Decimal
 from math import ceil
 
 from app.core.extensions import db
@@ -22,6 +23,45 @@ from app.services.teaching_group_service import (
 AUTO_GROUP_CODE_PREFIX = "AUTO_L"
 
 
+def _cell_has_instructional_hours(cell):
+    line = cell["line"]
+    return any(
+        Decimal(value or 0) > 0
+        for value in (
+            cell.get("hours"),
+            line.weekly_hours,
+            line.annual_hours,
+            *(
+                period.weekly_hours
+                for period in line.periods
+            ),
+            *(
+                period.annual_hours
+                for period in line.periods
+            ),
+        )
+    )
+
+
+def _keep_active_matrix_cells(matrix):
+    active_sections = []
+    for section in matrix["sections"]:
+        active_rows = []
+        for row in section["rows"]:
+            row["cells"] = {
+                key: cell
+                for key, cell in row["cells"].items()
+                if _cell_has_instructional_hours(cell)
+            }
+            if row["cells"]:
+                active_rows.append(row)
+        section["rows"] = active_rows
+        if active_rows:
+            active_sections.append(section)
+    matrix["sections"] = active_sections
+    return matrix
+
+
 def build_teaching_group_matrix(
     snapshot,
     plans,
@@ -39,6 +79,7 @@ def build_teaching_group_matrix(
         building_id=building_id,
         allowed_building_ids=allowed_building_ids,
     )
+    _keep_active_matrix_cells(matrix)
     line_ids = {
         cell["line"].id
         for section in matrix["sections"]
@@ -167,6 +208,9 @@ def _locate_matrix_cell(snapshot, plans, line, snapshot_class, plan):
             if (
                 row["cells"].get(column["key"]) is not None
                 and row["cells"][column["key"]]["line"].id == line.id
+                and _cell_has_instructional_hours(
+                    row["cells"][column["key"]]
+                )
             )
         ),
         None,
@@ -605,7 +649,10 @@ def materialize_default_teaching_groups(
             for row in section["rows"]:
                 for column_key, cell in row["cells"].items():
                     column = columns_by_key.get(column_key)
-                    if column is None:
+                    if (
+                        column is None
+                        or not _cell_has_instructional_hours(cell)
+                    ):
                         continue
                     line = cell["line"]
                     snapshot_class = column["snapshot_class"]
