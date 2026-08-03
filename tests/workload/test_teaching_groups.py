@@ -595,6 +595,8 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert "PDF".encode() in response.data
     assert 'aria-label="Параллель"'.encode() in response.data
     assert "Всего по учебному плану".encode() in response.data
+    assert 'class="class-plan-matrix__section-label"'.encode() in response.data
+    assert 'class="class-plan-matrix__section-band"'.encode() in response.data
 
     grade_response = client.get(
         f"/workload/plan-bindings/matrix"
@@ -861,6 +863,8 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert "Без УП" in html
     assert 'aria-label="Параллель"' in html
     assert 'class="workload-indicators"' not in html
+    assert 'class="class-plan-matrix__section-label"' in html
+    assert 'class="class-plan-matrix__section-band"' in html
 
     grade_response = client.get(
         f"/workload/groups/"
@@ -881,6 +885,27 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert "Для выбранных фильтров нет классов." in empty_grade_html
     with app.app_context():
         assert TeachingGroup.query.count() == 0
+
+
+def test_class_plan_matrix_section_and_total_labels_are_sticky(
+    app,
+    client,
+):
+    response = client.get(
+        "/static/css/workload_class_plan_matrix.css",
+    )
+    css = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    sticky_rule_start = css.index(
+        ".class-plan-matrix__subject,"
+    )
+    sticky_rule_end = css.index("}", sticky_rule_start)
+    sticky_rule = css[sticky_rule_start:sticky_rule_end]
+    assert ".class-plan-matrix__section-label" in sticky_rule
+    assert ".class-plan-matrix__curriculum-total th" in sticky_rule
+    assert "position: sticky" in sticky_rule
+    assert "left: 0" in sticky_rule
 
 
 def test_group_matrix_creates_split_groups_and_restores_whole_class(
