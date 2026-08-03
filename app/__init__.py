@@ -27,6 +27,10 @@ def create_app():
     configure_app(app)
     configure_logging(app)
     init_extensions(app)
+    from app.services.population_snapshot_sync_service import (
+        register_population_snapshot_sync,
+    )
+    register_population_snapshot_sync()
 
     from app.permissions import has_permission, build_menu_flags
     from app.models import User
