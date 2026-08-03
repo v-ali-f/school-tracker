@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from app.core.extensions import db
+from app.modules.workload.plan_routes import FGOS_WEEKLY_HOUR_NORMS
 from app.models import (
     AcademicYear,
     EducationActivity,
@@ -715,6 +716,102 @@ def test_plan_matrix_renders_scope_columns(
     assert "Черновик".encode() not in response.data
 
 
+def test_fgos_weekly_hour_norms_cover_every_school_grade():
+    assert FGOS_WEEKLY_HOUR_NORMS == {
+        1: (Decimal("15"), Decimal("20")),
+        2: (Decimal("23"),),
+        3: (Decimal("23"),),
+        4: (Decimal("23"),),
+        5: (Decimal("29"),),
+        6: (Decimal("30"),),
+        7: (Decimal("32"),),
+        8: (Decimal("33"),),
+        9: (Decimal("33"),),
+        10: (Decimal("34"),),
+        11: (Decimal("34"), Decimal("34")),
+    }
+
+
+def test_curriculum_matrix_marks_fgos_total_as_complete_under_or_over(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        plan_id, activity_id = _plan(user_id)
+    login(user_id)
+    client.post(
+        f"/workload/plans/{plan_id}/matrix/activities",
+        data={
+            "revision": "1",
+            "education_activity_id": str(activity_id),
+            "component_kind": "MANDATORY",
+        },
+    )
+    with app.app_context():
+        for line in EducationPlanLine.query.all():
+            grade = line.scopes[0].grade
+            if grade == 5:
+                line.weekly_hours = Decimal("29")
+            elif grade == 6:
+                line.weekly_hours = Decimal("29")
+            elif grade == 7:
+                line.weekly_hours = Decimal("33")
+            line.annual_hours = line.weekly_hours * Decimal("34")
+        db.session.commit()
+
+    response = client.get(f"/workload/plans/{plan_id}/matrix")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'data-expected-weekly="29"' in html
+    assert 'data-expected-weekly="30"' in html
+    assert 'data-expected-weekly="32"' in html
+    assert html.count("workload-fgos-hour-control--complete") == 1
+    assert html.count("workload-fgos-hour-control--over") == 1
+    assert html.count("workload-fgos-hour-control--under") == 3
+    assert "соответствует нормативу" in html
+    assert "не хватает 1 ч/нед." in html
+    assert "превышение на 1 ч/нед." in html
+    assert "цветом отмечено соответствие норме ФГОС" in html
+
+
+def test_fgos_colors_are_not_applied_to_non_curriculum_parts(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        plan_id, activity_id = _plan(
+            user_id,
+            plan_kind="EXTRACURRICULAR",
+            activity_kind="EXTRACURRICULAR_COURSE",
+        )
+    login(user_id)
+    client.post(
+        f"/workload/plans/{plan_id}/matrix/activities",
+        data={
+            "revision": "1",
+            "education_activity_id": str(activity_id),
+            "component_kind": "EXTRACURRICULAR",
+        },
+    )
+
+    response = client.get(f"/workload/plans/{plan_id}/matrix")
+
+    assert response.status_code == 200
+    assert b"data-fgos-hour-control" not in response.data
+    assert "норма ФГОС".encode() not in response.data
+
+
 def test_empty_noo_plan_shows_all_grade_columns(
     app,
     client,
@@ -794,7 +891,9 @@ def test_noo_first_grade_period_hours_are_saved_and_summed(
     matrix_response = client.get(f"/workload/plans/{plan_id}/matrix")
     assert 'name="period_1_weeks_count"'.encode() in matrix_response.data
     assert 'name="period_2_weeks_count"'.encode() in matrix_response.data
-    assert "ч/нед".encode() not in matrix_response.data
+    assert 'data-expected-weekly="15"'.encode() in matrix_response.data
+    assert 'data-expected-weekly="20"'.encode() in matrix_response.data
+    assert "Норма ФГОС".encode() in matrix_response.data
     assert "за год".encode() not in matrix_response.data
     assert "data-period-annual=".encode() not in matrix_response.data
     assert "data-period-total-annual=".encode() not in matrix_response.data

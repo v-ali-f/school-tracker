@@ -9,6 +9,35 @@
     const rounded = Math.round((value + Number.EPSILON) * 1000) / 1000;
     return String(rounded).replace(".", ",");
   };
+  const refreshFgosHourControl = (control, actual) => {
+    if (!control) return;
+    const expected = decimal(control.dataset.expectedWeekly);
+    if (!Number.isFinite(expected) || !Number.isFinite(actual)) return;
+
+    const difference = actual - expected;
+    const state = Math.abs(difference) < 0.0005
+      ? "complete"
+      : (difference < 0 ? "under" : "over");
+    control.classList.remove(
+      "workload-fgos-hour-control--complete",
+      "workload-fgos-hour-control--under",
+      "workload-fgos-hour-control--over",
+    );
+    control.classList.add(`workload-fgos-hour-control--${state}`);
+
+    let result = "соответствует нормативу";
+    if (state === "under") {
+      result = `не хватает ${displayDecimal(Math.abs(difference))} ч/нед.`;
+    } else if (state === "over") {
+      result = `превышение на ${displayDecimal(difference)} ч/нед.`;
+    }
+    const message = (
+      `Норма ФГОС: ${displayDecimal(expected)} ч/нед.; `
+      + `внесено: ${displayDecimal(actual)} ч/нед. — ${result}.`
+    );
+    control.title = message;
+    control.setAttribute("aria-label", message);
+  };
   const standardForms = () => Array.from(
     matrix.querySelectorAll("[data-plan-cell], [data-plan-cell-create]"),
   );
@@ -145,7 +174,12 @@
   const refreshPeriodTotalsBlock = (block, scope) => {
     block.querySelectorAll("[data-period-total-weekly]").forEach((output) => {
       const index = Number.parseInt(output.dataset.periodTotalWeekly, 10);
-      output.textContent = displayDecimal(scope.periods[index]?.weekly || 0);
+      const weekly = scope.periods[index]?.weekly || 0;
+      output.textContent = displayDecimal(weekly);
+      refreshFgosHourControl(
+        output.closest("[data-fgos-hour-control]"),
+        weekly,
+      );
     });
     block.querySelectorAll("[data-period-total-annual]").forEach((output) => {
       const index = Number.parseInt(output.dataset.periodTotalAnnual, 10);
@@ -224,9 +258,17 @@
       setCellNumber(cell, totals.annual);
     });
     document.querySelectorAll("[data-plan-scope-weekly]").forEach((cell) => {
+      const weekly = scopeTotalsFor(
+        planTotals,
+        cell.dataset.scopeKey,
+      ).weekly;
       setCellNumber(
         cell,
-        scopeTotalsFor(planTotals, cell.dataset.scopeKey).weekly,
+        weekly,
+      );
+      refreshFgosHourControl(
+        cell.matches("[data-fgos-hour-control]") ? cell : null,
+        weekly,
       );
     });
     document.querySelectorAll("[data-plan-scope-annual]").forEach((cell) => {

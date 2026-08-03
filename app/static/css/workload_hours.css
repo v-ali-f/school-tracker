@@ -704,6 +704,44 @@
   z-index: 5;
 }
 
+.workload-plan-matrix tfoot .workload-fgos-hour-control {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.workload-plan-matrix tfoot td.workload-fgos-hour-control--complete,
+.workload-plan-matrix tfoot .workload-fgos-hour-control--complete {
+  color: #17663a;
+  background: #e4f6eb !important;
+}
+
+.workload-plan-matrix tfoot td.workload-fgos-hour-control--under,
+.workload-plan-matrix tfoot .workload-fgos-hour-control--under {
+  color: #855700;
+  background: #fff1cc !important;
+}
+
+.workload-plan-matrix tfoot td.workload-fgos-hour-control--over,
+.workload-plan-matrix tfoot .workload-fgos-hour-control--over {
+  color: #a12a2a;
+  background: #fde7e7 !important;
+}
+
+.workload-plan-matrix .workload-fgos-hour-control > strong {
+  color: inherit;
+}
+
+.workload-plan-matrix .workload-fgos-hour-control [data-fgos-norm] {
+  margin-top: 2px;
+  color: currentColor;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1.1;
+  opacity: 0.82;
+  white-space: nowrap;
+}
+
 .workload-plan-matrix .workload-plan-matrix__scope-end {
   border-right: 2px solid #bdcadd !important;
 }

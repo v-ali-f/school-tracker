@@ -77,6 +77,19 @@ PLAN_LEVEL_GRADES = {
     "OOO": tuple(range(5, 10)),
     "SOO": tuple(range(10, 12)),
 }
+FGOS_WEEKLY_HOUR_NORMS = {
+    1: (Decimal("15"), Decimal("20")),
+    2: (Decimal("23"),),
+    3: (Decimal("23"),),
+    4: (Decimal("23"),),
+    5: (Decimal("29"),),
+    6: (Decimal("30"),),
+    7: (Decimal("32"),),
+    8: (Decimal("33"),),
+    9: (Decimal("33"),),
+    10: (Decimal("34"),),
+    11: (Decimal("34"), Decimal("34")),
+}
 DEFAULT_WEEKS_COUNT = Decimal("34")
 
 
@@ -506,6 +519,45 @@ def _grade_scope_column(plan, grade):
         "grade": grade,
         "period_scheme": period_scheme,
         "column_span": period_scheme["column_span"] if period_scheme else 2,
+        "fgos_weekly_norms": FGOS_WEEKLY_HOUR_NORMS.get(grade, ()),
+    }
+
+
+def _add_period_weekly_totals(target, line):
+    for index, period in enumerate(
+        sorted(line.periods, key=lambda item: item.date_from)
+    ):
+        while len(target["period_weekly"]) <= index:
+            target["period_weekly"].append(Decimal("0"))
+        target["period_weekly"][index] += Decimal(
+            period.weekly_hours or 0
+        )
+
+
+def _fgos_hour_control(actual, expected):
+    actual = Decimal(actual or 0)
+    expected = Decimal(expected)
+    if actual == expected:
+        state = "complete"
+        result = "соответствует нормативу"
+    elif actual < expected:
+        state = "under"
+        result = (
+            f"не хватает {_decimal_text(expected - actual)} ч/нед."
+        )
+    else:
+        state = "over"
+        result = (
+            f"превышение на {_decimal_text(actual - expected)} ч/нед."
+        )
+    return {
+        "actual": actual,
+        "expected": expected,
+        "state": state,
+        "message": (
+            f"Норма ФГОС: {_decimal_text(expected)} ч/нед.; "
+            f"внесено: {_decimal_text(actual)} ч/нед. — {result}."
+        ),
     }
 
 
@@ -585,7 +637,11 @@ def _build_plan_matrix(plan):
                 "label": PLAN_COMPONENT_LABELS.get(component, component),
                 "rows": [],
                 "scope_totals": {
-                    scope_key: {"weekly": zero, "annual": zero}
+                    scope_key: {
+                        "weekly": zero,
+                        "annual": zero,
+                        "period_weekly": [],
+                    }
                     for scope_key in scope_keys
                 },
                 "weekly_total": zero,
@@ -602,6 +658,10 @@ def _build_plan_matrix(plan):
             section["scope_totals"][scope_key]["annual"] += Decimal(
                 line.annual_hours or zero
             )
+            _add_period_weekly_totals(
+                section["scope_totals"][scope_key],
+                line,
+            )
 
     sections = [
         section_map[component]
@@ -613,17 +673,58 @@ def _build_plan_matrix(plan):
             row["can_move_up"] = index > 0
             row["can_move_down"] = index < len(section["rows"]) - 1
     plan_scope_totals = {
-        scope_key: {"weekly": zero, "annual": zero}
+        scope_key: {
+            "weekly": zero,
+            "annual": zero,
+            "period_weekly": [],
+        }
         for scope_key in scope_keys
     }
     for section in sections:
         for scope_key in scope_keys:
-            plan_scope_totals[scope_key]["weekly"] += (
-                section["scope_totals"][scope_key]["weekly"]
-            )
-            plan_scope_totals[scope_key]["annual"] += (
-                section["scope_totals"][scope_key]["annual"]
-            )
+            section_total = section["scope_totals"][scope_key]
+            plan_total = plan_scope_totals[scope_key]
+            plan_total["weekly"] += section_total["weekly"]
+            plan_total["annual"] += section_total["annual"]
+            for index, value in enumerate(
+                section_total["period_weekly"]
+            ):
+                while len(plan_total["period_weekly"]) <= index:
+                    plan_total["period_weekly"].append(zero)
+                plan_total["period_weekly"][index] += value
+
+    fgos_controls = {}
+    if plan.plan_kind == "CURRICULUM":
+        for scope in scope_columns:
+            norms = scope.get("fgos_weekly_norms") or ()
+            if not norms:
+                continue
+            scope_total = plan_scope_totals[scope["key"]]
+            if scope["period_scheme"]:
+                actual_values = scope_total["period_weekly"]
+                period_controls = tuple(
+                    _fgos_hour_control(
+                        (
+                            actual_values[index]
+                            if index < len(actual_values)
+                            else zero
+                        ),
+                        expected,
+                    )
+                    for index, expected in enumerate(norms)
+                )
+                fgos_controls[scope["key"]] = {
+                    "periods": period_controls,
+                    "weekly": None,
+                }
+            else:
+                fgos_controls[scope["key"]] = {
+                    "periods": (),
+                    "weekly": _fgos_hour_control(
+                        scope_total["weekly"],
+                        norms[0],
+                    ),
+                }
 
     return {
         "scope_columns": scope_columns,
@@ -633,6 +734,7 @@ def _build_plan_matrix(plan):
             2 + sum(column["column_span"] for column in scope_columns)
         ),
         "scope_totals": plan_scope_totals,
+        "fgos_controls": fgos_controls,
         "weekly_total": sum(
             (section["weekly_total"] for section in sections),
             zero,
