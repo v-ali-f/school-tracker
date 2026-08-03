@@ -19,6 +19,7 @@ from app.models import (
     AcademicYear,
     Department,
     DepartmentLeader,
+    DepartmentSubject,
     EducationActivity,
     EducationActivityAlias,
     EducationActivityDepartment,
@@ -29,6 +30,7 @@ from app.models import (
     OlympiadResult,
     OlympiadSubjectMapping,
     OrganizationSettings,
+    Subject,
     TariffLine,
     TeacherLoad,
     TeacherMckoResult,
@@ -36,6 +38,7 @@ from app.models import (
     User,
     WorkloadEditorAccess,
     WorkloadNeed,
+    WorkloadReconciliationItem,
 )
 from app.services.education_activity_service import (
     normalize_activity_name,
@@ -314,6 +317,23 @@ def _activity_usage(activity):
                 education_activity_id=activity.id,
             ).count(),
         },
+        {
+            "label": "Сверки старой и новой нагрузки",
+            "count": WorkloadReconciliationItem.query.filter(
+                or_(
+                    WorkloadReconciliationItem.education_activity_id
+                    == activity.id,
+                    *(
+                        [
+                            WorkloadReconciliationItem.subject_id
+                            == subject_id
+                        ]
+                        if subject_id is not None
+                        else []
+                    ),
+                )
+            ).count(),
+        },
     ]
     references = [item for item in references if item["count"]]
     return {
@@ -421,6 +441,14 @@ def _activity_from_form(activity=None):
     return item
 
 
+def _catalog_integrity_message(_error):
+    return (
+        "Изменения не сохранены из-за связанной записи. Обновите страницу "
+        "и повторите действие; если ошибка сохранится, проверьте блок "
+        "«Где используется»."
+    )
+
+
 @workload_bp.get("/catalog/")
 @login_required
 def catalog():
@@ -503,9 +531,9 @@ def catalog_create():
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "danger")
-        except IntegrityError:
+        except IntegrityError as exc:
             db.session.rollback()
-            flash("Активность с таким кодом уже существует.", "danger")
+            flash(_catalog_integrity_message(exc), "danger")
         else:
             flash("Элемент каталога создан.", "success")
             return redirect(url_for(
@@ -557,9 +585,9 @@ def catalog_edit(activity_id):
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), "danger")
-        except IntegrityError:
+        except IntegrityError as exc:
             db.session.rollback()
-            flash("Активность с таким кодом уже существует.", "danger")
+            flash(_catalog_integrity_message(exc), "danger")
         else:
             flash("Элемент каталога сохранён.", "success")
             return redirect(url_for(
@@ -591,6 +619,51 @@ def catalog_toggle_active(activity_id):
     db.session.commit()
     flash("Статус элемента каталога изменён.", "success")
     return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+
+@workload_bp.post("/catalog/<int:activity_id>/delete")
+@login_required
+def catalog_delete(activity_id):
+    _require_catalog_manage()
+    activity = EducationActivity.query.get_or_404(activity_id)
+    usage = _activity_usage(activity)
+    if usage["blocking_count"] or usage["reference_count"]:
+        flash(
+            "Удаление невозможно: запись используется другими разделами. "
+            "Точные связи указаны в блоке «Где используется». Можно "
+            "перевести запись в архив.",
+            "danger",
+        )
+        return redirect(url_for(
+            "workload.catalog_detail",
+            activity_id=activity.id,
+        ))
+
+    section = _catalog_section_for_kind(activity.activity_kind)
+    subject = activity.legacy_subject
+    if subject is not None:
+        DepartmentSubject.query.filter_by(
+            subject_id=subject.id,
+        ).delete(synchronize_session=False)
+        db.session.delete(subject)
+        db.session.flush()
+    db.session.delete(activity)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Удаление невозможно: в системе осталась связанная запись. "
+            "Предмет не изменён; используйте перевод в архив.",
+            "danger",
+        )
+        return redirect(url_for(
+            "workload.catalog_detail",
+            activity_id=activity.id,
+        ))
+
+    flash("Запись удалена из единого реестра.", "success")
+    return redirect(url_for("workload.catalog", section=section))
 
 
 @workload_bp.post("/catalog/<int:activity_id>/aliases")

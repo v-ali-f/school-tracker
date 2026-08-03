@@ -495,6 +495,107 @@ def test_catalog_can_convert_legacy_subject_and_preserve_mcko_results(
         assert activity not in list_subject_activities(include_inactive=True)
 
 
+def test_catalog_can_update_short_name_repeatedly(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    login(user_id)
+
+    with app.app_context():
+        activity = _global_activity(
+            "FUNCTIONAL_LITERACY",
+            "Функциональная грамотность",
+        )
+        db.session.commit()
+        activity_id = activity.id
+
+    for short_name in ("ФГ", "Функц. грамотность"):
+        response = client.post(
+            f"/workload/catalog/{activity_id}/edit",
+            data={
+                "section": "SUBJECTS",
+                "name": "Функциональная грамотность",
+                "short_name": short_name,
+                "activity_kind": "SUBJECT",
+                "education_levels": ["OOO"],
+            },
+        )
+        assert response.status_code == 302, response.data.decode()
+
+    with app.app_context():
+        activity = db.session.get(EducationActivity, activity_id)
+        assert activity.short_name == "Функц. грамотность"
+        assert activity.legacy_subject.short_name == "Функц. грамотность"
+
+
+def test_catalog_deletes_unused_activity_and_legacy_subject(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    login(user_id)
+
+    with app.app_context():
+        activity = _global_activity("TEMP_SUBJECT", "Свободный предмет")
+        from app.services.education_activity_service import (
+            sync_subject_from_activity,
+        )
+        sync_subject_from_activity(activity)
+        db.session.commit()
+        activity_id = activity.id
+        subject_id = activity.legacy_subject.id
+
+    response = client.post(
+        f"/workload/catalog/{activity_id}/delete",
+        data={"csrf_token": "test"},
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(EducationActivity, activity_id) is None
+        assert db.session.get(Subject, subject_id) is None
+
+
+def test_catalog_refuses_to_delete_activity_with_historical_result(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    login(user_id)
+
+    with app.app_context():
+        activity = _global_activity("MCKO_SUBJECT", "Предмет с результатом")
+        from app.services.education_activity_service import (
+            sync_subject_from_activity,
+        )
+        subject = sync_subject_from_activity(activity)
+        db.session.flush()
+        db.session.add(TeacherMckoResult(
+            teacher_id=user_id,
+            subject_id=subject.id,
+            education_activity_id=activity.id,
+            level="Высокий",
+        ))
+        db.session.commit()
+        activity_id = activity.id
+
+    response = client.post(
+        f"/workload/catalog/{activity_id}/delete",
+        data={"csrf_token": "test"},
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(
+        f"/workload/catalog/{activity_id}"
+    )
+    with app.app_context():
+        assert db.session.get(EducationActivity, activity_id) is not None
+
+
 def test_catalog_kind_change_names_blocking_education_plan(
     app, client, make_user, login
 ):
