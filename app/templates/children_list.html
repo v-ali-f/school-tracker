@@ -9,10 +9,44 @@
 {% endblock %}
 {% block content %}
 <style>
+  .children-list-table {
+    min-width: 760px;
+  }
+
+  .children-list-table col.col-number { width: 42px; }
+  .children-list-table col.col-class { width: 72px; }
+  .children-list-table col.col-fio { width: auto; }
+  .children-list-table col.col-gender { width: 62px; }
+  .children-list-table col.col-birth-date { width: 112px; }
+  .children-list-table col.col-education-form { width: 145px; }
+  .children-list-table col.col-actions { width: 68px; }
+
+  .children-list-table .child-name {
+    display: block;
+    overflow: hidden;
+    color: #233b60;
+    font-weight: 600;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .children-list-table a.child-name:hover {
+    color: var(--brand-orange);
+    text-decoration: underline;
+  }
+
   @media (max-width: 767.98px) {
-    .children-list-table th { width: auto !important; }
+    .children-registry-page .page-head {
+      align-items: flex-start;
+    }
+
+    .children-list-table {
+      min-width: 720px;
+    }
   }
 </style>
+<div class="children-registry-page">
 <div class="page-head">
   <div>
     <h1 class="page-title">Список учеников</h1>
@@ -25,25 +59,115 @@
   </div>
 </div>
 
-<form class="row g-2 mb-3" method="get">
+<form class="row g-2 registry-filter-panel" method="get">
   <div class="col-md-2">
     <label class="form-label">Параллель</label>
-    <select class="form-select" name="grade" onchange="this.form.submit()"><option value="">Все</option>{% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select>
+    <select class="form-select form-select-sm" name="grade" onchange="this.form.submit()">
+      <option value="">Все</option>
+      {% for grade in grades %}
+      <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+      {% endfor %}
+    </select>
   </div>
   <div class="col-md-3">
     <label class="form-label">Класс</label>
-    <select class="form-select" name="class_id"><option value="">Все классы</option>{% for c in classes %}<option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+    <select class="form-select form-select-sm" name="class_id">
+      <option value="">Все классы</option>
+      {% for c in classes %}
+      <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
   </div>
   <div class="col-md-4">
     <label class="form-label">ФИО</label>
-    <input class="form-control" name="q" placeholder="Поиск по ФИО" value="{{ q or '' }}">
+    <input class="form-control form-control-sm" name="q" placeholder="Поиск по ФИО" value="{{ q or '' }}">
   </div>
   <div class="col-md-3 d-flex align-items-end gap-2">
-    <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}"><button class="btn btn-outline-secondary flex-fill">Фильтр</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('children.list_children') }}">Сброс</a>
+    <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}">
+    <button class="btn btn-outline-secondary btn-sm flex-fill">Фильтр</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.list_children') }}">Сброс</a>
   </div>
 </form>
 
-<div class="card soft-card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle children-list-table"><thead><tr><th class="table-number-col">№</th><th style="width: 110px;">Класс</th><th>ФИО</th><th style="width: 100px;">Пол</th><th style="width: 140px;">Дата рождения</th><th style="width: 170px;">Форма обучения</th><th style="width: 180px;"></th></tr></thead><tbody>{% for row in rows %}{% set ch = row.child %}<tr><td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td><td>{{ ch.current_class_name or "—" }}</td><td>{{ (ch.last_name or "") ~ " " ~ (ch.first_name or "") ~ " " ~ (ch.middle_name or "") }}</td><td>{{ ch.gender or "—" }}</td><td>{% if ch.birth_date %}{{ ch.birth_date.strftime("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}</td><td>{{ ch.education_form or "—" }}</td><td class="text-end"><div class="d-flex gap-1 justify-content-end flex-wrap">{% if row.can_add_incident %}<a class="btn btn-sm btn-outline-warning" href="{{ url_for('children.incident_new', student_id=ch.id) }}" title="Создать инцидент на этого ученика"><i class="bi bi-plus-lg"></i> инцидент</a>{% endif %}{% if row.can_view_card %}<a class="btn btn-sm btn-outline-primary" href="/children/{{ ch.id }}">Открыть</a>{% endif %}</div></td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-person-x" style="font-size:2rem;opacity:.2;display:block;margin-bottom:.5rem;"></i>{% if q or selected_grade or selected_class_id %}По вашему запросу учеников не найдено. Попробуйте изменить фильтры.{% else %}Список учеников пуст. Используйте импорт для загрузки данных.{% endif %}</td></tr>{% endif %}</tbody></table></div></div>
+<div class="registry-matrix-card">
+  <div class="table-responsive">
+    <table class="registry-matrix children-list-table">
+      <colgroup>
+        <col class="col-number">
+        <col class="col-class">
+        <col class="col-fio">
+        <col class="col-gender">
+        <col class="col-birth-date">
+        <col class="col-education-form">
+        <col class="col-actions">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>№</th>
+          <th>Класс</th>
+          <th>ФИО</th>
+          <th>Пол</th>
+          <th>Дата рождения</th>
+          <th>Форма обучения</th>
+          <th aria-label="Действия"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% set ch = row.child %}
+        {% set child_fio = ((ch.last_name or "") ~ " " ~ (ch.first_name or "") ~ " " ~ (ch.middle_name or ""))|trim %}
+        <tr>
+          <td class="registry-cell-center text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td>
+          <td class="registry-cell-center">{{ ch.current_class_name or "—" }}</td>
+          <td>
+            {% if row.can_view_card %}
+            <a class="child-name" href="{{ url_for('children.child_card', child_id=ch.id) }}" title="{{ child_fio }}">{{ child_fio }}</a>
+            {% else %}
+            <span class="child-name" title="{{ child_fio }}">{{ child_fio }}</span>
+            {% endif %}
+          </td>
+          <td class="registry-cell-center">{{ ch.gender or "—" }}</td>
+          <td class="registry-cell-center">
+            {% if ch.birth_date %}{{ ch.birth_date.strftime("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td class="registry-cell-center">{{ ch.education_form or "—" }}</td>
+          <td>
+            <div class="registry-row-actions">
+              {% if row.can_add_incident %}
+              <a
+                class="btn btn-outline-warning registry-row-action"
+                href="{{ url_for('children.incident_new', student_id=ch.id) }}"
+                title="Создать инцидент"
+                aria-label="Создать инцидент для {{ child_fio }}"
+              ><i class="bi bi-exclamation-circle" aria-hidden="true"></i></a>
+              {% endif %}
+              {% if row.can_view_card %}
+              <a
+                class="btn btn-outline-primary registry-row-action"
+                href="{{ url_for('children.child_card', child_id=ch.id) }}"
+                title="Открыть карточку"
+                aria-label="Открыть карточку {{ child_fio }}"
+              ><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if rows|length == 0 %}
+        <tr>
+          <td colspan="7" class="registry-empty-row">
+            {% if q or selected_grade or selected_class_id %}
+              По вашему запросу учеников не найдено. Попробуйте изменить фильтры.
+            {% else %}
+              Список учеников пуст. Используйте импорт для загрузки данных.
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% include "components/pagination.html" %}
+</div>
 {% endblock %}
