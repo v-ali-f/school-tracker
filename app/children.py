@@ -34,6 +34,16 @@ OVZ_LEVEL_LABELS = {
     "SOO": "Среднее общее образование",
 }
 
+CLASS_REGISTRY_LEVEL_OPTIONS = (
+    ("NOO", "НОО · 1–4 классы", tuple(range(1, 5))),
+    ("OOO", "ООО · 5–9 классы", tuple(range(5, 10))),
+    ("SOO", "СОО · 10–11 классы", (10, 11)),
+)
+CLASS_REGISTRY_LEVEL_GRADES = {
+    code: set(grades)
+    for code, _label, grades in CLASS_REGISTRY_LEVEL_OPTIONS
+}
+
 OVZ_NOZOLOGY_LABELS = {
     "VISION": "Нарушения зрения",
     "TNR": "Тяжёлые нарушения речи",
@@ -2377,7 +2387,7 @@ def update_class(class_id: int):
         flash(message, "danger")
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=c.academic_year_id,
+            **_class_registry_return_args(c.academic_year_id),
         ))
 
     applications_count = request.form.get("applications_count", type=int)
@@ -2390,7 +2400,7 @@ def update_class(class_id: int):
         flash(message, "danger")
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=c.academic_year_id,
+            **_class_registry_return_args(c.academic_year_id),
         ))
 
     name = normalize_class_name(request.form.get("name"))
@@ -2401,7 +2411,7 @@ def update_class(class_id: int):
         flash(message, "danger")
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=c.academic_year_id,
+            **_class_registry_return_args(c.academic_year_id),
         ))
     if _class_name_exists(
         c.academic_year_id,
@@ -2418,7 +2428,7 @@ def update_class(class_id: int):
         flash(message, "danger")
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=c.academic_year_id,
+            **_class_registry_return_args(c.academic_year_id),
         ))
 
     building_id = request.form.get("building_id")
@@ -2453,7 +2463,7 @@ def update_class(class_id: int):
         flash(message, "danger")
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=c.academic_year_id,
+            **_class_registry_return_args(c.academic_year_id),
         ))
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
@@ -2477,8 +2487,45 @@ def update_class(class_id: int):
     flash("Сохранено", "success")
     return redirect(url_for(
         "children.classes_registry",
-        academic_year_id=c.academic_year_id,
+        **_class_registry_return_args(c.academic_year_id),
     ))
+
+
+def _normalized_class_registry_filters(level, grade):
+    selected_level = (level or "").strip().upper()
+    if selected_level not in CLASS_REGISTRY_LEVEL_GRADES:
+        selected_level = ""
+
+    try:
+        selected_grade = int(grade) if grade not in (None, "") else None
+    except (TypeError, ValueError):
+        selected_grade = None
+    if selected_grade not in range(1, 12):
+        selected_grade = None
+    if (
+        selected_level
+        and selected_grade is not None
+        and selected_grade not in CLASS_REGISTRY_LEVEL_GRADES[selected_level]
+    ):
+        selected_grade = None
+    return selected_level, selected_grade
+
+
+def _class_registry_return_args(academic_year_id):
+    selected_level, selected_grade = _normalized_class_registry_filters(
+        request.form.get("return_level"),
+        request.form.get("return_grade"),
+    )
+    q_text = (request.form.get("return_q") or "").strip()
+    args = {"academic_year_id": academic_year_id}
+    if selected_level:
+        args["level"] = selected_level
+    if selected_grade is not None:
+        args["grade"] = selected_grade
+    if q_text:
+        args["q"] = q_text
+    return args
+
 
 @children_bp.route("/classes")
 @require_roles("ADMIN")
@@ -2491,6 +2538,19 @@ def classes_registry():
 
     all_years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     q_text = (request.args.get("q") or "").strip()
+    selected_level, selected_grade = _normalized_class_registry_filters(
+        request.args.get("level"),
+        request.args.get("grade"),
+    )
+    grade_options = (
+        next(
+            grades
+            for code, _label, grades in CLASS_REGISTRY_LEVEL_OPTIONS
+            if code == selected_level
+        )
+        if selected_level
+        else tuple(range(1, 12))
+    )
     last_copy = session.get("last_class_copy") or {}
     copy_undo = (
         last_copy
@@ -2523,7 +2583,13 @@ def classes_registry():
 
     # Response-кеш для /classes (~4.6 МБ HTML, ~650 мс рендера из-за inline-форм редактирования).
     # Все ADMIN видят одинаковое (данных привязанных к user_id нет), поэтому общий ключ.
-    cache_key = make_key("classes_registry", year.id, q_text)
+    cache_key = make_key(
+        "classes_registry",
+        year.id,
+        selected_level,
+        selected_grade,
+        q_text,
+    )
     cached_html = (
         None
         if copy_undo or delete_undo
@@ -2534,6 +2600,15 @@ def classes_registry():
         return Response(cached_html, mimetype="text/html; charset=utf-8")
 
     raw_query = SchoolClass.query.filter(SchoolClass.academic_year_id == year.id)
+
+    if selected_level:
+        raw_query = raw_query.filter(
+            SchoolClass.grade.in_(
+                CLASS_REGISTRY_LEVEL_GRADES[selected_level]
+            )
+        )
+    if selected_grade is not None:
+        raw_query = raw_query.filter(SchoolClass.grade == selected_grade)
 
     if q_text:
         like = f"%{q_text.lower()}%"
@@ -2623,6 +2698,10 @@ def classes_registry():
         year=year,
         all_years=all_years,
         q=q_text,
+        level_options=CLASS_REGISTRY_LEVEL_OPTIONS,
+        selected_level=selected_level,
+        selected_grade=selected_grade,
+        grade_options=grade_options,
         is_admin=is_admin(current_user),
         copy_source_year=copy_source_year,
         copy_undo=copy_undo,
@@ -2677,7 +2756,10 @@ def classes_new():
     year = AcademicYear.query.get(requested_year_id) if requested_year_id else _get_current_year()
     if not year:
         flash("Не найден текущий учебный год", "danger")
-        return redirect(url_for("children.classes_registry", academic_year_id=year.id if year else None))
+        return redirect(url_for(
+            "children.classes_registry",
+            **_class_registry_return_args(year.id if year else None),
+        ))
 
     name = normalize_class_name(request.form.get("name"))
     max_students = request.form.get("max_students", type=int) or 25
@@ -2686,7 +2768,10 @@ def classes_new():
 
     if not name:
         flash("Укажите класс", "danger")
-        return redirect(url_for("children.classes_registry", academic_year_id=year.id if year else None))
+        return redirect(url_for(
+            "children.classes_registry",
+            **_class_registry_return_args(year.id if year else None),
+        ))
     if _class_name_exists(year.id, name):
         flash(
             f"Класс «{name}» уже существует в учебном году {year.name}. "
@@ -2695,7 +2780,7 @@ def classes_new():
         )
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=year.id,
+            **_class_registry_return_args(year.id),
         ))
 
     g, l = split_class_name(name)
@@ -2724,12 +2809,15 @@ def classes_new():
         )
         return redirect(url_for(
             "children.classes_registry",
-            academic_year_id=year.id,
+            **_class_registry_return_args(year.id),
         ))
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
     flash("Класс добавлен", "success")
-    return redirect(url_for("children.classes_registry", academic_year_id=year.id))
+    return redirect(url_for(
+        "children.classes_registry",
+        **_class_registry_return_args(year.id),
+    ))
 
 # =========================================================
 # REGISTRIES
