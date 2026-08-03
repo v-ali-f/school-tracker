@@ -308,8 +308,18 @@ def _activity_usage(activity):
             "count": legacy_reference_count(Debt),
         },
         {
-            "label": "Архивная нагрузка кафедр",
-            "count": legacy_reference_count(TeacherLoad),
+            "label": "Действующая нагрузка старого раздела",
+            "count": TeacherLoad.query.filter(
+                TeacherLoad.is_archived.is_(False),
+                or_(
+                    TeacherLoad.education_activity_id == activity.id,
+                    *(
+                        [TeacherLoad.subject_id == subject_id]
+                        if subject_id is not None
+                        else []
+                    ),
+                ),
+            ).count(),
         },
         {
             "label": "Сопоставления импортированных названий",
@@ -343,6 +353,27 @@ def _activity_usage(activity):
         "references": references,
         "reference_count": sum(item["count"] for item in references),
     }
+
+
+def _detach_archived_teacher_loads(activity):
+    subject_id = (
+        activity.legacy_subject.id
+        if activity.legacy_subject is not None
+        else None
+    )
+    conditions = [TeacherLoad.education_activity_id == activity.id]
+    if subject_id is not None:
+        conditions.append(TeacherLoad.subject_id == subject_id)
+    TeacherLoad.query.filter(
+        TeacherLoad.is_archived.is_(True),
+        or_(*conditions),
+    ).update(
+        {
+            TeacherLoad.education_activity_id: None,
+            TeacherLoad.subject_id: None,
+        },
+        synchronize_session=False,
+    )
 
 
 def _activity_from_form(activity=None):
@@ -641,6 +672,7 @@ def catalog_delete(activity_id):
 
     section = _catalog_section_for_kind(activity.activity_kind)
     subject = activity.legacy_subject
+    _detach_archived_teacher_loads(activity)
     if subject is not None:
         DepartmentSubject.query.filter_by(
             subject_id=subject.id,
