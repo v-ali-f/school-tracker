@@ -1403,6 +1403,8 @@ def test_class_teacher_distributes_approves_and_exports_groups(
     assert "Скачать Excel" in page_html
     assert "Согласовано классным руководителем" in page_html
     assert "group-composition-choice" in page_html
+    assert "Матрица распределения класса" in page_html
+    assert "classroom-student-matrix" in page_html
     assert (
         '<span class="group-composition-choice" '
         'aria-hidden="true">✓</span>'
@@ -1475,6 +1477,70 @@ def test_class_teacher_distributes_approves_and_exports_groups(
     assert matrix_response.status_code == 200
     assert "is-approved" in matrix_html
     assert "Деление согласовано классным руководителем" in matrix_html
+
+    with app.app_context():
+        new_child = Child(
+            last_name="Новикова",
+            first_name="Анна",
+        )
+        db.session.add(new_child)
+        db.session.flush()
+        db.session.add(ChildEnrollment(
+            child_id=new_child.id,
+            academic_year_id=db.session.get(
+                SchoolClass,
+                class_id,
+            ).academic_year_id,
+            school_class_id=class_id,
+            status="ACTIVE",
+        ))
+        db.session.commit()
+
+        refreshed_snapshot_class = db.session.get(
+            PopulationSnapshotClass,
+            snapshot_class.id,
+        )
+        new_snapshot_enrollment = (
+            PopulationSnapshotEnrollment.query
+            .filter_by(
+                population_snapshot_class_id=snapshot_class.id,
+                source_child_id=new_child.id,
+            )
+            .one()
+        )
+        assert refreshed_snapshot_class.student_count == 3
+        assert TeachingGroupCompositionApproval.query.count() == 0
+        assert all(
+            new_snapshot_enrollment.id not in {
+                member.snapshot_enrollment_id
+                for member in group.members
+            }
+            for group in TeachingGroup.query.all()
+        )
+
+    login(class_teacher_id)
+    refreshed_page = client.get(
+        f"/hub/classroom/groups?class_id={class_id}&item={item_key}"
+    )
+    refreshed_html = refreshed_page.get_data(as_text=True)
+    assert refreshed_page.status_code == 200
+    assert "Новикова Анна" in refreshed_html
+    assert "2 из 3" in refreshed_html
+    assert "Требуют согласования: <strong>1</strong>" in refreshed_html
+    assert 'aria-label="Не распределён">•</span>' in refreshed_html
+
+    reapprove_response = client.post(
+        "/hub/classroom/groups/approve",
+        data={
+            "class_id": class_id,
+            "item_key": item_key,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert reapprove_response.status_code == 422
+    assert "Сначала распределите всех учеников" in (
+        reapprove_response.get_json()["message"]
+    )
 
 
 def test_generating_needs_materializes_default_one_group(

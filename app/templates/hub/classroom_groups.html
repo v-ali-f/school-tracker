@@ -6,7 +6,7 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_4">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260804_3">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/classroom_group_composition.css') }}?v=20260804_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/classroom_group_composition.css') }}?v=20260804_2">
 {% endblock %}
 
 {% block content %}
@@ -79,6 +79,66 @@
     <span>Согласовано: <strong>{{ composition['items']|selectattr('composition_approved')|list|length }}</strong></span>
     <span>Требуют согласования: <strong>{{ composition['items']|rejectattr('composition_approved')|list|length }}</strong></span>
   </div>
+
+  <section class="classroom-student-matrix" aria-labelledby="classroom-student-matrix-title">
+    <header class="classroom-student-matrix__head">
+      <div>
+        <h2 id="classroom-student-matrix-title">Матрица распределения класса</h2>
+        <p>Галка показывает выбранную группу, оранжевая точка — ученик ещё не распределён.</p>
+      </div>
+      <span>{{ student_matrix['rows']|length }} уч.</span>
+    </header>
+    <div class="classroom-student-matrix__wrap">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2" class="classroom-student-matrix__student">Ученик</th>
+            {% for matrix_item in student_matrix['items'] %}
+            <th colspan="{{ matrix_item.groups|length }}">
+              <a href="{{ url_for('hub.classroom_groups', class_id=selected_class.id, item=matrix_item.key) }}">
+                {{ matrix_item.activity.name }}
+              </a>
+            </th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for matrix_item in student_matrix['items'] %}
+              {% for group in matrix_item.groups %}
+              <th title="{{ matrix_item.teacher_names_by_group[group.id]|join(', ') if matrix_item.teacher_names_by_group[group.id] else 'Учитель не назначен' }}">
+                <span>Гр. {{ loop.index }}</span>
+                <small>
+                  {{ matrix_item.teacher_names_by_group[group.id]|join(', ') if matrix_item.teacher_names_by_group[group.id] else 'Без учителя' }}
+                </small>
+              </th>
+              {% endfor %}
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in student_matrix['rows'] %}
+          <tr>
+            <th class="classroom-student-matrix__student">{{ row.enrollment.fio_snapshot }}</th>
+            {% for cell in row.cells %}
+              {% set matrix_item = student_matrix['items'][loop.index0] %}
+              {% for group in matrix_item.groups %}
+              <td
+                class="{% if not cell.eligible %}is-not-applicable{% elif cell.assigned_group_id == group.id %}is-selected{% elif not cell.assigned_group_id and loop.first %}is-unassigned{% endif %}"
+                title="{% if not cell.eligible %}Ученик не привязан к этому учебному плану{% elif cell.assigned_group_id == group.id %}Выбрана эта группа{% elif not cell.assigned_group_id %}Ученик не распределён{% endif %}"
+              >
+                {% if cell.eligible and cell.assigned_group_id == group.id %}
+                  <span aria-label="Выбрано">✓</span>
+                {% elif cell.eligible and not cell.assigned_group_id and loop.first %}
+                  <span aria-label="Не распределён">•</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <div class="group-composition-layout">
     <aside class="group-composition-list" aria-label="Предметы с делением">
