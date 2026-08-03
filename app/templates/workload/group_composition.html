@@ -5,7 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260801_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260804_2">
 {% endblock %}
 
 {% block workspace_content %}
@@ -144,9 +144,17 @@
         <input type="hidden" name="item_key" value="{{ selected_item.key }}">
 
         <div class="group-composition-actions">
-          <button class="btn btn-outline-secondary btn-sm" type="button" data-distribute-evenly>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-distribute-in-order {% if not can_update %}disabled{% endif %}>
             <i class="bi bi-shuffle" aria-hidden="true"></i>
             Распределить по порядку
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-distribute-in-halves {% if not can_update %}disabled{% endif %}>
+            <i class="bi bi-layout-split" aria-hidden="true"></i>
+            Распределить пополам
+          </button>
+          <button class="btn btn-outline-danger btn-sm" type="button" data-reset-composition {% if not can_update %}disabled{% endif %}>
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+            Сбросить
           </button>
           <span data-composition-status></span>
           <button class="btn btn-primary btn-sm" type="submit" {% if not can_update %}disabled{% endif %}>
@@ -180,6 +188,7 @@
                       type="radio"
                       name="member_{{ enrollment.id }}"
                       value=""
+                      data-unassigned-option
                       {% if not assigned_group_id %}checked{% endif %}
                       {% if not can_update %}disabled{% endif %}
                     >
@@ -215,5 +224,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_group_composition.js') }}?v=20260801_1"></script>
+<script src="{{ url_for('static', filename='js/workload_group_composition.js') }}?v=20260804_2"></script>
 {% endblock %}
