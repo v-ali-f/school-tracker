@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -353,6 +354,131 @@ def test_class_registry_supports_same_row_ajax_editing(
     assert duplicate.get_json()["ok"] is False
     with app.app_context():
         assert db.session.get(SchoolClass, class_a_id).name == "7В"
+
+
+def test_class_registry_filters_levels_and_shows_teacher_phone_separately(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name = "Педагогов"
+        teacher.first_name = "Пётр"
+        teacher.middle_name = "Иванович"
+        teacher.phone = "+7 999 123-45-67"
+        year = AcademicYear(
+            name="2029/2030",
+            start_date=date(2029, 9, 1),
+            end_date=date(2030, 8, 31),
+            is_current=True,
+        )
+        db.session.add(year)
+        db.session.flush()
+        classes = [
+            SchoolClass(
+                academic_year_id=year.id,
+                name="2А",
+                grade=2,
+                letter="А",
+                max_students=25,
+            ),
+            SchoolClass(
+                academic_year_id=year.id,
+                name="5А",
+                grade=5,
+                letter="А",
+                max_students=25,
+                teacher_user_id=teacher_id,
+            ),
+            SchoolClass(
+                academic_year_id=year.id,
+                name="10А",
+                grade=10,
+                letter="А",
+                max_students=25,
+            ),
+        ]
+        db.session.add_all(classes)
+        db.session.commit()
+        year_id = year.id
+        class_5_id = classes[1].id
+    login(admin_id)
+
+    filtered = client.get(
+        f"/classes?academic_year_id={year_id}&level=OOO&grade=5",
+    )
+    html = filtered.get_data(as_text=True)
+
+    assert filtered.status_code == 200
+    assert ">5А</a>" in html
+    assert ">2А</a>" not in html
+    assert ">10А</a>" not in html
+    assert 'value="OOO" selected' in html
+    assert 'value="5" selected' in html
+    teacher_option = re.search(
+        rf'<option\s+value="{teacher_id}"[^>]*>([^<]+)</option>',
+        html,
+    )
+    assert teacher_option is not None
+    assert teacher_option.group(1).strip() == "Педагогов Пётр Иванович"
+    assert "+7 999 123-45-67" in html
+
+    level_only = client.get(
+        f"/classes?academic_year_id={year_id}&level=NOO",
+    ).get_data(as_text=True)
+    assert ">2А</a>" in level_only
+    assert ">5А</a>" not in level_only
+    assert ">10А</a>" not in level_only
+
+    invalid_pair = client.get(
+        f"/classes?academic_year_id={year_id}&level=OOO&grade=2",
+    ).get_data(as_text=True)
+    assert ">5А</a>" in invalid_pair
+    assert 'value="2" selected' not in invalid_pair
+
+    update = client.post(
+        f"/classes/{class_5_id}/update",
+        data={
+            "name": "5Б",
+            "max_students": "27",
+            "applications_count": "3",
+            "teacher_user_id": str(teacher_id),
+            "building_id": "",
+            "return_level": "OOO",
+            "return_grade": "5",
+            "return_q": "Педагогов",
+        },
+    )
+    assert update.status_code == 302
+    assert f"academic_year_id={year_id}" in update.headers["Location"]
+    assert "level=OOO" in update.headers["Location"]
+    assert "grade=5" in update.headers["Location"]
+    assert "q=%D0%9F%D0%B5%D0%B4%D0%B0%D0%B3%D0%BE%D0%B3%D0%BE%D0%B2" in (
+        update.headers["Location"]
+    )
+
+    ajax_update = client.post(
+        f"/classes/{class_5_id}/update",
+        data={
+            "name": "5Б",
+            "max_students": "27",
+            "applications_count": "3",
+            "teacher_user_id": str(teacher_id),
+            "building_id": "",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert ajax_update.status_code == 200
+    assert ajax_update.get_json()["school_class"]["teacher_fio"] == (
+        "Педагогов Пётр Иванович"
+    )
+    assert ajax_update.get_json()["school_class"]["teacher_phone"] == (
+        "+7 999 123-45-67"
+    )
 
 
 def test_class_structure_copy_promotes_and_can_be_undone(
