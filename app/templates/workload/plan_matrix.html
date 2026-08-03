@@ -2,7 +2,7 @@
 {% block title %}Матрица — {{ bundle_root.name }}{% endblock %}
 {% block head_extra %}
   {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260803_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260804_1">
 {% endblock %}
 
 {% block workspace_content %}
@@ -416,7 +416,7 @@
           >
           {% for period in scope.period_scheme.periods %}
           <span>
-            <strong data-period-total-weekly="{{ loop.index0 }}">0</strong>
+            <strong data-period-total-weekly="{{ loop.index0 }}">{{ section.scope_totals[scope.key].period_weekly[loop.index0]|compact_decimal if section.scope_totals[scope.key].period_weekly|length > loop.index0 else '0' }}</strong>
           </span>
           {% endfor %}
           {% if scope.period_scheme.show_annual %}
@@ -448,9 +448,15 @@
     {% if matrix.sections %}
     <tfoot>
       <tr>
-        <th class="workload-plan-matrix__subject">Всего по плану</th>
+        <th class="workload-plan-matrix__subject">
+          <span>Всего по плану</span>
+          {% if matrix.fgos_controls %}
+          <small>цветом отмечено соответствие норме ФГОС</small>
+          {% endif %}
+        </th>
         {% for scope in matrix.scope_columns %}
         {% set scope_loop = loop %}
+        {% set fgos_control = matrix.fgos_controls.get(scope.key) %}
         {% if scope.period_scheme %}
         <td
           class="workload-plan-matrix__period-totals-cell workload-plan-matrix__scope-end {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
@@ -462,8 +468,20 @@
             data-scope-key="{{ scope.key }}"
           >
           {% for period in scope.period_scheme.periods %}
-          <span>
-            <strong data-period-total-weekly="{{ loop.index0 }}">0</strong>
+          {% set period_control = fgos_control.periods[loop.index0] if fgos_control and fgos_control.periods|length > loop.index0 else none %}
+          <span
+            {% if period_control %}
+            class="workload-fgos-hour-control workload-fgos-hour-control--{{ period_control.state }}"
+            data-fgos-hour-control
+            data-expected-weekly="{{ period_control.expected|compact_decimal }}"
+            title="{{ period_control.message }}"
+            aria-label="{{ period_control.message }}"
+            {% endif %}
+          >
+            <strong data-period-total-weekly="{{ loop.index0 }}">{{ matrix.scope_totals[scope.key].period_weekly[loop.index0]|compact_decimal if matrix.scope_totals[scope.key].period_weekly|length > loop.index0 else '0' }}</strong>
+            {% if period_control %}
+            <small data-fgos-norm>норма {{ period_control.expected|compact_decimal }}</small>
+            {% endif %}
           </span>
           {% endfor %}
           {% if scope.period_scheme.show_annual %}
@@ -474,8 +492,21 @@
           </div>
         </td>
         {% else %}
-        <td class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}" data-plan-scope-weekly data-scope-key="{{ scope.key }}">
+        <td
+          class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}{% if fgos_control and fgos_control.weekly %} workload-fgos-hour-control workload-fgos-hour-control--{{ fgos_control.weekly.state }}{% endif %}"
+          data-plan-scope-weekly
+          data-scope-key="{{ scope.key }}"
+          {% if fgos_control and fgos_control.weekly %}
+          data-fgos-hour-control
+          data-expected-weekly="{{ fgos_control.weekly.expected|compact_decimal }}"
+          title="{{ fgos_control.weekly.message }}"
+          aria-label="{{ fgos_control.weekly.message }}"
+          {% endif %}
+        >
           <strong>{{ matrix.scope_totals[scope.key].weekly|compact_decimal }}</strong>
+          {% if fgos_control and fgos_control.weekly %}
+          <small data-fgos-norm>норма {{ fgos_control.weekly.expected|compact_decimal }}</small>
+          {% endif %}
         </td>
         <td class="workload-plan-matrix__annual workload-plan-matrix__scope-end" data-plan-scope-annual data-scope-key="{{ scope.key }}">
           <strong>{{ matrix.scope_totals[scope.key].annual|compact_decimal }}</strong>
@@ -545,5 +576,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_plan_matrix.js') }}?v=20260730_12"></script>
+<script src="{{ url_for('static', filename='js/workload_plan_matrix.js') }}?v=20260804_1"></script>
 {% endblock %}
