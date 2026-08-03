@@ -5,7 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_2">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260804_3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260804_4">
 {% endblock %}
 
 {% block workspace_content %}
@@ -151,7 +151,7 @@
             {% set cell = row.cells.get(column.key) %}
             {% set empty_label = 'Учебный план не назначен классу' if column.is_unassigned else 'Предмет отсутствует в учебном плане класса' if not cell else '' %}
             <td
-              class="group-matrix__cell {% if column.is_unassigned %}is-unassigned group-matrix__cell--locked group-matrix__cell--no-plan{% elif not cell %}group-matrix__cell--locked group-matrix__cell--not-in-plan{% elif cell.group_count > 1 %}is-divided{% endif %} {% if cell and cell.needs_composition %}needs-composition{% endif %}"
+              class="group-matrix__cell {% if column.is_unassigned %}is-unassigned group-matrix__cell--locked group-matrix__cell--no-plan{% elif not cell %}group-matrix__cell--locked group-matrix__cell--not-in-plan{% elif cell.group_count > 1 %}is-divided{% endif %} {% if cell and cell.needs_composition %}needs-composition{% endif %} {% if cell and cell.composition_approved %}is-approved{% endif %}"
               data-column-key="{{ column.key }}"
               {% if empty_label %}title="{{ empty_label }}"{% endif %}
             >
@@ -173,6 +173,8 @@
               >
               {% if cell.needs_composition %}
               <span class="group-matrix__marker" title="Нужно распределить учеников по группам" aria-label="Нужно распределить состав"></span>
+              {% elif cell.composition_approved %}
+              <span class="group-matrix__approval-marker" title="Деление согласовано классным руководителем" aria-label="Деление согласовано классным руководителем">✓</span>
               {% endif %}
               {% else %}
               <span class="group-matrix__locked-empty" aria-label="{{ empty_label }}"></span>

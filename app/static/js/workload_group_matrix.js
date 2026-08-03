@@ -27,6 +27,11 @@
     if (!cell) return;
     cell.classList.toggle("is-divided", count > 1);
     cell.classList.toggle("needs-composition", needsComposition);
+    cell.classList.remove("is-approved");
+    var approvalMarker = cell.querySelector(
+      ".group-matrix__approval-marker"
+    );
+    if (approvalMarker) approvalMarker.remove();
     var marker = cell.querySelector(".group-matrix__marker");
     if (needsComposition && !marker) {
       marker = document.createElement("span");

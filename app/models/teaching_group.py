@@ -459,6 +459,60 @@ class TeachingGroupClass(db.Model):
     )
 
 
+class TeachingGroupCompositionApproval(db.Model):
+    __tablename__ = "teaching_group_composition_approval"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tariff_version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("tariff_version.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    education_plan_line_id = db.Column(
+        db.Integer,
+        db.ForeignKey("education_plan_line.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    population_snapshot_class_id = db.Column(
+        db.Integer,
+        db.ForeignKey("population_snapshot_class.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    approved_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    approved_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+    )
+
+    tariff_version = db.relationship("TariffVersion")
+    education_plan_line = db.relationship("EducationPlanLine")
+    population_snapshot_class = db.relationship("PopulationSnapshotClass")
+    approved_by = db.relationship("User")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "tariff_version_id",
+            "education_plan_line_id",
+            "population_snapshot_class_id",
+            name="uq_teaching_group_composition_approval_cell",
+        ),
+        db.Index(
+            "ix_teaching_group_composition_approval_version_class",
+            "tariff_version_id",
+            "population_snapshot_class_id",
+        ),
+    )
+
+
 class TeachingGroupMember(db.Model):
     __tablename__ = "teaching_group_member"
 
@@ -638,6 +692,7 @@ __all__ = [
     "TEACHING_GROUP_TYPE_LABELS",
     "TeachingGroup",
     "TeachingGroupClass",
+    "TeachingGroupCompositionApproval",
     "TeachingGroupHistory",
     "TeachingGroupMember",
     "TeachingMetagroupSource",
