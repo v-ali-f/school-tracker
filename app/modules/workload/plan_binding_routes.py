@@ -147,6 +147,23 @@ def _snapshot_classes(snapshot):
     ).all()
 
 
+def _binding_filter_selection(requested_level, requested_grade):
+    selected_level = (requested_level or "").strip().upper() or None
+    if selected_level not in EDUCATION_LEVEL_GRADES:
+        selected_level = None
+
+    grade_options = list(
+        EDUCATION_LEVEL_GRADES.get(selected_level, range(1, 12))
+    )
+    try:
+        selected_grade = int(requested_grade)
+    except (TypeError, ValueError):
+        selected_grade = None
+    if selected_grade not in grade_options:
+        selected_grade = None
+    return selected_level, selected_grade, grade_options
+
+
 def _curriculum_plans(version):
     if version is None:
         return []
@@ -379,7 +396,27 @@ def register_plan_binding_routes(workload_bp):
                 "is_stale": False,
             }
         )
-        classes = _snapshot_classes(snapshot)
+        selected_level, selected_grade, grade_options = (
+            _binding_filter_selection(
+                request.args.get("level"),
+                request.args.get("grade"),
+            )
+        )
+        classes = [
+            item
+            for item in _snapshot_classes(snapshot)
+            if (
+                (
+                    selected_level is None
+                    or item.grade_snapshot
+                    in EDUCATION_LEVEL_GRADES[selected_level]
+                )
+                and (
+                    selected_grade is None
+                    or item.grade_snapshot == selected_grade
+                )
+            )
+        ]
         selected_class_id = request.args.get("class_id", type=int)
         selected_class = next(
             (item for item in classes if item.id == selected_class_id),
@@ -430,6 +467,10 @@ def register_plan_binding_routes(workload_bp):
             class_count=len(classes),
             registry_status=registry_status,
             can_update=can_update,
+            selected_level=selected_level,
+            selected_grade=selected_grade,
+            grade_options=grade_options,
+            level_labels=EDUCATION_LEVEL_LABELS,
             academic_years=AcademicYear.query.order_by(
                 AcademicYear.start_date.desc()
             ).all(),
@@ -559,6 +600,8 @@ def register_plan_binding_routes(workload_bp):
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
+            level=request.form.get("level") or None,
+            grade=request.form.get("grade", type=int),
         ))
 
     @workload_bp.post("/plan-bindings/class")
@@ -575,6 +618,8 @@ def register_plan_binding_routes(workload_bp):
             return redirect(url_for(
                 "workload.plan_bindings",
                 version_id=version_id,
+                level=request.form.get("level") or None,
+                grade=request.form.get("grade", type=int),
             ))
         class_id = request.form.get("class_id", type=int)
         plan_id = request.form.get("plan_id", type=int)
@@ -613,6 +658,8 @@ def register_plan_binding_routes(workload_bp):
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
+            level=request.form.get("level") or None,
+            grade=request.form.get("grade", type=int),
         ))
 
     @workload_bp.post("/plan-bindings/student")
@@ -629,6 +676,8 @@ def register_plan_binding_routes(workload_bp):
             return redirect(url_for(
                 "workload.plan_bindings",
                 version_id=version_id,
+                level=request.form.get("level") or None,
+                grade=request.form.get("grade", type=int),
             ))
         class_id = request.form.get("class_id", type=int)
         enrollment_id = request.form.get("enrollment_id", type=int)
@@ -679,6 +728,8 @@ def register_plan_binding_routes(workload_bp):
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
+            level=request.form.get("level") or None,
+            grade=request.form.get("grade", type=int),
             class_id=snapshot_class.id,
         ))
 
@@ -724,6 +775,8 @@ def register_plan_binding_routes(workload_bp):
         return redirect(url_for(
             "workload.plan_bindings",
             version_id=version.id,
+            level=request.form.get("level") or None,
+            grade=request.form.get("grade", type=int),
             class_id=snapshot_class.id,
             plan_id=plan.id,
         ))

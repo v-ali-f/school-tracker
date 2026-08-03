@@ -497,6 +497,50 @@ def test_plan_bindings_page_reads_snapshot_classes(
     assert "Иванов Иван".encode() in response.data
 
 
+def test_plan_bindings_page_filters_classes_by_level_and_grade(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        _snapshot(user_id, context["version_id"])
+        version_id = context["version_id"]
+
+    login(user_id)
+    grade_response = client.get(
+        "/workload/plan-bindings/",
+        query_string={
+            "version_id": version_id,
+            "level": "OOO",
+            "grade": 5,
+        },
+    )
+    grade_html = grade_response.get_data(as_text=True)
+    assert grade_response.status_code == 200
+    assert 'name="level"' in grade_html
+    assert 'value="OOO" selected' in grade_html
+    assert 'name="grade"' in grade_html
+    assert 'value="5" selected' in grade_html
+    assert "5А" in grade_html
+
+    other_level = client.get(
+        "/workload/plan-bindings/",
+        query_string={
+            "version_id": version_id,
+            "level": "NOO",
+        },
+    )
+    other_html = other_level.get_data(as_text=True)
+    assert other_level.status_code == 200
+    assert 'value="NOO" selected' in other_html
+    assert "5А" not in other_html
+
+
 def test_class_plan_matrix_uses_assigned_plan_hours(
     app,
     client,
@@ -1305,10 +1349,14 @@ def test_class_plan_can_be_overridden_for_one_student(
             "version_id": version_id,
             "class_id": class_id,
             "plan_id": first_plan_id,
+            "level": "OOO",
+            "grade": "5",
         },
     )
     assert response.status_code == 302
     assert "class_id=" not in response.headers["Location"]
+    assert "level=OOO" in response.headers["Location"]
+    assert "grade=5" in response.headers["Location"]
 
     summary_page = client.get(response.headers["Location"])
     assert summary_page.status_code == 200
@@ -1341,9 +1389,13 @@ def test_class_plan_can_be_overridden_for_one_student(
             "class_id": class_id,
             "enrollment_id": enrollment_ids[0],
             "plan_id": second_plan_id,
+            "level": "OOO",
+            "grade": "5",
         },
     )
     assert response.status_code == 302
+    assert "level=OOO" in response.headers["Location"]
+    assert "grade=5" in response.headers["Location"]
 
     with app.app_context():
         snapshot_class = db.session.get(

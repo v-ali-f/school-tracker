@@ -29,7 +29,7 @@
   {% endif %}
 {% elif workspace_endpoint.startswith('workload.assignment') or workspace_endpoint.startswith('workload.need_') or workspace_endpoint.startswith('workload.workload_') %}
   {% set workspace_mode = 'workload' %}
-{% elif workspace_endpoint.startswith('workload.workflow') or workspace_endpoint.startswith('workload.integration') or workspace_endpoint == 'workload.tariffication' or workspace_endpoint.startswith('workload.tariff_') and not workspace_endpoint.startswith('workload.tariff_document') %}
+{% elif workspace_endpoint.startswith('workload.workflow') %}
   {% set workspace_mode = 'control' %}
 {% elif workspace_endpoint.startswith('workload.tariff_document') %}
   {% set workspace_mode = 'export' %}
@@ -95,11 +95,9 @@
         <div class="dropdown-menu dropdown-menu-end workload-utility-menu">
           {% if not workspace_teacher_self_only %}
           <a class="dropdown-item" href="{{ url_for('workload.catalog') }}"><i class="bi bi-journal-text" aria-hidden="true"></i>Предметы и курсы</a>
-          <a class="dropdown-item" href="{{ url_for('workload.tariffication') }}"><i class="bi bi-calculator" aria-hidden="true"></i>Тарификация</a>
           {% endif %}
           {% if can('workload.settings.manage') %}
           <a class="dropdown-item" href="{{ url_for('workload.editor_access') }}"><i class="bi bi-person-check" aria-hidden="true"></i>Ответственные за нагрузку</a>
-          <a class="dropdown-item" href="{{ url_for('workload.integration') }}"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Интеграция</a>
           {% endif %}
         </div>
       </div>

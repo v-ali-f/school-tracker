@@ -384,6 +384,7 @@ def test_administrator_can_create_plan_from_existing_bundle(
         data={
             "academic_year_id": source_year_id,
             "name": "Исходный комплект",
+            "profile_name": "Исходный профиль",
             "education_level": "OOO",
         },
     )
@@ -443,6 +444,7 @@ def test_administrator_can_create_plan_from_existing_bundle(
             "academic_year_id": target_year_id,
             "source_plan_id": source_id,
             "name": "Копия комплекта",
+            "profile_name": "Новый профиль",
         },
     )
     assert copy_response.status_code == 302
@@ -453,6 +455,10 @@ def test_administrator_can_create_plan_from_existing_bundle(
             plan_kind="CURRICULUM",
         ).one()
         copied_parts = plan_bundle_parts(copied)
+        assert copied.profile_name == "Новый профиль"
+        assert {
+            part.profile_name for part in copied_parts.values()
+        } == {"Новый профиль"}
         assert set(copied_parts) == {
             "CURRICULUM",
             "EXTRACURRICULAR",
