@@ -1,0 +1,133 @@
+.classroom-group-shell {
+  margin: 0;
+  padding: 14px;
+  overflow: visible;
+}
+
+.classroom-group-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.classroom-group-header__eyebrow {
+  color: #23804b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.classroom-group-header h1 {
+  margin: 3px 0 0;
+  font-size: 20px;
+}
+
+.classroom-group-header p {
+  margin: 4px 0 0;
+  color: var(--workload-muted);
+  font-size: 12px;
+}
+
+.classroom-group-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.classroom-group-class-filter {
+  max-width: 390px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.classroom-group-class-filter label {
+  color: var(--workload-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.classroom-group-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  color: var(--workload-muted);
+  border: 1px solid var(--workload-border);
+  border-radius: 6px;
+  background: #f8fbf9;
+  font-size: 11px;
+}
+
+.classroom-group-summary strong {
+  color: var(--workload-text);
+}
+
+.classroom-group-empty {
+  padding: 42px 16px;
+  color: var(--workload-muted);
+  border: 1px dashed var(--workload-border-strong);
+  border-radius: 7px;
+  text-align: center;
+}
+
+.classroom-group-shell .group-composition-list__title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.classroom-group-approved {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #14733a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.classroom-group-teacher {
+  min-height: 24px;
+  color: #35445f !important;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.classroom-group-approval {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 9px 10px;
+  border-top: 1px solid var(--workload-border);
+  background: #f8fbf9;
+}
+
+.classroom-group-approval form {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.classroom-group-approval span,
+.classroom-group-approval small {
+  color: var(--workload-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 760px) {
+  .classroom-group-header {
+    flex-direction: column;
+  }
+
+  .classroom-group-approval,
+  .classroom-group-approval form {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

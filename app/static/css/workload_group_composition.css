@@ -290,6 +290,16 @@
   background: #176fe5;
 }
 
+.group-composition-table td .group-composition-choice {
+  color: transparent;
+  border-color: #d7dfeb;
+  background: #fff;
+}
+
+.group-composition-table td input:checked + .group-composition-choice {
+  color: #fff;
+}
+
 .group-composition-table__unassigned input:checked + span {
   color: #7c5a16 !important;
   border-color: #ead6a9 !important;

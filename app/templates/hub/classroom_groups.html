@@ -1,0 +1,253 @@
+{% extends "layout.html" %}
+
+{% block title %}Распределение по учебным группам{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260804_3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/classroom_group_composition.css') }}?v=20260804_1">
+{% endblock %}
+
+{% block content %}
+<section class="workload-workspace classroom-group-shell" data-group-composition>
+  <header class="classroom-group-header">
+    <div>
+      <span class="classroom-group-header__eyebrow">Классное руководство</span>
+      <h1>Распределение по учебным группам</h1>
+      <p>
+        {% if selected_class %}
+          {{ selected_class.name }} · {{ academic_year.name }}
+        {% else %}
+          Класс классного руководителя не найден
+        {% endif %}
+      </p>
+    </div>
+    <div class="classroom-group-header__actions">
+      {% if selected_class %}
+      <a
+        class="btn btn-outline-success btn-sm"
+        href="{{ url_for('hub.classroom_groups_export', class_id=selected_class.id) }}"
+      >
+        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+        Скачать Excel
+      </a>
+      {% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('hub.classroom') }}">
+        К разделу
+      </a>
+    </div>
+  </header>
+
+  {% if classes|length > 1 %}
+  <form class="classroom-group-class-filter" method="get" action="{{ url_for('hub.classroom_groups') }}">
+    <label for="classroom-group-class">Класс</label>
+    <select
+      class="form-select form-select-sm"
+      id="classroom-group-class"
+      name="class_id"
+      onchange="this.form.submit()"
+    >
+      {% for school_class in classes %}
+      <option value="{{ school_class.id }}" {% if selected_class and school_class.id == selected_class.id %}selected{% endif %}>
+        {{ school_class.name }}{% if school_class.teacher_user %} · {{ school_class.teacher_user.fio }}{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+
+  {% if not selected_class %}
+  <div class="classroom-group-empty">
+    За вами не закреплён активный класс текущего учебного года.
+  </div>
+  {% elif not version %}
+  <div class="classroom-group-empty">
+    Для {{ academic_year.name }} ещё не создана версия учебных планов и нагрузки.
+  </div>
+  {% elif not snapshot %}
+  <div class="classroom-group-empty">
+    Для учебного года ещё не сформирован снимок контингента.
+  </div>
+  {% elif not composition['items'] %}
+  <div class="classroom-group-empty">
+    В учебном плане {{ selected_class.name }} пока нет предметов с делением на группы.
+  </div>
+  {% else %}
+  <div class="classroom-group-summary">
+    <span>Предметов с делением: <strong>{{ composition['items']|length }}</strong></span>
+    <span>Согласовано: <strong>{{ composition['items']|selectattr('composition_approved')|list|length }}</strong></span>
+    <span>Требуют согласования: <strong>{{ composition['items']|rejectattr('composition_approved')|list|length }}</strong></span>
+  </div>
+
+  <div class="group-composition-layout">
+    <aside class="group-composition-list" aria-label="Предметы с делением">
+      <div class="group-composition-list__head">
+        <strong>Предметы класса</strong>
+        <span>{{ composition['items']|length }}</span>
+      </div>
+      <div class="group-composition-list__items">
+        {% for item in composition['items'] %}
+        <a
+          class="group-composition-list__item {% if selected_item and selected_item.key == item.key %}is-active{% endif %}"
+          href="{{ url_for('hub.classroom_groups', class_id=selected_class.id, item=item.key) }}"
+          data-composition-item="{{ item.key }}"
+        >
+          <span class="group-composition-list__title">
+            <strong>{{ item.activity.name }}</strong>
+          </span>
+          <small>
+            {{ item.teacher_names|join(', ') if item.teacher_names else 'Преподаватель не назначен' }}
+          </small>
+          <span class="group-composition-list__progress {% if item.composition_approved %}is-complete{% endif %}">
+            {% if item.composition_approved %}
+              <i class="bi bi-check2" aria-hidden="true"></i>
+            {% else %}
+              {{ item.assigned_count }}/{{ item.student_count }}
+            {% endif %}
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <div class="group-composition-editor">
+      {% if selected_item %}
+      <header class="group-composition-editor__head">
+        <div>
+          <h3>{{ selected_item.activity.name }}</h3>
+          <p>{{ selected_item.plan.name }} · {{ selected_item.groups|length }} группы</p>
+        </div>
+        {% if selected_item.composition_approved %}
+        <span class="classroom-group-approved">
+          <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+          Согласовано
+        </span>
+        {% else %}
+        <span class="group-composition-editor__status" data-composition-summary>
+          {{ selected_item.assigned_count }} из {{ selected_item.student_count }}
+        </span>
+        {% endif %}
+      </header>
+
+      <form
+        method="post"
+        action="{{ url_for('hub.classroom_groups_update') }}"
+        data-composition-form
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="class_id" value="{{ selected_class.id }}">
+        <input type="hidden" name="item_key" value="{{ selected_item.key }}">
+
+        <div class="group-composition-actions">
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-distribute-in-order {% if not can_update %}disabled{% endif %}>
+            <i class="bi bi-shuffle" aria-hidden="true"></i>
+            По порядку
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-distribute-in-halves {% if not can_update %}disabled{% endif %}>
+            <i class="bi bi-layout-split" aria-hidden="true"></i>
+            Пополам
+          </button>
+          <button class="btn btn-outline-danger btn-sm" type="button" data-reset-composition {% if not can_update %}disabled{% endif %}>
+            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+            Сбросить
+          </button>
+          <span data-composition-status></span>
+          <button class="btn btn-primary btn-sm" type="submit" {% if not can_update %}disabled{% endif %}>
+            <i class="bi bi-check2" aria-hidden="true"></i>
+            Сохранить
+          </button>
+        </div>
+
+        <div class="group-composition-table-wrap">
+          <table class="group-composition-table">
+            <thead>
+              <tr>
+                <th>Ученик</th>
+                <th class="group-composition-table__unassigned">Не назначен</th>
+                {% for group in selected_item.groups %}
+                <th>
+                  <span>{{ loop.index }} группа</span>
+                  <small class="classroom-group-teacher">
+                    {{ selected_item.teacher_names_by_group[group.id]|join(', ') if selected_item.teacher_names_by_group[group.id] else 'Учитель не назначен' }}
+                  </small>
+                  <small data-group-size="{{ group.id }}">{{ selected_item.group_sizes[group.id] }} уч.</small>
+                </th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for enrollment in selected_item.enrollments %}
+              {% set assigned_group_id = selected_item.assignment_by_member_id.get(enrollment.id) %}
+              <tr>
+                <th>{{ enrollment.fio_snapshot }}</th>
+                <td class="group-composition-table__unassigned">
+                  <label title="Не назначать в группу">
+                    <input
+                      type="radio"
+                      name="member_{{ enrollment.id }}"
+                      value=""
+                      data-unassigned-option
+                      {% if not assigned_group_id %}checked{% endif %}
+                      {% if not can_update %}disabled{% endif %}
+                    >
+                    <span>—</span>
+                  </label>
+                </td>
+                {% for group in selected_item.groups %}
+                <td>
+                  <label title="{{ loop.index }} группа">
+                    <input
+                      type="radio"
+                      name="member_{{ enrollment.id }}"
+                      value="{{ group.id }}"
+                      data-group-option="{{ group.id }}"
+                      {% if assigned_group_id == group.id %}checked{% endif %}
+                      {% if not can_update %}disabled{% endif %}
+                    >
+                    <span class="group-composition-choice" aria-hidden="true">✓</span>
+                  </label>
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+
+      <footer class="classroom-group-approval">
+        {% if selected_item.composition_approved %}
+        <span>
+          Согласовал:
+          {{ selected_item.composition_approval.approved_by.fio if selected_item.composition_approval.approved_by else 'классный руководитель' }},
+          {{ selected_item.composition_approval.approved_at.strftime('%d.%m.%Y %H:%M') }}
+        </span>
+        {% elif can_approve %}
+        <form method="post" action="{{ url_for('hub.classroom_groups_approve') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="class_id" value="{{ selected_class.id }}">
+          <input type="hidden" name="item_key" value="{{ selected_item.key }}">
+          <button class="btn btn-success btn-sm" type="submit" {% if not selected_item.complete %}disabled{% endif %}>
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            Согласовано классным руководителем
+          </button>
+          {% if not selected_item.complete %}
+          <small>Кнопка станет доступна после распределения всех учеников.</small>
+          {% endif %}
+        </form>
+        {% else %}
+        <span>Согласовать деление может классный руководитель {{ selected_class.name }}.</span>
+        {% endif %}
+      </footer>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/workload_group_composition.js') }}?v=20260804_3"></script>
+{% endblock %}

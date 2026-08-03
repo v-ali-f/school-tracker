@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from math import ceil
 
@@ -8,8 +9,10 @@ from app.models import (
     PopulationSnapshotClass,
     TeachingGroup,
     TeachingGroupClass,
+    TeachingGroupCompositionApproval,
     TeachingGroupMember,
     TeachingMetagroupSource,
+    WorkloadAssignment,
     WorkloadNeed,
 )
 from app.services.class_plan_matrix_service import build_class_plan_matrix
@@ -92,6 +95,7 @@ def build_teaching_group_matrix(
         if not column["is_unassigned"]
     }
     groups_by_cell = {}
+    approvals_by_cell = {}
     if line_ids and class_ids:
         groups = (
             TeachingGroup.query
@@ -112,9 +116,30 @@ def build_teaching_group_matrix(
                     (group.source_plan_line_id, class_id),
                     [],
                 ).append(group)
+        approvals = (
+            TeachingGroupCompositionApproval.query
+            .filter(
+                TeachingGroupCompositionApproval.tariff_version_id
+                == version_id,
+                TeachingGroupCompositionApproval.education_plan_line_id.in_(
+                    line_ids
+                ),
+                TeachingGroupCompositionApproval
+                .population_snapshot_class_id.in_(class_ids),
+            )
+            .all()
+        )
+        approvals_by_cell = {
+            (
+                approval.education_plan_line_id,
+                approval.population_snapshot_class_id,
+            ): approval
+            for approval in approvals
+        }
 
     divided_count = 0
     incomplete_count = 0
+    approved_count = 0
     for section in matrix["sections"]:
         for row in section["rows"]:
             for column in matrix["columns"]:
@@ -133,6 +158,15 @@ def build_teaching_group_matrix(
                     group_count > 1
                     and any(group.status != "READY" for group in groups)
                 )
+                approval = approvals_by_cell.get((
+                    cell["line"].id,
+                    column["snapshot_class"].id,
+                ))
+                composition_approved = bool(
+                    approval
+                    and group_count > 1
+                    and not needs_composition
+                )
                 cell.update({
                     "group_count": group_count,
                     "group_ids": tuple(group.id for group in groups),
@@ -141,14 +175,19 @@ def build_teaching_group_matrix(
                     ),
                     "is_configured": bool(groups),
                     "needs_composition": needs_composition,
+                    "composition_approval": approval,
+                    "composition_approved": composition_approved,
                 })
                 if group_count > 1:
                     divided_count += 1
                 if needs_composition:
                     incomplete_count += 1
+                if composition_approved:
+                    approved_count += 1
 
     matrix["divided_count"] = divided_count
     matrix["incomplete_count"] = incomplete_count
+    matrix["approved_count"] = approved_count
     matrix["column_count"] = sum(
         1 for column in matrix["columns"] if not column["is_unassigned"]
     )
@@ -341,6 +380,11 @@ def replace_teaching_group_count(
         line.id,
         snapshot_class.id,
     )
+    _clear_group_composition_approval(
+        version.id,
+        line.id,
+        snapshot_class.id,
+    )
     for group in existing_groups:
         db.session.delete(group)
     db.session.flush()
@@ -424,7 +468,45 @@ def replace_teaching_group_count(
     return groups
 
 
+def _group_teacher_names(group_ids):
+    names_by_group = {
+        group_id: set()
+        for group_id in group_ids
+    }
+    if not group_ids:
+        return {}
+    assignments = (
+        WorkloadAssignment.query
+        .join(WorkloadNeed)
+        .filter(
+            WorkloadNeed.teaching_group_id.in_(group_ids),
+            WorkloadAssignment.status != "CANCELLED",
+            WorkloadAssignment.employee_user_id.isnot(None),
+        )
+        .all()
+    )
+    for assignment in assignments:
+        if assignment.employee is None:
+            continue
+        names_by_group.setdefault(
+            assignment.workload_need.teaching_group_id,
+            set(),
+        ).add(assignment.employee.fio)
+    return {
+        group_id: tuple(sorted(names, key=str.casefold))
+        for group_id, names in names_by_group.items()
+    }
+
+
 def build_group_composition_workspace(matrix):
+    group_ids = {
+        group.id
+        for section in matrix["sections"]
+        for row in section["rows"]
+        for cell in row["cells"].values()
+        for group in cell.get("groups", ())
+    }
+    teacher_names_by_group = _group_teacher_names(group_ids)
     items = []
     for section in matrix["sections"]:
         for row in section["rows"]:
@@ -470,6 +552,14 @@ def build_group_composition_workspace(matrix):
                     and bool(enrollments)
                     and all(group_sizes[group.id] > 0 for group in groups)
                 )
+                item_teacher_names = tuple(sorted({
+                    teacher_name
+                    for group in groups
+                    for teacher_name in teacher_names_by_group.get(
+                        group.id,
+                        (),
+                    )
+                }, key=str.casefold))
                 items.append({
                     "key": (
                         f"line-{cell['line'].id}-"
@@ -481,12 +571,23 @@ def build_group_composition_workspace(matrix):
                     "snapshot_class": column["snapshot_class"],
                     "plan": column["plan"],
                     "groups": groups,
+                    "teacher_names_by_group": {
+                        group.id: teacher_names_by_group.get(group.id, ())
+                        for group in groups
+                    },
+                    "teacher_names": item_teacher_names,
                     "enrollments": enrollments,
                     "assignment_by_member_id": assignment_by_member_id,
                     "group_sizes": group_sizes,
                     "assigned_count": assigned_count,
                     "student_count": len(enrollments),
                     "complete": complete,
+                    "composition_approval": cell.get(
+                        "composition_approval"
+                    ),
+                    "composition_approved": bool(
+                        cell.get("composition_approved")
+                    ),
                 })
     items.sort(key=lambda item: (
         item["snapshot_class"].grade_snapshot or 0,
@@ -509,11 +610,72 @@ def build_group_composition_workspace(matrix):
     }
 
 
+def _clear_group_composition_approval(
+    version_id,
+    plan_line_id,
+    snapshot_class_id,
+):
+    return (
+        TeachingGroupCompositionApproval.query
+        .filter_by(
+            tariff_version_id=version_id,
+            education_plan_line_id=plan_line_id,
+            population_snapshot_class_id=snapshot_class_id,
+        )
+        .delete(synchronize_session=False)
+    )
+
+
+def approve_group_composition(item, *, user_id):
+    if not item["complete"]:
+        raise GroupValidationError(
+            "Сначала распределите всех учеников по группам."
+        )
+    groups = list(item["groups"])
+    if len(groups) <= 1:
+        raise GroupValidationError(
+            "Согласование требуется только для предметов с делением."
+        )
+    version_id = groups[0].tariff_version_id
+    plan_line_id = item["plan_line"].id
+    snapshot_class_id = item["snapshot_class"].id
+    approval = (
+        TeachingGroupCompositionApproval.query
+        .filter_by(
+            tariff_version_id=version_id,
+            education_plan_line_id=plan_line_id,
+            population_snapshot_class_id=snapshot_class_id,
+        )
+        .first()
+    )
+    if approval is None:
+        approval = TeachingGroupCompositionApproval(
+            tariff_version_id=version_id,
+            education_plan_line_id=plan_line_id,
+            population_snapshot_class_id=snapshot_class_id,
+        )
+        db.session.add(approval)
+    approval.approved_by_user_id = user_id
+    approval.approved_at = datetime.utcnow()
+    for group in groups:
+        add_group_history(
+            group,
+            "COMPOSITION_APPROVED",
+            user_id,
+            {
+                "snapshot_class_id": snapshot_class_id,
+                "plan_line_id": plan_line_id,
+            },
+        )
+    return approval
+
+
 def replace_group_composition_assignments(
     item,
     assignments,
     *,
     user_id,
+    allow_with_workload=False,
 ):
     groups = list(item["groups"])
     if not groups:
@@ -527,7 +689,8 @@ def replace_group_composition_assignments(
         )
     group_ids = {group.id for group in groups}
     if (
-        WorkloadNeed.query
+        not allow_with_workload
+        and WorkloadNeed.query
         .filter(WorkloadNeed.teaching_group_id.in_(group_ids))
         .first()
     ):
@@ -556,6 +719,11 @@ def replace_group_composition_assignments(
             "Выбрана группа из другого предмета или класса."
         )
 
+    _clear_group_composition_approval(
+        groups[0].tariff_version_id,
+        item["plan_line"].id,
+        item["snapshot_class"].id,
+    )
     for group in groups:
         for member in list(group.members):
             db.session.delete(member)
@@ -728,6 +896,7 @@ def materialize_default_teaching_groups(
 __all__ = [
     "AUTO_GROUP_CODE_PREFIX",
     "build_group_composition_workspace",
+    "approve_group_composition",
     "build_teaching_group_matrix",
     "materialize_default_teaching_groups",
     "replace_group_composition_assignments",

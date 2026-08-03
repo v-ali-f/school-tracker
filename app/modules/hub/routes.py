@@ -120,6 +120,7 @@ ICON_MAP = {
     "Ключевые показатели класса": ("bi-speedometer2", "accent-green"),
     "Пропуски класса": ("bi-calendar-check", "accent-green"),
     "Инциденты класса": ("bi-shield-exclamation", "accent-orange"),
+    "Распределение по учебным группам": ("bi-people-fill", "accent-green"),
 }
 
 ICON_RULES = (
@@ -757,6 +758,7 @@ def _theme_configs():
                 {"title": "Социальный паспорт класса", "description": "Реестр и статусы по классам.", "endpoint": "children.social_passport_registry", "permission_any": ["social_passport_registry_view"]},
                 {"title": "Сопровождение класса", "description": "Работа с сопровождением и наблюдением класса.", "endpoint": "children.social_passport_dashboard", "permission_any": ["social_passport_dashboard_view"]},
                 {"title": "Список класса", "description": "Переход к списку учеников своего класса или всей школы.", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
+                {"title": "Распределение по учебным группам", "description": "Распределение учеников своего класса, преподаватели групп, согласование и Excel.", "endpoint": "hub.classroom_groups", "visible_if": lambda: _class_teacher_context() is not None or has_any_role("ADMIN", "METHODIST", "DIRECTOR", "DEPUTY_DIRECTOR")},
                 {"title": "Результаты класса", "description": "Учебные результаты и контрольные работы.", "endpoint": "academic.dashboard", "permission_any": ["control_works_view"]},
                 {"title": "Аналитика успеваемости класса", "description": "Низкие результаты и динамика.", "endpoint": "academic.low_results", "permission_any": ["control_works_view"]},
                 {"title": "Ключевые показатели класса", "description": "Социальные и академические индикаторы.", "endpoint": "children.social_passport_dashboard", "permission_any": ["social_passport_dashboard_view"]},
@@ -777,7 +779,13 @@ def _theme_or_403(theme_key: str):
     config = _theme_configs().get(theme_key)
     if not config:
         abort(404)
-    if not _allowed(config):
+    if (
+        not _allowed(config)
+        and not (
+            theme_key == "classroom"
+            and _class_teacher_context() is not None
+        )
+    ):
         abort(403)
     prepared = dict(config)
     prepared.setdefault("zone", THEME_ZONE_MAP.get(theme_key, "blue"))
@@ -864,8 +872,6 @@ def admin():
 
 def _class_teacher_context():
     """Возвращает объект SchoolClass, которым руководит текущий пользователь, или None."""
-    if not has_role("CLASS_TEACHER"):
-        return None
     try:
         from app.models import AcademicYear, SchoolClass
         current_year = AcademicYear.query.filter_by(is_current=True).first()
@@ -1054,3 +1060,9 @@ def build_home_context():
         "preview_role": preview_role,
         "preview_role_label": _ROLE_LABELS.get(preview_role, preview_role) if preview_role else None,
     }
+
+
+from .classroom_group_routes import register_classroom_group_routes
+
+
+register_classroom_group_routes(hub_bp)

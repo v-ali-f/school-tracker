@@ -24,10 +24,12 @@ from app.models import (
     TariffVersion,
     TeachingGroup,
     TeachingGroupClass,
+    TeachingGroupCompositionApproval,
     TeachingGroupHistory,
     TeachingGroupMember,
     TeachingMetagroupSource,
     User,
+    WorkloadAssignment,
     WorkloadNeed,
 )
 from app.services.education_plan_service import (
@@ -1274,6 +1276,205 @@ def test_group_composition_assigns_students_to_split_groups(
         assert {group.status for group in groups} == {"DRAFT"}
         assert [group.actual_size for group in groups] == [0, 0]
         assert all(not group.members for group in groups)
+
+
+def test_class_teacher_distributes_approves_and_exports_groups(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    class_teacher_id = make_user("CLASS_TEACHER")
+    subject_teacher_id = make_user("TEACHER")
+    with app.app_context():
+        class_teacher = db.session.get(User, class_teacher_id)
+        class_teacher.last_name = "Иванова"
+        class_teacher.first_name = "Мария"
+        subject_teacher = db.session.get(User, subject_teacher_id)
+        subject_teacher.last_name = "Смирнова"
+        subject_teacher.first_name = "Елена"
+
+        context = _group_context(admin_id)
+        snapshot_id = _snapshot(admin_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        snapshot_class.source_school_class.teacher_user_id = (
+            class_teacher_id
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        enrollment_ids = [
+            item.id
+            for item in snapshot_class.enrollments
+        ]
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            set(enrollment_ids),
+            user_id=admin_id,
+        )
+        db.session.commit()
+        item_key = f"line-{line.id}-class-{snapshot_class.id}"
+        matrix_payload = {
+            "version_id": context["version_id"],
+            "plan_line_id": line.id,
+            "snapshot_class_id": snapshot_class.id,
+            "plan_id": line.education_plan_id,
+            "group_count": 2,
+        }
+        class_id = snapshot_class.source_school_class_id
+
+    login(admin_id)
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data=matrix_payload,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        groups = (
+            TeachingGroup.query
+            .order_by(TeachingGroup.id.asc())
+            .all()
+        )
+        for group in groups:
+            need = WorkloadNeed(
+                tariff_version_id=context["version_id"],
+                teaching_group_id=group.id,
+                education_activity_id=group.education_activity_id,
+                building_id=context["building_id"],
+                date_from=date(2026, 9, 1),
+                date_to=date(2027, 8, 31),
+                weekly_hours=Decimal("2.5"),
+                annual_hours=Decimal("85"),
+                need_kind="PLAN",
+                status="COVERED",
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            )
+            db.session.add(need)
+            db.session.flush()
+            db.session.add(WorkloadAssignment(
+                tariff_version_id=context["version_id"],
+                workload_need_id=need.id,
+                employee_user_id=subject_teacher_id,
+                position_code="TEACHER",
+                building_id=context["building_id"],
+                assignment_kind="MAIN",
+                date_from=date(2026, 9, 1),
+                date_to=date(2027, 8, 31),
+                weekly_hours=Decimal("2.5"),
+                annual_hours=Decimal("85"),
+                status="CONFIRMED",
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            ))
+        db.session.commit()
+        group_ids = [group.id for group in groups]
+
+    login(class_teacher_id)
+    hub_response = client.get("/hub/classroom")
+    hub_html = hub_response.get_data(as_text=True)
+    assert hub_response.status_code == 200
+    assert "Распределение по учебным группам" in hub_html
+    assert "/hub/classroom/groups" in hub_html
+
+    page_response = client.get(
+        f"/hub/classroom/groups?class_id={class_id}&item={item_key}"
+    )
+    page_html = page_response.get_data(as_text=True)
+    assert page_response.status_code == 200
+    assert "5А" in page_html
+    assert "5Б" not in page_html
+    assert "Математика" in page_html
+    assert page_html.count("Смирнова Елена") >= 2
+    assert "Скачать Excel" in page_html
+    assert "Согласовано классным руководителем" in page_html
+    assert "group-composition-choice" in page_html
+    assert (
+        '<span class="group-composition-choice" '
+        'aria-hidden="true">✓</span>'
+    ) in page_html
+
+    update_response = client.post(
+        "/hub/classroom/groups",
+        data={
+            "class_id": class_id,
+            "item_key": item_key,
+            f"member_{enrollment_ids[0]}": group_ids[0],
+            f"member_{enrollment_ids[1]}": group_ids[1],
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.get_json()["complete"] is True
+
+    approve_response = client.post(
+        "/hub/classroom/groups/approve",
+        data={
+            "class_id": class_id,
+            "item_key": item_key,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.get_json()["ok"] is True
+    with app.app_context():
+        approval = TeachingGroupCompositionApproval.query.one()
+        assert approval.approved_by_user_id == class_teacher_id
+        assert approval.education_plan_line_id == context["plan_line_id"]
+        assert (
+            approval.population_snapshot_class_id
+            == snapshot_class.id
+        )
+
+    approved_page = client.get(
+        f"/hub/classroom/groups?class_id={class_id}&item={item_key}"
+    ).get_data(as_text=True)
+    assert "Согласовано" in approved_page
+    assert "Иванова Мария" in approved_page
+
+    export_response = client.get(
+        f"/hub/classroom/groups/export.xlsx?class_id={class_id}"
+    )
+    assert export_response.status_code == 200
+    assert export_response.mimetype == (
+        "application/vnd.openxmlformats-officedocument."
+        "spreadsheetml.sheet"
+    )
+    workbook = load_workbook(
+        BytesIO(export_response.data),
+        data_only=True,
+    )
+    sheet = workbook["Распределение"]
+    exported_rows = list(sheet.iter_rows(values_only=True))
+    assert any("Смирнова Елена" in row for row in exported_rows)
+    assert any(
+        "Согласовано классным руководителем" in row
+        for row in exported_rows
+    )
+
+    login(admin_id)
+    matrix_response = client.get(
+        f"/workload/groups/"
+        f"?version_id={context['version_id']}&level=OOO&grade=5"
+    )
+    matrix_html = matrix_response.get_data(as_text=True)
+    assert matrix_response.status_code == 200
+    assert "is-approved" in matrix_html
+    assert "Деление согласовано классным руководителем" in matrix_html
 
 
 def test_generating_needs_materializes_default_one_group(

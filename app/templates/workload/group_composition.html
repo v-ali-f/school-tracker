@@ -111,8 +111,12 @@
             <span>{{ item.activity.name }}</span>
           </span>
           <small title="{{ item.plan.name }}">{{ item.plan.name }}</small>
-          <span class="group-composition-list__progress {% if item.complete %}is-complete{% endif %}">
-            {{ item.assigned_count }}/{{ item.student_count }}
+          <span class="group-composition-list__progress {% if item.composition_approved %}is-complete{% endif %}">
+            {% if item.composition_approved %}
+              <i class="bi bi-check2" aria-hidden="true"></i>
+            {% else %}
+              {{ item.assigned_count }}/{{ item.student_count }}
+            {% endif %}
           </span>
         </a>
         {% endfor %}
@@ -126,8 +130,12 @@
           <h3>{{ selected_item.snapshot_class.name_snapshot }} · {{ selected_item.activity.name }}</h3>
           <p>{{ selected_item.plan.name }} · {{ selected_item.groups|length }} группы</p>
         </div>
-        <span class="group-composition-editor__status {% if selected_item.complete %}is-complete{% endif %}" data-composition-summary>
-          {{ selected_item.assigned_count }} из {{ selected_item.student_count }}
+        <span class="group-composition-editor__status {% if selected_item.composition_approved %}is-complete{% endif %}" data-composition-summary>
+          {% if selected_item.composition_approved %}
+            Согласовано классным руководителем
+          {% else %}
+            {{ selected_item.assigned_count }} из {{ selected_item.student_count }}
+          {% endif %}
         </span>
       </header>
 
@@ -206,7 +214,7 @@
                       {% if assigned_group_id == group.id %}checked{% endif %}
                       {% if not can_update %}disabled{% endif %}
                     >
-                    <span>{{ loop.index }}</span>
+                    <span class="group-composition-choice" aria-hidden="true">✓</span>
                   </label>
                 </td>
                 {% endfor %}
