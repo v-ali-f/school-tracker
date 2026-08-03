@@ -1,4 +1,10 @@
 {% extends "layout.html" %}
+{% block head_extra %}
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/classes_registry.css') }}?v=20260803_2"
+  >
+{% endblock %}
 {% block content %}
 
 <div class="page-head">
@@ -114,7 +120,7 @@
     </button>
   </div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0 align-middle">
+    <table class="table table-striped mb-0 align-middle classes-registry-table">
       <thead>
         <tr>
           <th class="text-center" style="width:44px;">
@@ -129,15 +135,17 @@
           <th>Здание</th>
           <th class="num">Учеников</th>
           <th class="num">Макс.</th>
+          <th class="num">Заяв.</th>
           <th>Классный руководитель</th>
           <th>Телефон</th>
           <th class="text-end">Действия</th>
         </tr>
       </thead>
       <tbody>
-      {% set _colspan = 8 %}
+      {% set _colspan = 9 %}
       {% for c, teacher_fio, teacher_phone, active_count, _task_total, _task_overdue, sc_in_club, do_count in classes %}
-        <tr>
+        {% set _form_id = 'edit-class-' ~ c.id %}
+        <tr data-inline-class-row data-class-id="{{ c.id }}">
           <td class="text-center">
             <input
               class="form-check-input class-selection"
@@ -148,36 +156,113 @@
               aria-label="Выбрать класс {{ c.name }}"
             >
           </td>
-          <td class="fw-bold">
-            <a href="{{ url_for('children.class_detail', class_id=c.id) }}" class="text-decoration-none">{{ c.name }}</a>
+          <td class="fw-bold class-name-cell">
+            <a
+              href="{{ url_for('children.class_detail', class_id=c.id) }}"
+              class="text-decoration-none"
+              data-class-view="name"
+            >{{ c.name }}</a>
+            <input
+              class="form-control form-control-sm d-none"
+              name="name"
+              value="{{ c.name }}"
+              form="{{ _form_id }}"
+              data-class-edit-control
+              aria-label="Название класса"
+              required
+            >
           </td>
-          <td>{{ c.building.name if c.building else '—' }}</td>
+          <td>
+            <span data-class-view="building">{{ c.building.name if c.building else '—' }}</span>
+            <select
+              class="form-select form-select-sm d-none"
+              name="building_id"
+              form="{{ _form_id }}"
+              data-class-edit-control
+              aria-label="Здание"
+            >
+              <option value="">—</option>
+              {% for b in buildings %}
+                <option value="{{ b.id }}" {% if c.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
           <td class="num">{{ active_count }}</td>
-          <td class="num text-muted">{{ c.max_students or '—' }}</td>
-          <td>{{ teacher_fio or '—' }}</td>
-          <td class="text-muted">{{ teacher_phone or '—' }}</td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#edit-class-{{ c.id }}">
-              <i class="bi bi-pencil me-1"></i>Изменить
-            </a>
-            <form method="post" action="{{ url_for('children.classes_delete', class_id=c.id) }}" class="d-inline" onsubmit="return confirm('Удалить класс?');">
-              <input type="hidden" name="academic_year_id" value="{{ year.id }}">
-              <button class="btn btn-sm btn-outline-danger" aria-label="Удалить класс"><i class="bi bi-trash"></i></button>
-            </form>
+          <td class="num">
+            <span class="text-muted" data-class-view="max_students">{{ c.max_students or '—' }}</span>
+            <input
+              class="form-control form-control-sm class-number-input d-none"
+              type="number"
+              name="max_students"
+              value="{{ c.max_students or 25 }}"
+              min="1"
+              form="{{ _form_id }}"
+              data-class-edit-control
+              aria-label="Максимальное количество учеников"
+              required
+            >
           </td>
-        </tr>
-        <tr class="collapse" id="edit-class-{{ c.id }}">
-          <td colspan="{{ _colspan }}" class="bg-light">
-            <form method="post" action="{{ url_for('children.update_class', class_id=c.id) }}">
-              <div class="row g-2 align-items-end">
-                <div class="col-md-2"><label class="form-label">Название / буква класса</label><input class="form-control" name="name" value="{{ c.name }}"></div>
-                <div class="col-md-1"><label class="form-label">Макс.</label><input class="form-control" type="number" name="max_students" value="{{ c.max_students or 25 }}" min="1"></div>
-                <div class="col-md-1"><label class="form-label">Заявления</label><input class="form-control" type="number" name="applications_count" value="{{ c.applications_count or 0 }}" min="0"></div>
-                <div class="col-md-4"><label class="form-label">Классный руководитель</label><select class="form-select" name="teacher_user_id"><option value="">—</option>{% for u in teachers %}<option value="{{ u.id }}" {% if c.teacher_user_id == u.id %}selected{% endif %}>{{ u.fio }}{% if u.phone %} • {{ u.phone }}{% endif %}</option>{% endfor %}</select></div>
-                <div class="col-md-3"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">—</option>{% for b in buildings %}<option value="{{ b.id }}" {% if c.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
-                <div class="col-md-1 d-grid"><button class="btn btn-primary">OK</button></div>
-              </div>
-            </form>
+          <td class="num">
+            <span data-class-view="applications_count">{{ c.applications_count or '—' }}</span>
+            <input
+              class="form-control form-control-sm class-number-input d-none"
+              type="number"
+              name="applications_count"
+              value="{{ c.applications_count or 0 }}"
+              min="0"
+              form="{{ _form_id }}"
+              data-class-edit-control
+              aria-label="Количество заявлений"
+            >
+          </td>
+          <td class="class-teacher-cell">
+            <span data-class-view="teacher">{{ teacher_fio or '—' }}</span>
+            <select
+              class="form-select form-select-sm d-none"
+              name="teacher_user_id"
+              form="{{ _form_id }}"
+              data-class-edit-control
+              aria-label="Классный руководитель"
+            >
+              <option value="" data-fio="" data-phone="">—</option>
+              {% for u in teachers %}
+                <option
+                  value="{{ u.id }}"
+                  data-fio="{{ u.fio }}"
+                  data-phone="{{ u.phone or '' }}"
+                  {% if c.teacher_user_id == u.id %}selected{% endif %}
+                >{{ u.fio }}{% if u.phone %} • {{ u.phone }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="text-muted class-phone-cell">
+            <span data-class-view="phone">{{ teacher_phone or '—' }}</span>
+          </td>
+          <td class="text-end class-actions-cell">
+            <form
+              id="{{ _form_id }}"
+              method="post"
+              action="{{ url_for('children.update_class', class_id=c.id) }}"
+              data-inline-class-form
+            ></form>
+            <div class="class-view-actions" data-class-view-actions>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-class-edit>
+              <i class="bi bi-pencil me-1"></i>Изменить
+              </button>
+              <form method="post" action="{{ url_for('children.classes_delete', class_id=c.id) }}" class="d-inline" onsubmit="return confirm('Удалить класс?');">
+                <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+                <button class="btn btn-sm btn-outline-danger" aria-label="Удалить класс"><i class="bi bi-trash"></i></button>
+              </form>
+            </div>
+            <div class="class-edit-actions d-none" data-class-edit-actions>
+              <button class="btn btn-sm btn-primary" type="submit" form="{{ _form_id }}">
+                <i class="bi bi-check-lg me-1"></i>Сохранить
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-class-cancel>
+                Отмена
+              </button>
+            </div>
+            <div class="small mt-1 class-edit-status" data-class-edit-status aria-live="polite"></div>
           </td>
         </tr>
       {% else %}
@@ -188,60 +273,8 @@
   </div>
 </div>
 
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const selectAll = document.getElementById("select-all-classes");
-    const selections = Array.from(
-      document.querySelectorAll(".class-selection")
-    );
-    const deleteButton = document.getElementById(
-      "delete-selected-classes"
-    );
-    const countLabel = document.getElementById(
-      "selected-classes-count"
-    );
-    const bulkForm = document.getElementById("bulk-delete-classes");
-
-    function updateSelectionState() {
-      const selectedCount = selections.filter(function (checkbox) {
-        return checkbox.checked;
-      }).length;
-      countLabel.textContent = selectedCount
-        ? "Выбрано классов: " + selectedCount
-        : "Классы не выбраны";
-      deleteButton.disabled = selectedCount === 0;
-      selectAll.checked = (
-        selections.length > 0
-        && selectedCount === selections.length
-      );
-      selectAll.indeterminate = (
-        selectedCount > 0
-        && selectedCount < selections.length
-      );
-    }
-
-    selectAll.addEventListener("change", function () {
-      selections.forEach(function (checkbox) {
-        checkbox.checked = selectAll.checked;
-      });
-      updateSelectionState();
-    });
-    selections.forEach(function (checkbox) {
-      checkbox.addEventListener("change", updateSelectionState);
-    });
-    bulkForm.addEventListener("submit", function (event) {
-      const selectedCount = selections.filter(function (checkbox) {
-        return checkbox.checked;
-      }).length;
-      if (
-        selectedCount === 0
-        || !window.confirm(
-          "Удалить выбранные классы: " + selectedCount + "?"
-        )
-      ) {
-        event.preventDefault();
-      }
-    });
-  });
-</script>
+<script
+  src="{{ url_for('static', filename='js/classes_registry.js') }}?v=20260803_2"
+  defer
+></script>
 {% endblock %}

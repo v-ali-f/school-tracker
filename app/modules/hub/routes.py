@@ -86,7 +86,7 @@ ICON_MAP = {
     "Настройка предметных кафедр": ("bi-sliders", "accent-blue"),
     "Свод по кафедрам": ("bi-diagram-3", "accent-blue"),
     "Нагрузка учителей": ("bi-person-lines-fill", "accent-blue"),
-    "Нагрузка и тарификация": ("bi-calculator", "accent-blue"),
+    "Учебные планы и нагрузка": ("bi-calculator", "accent-blue"),
     "Список диагностик": ("bi-clipboard-check", "accent-orange"),
     "Импорт результатов": ("bi-upload", "accent-orange"),
     "Аналитика диагностик": ("bi-bar-chart-line", "accent-orange"),
@@ -462,7 +462,7 @@ def _main_page_config():
         ]),
         "secondary_sections": _materialize([
             {
-                "title": "Нагрузка и тарификация",
+                "title": "Учебные планы и нагрузка",
                 "description": "Учебное планирование, распределение нагрузки и тарификация.",
                 "endpoint": "workload.index",
                 "visible_if": lambda: (

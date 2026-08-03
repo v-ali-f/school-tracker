@@ -35,7 +35,7 @@ DEFAULT_MODULES = [
     ("drive", "Диск"),
     ("documents", "Документы"),
     ("analytics", "Аналитика"),
-    ("workload", "Нагрузка и тарификация"),
+    ("workload", "Учебные планы и нагрузка"),
 ]
 
 DEFAULT_QUICK_LINKS = [

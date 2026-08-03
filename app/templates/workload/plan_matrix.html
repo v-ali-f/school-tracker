@@ -2,7 +2,7 @@
 {% block title %}Матрица — {{ bundle_root.name }}{% endblock %}
 {% block head_extra %}
   {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260730_16">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260803_1">
 {% endblock %}
 
 {% block workspace_content %}
@@ -22,8 +22,8 @@
       type="button"
       data-bs-toggle="modal"
       data-bs-target="#plan-profile-modal"
-      title="Изменить профиль"
-      aria-label="Изменить профиль учебного плана"
+      title="Изменить название и профиль"
+      aria-label="Изменить название и профиль учебного плана"
     >
       <i class="bi bi-pencil" aria-hidden="true"></i>
     </button>
@@ -39,12 +39,14 @@
   <div class="modal-dialog modal-dialog-centered">
     <form class="modal-content" method="post" action="{{ url_for('workload.plan_profile_update', plan_id=bundle_root.id) }}">
       <div class="modal-header">
-        <h2 class="modal-title fs-6" id="plan-profile-title">Профиль учебного плана</h2>
+        <h2 class="modal-title fs-6" id="plan-profile-title">Параметры учебного плана</h2>
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Закрыть"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="revision" value="{{ bundle_root.revision }}">
+        <label class="form-label" for="plan-edit-name">Название</label>
+        <input class="form-control mb-3" id="plan-edit-name" name="name" maxlength="255" value="{{ bundle_root.name }}" required>
         <label class="form-label" for="plan-profile-name">Профиль</label>
         <input class="form-control" id="plan-profile-name" name="profile_name" maxlength="160" value="{{ bundle_root.profile_name or '' }}" placeholder="Например, математический">
       </div>

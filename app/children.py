@@ -2365,47 +2365,80 @@ def children_import():
 @require_roles("ADMIN")
 def update_class(class_id: int):
     c = SchoolClass.query.get_or_404(class_id)
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     old_teacher_user_id = c.teacher_user_id
 
-    building_id = request.form.get("building_id")
-    c.building_id = int(building_id) if (building_id and str(building_id).isdigit()) else None
+    max_students = request.form.get("max_students", type=int)
+    if max_students is None or max_students < 1:
+        message = "Максимальное количество учеников должно быть больше нуля."
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 400
+        flash(message, "danger")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=c.academic_year_id,
+        ))
 
-    ms = request.form.get("max_students")
-    if ms and ms.isdigit():
-        c.max_students = int(ms)
-
-    applications_count = request.form.get("applications_count")
-    if applications_count is not None:
-        c.applications_count = max(
-            request.form.get("applications_count", type=int) or 0,
-            0,
-        )
-
-    teacher_user_id = request.form.get("teacher_user_id")
-    c.teacher_user_id = int(teacher_user_id) if (teacher_user_id and teacher_user_id.isdigit()) else None
+    applications_count = request.form.get("applications_count", type=int)
+    if applications_count is None:
+        applications_count = 0
+    if applications_count < 0:
+        message = "Количество заявлений не может быть отрицательным."
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 400
+        flash(message, "danger")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=c.academic_year_id,
+        ))
 
     name = normalize_class_name(request.form.get("name"))
-    if name:
-        if _class_name_exists(
-            c.academic_year_id,
-            name,
-            exclude_class_id=c.id,
-        ):
-            db.session.rollback()
-            flash(
-                f"Класс «{name}» уже существует в этом учебном году. "
-                "Названия и буквы классов не должны совпадать.",
-                "danger",
-            )
-            return redirect(url_for(
-                "children.classes_registry",
-                academic_year_id=c.academic_year_id,
-            ))
-        c.name = name
-        g, l = split_class_name(name)
-        c.grade = g
-        c.letter = l
+    if not name:
+        message = "Укажите название класса."
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 400
+        flash(message, "danger")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=c.academic_year_id,
+        ))
+    if _class_name_exists(
+        c.academic_year_id,
+        name,
+        exclude_class_id=c.id,
+    ):
+        db.session.rollback()
+        message = (
+            f"Класс «{name}» уже существует в этом учебном году. "
+            "Названия и буквы классов не должны совпадать."
+        )
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 409
+        flash(message, "danger")
+        return redirect(url_for(
+            "children.classes_registry",
+            academic_year_id=c.academic_year_id,
+        ))
+
+    building_id = request.form.get("building_id")
+    teacher_user_id = request.form.get("teacher_user_id")
+    c.building_id = (
+        int(building_id)
+        if building_id and str(building_id).isdigit()
+        else None
+    )
+    c.max_students = max_students
+    c.applications_count = applications_count
+    c.teacher_user_id = (
+        int(teacher_user_id)
+        if teacher_user_id and teacher_user_id.isdigit()
+        else None
+    )
+    c.name = name
+    g, l = split_class_name(name)
+    c.grade = g
+    c.letter = l
 
     try:
         db.session.flush()
@@ -2414,16 +2447,33 @@ def update_class(class_id: int):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        flash(
-            "Такой класс уже существует в выбранном учебном году.",
-            "danger",
-        )
+        message = "Такой класс уже существует в выбранном учебном году."
+        if wants_json:
+            return jsonify({"ok": False, "error": message}), 409
+        flash(message, "danger")
         return redirect(url_for(
             "children.classes_registry",
             academic_year_id=c.academic_year_id,
         ))
     view_response_cache.delete_prefix("classes_registry")
     view_response_cache.delete_prefix("social_passport_registry")
+    if wants_json:
+        teacher = db.session.get(User, c.teacher_user_id) if c.teacher_user_id else None
+        building = db.session.get(Building, c.building_id) if c.building_id else None
+        return jsonify({
+            "ok": True,
+            "school_class": {
+                "id": c.id,
+                "name": c.name,
+                "max_students": c.max_students,
+                "applications_count": c.applications_count,
+                "building_id": c.building_id,
+                "building_name": building.name if building else None,
+                "teacher_user_id": c.teacher_user_id,
+                "teacher_fio": teacher.fio if teacher else None,
+                "teacher_phone": teacher.phone if teacher else None,
+            },
+        })
     flash("Сохранено", "success")
     return redirect(url_for(
         "children.classes_registry",

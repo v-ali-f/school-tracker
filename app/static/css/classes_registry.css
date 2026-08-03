@@ -1,0 +1,75 @@
+.classes-registry-table th {
+  white-space: nowrap;
+}
+
+.classes-registry-table td,
+.classes-registry-table th {
+  vertical-align: middle;
+}
+
+.classes-registry-table thead th {
+  padding: 0.5rem 0.55rem;
+}
+
+.classes-registry-table tbody td {
+  padding: 0.42rem 0.55rem;
+  line-height: 1.2;
+}
+
+.classes-registry-table .form-control-sm,
+.classes-registry-table .form-select-sm {
+  min-height: 31px;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.classes-registry-table .btn-sm {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.classes-registry-table tr.is-editing > td {
+  background: #f3f7fd;
+}
+
+.classes-registry-table tr.is-saved > td {
+  animation: class-row-saved 1.2s ease-out;
+}
+
+.classes-registry-table [data-class-edit-control] {
+  min-width: 86px;
+}
+
+.classes-registry-table .class-teacher-cell {
+  min-width: 260px;
+}
+
+.classes-registry-table .class-phone-cell {
+  min-width: 160px;
+  white-space: nowrap;
+}
+
+.classes-registry-table .class-actions-cell {
+  min-width: 190px;
+  white-space: nowrap;
+}
+
+.classes-registry-table .class-number-input {
+  width: 82px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.classes-registry-table .class-edit-status {
+  color: #b42318;
+  white-space: normal;
+}
+
+@keyframes class-row-saved {
+  from {
+    background: #e9f8ee;
+  }
+  to {
+    background: transparent;
+  }
+}

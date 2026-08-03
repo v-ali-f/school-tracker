@@ -930,11 +930,19 @@ def register_plan_routes(workload_bp):
                 plan,
                 expected_revision=request.form.get("revision", type=int),
             )
+            name = " ".join((request.form.get("name") or "").split())
+            if not name:
+                raise PlanValidationError("Укажите название учебного плана.")
             profile_name = (
                 " ".join((request.form.get("profile_name") or "").split())
                 or None
             )
-            for part in plan_bundle_parts(plan).values():
+            for plan_kind, part in plan_bundle_parts(plan).items():
+                part.name = (
+                    name
+                    if plan_kind == "CURRICULUM"
+                    else f"{name} · {PLAN_BUNDLE_LABELS[plan_kind]}"[:255]
+                )
                 part.profile_name = profile_name
                 part.updated_by_user_id = current_user.id
                 part.revision += 1
@@ -942,12 +950,24 @@ def register_plan_routes(workload_bp):
         except PlanValidationError as exc:
             db.session.rollback()
             flash(str(exc), "danger")
+        except IntegrityError:
+            db.session.rollback()
+            flash(
+                "План с таким названием и областью уже существует.",
+                "danger",
+            )
         else:
-            flash("Профиль учебного плана сохранён.", "success")
-        return redirect(url_for(
-            "workload.plan_matrix",
-            plan_id=plan.id,
-        ))
+            flash("Название и профиль учебного плана сохранены.", "success")
+        if request.form.get("return_to") == "plans":
+            return redirect(url_for(
+                "workload.plans",
+                academic_year_id=(
+                    plan.tariff_version.tariff_cycle.academic_year_id
+                ),
+            ))
+        return redirect(
+            url_for("workload.plan_matrix", plan_id=plan.id)
+        )
 
     @workload_bp.post("/plans/<int:plan_id>/delete")
     @login_required

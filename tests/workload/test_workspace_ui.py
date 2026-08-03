@@ -16,7 +16,7 @@ def test_workload_pages_use_shared_workspace_shell(
     html = response.get_data(as_text=True)
     assert 'data-workload-workspace' in html
     assert 'data-active-mode="hours"' in html
-    assert "Учебное планирование и нагрузка" in html
+    assert "Учебные планы и нагрузка" in html
     assert "Учебные планы" in html
     assert "Привязка УП" in html
     assert "Свод по классам" in html

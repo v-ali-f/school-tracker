@@ -304,6 +304,13 @@ def test_administrator_can_create_catalog_item_when_write_is_enabled(
     app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
     login(make_user("ADMIN"))
 
+    form_response = client.get("/workload/catalog/new")
+    assert form_response.status_code == 200
+    assert "Назад".encode() in form_response.data
+    assert 'href="/workload/catalog/?section=SUBJECTS"'.encode() in (
+        form_response.data
+    )
+
     response = client.post(
         "/workload/catalog/new",
         data={

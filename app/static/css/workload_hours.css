@@ -130,8 +130,8 @@
 }
 
 .workload-plan-matrix-wrap {
-  max-height: 580px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--workload-border-strong);
   border-radius: 6px;
 }
@@ -796,10 +796,6 @@
 @media (max-width: 767.98px) {
   .workload-plan-bundle-tabs {
     grid-template-columns: 1fr;
-  }
-
-  .workload-plan-matrix-wrap {
-    max-height: calc(100vh - 340px);
   }
 
   .workload-plan-matrix__subject {
