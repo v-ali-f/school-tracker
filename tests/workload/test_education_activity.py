@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 
@@ -6,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
 from app.models import (
+    AcademicYear,
     Child,
     ControlWork,
     Debt,
@@ -15,11 +17,15 @@ from app.models import (
     EducationActivity,
     EducationActivityAlias,
     EducationActivityDepartment,
+    EducationPlan,
+    EducationPlanLine,
     ExternalActivityMappingLog,
     OlympiadResult,
     OlympiadSubjectMapping,
     OrganizationSettings,
     Subject,
+    TariffCycle,
+    TariffVersion,
     TeacherLoad,
     TeacherMckoResult,
     User,
@@ -429,6 +435,136 @@ def test_unified_catalog_saves_multiple_levels_departments_and_subject_link(
                 education_activity_id=activity.id,
             ).all()
         } == set(department_ids)
+
+
+def test_catalog_can_convert_legacy_subject_and_preserve_mcko_results(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    login(user_id)
+
+    create_response = client.post(
+        "/workload/catalog/new",
+        data={
+            "section": "SUBJECTS",
+            "name": "Функциональная грамотность",
+            "activity_kind": "SUBJECT",
+            "education_levels": ["OOO"],
+        },
+    )
+    assert create_response.status_code == 302
+
+    with app.app_context():
+        activity = EducationActivity.query.filter_by(
+            name="Функциональная грамотность",
+        ).one()
+        subject = Subject.query.filter_by(
+            education_activity_id=activity.id,
+        ).one()
+        db.session.add(TeacherMckoResult(
+            teacher_id=user_id,
+            subject_id=subject.id,
+            education_activity_id=activity.id,
+            level="Высокий",
+        ))
+        db.session.commit()
+        activity_id = activity.id
+        result_id = TeacherMckoResult.query.one().id
+
+    edit_response = client.post(
+        f"/workload/catalog/{activity_id}/edit",
+        data={
+            "section": "SUBJECTS",
+            "name": "Функциональная грамотность",
+            "activity_kind": "EXTRACURRICULAR_COURSE",
+            "education_levels": ["OOO"],
+        },
+    )
+
+    assert edit_response.status_code == 302, edit_response.data.decode()
+    assert "section=EXTRACURRICULAR" in edit_response.headers["Location"]
+    with app.app_context():
+        activity = db.session.get(EducationActivity, activity_id)
+        result = db.session.get(TeacherMckoResult, result_id)
+        assert activity.activity_kind == "EXTRACURRICULAR_COURSE"
+        assert activity.legacy_subject is not None
+        assert result.education_activity_id == activity.id
+        assert result.subject_id == activity.legacy_subject.id
+        assert activity not in list_subject_activities(include_inactive=True)
+
+
+def test_catalog_kind_change_names_blocking_education_plan(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    login(user_id)
+
+    with app.app_context():
+        year = AcademicYear(
+            name="2026/2027",
+            is_current=True,
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 8, 31),
+        )
+        activity = _global_activity(
+            "FUNCTIONAL_LITERACY",
+            "Функциональная грамотность",
+        )
+        db.session.add(year)
+        db.session.flush()
+        cycle = TariffCycle(
+            academic_year_id=year.id,
+            code="2026-2027",
+            name="Тарификация 2026/2027",
+        )
+        db.session.add(cycle)
+        db.session.flush()
+        version = TariffVersion(
+            tariff_cycle_id=cycle.id,
+            version_no=1,
+        )
+        db.session.add(version)
+        db.session.flush()
+        plan = EducationPlan(
+            tariff_version_id=version.id,
+            plan_kind="CURRICULUM",
+            name="Основной план ООО",
+            education_level="OOO",
+            scope_code="OOO",
+        )
+        db.session.add(plan)
+        db.session.flush()
+        db.session.add(EducationPlanLine(
+            education_plan_id=plan.id,
+            education_activity_id=activity.id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("1"),
+        ))
+        db.session.commit()
+        activity_id = activity.id
+
+    response = client.post(
+        f"/workload/catalog/{activity_id}/edit",
+        data={
+            "section": "SUBJECTS",
+            "name": "Функциональная грамотность",
+            "activity_kind": "EXTRACURRICULAR_COURSE",
+            "education_levels": ["OOO"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Основной план ООО".encode() in response.data
+    assert "Точные места использования указаны ниже".encode() in response.data
+    with app.app_context():
+        assert (
+            db.session.get(EducationActivity, activity_id).activity_kind
+            == "SUBJECT"
+        )
 
 
 def test_canonical_activity_assignment_keeps_transition_links_consistent(app):

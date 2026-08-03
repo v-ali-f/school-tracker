@@ -255,12 +255,14 @@ def sync_subject_from_activity(
     activity: EducationActivity,
 ) -> Subject | None:
     if activity.activity_kind != "SUBJECT":
-        if activity.legacy_subject is not None:
-            raise ValueError(
-                "Учебный предмет нельзя преобразовать в другой вид, "
-                "пока он используется старыми разделами системы."
-            )
-        return None
+        # Keep the legacy adapter for historical results. New subject
+        # selectors use EducationActivity.activity_kind and will no longer
+        # offer this entry after it is converted to another kind.
+        subject = activity.legacy_subject
+        if subject is not None:
+            subject.name = activity.name
+            subject.short_name = activity.short_name
+        return subject
 
     subject = activity.legacy_subject
     if subject is None:
@@ -341,6 +343,11 @@ def sync_legacy_department_subject_links(
     department_ids=None,
 ):
     if activity.activity_kind != "SUBJECT":
+        subject = activity.legacy_subject
+        if subject is not None:
+            DepartmentSubject.query.filter_by(
+                subject_id=subject.id,
+            ).delete(synchronize_session=False)
         return
     subject = sync_subject_from_activity(activity)
     db.session.flush()

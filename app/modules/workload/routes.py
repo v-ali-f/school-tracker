@@ -13,6 +13,9 @@ from app.models import (
     ACTIVITY_KIND_LABELS,
     EDUCATION_LEVELS,
     EDUCATION_LEVEL_LABELS,
+    ControlWork,
+    Debt,
+    DiagnosticSession,
     AcademicYear,
     Department,
     DepartmentLeader,
@@ -20,9 +23,19 @@ from app.models import (
     EducationActivityAlias,
     EducationActivityDepartment,
     EducationActivityLevel,
+    EducationPlanLine,
+    ExternalActivityMappingLog,
+    OlympiadImportSession,
+    OlympiadResult,
+    OlympiadSubjectMapping,
     OrganizationSettings,
+    TariffLine,
+    TeacherLoad,
+    TeacherMckoResult,
+    TeachingGroup,
     User,
     WorkloadEditorAccess,
+    WorkloadNeed,
 )
 from app.services.education_activity_service import (
     normalize_activity_name,
@@ -200,6 +213,118 @@ def _current_organization_id():
     return organization.id if organization else None
 
 
+def _activity_usage(activity):
+    plan_lines = (
+        EducationPlanLine.query
+        .filter_by(education_activity_id=activity.id)
+        .order_by(EducationPlanLine.education_plan_id.asc())
+        .all()
+    )
+    plans = []
+    seen_plan_ids = set()
+    for line in plan_lines:
+        plan = line.education_plan
+        if plan.id in seen_plan_ids:
+            continue
+        seen_plan_ids.add(plan.id)
+        academic_year = (
+            plan.tariff_version.tariff_cycle.academic_year
+            if plan.tariff_version
+            and plan.tariff_version.tariff_cycle
+            else None
+        )
+        plans.append({
+            "id": plan.id,
+            "name": plan.name,
+            "academic_year": academic_year.name if academic_year else None,
+        })
+
+    blocking = [
+        {
+            "label": "Строки учебных планов",
+            "count": len(plan_lines),
+        },
+        {
+            "label": "Учебные группы и метагруппы",
+            "count": TeachingGroup.query.filter_by(
+                education_activity_id=activity.id,
+            ).count(),
+        },
+        {
+            "label": "Потребность и распределение нагрузки",
+            "count": WorkloadNeed.query.filter_by(
+                education_activity_id=activity.id,
+            ).count(),
+        },
+        {
+            "label": "Рассчитанные строки тарификации",
+            "count": TariffLine.query.filter_by(
+                education_activity_id=activity.id,
+            ).count(),
+        },
+    ]
+    blocking = [item for item in blocking if item["count"]]
+
+    subject_id = (
+        activity.legacy_subject.id
+        if activity.legacy_subject is not None
+        else None
+    )
+
+    def legacy_reference_count(model):
+        conditions = [model.education_activity_id == activity.id]
+        if subject_id is not None and hasattr(model, "subject_id"):
+            conditions.append(model.subject_id == subject_id)
+        return model.query.filter(or_(*conditions)).count()
+
+    references = [
+        {
+            "label": "Результаты МЦКО преподавателей",
+            "count": legacy_reference_count(TeacherMckoResult),
+        },
+        {
+            "label": "Диагностики МЦКО, ЕКР и ФГ",
+            "count": DiagnosticSession.query.filter_by(
+                education_activity_id=activity.id,
+            ).count(),
+        },
+        {
+            "label": "Контрольные работы",
+            "count": legacy_reference_count(ControlWork),
+        },
+        {
+            "label": "Результаты и импорты олимпиад",
+            "count": (
+                legacy_reference_count(OlympiadResult)
+                + legacy_reference_count(OlympiadImportSession)
+                + legacy_reference_count(OlympiadSubjectMapping)
+            ),
+        },
+        {
+            "label": "Академические задолженности",
+            "count": legacy_reference_count(Debt),
+        },
+        {
+            "label": "Архивная нагрузка кафедр",
+            "count": legacy_reference_count(TeacherLoad),
+        },
+        {
+            "label": "Сопоставления импортированных названий",
+            "count": ExternalActivityMappingLog.query.filter_by(
+                education_activity_id=activity.id,
+            ).count(),
+        },
+    ]
+    references = [item for item in references if item["count"]]
+    return {
+        "plans": plans,
+        "blocking": blocking,
+        "blocking_count": sum(item["count"] for item in blocking),
+        "references": references,
+        "reference_count": sum(item["count"] for item in references),
+    }
+
+
 def _activity_from_form(activity=None):
     name = " ".join((request.form.get("name") or "").split())
     activity_kind = (request.form.get("activity_kind") or "").strip().upper()
@@ -247,10 +372,15 @@ def _activity_from_form(activity=None):
         )
     if duplicate_query.first() is not None:
         raise ValueError("Элемент с таким наименованием уже существует.")
-    if item.legacy_subject is not None and activity_kind != "SUBJECT":
+    if (
+        item.id is not None
+        and activity_kind != item.activity_kind
+        and _activity_usage(item)["blocking_count"]
+    ):
         raise ValueError(
-            "Учебный предмет нельзя преобразовать в другой вид, "
-            "пока он используется другими разделами."
+            "Вид нельзя изменить, пока запись используется в учебных "
+            "планах, группах, нагрузке или рассчитанной тарификации. "
+            "Точные места использования указаны ниже."
         )
 
     if activity is None:
@@ -268,10 +398,20 @@ def _activity_from_form(activity=None):
         db.session.add(item)
     db.session.flush()
 
-    item.level_links[:] = [
-        EducationActivityLevel(education_level=level)
-        for level in education_levels
-    ]
+    desired_levels = set(education_levels)
+    existing_levels = {
+        link.education_level: link
+        for link in item.level_links
+    }
+    for level, link in existing_levels.items():
+        if level not in desired_levels:
+            db.session.delete(link)
+    for level in education_levels:
+        if level not in existing_levels:
+            db.session.add(EducationActivityLevel(
+                education_activity_id=item.id,
+                education_level=level,
+            ))
 
     sync_subject_from_activity(item)
     replace_activity_departments(
@@ -400,6 +540,7 @@ def catalog_detail(activity_id):
         kind_labels=ACTIVITY_KIND_LABELS,
         education_level_labels=EDUCATION_LEVEL_LABELS,
         departments=Department.query.order_by(Department.name.asc()).all(),
+        activity_usage=_activity_usage(activity),
         can_manage=can_manage,
     )
 
@@ -436,6 +577,7 @@ def catalog_edit(activity_id):
         departments=Department.query.order_by(Department.name.asc()).all(),
         selected_kind=activity.activity_kind,
         selected_section=_catalog_section_for_kind(activity.activity_kind),
+        activity_usage=_activity_usage(activity),
     )
 
 

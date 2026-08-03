@@ -13,6 +13,8 @@
 
 {% include "workload/_nav.html" %}
 
+{% include "workload/_activity_usage.html" %}
+
 <form method="post" class="row g-3">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="section" value="{{ selected_section }}">
@@ -31,6 +33,12 @@
       <option value="{{ kind }}" {% if (activity and activity.activity_kind == kind) or (not activity and selected_kind == kind) %}selected{% endif %}>{{ kind_labels[kind] }}</option>
       {% endfor %}
     </select>
+    {% if activity %}
+    <div class="form-text">
+      Результаты МЦКО, контрольных и олимпиад сохраняются при смене вида.
+      Расчётные связи учебного плана необходимо сначала удалить или заменить.
+    </div>
+    {% endif %}
   </div>
 
   <fieldset class="col-12">
