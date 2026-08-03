@@ -1207,6 +1207,12 @@ def test_group_composition_assigns_students_to_split_groups(
     assert "Иванов Иван" in html
     assert "Петрова Анна" in html
     assert "Распределить по порядку" in html
+    assert "Распределить пополам" in html
+    assert "Сбросить" in html
+    assert "data-distribute-in-order" in html
+    assert "data-distribute-in-halves" in html
+    assert "data-reset-composition" in html
+    assert html.count("data-unassigned-option") == 2
     assert 'aria-label="Параллель"' in html
     assert 'name="grade" value="5"' in html
     assert 'class="workload-indicators"' not in html
@@ -1242,6 +1248,32 @@ def test_group_composition_assigns_students_to_split_groups(
         assert {group.status for group in groups} == {"READY"}
         assert [group.actual_size for group in groups] == [1, 1]
         assert sum(len(group.members) for group in groups) == 2
+
+    response = client.post(
+        "/workload/groups/composition/",
+        data={
+            "version_id": context["version_id"],
+            "level": "OOO",
+            "grade": "5",
+            "item_key": item_key,
+            f"member_{enrollment_ids[0]}": "",
+            f"member_{enrollment_ids[1]}": "",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["complete"] is False
+    assert payload["assigned_count"] == 0
+    assert payload["student_count"] == 2
+    with app.app_context():
+        groups = TeachingGroup.query.order_by(
+            TeachingGroup.id.asc()
+        ).all()
+        assert {group.status for group in groups} == {"DRAFT"}
+        assert [group.actual_size for group in groups] == [0, 0]
+        assert all(not group.members for group in groups)
 
 
 def test_generating_needs_materializes_default_one_group(

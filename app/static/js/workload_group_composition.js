@@ -7,7 +7,9 @@
   var filter = root.querySelector("[data-composition-filter]");
   var filterForm = root.querySelector("[data-composition-filters]");
   var form = root.querySelector("[data-composition-form]");
-  var distributeButton = root.querySelector("[data-distribute-evenly]");
+  var distributeInOrderButton = root.querySelector("[data-distribute-in-order]");
+  var distributeInHalvesButton = root.querySelector("[data-distribute-in-halves]");
+  var resetButton = root.querySelector("[data-reset-composition]");
   var status = root.querySelector("[data-composition-status]");
 
   if (filter && filterForm) {
@@ -38,26 +40,81 @@
     form.addEventListener("change", refreshDraftSizes);
   }
 
-  if (distributeButton && form) {
-    distributeButton.addEventListener("click", function () {
-      var rows = Array.from(
-        form.querySelectorAll(".group-composition-table tbody tr")
-      );
-      var groupIds = Array.from(
-        new Set(
-          Array.from(form.querySelectorAll("[data-group-option]"))
-            .map(function (input) { return input.value; })
-        )
-      );
-      if (!groupIds.length) return;
+  function compositionRows() {
+    if (!form) return [];
+    return Array.from(
+      form.querySelectorAll(".group-composition-table tbody tr")
+    );
+  }
+
+  function compositionGroupIds() {
+    if (!form) return [];
+    return Array.from(
+      new Set(
+        Array.from(form.querySelectorAll("[data-group-option]"))
+          .map(function (input) { return input.value; })
+      )
+    );
+  }
+
+  function selectGroup(row, groupId) {
+    var target = row.querySelector(
+      '[data-group-option="' + groupId + '"]'
+    );
+    if (target) target.checked = true;
+  }
+
+  if (distributeInOrderButton && form) {
+    distributeInOrderButton.addEventListener("click", function () {
+      var rows = compositionRows();
+      var groupIds = compositionGroupIds();
+      if (!rows.length || !groupIds.length) return;
       rows.forEach(function (row, index) {
-        var target = row.querySelector(
-          '[data-group-option="' + groupIds[index % groupIds.length] + '"]'
-        );
-        if (target) target.checked = true;
+        selectGroup(row, groupIds[index % groupIds.length]);
       });
       refreshDraftSizes();
-      setStatus("Распределение подготовлено. Нажмите «Сохранить».");
+      setStatus(
+        "Дети распределены по очереди. Нажмите «Сохранить»."
+      );
+    });
+  }
+
+  if (distributeInHalvesButton && form) {
+    distributeInHalvesButton.addEventListener("click", function () {
+      var rows = compositionRows();
+      var groupIds = compositionGroupIds();
+      if (!rows.length || !groupIds.length) return;
+
+      var baseSize = Math.floor(rows.length / groupIds.length);
+      var extra = rows.length % groupIds.length;
+      var offset = 0;
+      groupIds.forEach(function (groupId, groupIndex) {
+        var groupSize = baseSize + (groupIndex < extra ? 1 : 0);
+        rows
+          .slice(offset, offset + groupSize)
+          .forEach(function (row) {
+            selectGroup(row, groupId);
+          });
+        offset += groupSize;
+      });
+      refreshDraftSizes();
+      setStatus(
+        "Список разделён на последовательные равные части. " +
+        "Нажмите «Сохранить»."
+      );
+    });
+  }
+
+  if (resetButton && form) {
+    resetButton.addEventListener("click", function () {
+      compositionRows().forEach(function (row) {
+        var unassigned = row.querySelector("[data-unassigned-option]");
+        if (unassigned) unassigned.checked = true;
+      });
+      refreshDraftSizes();
+      setStatus(
+        "Распределение сброшено. Нажмите «Сохранить»."
+      );
     });
   }
 
