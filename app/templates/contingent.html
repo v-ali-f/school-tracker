@@ -295,6 +295,9 @@
 <div class="card soft-card">
   <div class="card-body pb-2 pt-3">
     <div class="section-title mb-0">По классам</div>
+    <div class="contingent-mobile-table-note">
+      На телефоне показаны класс, здание и классный руководитель.
+    </div>
   </div>
   <div class="table-responsive">
     <table class="table align-middle contingent-classes-table">
@@ -923,6 +926,63 @@
     font-weight: 600 !important;
     border-left: 2px solid #b9c8db !important;
     border-right: 2px solid #b9c8db !important;
+  }
+
+  .contingent-mobile-table-note {
+    display: none;
+  }
+
+  @media (max-width: 767.98px) {
+    .contingent-mobile-table-note {
+      display: block;
+      margin-top: 4px;
+      color: #6a778c;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .contingent-page .table-responsive {
+      overflow-x: visible !important;
+    }
+
+    .contingent-page .contingent-classes-table {
+      width: 100% !important;
+      min-width: 0 !important;
+      table-layout: fixed !important;
+    }
+
+    .contingent-page .contingent-classes-table col {
+      visibility: collapse;
+      width: 0 !important;
+    }
+
+    .contingent-page .contingent-classes-table col.col-class,
+    .contingent-page .contingent-classes-table col.col-building,
+    .contingent-page .contingent-classes-table col.col-teacher {
+      visibility: visible;
+    }
+
+    .contingent-page .contingent-classes-table col.col-class {
+      width: 16% !important;
+    }
+
+    .contingent-page .contingent-classes-table col.col-building {
+      width: 31% !important;
+    }
+
+    .contingent-page .contingent-classes-table col.col-teacher {
+      width: 53% !important;
+    }
+
+    .contingent-page .contingent-classes-table .fit-nowrap {
+      white-space: normal !important;
+      overflow: visible !important;
+    }
+
+    .contingent-page .contingent-classes-table.table tbody td {
+      padding: 4px 5px !important;
+      line-height: 1.15 !important;
+    }
   }
 </style>
 

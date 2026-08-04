@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="classroom-curriculum">
+  <header class="page-head">
+    <div>
+      <div class="small text-muted">Классное руководство</div>
+      <h1 class="page-title">Учебный план класса</h1>
+      <div class="page-sub">
+        {% if selected_class %}
+          {{ selected_class.name }} · {{ academic_year.name }}
+        {% else %}
+          Текущий учебный год
+        {% endif %}
+      </div>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('hub.classroom') }}">
+        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>К разделу
+      </a>
+    </div>
+  </header>
+
+  {% if classes|length > 1 %}
+  <form class="row g-2 registry-filter-panel" method="get" action="{{ url_for('hub.classroom_curriculum') }}">
+    <div class="col-md-4">
+      <label class="form-label" for="classroom-curriculum-class">Класс</label>
+      <select class="form-select form-select-sm" id="classroom-curriculum-class" name="class_id" onchange="this.form.submit()">
+        {% for school_class in classes %}
+        <option value="{{ school_class.id }}" {% if selected_class and school_class.id == selected_class.id %}selected{% endif %}>{{ school_class.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+  {% endif %}
+
+  {% if not selected_class %}
+  <div class="alert alert-light border">Доступный класс не найден.</div>
+  {% elif not version %}
+  <div class="alert alert-light border">Для учебного года ещё не создана версия учебных планов.</div>
+  {% elif not snapshot %}
+  <div class="alert alert-light border">Контингент для учебных планов ещё не загружен.</div>
+  {% elif not curriculum_rows %}
+  <div class="alert alert-light border">Учебный план классу ещё не назначен.</div>
+  {% else %}
+  <div class="registry-matrix-card">
+    <div class="table-responsive">
+      <table class="registry-matrix registry-matrix-wide">
+        <colgroup>
+          <col style="width:48px">
+          <col style="width:210px">
+          <col>
+          <col style="width:210px">
+          <col style="width:110px">
+          <col style="width:280px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Часть учебного плана</th>
+            <th>Предмет или курс</th>
+            <th>Учебный план</th>
+            <th>Часов в неделю</th>
+            <th>Преподаватели из нагрузки</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in curriculum_rows %}
+          <tr>
+            <td class="registry-cell-center text-muted">{{ loop.index }}</td>
+            <td>{{ row.section_label }}</td>
+            <td>
+              <span class="fw-semibold">{{ row.activity.name }}</span>
+              {% if row.group_count > 1 %}
+              <span class="small text-muted"> · {{ row.group_count }} группы</span>
+              {% endif %}
+            </td>
+            <td>{{ row.plan.name }}</td>
+            <td class="registry-cell-center registry-cell-nowrap">{{ row.weekly_hours|compact_decimal }} ч.</td>
+            <td>
+              {% if row.teacher_names %}
+                {{ row.teacher_names|join(', ') }}
+              {% else %}
+                <span class="text-muted">Не назначен</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

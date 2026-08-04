@@ -8,6 +8,9 @@ from app.models import (
     PopulationSnapshotClass,
     TariffCycle,
     TariffVersion,
+    TeachingMetagroupSource,
+    WorkloadAssignment,
+    WorkloadNeed,
 )
 from app.services.teaching_group_matrix_service import (
     build_group_composition_workspace,
@@ -132,6 +135,105 @@ def select_classroom_composition_item(composition, item_key=None):
     )
 
 
+def build_classroom_curriculum_rows(context):
+    """Строки учебного плана класса с преподавателями из нагрузки."""
+    matrix = context["matrix"]
+    source_group_ids = {
+        group.id
+        for section in matrix["sections"]
+        for row in section["rows"]
+        for column in matrix["columns"]
+        for cell in [row["cells"].get(column["key"])]
+        if cell is not None
+        for group in cell.get("groups", ())
+    }
+    metagroup_ids_by_source = {
+        group_id: set()
+        for group_id in source_group_ids
+    }
+    if source_group_ids:
+        for link in (
+            TeachingMetagroupSource.query
+            .filter(
+                TeachingMetagroupSource.source_group_id.in_(
+                    source_group_ids
+                )
+            )
+            .all()
+        ):
+            metagroup_ids_by_source.setdefault(
+                link.source_group_id,
+                set(),
+            ).add(link.metagroup_id)
+
+    workload_group_ids = set(source_group_ids)
+    workload_group_ids.update(
+        metagroup_id
+        for metagroup_ids in metagroup_ids_by_source.values()
+        for metagroup_id in metagroup_ids
+    )
+    teacher_names_by_group = {
+        group_id: set()
+        for group_id in workload_group_ids
+    }
+    if workload_group_ids:
+        assignments = (
+            WorkloadAssignment.query
+            .join(WorkloadNeed)
+            .filter(
+                WorkloadNeed.teaching_group_id.in_(
+                    workload_group_ids
+                ),
+                WorkloadAssignment.status != "CANCELLED",
+                WorkloadAssignment.employee_user_id.isnot(None),
+            )
+            .all()
+        )
+        for assignment in assignments:
+            if assignment.employee is None:
+                continue
+            teacher_names_by_group.setdefault(
+                assignment.workload_need.teaching_group_id,
+                set(),
+            ).add(assignment.employee.fio)
+
+    result = []
+    for section in matrix["sections"]:
+        for row in section["rows"]:
+            for column in matrix["columns"]:
+                cell = row["cells"].get(column["key"])
+                if cell is None or column["is_unassigned"]:
+                    continue
+                groups = tuple(cell.get("groups", ()))
+                teacher_names = set()
+                for group in groups:
+                    teacher_names.update(
+                        teacher_names_by_group.get(group.id, ())
+                    )
+                    for metagroup_id in metagroup_ids_by_source.get(
+                        group.id,
+                        (),
+                    ):
+                        teacher_names.update(
+                            teacher_names_by_group.get(
+                                metagroup_id,
+                                (),
+                            )
+                        )
+                result.append({
+                    "section_label": section["label"],
+                    "activity": row["activity"],
+                    "plan": column["plan"],
+                    "weekly_hours": cell.get("hours"),
+                    "group_count": len(groups) or 1,
+                    "teacher_names": tuple(sorted(
+                        teacher_names,
+                        key=str.casefold,
+                    )),
+                })
+    return result
+
+
 def build_classroom_group_xlsx(context):
     workbook = Workbook()
     sheet = workbook.active
@@ -230,6 +332,7 @@ def build_classroom_group_xlsx(context):
 
 __all__ = [
     "build_classroom_group_context",
+    "build_classroom_curriculum_rows",
     "build_classroom_group_xlsx",
     "education_level_for_grade",
     "select_classroom_composition_item",

@@ -469,6 +469,9 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
         in response.data
     )
     assert b"height: 24px !important" in response.data
+    assert b"contingent-mobile-table-note" in response.data
+    assert b"col.col-teacher" in response.data
+    assert b"visibility: collapse" in response.data
 
 
 def test_plan_bindings_page_reads_snapshot_classes(
@@ -614,6 +617,15 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert "Всего по учебному плану".encode() in response.data
     assert 'class="class-plan-matrix__section-label"'.encode() in response.data
     assert 'class="class-plan-matrix__section-band"'.encode() in response.data
+    assert "building-tone-0".encode() in response.data
+
+    building_response = client.get(
+        f"/workload/plan-bindings/matrix"
+        f"?version_id={version_id}&level=OOO"
+        f"&building_id={context['building_id']}"
+    )
+    assert building_response.status_code == 200
+    assert "building-tone-".encode() not in building_response.data
 
     grade_response = client.get(
         f"/workload/plan-bindings/matrix"
@@ -1402,8 +1414,22 @@ def test_class_teacher_distributes_approves_and_exports_groups(
     hub_response = client.get("/hub/classroom")
     hub_html = hub_response.get_data(as_text=True)
     assert hub_response.status_code == 200
+    assert "Учебный план класса" in hub_html
+    assert "/hub/classroom/curriculum" in hub_html
     assert "Распределение по учебным группам" in hub_html
     assert "/hub/classroom/groups" in hub_html
+
+    curriculum_response = client.get(
+        f"/hub/classroom/curriculum?class_id={class_id}"
+    )
+    curriculum_html = curriculum_response.get_data(as_text=True)
+    assert curriculum_response.status_code == 200
+    assert "Учебный план класса" in curriculum_html
+    assert "Часов в неделю" in curriculum_html
+    assert "Преподаватели из нагрузки" in curriculum_html
+    assert "Математика" in curriculum_html
+    assert "5 ч." in curriculum_html
+    assert "Смирнова Елена" in curriculum_html
 
     page_response = client.get(
         f"/hub/classroom/groups?class_id={class_id}&item={item_key}"

@@ -418,6 +418,30 @@
   text-align: center;
 }
 
+.class-plan-matrix .building-tone-0 {
+  background: #ffffff !important;
+}
+
+.class-plan-matrix .building-tone-1 {
+  background: #edf7ed !important;
+}
+
+.class-plan-matrix .building-tone-2 {
+  background: #fff8e6 !important;
+}
+
+.class-plan-matrix .building-tone-3 {
+  background: #eef5ff !important;
+}
+
+.class-plan-matrix .building-tone-4 {
+  background: #f6f0ff !important;
+}
+
+.class-plan-matrix .building-tone-5 {
+  background: #fff1f3 !important;
+}
+
 @media (max-width: 800px) {
   .class-plan-grades {
     width: 100%;

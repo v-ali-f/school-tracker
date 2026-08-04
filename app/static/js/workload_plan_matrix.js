@@ -2,6 +2,95 @@
   const matrix = document.querySelector("[data-plan-matrix]");
   if (!matrix) return;
 
+  const scrollStorageKey = `workload-plan-matrix-scroll:${window.location.pathname}`;
+  const savedPosition = window.sessionStorage.getItem(scrollStorageKey);
+  if (savedPosition !== null) {
+    window.sessionStorage.removeItem(scrollStorageKey);
+    let position = { scrollY: Number(savedPosition) || 0 };
+    try {
+      position = JSON.parse(savedPosition);
+    } catch (_error) {
+      // Поддерживаем сохранённое ранее числовое значение.
+    }
+    const restorePosition = () => {
+      window.scrollTo(0, Number(position.scrollY) || 0);
+      if (!position.activityId || !Number.isFinite(position.rowTop)) return;
+      const activityInput = document.querySelector(
+        `[data-plan-row-reorder] input[name="education_activity_id"]`
+        + `[value="${position.activityId}"]`,
+      );
+      const targetRow = activityInput?.closest("[data-matrix-row]");
+      if (!targetRow) return;
+      window.scrollBy(
+        0,
+        targetRow.getBoundingClientRect().top - position.rowTop,
+      );
+    };
+    window.requestAnimationFrame(restorePosition);
+    window.setTimeout(restorePosition, 80);
+    window.setTimeout(restorePosition, 220);
+  }
+  document.querySelectorAll("[data-plan-row-reorder]").forEach((form) => {
+    form.addEventListener("submit", () => {
+      const targetRow = form.closest("[data-matrix-row]");
+      window.sessionStorage.setItem(
+        scrollStorageKey,
+        JSON.stringify({
+          scrollY: window.scrollY,
+          rowTop: targetRow?.getBoundingClientRect().top ?? null,
+          activityId: form.elements.education_activity_id?.value ?? "",
+        }),
+      );
+    });
+  });
+
+  const matrixViewStorageKey = "workload-plan-matrix-view";
+  const viewButtons = Array.from(
+    document.querySelectorAll("[data-plan-matrix-view-option]"),
+  );
+  const applyMatrixView = (view) => {
+    const normalized = view === "weeks" ? "weeks" : "hours";
+    matrix.dataset.matrixView = normalized;
+    matrix.querySelectorAll("[data-matrix-responsive-colspan]").forEach(
+      (cell) => {
+        const colspan = normalized === "weeks"
+          ? cell.dataset.weeksColspan
+          : cell.dataset.hoursColspan;
+        cell.colSpan = Number(colspan) || 1;
+      },
+    );
+    viewButtons.forEach((button) => {
+      const active = (
+        button.dataset.planMatrixViewOption === normalized
+      );
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    try {
+      window.localStorage.setItem(
+        matrixViewStorageKey,
+        normalized,
+      );
+    } catch (_error) {
+      // Режим всё равно работает в текущей вкладке.
+    }
+  };
+  let initialMatrixView = "hours";
+  try {
+    initialMatrixView = (
+      window.localStorage.getItem(matrixViewStorageKey)
+      || "hours"
+    );
+  } catch (_error) {
+    initialMatrixView = "hours";
+  }
+  applyMatrixView(initialMatrixView);
+  viewButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      applyMatrixView(button.dataset.planMatrixViewOption);
+    });
+  });
+
   const decimal = (value) => Number.parseFloat(
     String(value ?? "").trim().replace(",", "."),
   );
