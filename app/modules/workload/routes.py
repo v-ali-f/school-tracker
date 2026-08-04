@@ -418,13 +418,16 @@ def _activity_from_form(activity=None):
     item = activity or EducationActivity()
     duplicate_query = EducationActivity.query.filter(
         func.lower(EducationActivity.name) == name.lower(),
+        EducationActivity.activity_kind == activity_kind,
     )
     if item.id is not None:
         duplicate_query = duplicate_query.filter(
             EducationActivity.id != item.id
         )
     if duplicate_query.first() is not None:
-        raise ValueError("Элемент с таким наименованием уже существует.")
+        raise ValueError(
+            "Элемент с таким наименованием и видом уже существует."
+        )
     if (
         item.id is not None
         and activity_kind != item.activity_kind

@@ -3,135 +3,206 @@
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">Настройка предметных кафедр</h1>
-    <div class="page-sub">Создание кафедр, назначение руководителей и закрепление предметов.</div>
+    <div class="page-sub">Кафедры, их руководители и предметы из единого реестра.</div>
   </div>
   <div class="page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.catalog', section='ALL') }}">
+      <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Реестр предметов
+    </a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary') }}">Свод по кафедрам</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.loads') }}">Нагрузка</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
   </div>
 </div>
 
-<div class="card mb-4">
-  <div class="card-body">
-    <form method="post" class="row g-2">
-      <div class="col-md-4"><input class="form-control" name="name" placeholder="Название кафедры" required></div>
-      <div class="col-md-3"><input class="form-control" name="code" placeholder="Код (необязательно)"></div>
-      <div class="col-md-3"><input class="form-control" name="description" placeholder="Описание"></div>
-      <div class="col-md-2 d-grid"><button class="btn btn-primary">Добавить кафедру</button></div>
+<div class="card mb-3">
+  <div class="card-body py-3">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-lg-4">
+        <label class="form-label small" for="department-name">Название кафедры</label>
+        <input class="form-control form-control-sm" id="department-name" name="name" required>
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label small" for="department-code">Код</label>
+        <input class="form-control form-control-sm" id="department-code" name="code" placeholder="Необязательно">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label small" for="department-description">Описание</label>
+        <input class="form-control form-control-sm" id="department-description" name="description">
+      </div>
+      <div class="col-lg-2 d-grid">
+        <button class="btn btn-primary btn-sm" type="submit">
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Добавить кафедру
+        </button>
+      </div>
     </form>
   </div>
 </div>
 
 {% for dep in departments %}
-<div class="card mb-4">
-  <div class="card-header bg-white">
-    <div class="d-flex justify-content-between align-items-center">
+{% set activities = department_activities.get(dep.id, []) %}
+{% set current_leader_ids = dep.leaders | map(attribute='user_id') | list %}
+<section class="card mb-3">
+  <div class="card-header bg-white py-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
         <div class="fw-semibold">{{ dep.name }}</div>
-        <div class="small text-muted">Код: {{ dep.code or '—' }}</div>
+        {% if dep.description %}
+        <div class="small text-muted">{{ dep.description }}</div>
+        {% endif %}
       </div>
-      <span class="badge text-bg-light">Участников по нагрузке: {{ dep.teacher_loads|length if dep.teacher_loads is defined else dep.subject_links|length }}</span>
+      <div class="d-flex flex-wrap gap-2">
+        <span class="badge text-bg-light border">Предметов и курсов: {{ activities|length }}</span>
+        <span class="badge text-bg-light border">Руководителей: {{ dep.leaders|length }}</span>
+      </div>
     </div>
   </div>
-  <div class="card-body">
-    <form method="post" action="{{ url_for('departments.settings_update', department_id=dep.id) }}" class="mb-4">
-      <div class="row g-3">
-        <div class="col-lg-4">
-          <label class="form-label">Название</label>
-          <input class="form-control" name="name" value="{{ dep.name }}">
-        </div>
-        <div class="col-lg-8">
-          <label class="form-label">Описание</label>
-          <input class="form-control" name="description" value="{{ dep.description or '' }}">
-        </div>
-        <div class="col-12">
-          <label class="form-label">Предметы кафедры</label>
-          {% set selected = dep.subject_links | map(attribute='education_activity_id') | list %}
-          <div class="border rounded p-3 bg-light" style="max-height: 280px; overflow:auto;">
-            <div class="row">
-              {% for subject in subjects %}
-              <div class="col-md-6 col-xl-4 mb-2">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="subject_ids" value="{{ subject.id }}" id="subject_{{ dep.id }}_{{ subject.id }}"
-                         {% if subject.id in selected %}checked{% endif %}>
-                  <label class="form-check-label" for="subject_{{ dep.id }}_{{ subject.id }}">{{ subject.name }}</label>
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="form-text">Теперь множественный выбор предметов сделан галочками.</div>
-        </div>
-        <div class="col-12 text-end"><button class="btn btn-primary">Сохранить настройки</button></div>
+
+  <div class="card-body py-3">
+    <form method="post" action="{{ url_for('departments.settings_update', department_id=dep.id) }}" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-lg-4">
+        <label class="form-label small" for="department-name-{{ dep.id }}">Название</label>
+        <input class="form-control form-control-sm" id="department-name-{{ dep.id }}" name="name" value="{{ dep.name }}">
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label small" for="department-description-{{ dep.id }}">Описание</label>
+        <input class="form-control form-control-sm" id="department-description-{{ dep.id }}" name="description" value="{{ dep.description or '' }}">
+      </div>
+      <div class="col-lg-2 d-grid">
+        <button class="btn btn-outline-primary btn-sm" type="submit">Сохранить</button>
       </div>
     </form>
 
-    <div class="row g-4">
-      <div class="col-lg-6">
-        <h6 class="section-title">Руководители кафедры</h6>
-        <form method="post" action="{{ url_for('departments.add_leader', department_id=dep.id) }}" class="mb-3">
-          <div class="row g-2">
-            <div class="col-md-8">
-              <label class="form-label">Сотрудники</label>
-              <div class="border rounded p-3 bg-light" style="max-height: 240px; overflow:auto;">
-                {% for u in users %}
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="user_ids" value="{{ u.id }}" id="leader_{{ dep.id }}_{{ u.id }}">
-                  <label class="form-check-label" for="leader_{{ dep.id }}_{{ u.id }}">{{ u.fio or u.username }}</label>
-                </div>
-                {% endfor %}
-              </div>
-              <div class="form-text">Можно выбрать нескольких руководителей кафедры галочками.</div>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Здание</label>
-              <select class="form-select" name="building_id">
-                <option value="">По всей школе</option>
-                {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-              </select>
-              <div class="d-grid mt-3"><button class="btn btn-outline-primary">Назначить</button></div>
-            </div>
+    <div class="row g-3">
+      <div class="col-xl-7">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h2 class="h6 mb-0">Предметы и курсы кафедры</h2>
+          <a class="small text-decoration-none" href="{{ url_for('workload.catalog', section='ALL') }}">
+            Изменить в реестре
+          </a>
+        </div>
+        <div class="border rounded overflow-hidden">
+          {% if activities %}
+          <ul class="list-group list-group-flush">
+            {% for activity in activities %}
+            <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center gap-2">
+              <span>{{ activity.name }}</span>
+              <span class="small text-muted text-end">{{ activity_kind_labels.get(activity.activity_kind, activity.activity_kind) }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="small text-muted p-3">
+            Предметы не закреплены. Назначьте кафедру в едином реестре предметов и курсов.
           </div>
-        </form>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead><tr><th>ФИО</th><th>Здание</th><th></th></tr></thead>
-            <tbody>
-              {% for leader in dep.leaders %}
-              <tr>
-                <td>{{ leader.user.fio if leader.user else '—' }}</td>
-                <td>{{ leader.building.name if leader.building else 'Вся школа' }}</td>
-                <td class="text-end">
-                  <form method="post" action="{{ url_for('departments.delete_leader', leader_id=leader.id) }}" onsubmit="return confirm('Удалить руководителя кафедры?');">
-                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
-                  </form>
-                </td>
-              </tr>
-              {% else %}
-              <tr><td colspan="3" class="text-muted">Руководители не назначены</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+          {% endif %}
         </div>
       </div>
 
-      <div class="col-lg-6">
-        <h6 class="section-title">Закреплённые предметы</h6>
-        <div class="border rounded p-3 bg-light-subtle">
-          {% if dep.subject_links %}
-            <div class="d-flex flex-wrap gap-2">
-              {% for link in dep.subject_links %}
-                <span class="badge text-bg-light border">{{ link.education_activity.name if link.education_activity else (link.subject.name if link.subject else '—') }}</span>
-              {% endfor %}
+      <div class="col-xl-5">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <h2 class="h6 mb-0">Руководители кафедры</h2>
+          <details class="position-relative" data-leader-picker>
+            <summary class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Добавить
+            </summary>
+            <div class="card shadow position-absolute end-0 mt-1" style="z-index: 20; width: min(420px, 88vw);">
+              <div class="card-body p-3">
+                <form method="post" action="{{ url_for('departments.add_leader', department_id=dep.id) }}" class="row g-2">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <div class="col-12">
+                    <label class="form-label small" for="leader-search-{{ dep.id }}">Найти учителя</label>
+                    <input
+                      class="form-control form-control-sm"
+                      id="leader-search-{{ dep.id }}"
+                      type="search"
+                      placeholder="Начните вводить ФИО"
+                      autocomplete="off"
+                      data-leader-search
+                    >
+                  </div>
+                  <div class="col-12">
+                    <div class="list-group overflow-auto" style="max-height: 220px;" data-leader-options>
+                      {% for u in users if u.id not in current_leader_ids %}
+                      <label class="list-group-item list-group-item-action py-2 px-3" data-leader-option data-search-text="{{ (u.fio or u.username)|lower }}">
+                        <span class="d-flex align-items-center gap-2">
+                          <input class="form-check-input mt-0" type="radio" name="user_id" value="{{ u.id }}" required>
+                          <span>{{ u.fio or u.username }}</span>
+                        </span>
+                      </label>
+                      {% else %}
+                      <div class="small text-muted p-3" data-leader-empty>Все доступные учителя уже назначены.</div>
+                      {% endfor %}
+                      <div class="small text-muted p-3" data-leader-no-results hidden>Учителя не найдены.</div>
+                    </div>
+                  </div>
+                  <div class="col-sm-7">
+                    <label class="form-label small" for="leader-building-{{ dep.id }}">Здание</label>
+                    <select class="form-select form-select-sm" id="leader-building-{{ dep.id }}" name="building_id">
+                      <option value="">Вся школа</option>
+                      {% for building in buildings %}
+                      <option value="{{ building.id }}">{{ building.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-sm-5 d-grid align-self-end">
+                    <button class="btn btn-primary btn-sm" type="submit">Назначить</button>
+                  </div>
+                </form>
+              </div>
             </div>
+          </details>
+        </div>
+
+        <div class="border rounded overflow-hidden">
+          {% if dep.leaders %}
+          <ul class="list-group list-group-flush">
+            {% for leader in dep.leaders %}
+            <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center gap-2">
+              <div class="min-w-0">
+                <div>{{ leader.user.fio if leader.user else '—' }}</div>
+                <div class="small text-muted">{{ leader.building.name if leader.building else 'Вся школа' }}</div>
+              </div>
+              <form method="post" action="{{ url_for('departments.delete_leader', leader_id=leader.id) }}" onsubmit="return confirm('Исключить сотрудника из руководства кафедрой?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Исключить</button>
+              </form>
+            </li>
+            {% endfor %}
+          </ul>
           {% else %}
-            <div class="text-muted">Предметы пока не закреплены.</div>
+          <div class="small text-muted p-3">Руководители не назначены.</div>
           {% endif %}
         </div>
       </div>
     </div>
   </div>
-</div>
+</section>
 {% endfor %}
+
+<script>
+(() => {
+  document.querySelectorAll("[data-leader-picker]").forEach((picker) => {
+    const search = picker.querySelector("[data-leader-search]");
+    const options = [...picker.querySelectorAll("[data-leader-option]")];
+    const noResults = picker.querySelector("[data-leader-no-results]");
+    if (!search || !options.length) return;
+
+    search.addEventListener("input", () => {
+      const query = search.value.trim().toLocaleLowerCase("ru");
+      let visible = 0;
+      options.forEach((option) => {
+        const matches = !query || option.dataset.searchText.includes(query);
+        option.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      if (noResults) noResults.hidden = visible > 0;
+    });
+    picker.addEventListener("toggle", () => {
+      if (picker.open) window.setTimeout(() => search.focus(), 0);
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -1,3 +1,37 @@
+.classes-registry-table {
+  min-width: 1254px !important;
+}
+
+.classes-registry-table .class-col-select {
+  width: 44px;
+}
+
+.classes-registry-table .class-col-name {
+  width: 110px;
+}
+
+.classes-registry-table .class-col-building {
+  width: 170px;
+}
+
+.classes-registry-table .class-col-students,
+.classes-registry-table .class-col-maximum,
+.classes-registry-table .class-col-applications {
+  width: 90px;
+}
+
+.classes-registry-table .class-col-teacher {
+  width: 270px;
+}
+
+.classes-registry-table .class-col-phone {
+  width: 180px;
+}
+
+.classes-registry-table .class-col-actions {
+  width: 210px;
+}
+
 .classes-registry-table th {
   white-space: nowrap;
 }
@@ -57,8 +91,22 @@
 }
 
 .classes-registry-table .class-actions-cell {
-  min-width: 190px;
+  width: 210px;
+  min-width: 210px;
   white-space: nowrap;
+}
+
+.classes-registry-table .class-edit-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.classes-registry-table .class-edit-actions .btn {
+  min-width: 0;
+  padding-inline: 0.5rem !important;
 }
 
 .classes-registry-table .class-number-input {
