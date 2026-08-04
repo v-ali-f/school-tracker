@@ -54,7 +54,7 @@
 {% endif %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/portal_standard.css') }}?v=20260605_calm_buttons_1">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/altair_theme.css') }}?v=20260619_mobile_shell_3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/altair_theme.css') }}?v=20260804_mobile_shell_4">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260804_2">
 {% block head_extra %}{% endblock %}
 </head>
@@ -222,29 +222,6 @@
     </div>
   </div>
 </nav>
-
-{% if current_user.is_authenticated %}
-<section class="app-mode-strip" id="appModeStrip" hidden>
-  <div class="container">
-    <div class="app-mode-strip__inner">
-      <div class="app-mode-strip__copy">
-        <div class="app-mode-strip__eyebrow" id="appModeEyebrow">Мобильный доступ</div>
-        <div class="app-mode-strip__text" id="appModeText">
-          Портал можно открыть как приложение на телефоне.
-        </div>
-      </div>
-      <div class="app-mode-strip__actions">
-        <button type="button" class="btn btn-sm btn-primary" id="appModeInstallAction">
-          <i class="bi bi-download me-1"></i>Установить
-        </button>
-        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('tasks.my_tasks') }}">
-          <i class="bi bi-check2-square me-1"></i>Задачи
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
 
 <div class="container my-4 {% if request.path == '/' or request.path.startswith('/documents/registers') %}portal-wide-container{% endif %} {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
 

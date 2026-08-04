@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from werkzeug.exceptions import NotFound
 
@@ -99,6 +101,45 @@ def test_dashboard_shows_workload_card_for_allowed_role_when_enabled(
 
     assert response.status_code == 200
     assert "Учебные планы и нагрузка".encode() in response.data
+
+
+def test_mobile_dashboard_omits_pwa_information_panels(
+    app,
+    client,
+    make_user,
+    login,
+):
+    login(make_user("ADMIN"))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert b'id="appModeStrip"' not in response.data
+    assert "Приложение на телефоне".encode() not in response.data
+    assert b'id="pwaOnboardingCard"' not in response.data
+
+    theme_css = (
+        Path(__file__).parents[2]
+        / "app"
+        / "static"
+        / "css"
+        / "altair_theme.css"
+    ).read_text()
+    search_rule = theme_css.split(
+        ".portal-home-search-mobile {",
+        1,
+    )[1].split("}", 1)[0]
+    assert "position: static" in search_rule
+    assert "position: sticky" not in search_rule
+    assert "flex-wrap: nowrap" in theme_css
+    assert ".app-navbar .altair-navbar-identity" in theme_css
+    sections_rule = theme_css.split(
+        ".portal-home-sections-grid .portal-home-card-grid {",
+        1,
+    )[1].split("}", 1)[0]
+    assert "display: grid" in sections_rule
+    assert "grid-template-columns: 1fr" in sections_rule
+    assert "overflow-x: auto" not in sections_rule
 
 
 def test_write_gate_stays_closed_until_its_flag_is_enabled(app):
