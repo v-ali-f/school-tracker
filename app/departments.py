@@ -47,6 +47,7 @@ from .models import (
     TeacherLoad,
     TeacherMckoResult,
     User,
+    WORKLOAD_APPROVAL_STATUS_LABELS,
 )
 from .models.diagnostics import DiagnosticResult, DiagnosticSession
 from .permissions import (
@@ -1551,6 +1552,17 @@ def teacher_profile(teacher_id):
         years=years,
         academic_year_id=academic_year_id,
         workload_version=workload_version,
+        workload_status_label=(
+            WORKLOAD_APPROVAL_STATUS_LABELS.get(
+                workload_version.workload_approval_status,
+                workload_version.workload_approval_status,
+            )
+            if workload_version else None
+        ),
+        workload_is_approved=bool(
+            workload_version
+            and workload_version.workload_approval_status == "APPROVED"
+        ),
         load_rows=load_rows,
         totals=totals,
         mcko_rows=mcko_rows,

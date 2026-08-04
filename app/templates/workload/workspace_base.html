@@ -3,15 +3,15 @@
 {% set workspace_endpoint = request.endpoint or '' %}
 {% set workspace_teacher_self_only = current_user.has_role('TEACHER') and current_user.role_codes|length == 1 %}
 {% set workspace_status_labels = {
-  'DRAFT': 'Черновик',
+  'DRAFT': 'Редактируется',
   'VALIDATION': 'Проверка',
   'APPROVAL': 'Согласование',
   'APPROVED': 'Утверждена',
   'EFFECTIVE': 'Действует',
   'SUPERSEDED': 'Заменена',
   'ARCHIVED': 'Архив',
-  'READY': 'Готов',
-  'LOCKED': 'Заблокирован'
+  'READY': 'Изменения сохранены',
+  'LOCKED': 'Зафиксирован'
 } %}
 {% if workspace_endpoint.startswith('workload.plan_bindings_matrix') %}
   {% set workspace_mode = 'class_matrix' %}
@@ -66,7 +66,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_4">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260804_13">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260804_14">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_control.css') }}?v=20260730_3">
 {% endblock %}
 

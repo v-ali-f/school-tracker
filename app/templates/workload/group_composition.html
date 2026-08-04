@@ -16,6 +16,7 @@
       <p>Распределение учеников только по предметам, для которых задано деление</p>
     </div>
   </header>
+  {% include "workload/_groups_editing_controls.html" %}
 
   <div class="class-plan-toolbar group-composition-toolbar">
     <form method="get" action="{{ url_for('workload.group_composition') }}" data-composition-filters>

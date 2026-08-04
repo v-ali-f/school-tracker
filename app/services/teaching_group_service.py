@@ -253,6 +253,10 @@ def require_group_editable(group, *, expected_revision=None):
         raise GroupLockedError(
             "Корневая версия уже не является черновиком."
         )
+    if group.tariff_version.groups_editing_status != "EDITING":
+        raise GroupLockedError(
+            "Изменение групп закрыто. Нажмите «Внести изменения»."
+        )
     if group.status != "DRAFT":
         raise GroupLockedError(
             "Для изменения сначала верните группу в статус «Черновик»."

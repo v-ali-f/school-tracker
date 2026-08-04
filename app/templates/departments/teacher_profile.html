@@ -1,5 +1,11 @@
 {% extends "layout.html" %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260804_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_profile_compact.css') }}?v=20260804_1">
+{% endblock %}
 {% block content %}
+<div class="teacher-profile-page">
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">{% if is_self_profile %}Мой профиль преподавателя{% else %}Профиль преподавателя{% endif %}</h1>
@@ -10,8 +16,8 @@
   </div>
 </div>
 
-<div class="card mb-3">
-  <div class="card-body py-3">
+<div class="card teacher-profile-identity mb-2">
+  <div class="card-body">
     <div class="row g-3 align-items-center">
       <div class="col-md-8">
         <div class="small text-muted mb-1">ФИО</div>
@@ -29,32 +35,44 @@
   </div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
-  <div class="col-md-4">
+<form method="get" class="teacher-profile-year registry-filter-panel">
+  <div>
     <label class="form-label" for="teacher-profile-year">Учебный год нагрузки</label>
-    <select class="form-select" id="teacher-profile-year" name="academic_year_id" onchange="this.form.submit()">
+    <select class="form-select form-select-sm" id="teacher-profile-year" name="academic_year_id" onchange="this.form.submit()">
       {% for year in years %}<option value="{{ year.id }}" {% if year.id == academic_year_id %}selected{% endif %}>{{ year.name }}</option>{% endfor %}
     </select>
   </div>
 </form>
 
+{% if workload_status_label %}
+<div class="teacher-load-state-row">
+  <span class="teacher-load-status {% if workload_is_approved %}is-approved{% else %}is-preliminary{% endif %}">
+    <i class="bi {% if workload_is_approved %}bi-check-circle-fill{% else %}bi-clock{% endif %}" aria-hidden="true"></i>
+    {{ 'Согласованная' if workload_is_approved else 'Предварительная' }}
+  </span>
+  <small>{{ workload_status_label }}</small>
+</div>
+{% endif %}
+
 {% if load_rows %}
-<div class="row g-3 mb-4">
-  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Учебный план</div><div class="fs-5 fw-semibold">{{ totals.CURRICULUM|compact_decimal }} ч.</div></div></div>
-  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Внеурочная</div><div class="fs-5 fw-semibold">{{ totals.EXTRACURRICULAR|compact_decimal }} ч.</div></div></div>
-  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Допобразование</div><div class="fs-5 fw-semibold">{{ totals.ADDITIONAL_EDUCATION|compact_decimal }} ч.</div></div></div>
-  <div class="col"><div class="border rounded p-3"><div class="small text-muted">Всего</div><div class="fs-5 fw-semibold">{{ totals.TOTAL|compact_decimal }} ч/нед.</div></div></div>
+<div class="teacher-load-summary mb-2">
+  <div><span>Учебный план</span><strong>{{ totals.CURRICULUM|compact_decimal }} ч.</strong></div>
+  <div><span>Внеурочная</span><strong>{{ totals.EXTRACURRICULAR|compact_decimal }} ч.</strong></div>
+  <div><span>Допобразование</span><strong>{{ totals.ADDITIONAL_EDUCATION|compact_decimal }} ч.</strong></div>
+  <div><span>Всего</span><strong>{{ totals.TOTAL|compact_decimal }} ч/нед.</strong></div>
 </div>
 
-<div class="card mb-4"><div class="card-body p-0">
-  <div class="px-3 pt-3">
-    <h2 class="section-title">Нагрузка</h2>
-    <div class="small text-muted mb-2">Только для просмотра{% if workload_version %} · версия {{ workload_version.version_no }}{% endif %}. Изменения выполняются в матрице нагрузки.</div>
+<div class="card teacher-load-card mb-3"><div class="card-body p-0">
+  <div class="teacher-load-card__head">
+    <div>
+      <h2 class="section-title">Нагрузка</h2>
+      <div class="small text-muted">Только для просмотра{% if workload_version %} · версия {{ workload_version.version_no }}{% endif %}</div>
+    </div>
   </div>
-  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <div class="registry-matrix-card"><div class="table-responsive"><table class="registry-matrix registry-matrix-wide">
     <thead><tr><th>Предмет или курс</th><th>Класс или группа</th><th>Раздел</th><th>Кафедра</th><th>Здание</th><th class="text-end">Часы/нед.</th></tr></thead>
-    <tbody>{% for row in load_rows %}<tr><td>{{ row.subject_name }}</td><td>{{ row.group_name or '—' }}</td><td>{% if row.plan_kind == 'CURRICULUM' %}Учебный план{% elif row.plan_kind == 'EXTRACURRICULAR' %}Внеурочная деятельность{% else %}Дополнительное образование{% endif %}</td><td>{{ row.department.name if row.department else '—' }}</td><td>{{ row.building_name or '—' }}</td><td class="text-end fw-semibold">{{ row.hours|compact_decimal }}</td></tr>{% endfor %}</tbody>
-  </table></div>
+    <tbody>{% for row in load_rows %}<tr><td class="registry-cell-clip">{{ row.subject_name }}</td><td class="registry-cell-clip">{{ row.group_name or '—' }}</td><td>{% if row.plan_kind == 'CURRICULUM' %}Учебный план{% elif row.plan_kind == 'EXTRACURRICULAR' %}Внеурочная деятельность{% else %}Дополнительное образование{% endif %}</td><td class="registry-cell-clip">{{ row.department.name if row.department else '—' }}</td><td class="registry-cell-clip">{{ row.building_name or '—' }}</td><td class="registry-cell-center fw-semibold">{{ row.hours|compact_decimal }}</td></tr>{% endfor %}</tbody>
+  </table></div></div>
 </div></div>
 {% endif %}
 
@@ -231,4 +249,5 @@
   {% endif %}
 </div></div>
 {% endif %}
+</div>
 {% endblock %}

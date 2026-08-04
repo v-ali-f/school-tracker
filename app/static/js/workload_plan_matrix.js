@@ -436,7 +436,15 @@
 
   const saveStandardForm = async (form) => {
     const values = refreshStandardForm(form);
-    if (!values.hasWeekly || !Number.isFinite(values.weeks)) return;
+    if (!values.hasWeekly || !Number.isFinite(values.weeks)) {
+      if (!form.hasAttribute("data-plan-cell-create")) {
+        form.classList.add("is-save-error");
+        window.alert(
+          "Заполните часы в неделю и количество учебных недель.",
+        );
+      }
+      return;
+    }
     const currentSnapshot = standardSnapshot(form);
     if (savedSnapshots.get(form) === currentSnapshot) return;
 
@@ -500,6 +508,34 @@
     saveQueue = saveQueue.then(() => save(form));
     return saveQueue;
   };
+
+  const statusForm = document.querySelector("[data-plan-bundle-status]");
+  statusForm?.addEventListener("submit", async (event) => {
+    if (statusForm.elements.action?.value !== "SAVE") return;
+    event.preventDefault();
+    const allStandardForms = standardForms();
+    const allPeriodForms = periodForms();
+    [...allStandardForms, ...allPeriodForms].forEach((form) => {
+      window.clearTimeout(saveTimers.get(form));
+    });
+    allStandardForms.forEach((form) => {
+      enqueueSave(form, saveStandardForm);
+    });
+    allPeriodForms.forEach((form) => {
+      enqueueSave(form, savePeriodForm);
+    });
+    await saveQueue;
+    const hasSaveError = [...allStandardForms, ...allPeriodForms].some(
+      (form) => form.classList.contains("is-save-error"),
+    );
+    if (hasSaveError) {
+      window.alert(
+        "Не все ячейки удалось сохранить. Исправьте отмеченные значения.",
+      );
+      return;
+    }
+    statusForm.submit();
+  });
   const scheduleSave = (form, save) => {
     window.clearTimeout(saveTimers.get(form));
     saveTimers.set(

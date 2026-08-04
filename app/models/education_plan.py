@@ -22,9 +22,28 @@ PLAN_KIND_LABELS = {
 }
 PLAN_STATUSES = ("DRAFT", "READY", "LOCKED")
 PLAN_STATUS_LABELS = {
-    "DRAFT": "Черновик",
-    "READY": "Готов к проверке",
-    "LOCKED": "Заблокирован",
+    "DRAFT": "Редактируется",
+    "READY": "Изменения сохранены",
+    "LOCKED": "Зафиксирован",
+}
+GROUPS_EDITING_STATUSES = ("EDITING", "SAVED")
+GROUPS_EDITING_STATUS_LABELS = {
+    "EDITING": "Редактирование открыто",
+    "SAVED": "Изменения сохранены",
+}
+WORKLOAD_APPROVAL_STATUSES = (
+    "EDITING",
+    "SAVED",
+    "PENDING_APPROVAL",
+    "APPROVED",
+    "CHANGES_REQUESTED",
+)
+WORKLOAD_APPROVAL_STATUS_LABELS = {
+    "EDITING": "Редактирование открыто",
+    "SAVED": "Изменения сохранены",
+    "PENDING_APPROVAL": "На согласовании",
+    "APPROVED": "Согласовано",
+    "CHANGES_REQUESTED": "Требуются исправления",
 }
 PLAN_COMPONENT_KINDS = (
     "MANDATORY",
@@ -157,6 +176,28 @@ class TariffVersion(db.Model):
     approved_at = db.Column(db.DateTime, nullable=True)
     effective_at = db.Column(db.DateTime, nullable=True)
     checksum = db.Column(db.String(128), nullable=True)
+    groups_editing_status = db.Column(
+        db.String(30),
+        nullable=False,
+        default="EDITING",
+        server_default="EDITING",
+        index=True,
+    )
+    workload_approval_status = db.Column(
+        db.String(30),
+        nullable=False,
+        default="EDITING",
+        server_default="EDITING",
+        index=True,
+    )
+    workload_review_comment = db.Column(db.String(500), nullable=True)
+    workload_submitted_at = db.Column(db.DateTime, nullable=True)
+    workload_reviewed_at = db.Column(db.DateTime, nullable=True)
+    workload_reviewed_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+    )
     revision = db.Column(db.Integer, nullable=False, default=1, server_default="1")
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     updated_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
@@ -175,6 +216,10 @@ class TariffVersion(db.Model):
     origin_version = db.relationship("TariffVersion", remote_side=[id])
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
     updated_by = db.relationship("User", foreign_keys=[updated_by_user_id])
+    workload_reviewed_by = db.relationship(
+        "User",
+        foreign_keys=[workload_reviewed_by_user_id],
+    )
 
     __table_args__ = (
         db.CheckConstraint(
@@ -187,6 +232,17 @@ class TariffVersion(db.Model):
             "'SUPERSEDED','ARCHIVED'"
             ")",
             name="ck_tariff_version_status",
+        ),
+        db.CheckConstraint(
+            "groups_editing_status IN ('EDITING','SAVED')",
+            name="ck_tariff_version_groups_editing_status",
+        ),
+        db.CheckConstraint(
+            "workload_approval_status IN ("
+            "'EDITING','SAVED','PENDING_APPROVAL','APPROVED',"
+            "'CHANGES_REQUESTED'"
+            ")",
+            name="ck_tariff_version_workload_approval_status",
         ),
         db.CheckConstraint(
             "effective_to IS NULL OR effective_from IS NULL "
@@ -709,6 +765,10 @@ __all__ = [
     "PLAN_KIND_LABELS",
     "PLAN_STATUSES",
     "PLAN_STATUS_LABELS",
+    "GROUPS_EDITING_STATUSES",
+    "GROUPS_EDITING_STATUS_LABELS",
+    "WORKLOAD_APPROVAL_STATUSES",
+    "WORKLOAD_APPROVAL_STATUS_LABELS",
     "PLAN_COMPONENT_KINDS",
     "PLAN_COMPONENT_LABELS",
     "PLAN_SCOPE_KINDS",

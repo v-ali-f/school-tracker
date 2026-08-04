@@ -1,0 +1,126 @@
+.teacher-profile-page .page-head {
+  margin-bottom: 8px !important;
+}
+
+.teacher-profile-page .page-sub {
+  font-size: 12px;
+}
+
+.teacher-profile-identity .card-body {
+  padding: 8px 12px;
+}
+
+.teacher-profile-identity .row {
+  --bs-gutter-y: 4px;
+}
+
+.teacher-profile-identity .small {
+  margin-bottom: 0 !important;
+}
+
+.teacher-profile-year {
+  display: flex;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.teacher-profile-year > div {
+  width: min(320px, 100%);
+}
+
+.teacher-load-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.teacher-load-summary > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border: 1px solid #d6dfeb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.teacher-load-summary span {
+  color: #6b778c;
+  font-size: 11px;
+}
+
+.teacher-load-summary strong {
+  color: #24334d;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.teacher-load-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+}
+
+.teacher-load-card__head .section-title {
+  margin: 0;
+}
+
+.teacher-load-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.teacher-load-state-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.teacher-load-state-row small {
+  color: #6b778c;
+  font-size: 11px;
+}
+
+.teacher-load-status.is-preliminary {
+  color: #815500;
+  background: #fff2cc;
+}
+
+.teacher-load-status.is-approved {
+  color: #146c43;
+  background: #dff4e8;
+}
+
+.teacher-profile-page > .card:not(.teacher-profile-identity):not(.teacher-load-card) {
+  margin-bottom: 10px !important;
+}
+
+.teacher-profile-page > .card:not(.teacher-profile-identity):not(.teacher-load-card) > .card-body {
+  padding: 10px 12px;
+}
+
+.teacher-profile-page .table.table-sm > :not(caption) > * > * {
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+@media (max-width: 767.98px) {
+  .teacher-load-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-load-card__head {
+    align-items: flex-start;
+  }
+}

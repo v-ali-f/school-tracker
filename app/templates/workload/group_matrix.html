@@ -20,6 +20,7 @@
       <p>1 — весь класс или профильная часть класса, 2 и более — деление на группы</p>
     </div>
   </header>
+  {% include "workload/_groups_editing_controls.html" %}
 
   <div class="class-plan-toolbar">
     <form method="get" action="{{ url_for('workload.groups') }}" data-group-matrix-filters>

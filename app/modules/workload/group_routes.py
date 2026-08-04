@@ -22,6 +22,7 @@ from app.models import (
     EducationPlanLine,
     GROUP_COMPOSITION_MODES,
     GROUP_COMPOSITION_MODE_LABELS,
+    GROUPS_EDITING_STATUS_LABELS,
     OrganizationSettings,
     PopulationSnapshotClass,
     PopulationSnapshotEnrollment,
@@ -67,6 +68,11 @@ from app.services.teaching_metagroup_service import (
     delete_metagroup,
 )
 from app.services.teaching_group_service import population_registry_status
+from app.services.workload_editing_workflow_service import (
+    WorkloadEditingWorkflowError,
+    change_groups_editing_status,
+    require_groups_editable,
+)
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -94,6 +100,13 @@ def _require_groups_update():
         current_user,
     ):
         abort(403)
+
+
+def _require_version_groups_editable(version):
+    try:
+        require_groups_editable(version)
+    except WorkloadEditingWorkflowError as exc:
+        raise GroupValidationError(str(exc)) from exc
 
 
 def _parse_date(value, label):
@@ -529,6 +542,7 @@ def _group_matrix_context(
     can_update = (
         version is not None
         and version.status == "DRAFT"
+        and version.groups_editing_status == "EDITING"
         and is_feature_enabled(WORKLOAD_WRITE)
         and can_use_workload_permission(
             "workload.groups.update",
@@ -552,10 +566,62 @@ def _group_matrix_context(
         "unassigned_count": unassigned_count,
         "registry_status": registry_status,
         "can_update": can_update,
+        "can_manage_editing": (
+            version is not None
+            and version.status == "DRAFT"
+            and is_feature_enabled(WORKLOAD_WRITE)
+            and can_use_workload_permission(
+                "workload.groups.update",
+                current_user,
+            )
+        ),
+        "groups_editing_status_labels": GROUPS_EDITING_STATUS_LABELS,
     }
 
 
 def register_group_routes(workload_bp):
+    @workload_bp.post("/groups/editing-status")
+    @login_required
+    def groups_change_editing_status():
+        _require_groups_update()
+        version = db.session.get(
+            TariffVersion,
+            request.form.get("version_id", type=int),
+        )
+        if version is None or version not in _available_group_matrix_versions():
+            abort(404)
+        try:
+            change_groups_editing_status(
+                version,
+                request.form.get("action"),
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except WorkloadEditingWorkflowError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            flash(
+                "Изменения групп сохранены. Редактирование закрыто."
+                if version.groups_editing_status == "SAVED"
+                else "Редактирование групп открыто.",
+                "success",
+            )
+        endpoint = request.form.get("return_endpoint")
+        if endpoint not in {
+            "workload.groups",
+            "workload.group_composition",
+            "workload.metagroups",
+        }:
+            endpoint = "workload.groups"
+        return redirect(url_for(
+            endpoint,
+            version_id=version.id,
+            level=request.form.get("level"),
+            grade=request.form.get("grade"),
+            building_id=request.form.get("building_id"),
+        ))
+
     @workload_bp.get("/groups/")
     @login_required
     def groups():
@@ -644,6 +710,7 @@ def register_group_routes(workload_bp):
             if group_id is not None:
                 assignments[enrollment.id] = group_id
         try:
+            _require_version_groups_editable(version)
             result = replace_group_composition_assignments(
                 selected_item,
                 assignments,
@@ -734,6 +801,7 @@ def register_group_routes(workload_bp):
             request.form.get("building_id"),
         )
         try:
+            _require_version_groups_editable(version)
             metagroup = create_metagroup(
                 version=version,
                 snapshot=context["snapshot"],
@@ -779,6 +847,7 @@ def register_group_routes(workload_bp):
         ):
             abort(403)
         try:
+            _require_version_groups_editable(group.tariff_version)
             delete_metagroup(group)
             db.session.commit()
         except GroupValidationError as exc:
@@ -829,6 +898,7 @@ def register_group_routes(workload_bp):
                 "message": "Укажите количество групп.",
             }), 422
         try:
+            _require_version_groups_editable(version)
             groups = replace_teaching_group_count(
                 version=version,
                 snapshot=snapshot,
@@ -869,6 +939,7 @@ def register_group_routes(workload_bp):
         if version.tariff_cycle.organization_id != organization_id:
             abort(403)
         try:
+            _require_version_groups_editable(version)
             snapshot = build_population_snapshot(
                 version,
                 user_id=current_user.id,
@@ -910,6 +981,9 @@ def register_group_routes(workload_bp):
                     raise GroupValidationError(
                         "Выберите строку учебного плана."
                     )
+                _require_version_groups_editable(
+                    selected_plan_line.education_plan.tariff_version
+                )
                 snapshot = _snapshot_for_line(selected_plan_line)
                 payload = _group_form_payload(
                     selected_plan_line,
@@ -985,6 +1059,7 @@ def register_group_routes(workload_bp):
                 current_user,
             )
             and group.tariff_version.status == "DRAFT"
+            and group.tariff_version.groups_editing_status == "EDITING"
         )
         can_update = can_manage and group.status == "DRAFT"
         coverage = group_coverage(group.source_plan_line_id)
@@ -1080,6 +1155,7 @@ def register_group_routes(workload_bp):
     def group_change_status(group_id):
         group = _get_group(group_id, for_update=True)
         try:
+            _require_version_groups_editable(group.tariff_version)
             change_group_status(
                 group,
                 request.form.get("status"),

@@ -44,7 +44,7 @@ from app.services.education_plan_service import (
     PLAN_COMPONENTS_BY_KIND,
     PlanValidationError,
     calculate_annual_hours,
-    change_plan_status,
+    change_plan_bundle_editing_status,
     clone_plan_bundle,
     create_plan_bundle,
     ensure_draft_tariff_version,
@@ -1020,6 +1020,14 @@ def register_plan_routes(workload_bp):
     def plan_detail(plan_id):
         plan = _get_plan(plan_id)
         can_update = _can_update_plan(plan)
+        can_manage_editing = (
+            is_feature_enabled(WORKLOAD_WRITE)
+            and can_use_workload_permission(
+                "workload.plan.update",
+                current_user,
+            )
+            and plan.tariff_version.status == "DRAFT"
+        )
         return render_template(
             "workload/plan_detail.html",
             plan=plan,
@@ -1028,6 +1036,7 @@ def register_plan_routes(workload_bp):
             component_labels=PLAN_COMPONENT_LABELS,
             scope_label=_scope_label,
             can_update=can_update,
+            can_manage_editing=can_manage_editing,
         )
 
     @workload_bp.post("/plans/<int:plan_id>/profile")
@@ -1732,11 +1741,15 @@ def register_plan_routes(workload_bp):
     def plan_change_status(plan_id):
         plan = _get_plan(plan_id, for_update=True)
         try:
-            change_plan_status(
+            target_status = (request.form.get("status") or "").upper()
+            if target_status not in {"DRAFT", "READY"}:
+                raise PlanValidationError(
+                    "Неизвестное действие с учебным планом."
+                )
+            change_plan_bundle_editing_status(
                 plan,
-                request.form.get("status"),
+                "SAVE" if target_status == "READY" else "EDIT",
                 user_id=current_user.id,
-                expected_revision=request.form.get("revision", type=int),
             )
             db.session.commit()
         except PlanValidationError as exc:
@@ -1745,6 +1758,34 @@ def register_plan_routes(workload_bp):
         else:
             flash("Статус плана изменён.", "success")
         return redirect(url_for("workload.plan_detail", plan_id=plan.id))
+
+    @workload_bp.post("/plans/<int:plan_id>/editing-status")
+    @login_required
+    def plan_change_editing_status(plan_id):
+        plan = _get_plan(plan_id, for_update=True)
+        root = plan_bundle_root(plan)
+        try:
+            change_plan_bundle_editing_status(
+                root,
+                request.form.get("action"),
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except PlanValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            message = (
+                "Изменения учебного плана сохранены. Редактирование закрыто."
+                if root.status == "READY"
+                else "Редактирование учебного плана открыто."
+            )
+            flash(message, "success")
+        return redirect(url_for(
+            "workload.plan_matrix",
+            plan_id=root.id,
+            part=request.form.get("part") or plan.plan_kind,
+        ))
 
     @workload_bp.route(
         "/plans/<int:plan_id>/lines/new",
@@ -2054,6 +2095,14 @@ def register_plan_routes(workload_bp):
             selected_line=selected_line,
             selected_scope_label=selected_scope_label,
             can_update=_can_update_plan(plan),
+            can_manage_editing=(
+                is_feature_enabled(WORKLOAD_WRITE)
+                and can_use_workload_permission(
+                    "workload.plan.update",
+                    current_user,
+                )
+                and plan.tariff_version.status == "DRAFT"
+            ),
             component_labels=PLAN_COMPONENT_LABELS,
             plan_kind_labels=PLAN_KIND_LABELS,
             plan_status_labels=PLAN_STATUS_LABELS,

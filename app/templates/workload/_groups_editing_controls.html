@@ -1,0 +1,29 @@
+{% if selected_version %}
+<div class="workload-editing-toolbar">
+  <div class="workload-editing-state {% if can_update %}is-editing{% else %}is-saved{% endif %}">
+    <i class="bi {% if can_update %}bi-pencil-square{% else %}bi-lock-fill{% endif %}" aria-hidden="true"></i>
+    <span>{{ groups_editing_status_labels.get(selected_version.groups_editing_status, selected_version.groups_editing_status) }}</span>
+  </div>
+  {% if can_manage_editing %}
+  <form method="post" action="{{ url_for('workload.groups_change_editing_status') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+    <input type="hidden" name="return_endpoint" value="{{ request.endpoint }}">
+    <input type="hidden" name="level" value="{{ selected_level }}">
+    {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
+    {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
+    {% if selected_version.groups_editing_status == 'EDITING' %}
+    <input type="hidden" name="action" value="SAVE">
+    <button class="btn btn-primary btn-sm" type="submit">
+      <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Сохранить изменения
+    </button>
+    {% else %}
+    <input type="hidden" name="action" value="EDIT">
+    <button class="btn btn-outline-primary btn-sm" type="submit">
+      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Внести изменения
+    </button>
+    {% endif %}
+  </form>
+  {% endif %}
+</div>
+{% endif %}

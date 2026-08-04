@@ -72,6 +72,11 @@ from app.services.workload_assignment_matrix_service import (
     build_workload_assignment_matrix,
 )
 from app.services.workload_distribution_service import generate_plan_needs
+from app.services.workload_editing_workflow_service import (
+    WorkloadEditingWorkflowError,
+    change_groups_editing_status,
+    require_groups_editable,
+)
 
 
 def _child(last_name, first_name):
@@ -79,6 +84,30 @@ def _child(last_name, first_name):
     db.session.add(child)
     db.session.flush()
     return child
+
+
+def test_group_changes_can_be_saved_and_reopened(app, make_user):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+
+        change_groups_editing_status(
+            version,
+            "SAVE",
+            user_id=user_id,
+        )
+        assert version.groups_editing_status == "SAVED"
+        with pytest.raises(WorkloadEditingWorkflowError):
+            require_groups_editable(version)
+
+        change_groups_editing_status(
+            version,
+            "EDIT",
+            user_id=user_id,
+        )
+        assert version.groups_editing_status == "EDITING"
+        require_groups_editable(version)
 
 
 def _group_context(user_id):

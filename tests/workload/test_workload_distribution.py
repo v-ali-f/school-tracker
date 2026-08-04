@@ -76,6 +76,11 @@ from app.services.workload_integration_service import (
     source_state,
     switch_workload_source,
 )
+from app.services.workload_editing_workflow_service import (
+    WorkloadEditingWorkflowError,
+    change_workload_approval_status,
+    require_workload_editable,
+)
 
 
 def _distribution_context(user_id):
@@ -194,6 +199,132 @@ def _assignment(need, employee_id, weekly, annual=None, kind="MAIN"):
         annual_hours=annual,
         status="DRAFT",
     )
+
+
+def test_workload_save_submit_approve_and_return_cycle(
+    app,
+    make_user,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        need = WorkloadNeed.query.one()
+        assignment = _assignment(need, teacher_id, "5")
+        db.session.add(assignment)
+        db.session.flush()
+
+        change_workload_approval_status(
+            version,
+            "SAVE",
+            user_id=admin_id,
+        )
+        with pytest.raises(WorkloadEditingWorkflowError):
+            require_workload_editable(version)
+        change_workload_approval_status(
+            version,
+            "SUBMIT",
+            user_id=admin_id,
+        )
+        change_workload_approval_status(
+            version,
+            "APPROVE",
+            user_id=admin_id,
+        )
+        assert version.workload_approval_status == "APPROVED"
+        assert assignment.status == "CONFIRMED"
+
+        change_workload_approval_status(
+            version,
+            "REQUEST_CHANGES",
+            user_id=admin_id,
+            comment="Уточнить распределение.",
+        )
+        assert version.workload_approval_status == "CHANGES_REQUESTED"
+        assert version.workload_review_comment == "Уточнить распределение."
+        assert assignment.status == "DRAFT"
+        change_workload_approval_status(
+            version,
+            "EDIT",
+            user_id=admin_id,
+        )
+        require_workload_editable(version)
+
+
+def test_director_approves_workload_through_workspace_route(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    director_id = make_user("DIRECTOR")
+    with app.app_context():
+        context = _distribution_context(director_id)
+
+    login(director_id)
+    for action, expected in (
+        ("SAVE", "SAVED"),
+        ("SUBMIT", "PENDING_APPROVAL"),
+        ("APPROVE", "APPROVED"),
+    ):
+        response = client.post(
+            "/workload/assignments/workspace/status",
+            data={
+                "version_id": context["version_id"],
+                "action": action,
+                "view": "all",
+            },
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            version = db.session.get(
+                TariffVersion,
+                context["version_id"],
+            )
+            assert version.workload_approval_status == expected
+
+
+def test_teacher_profile_marks_workload_preliminary_or_approved(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        db.session.add(_assignment(need, teacher_id, "5"))
+        version = db.session.get(TariffVersion, context["version_id"])
+        version.workload_approval_status = "SAVED"
+        db.session.commit()
+
+    login(admin_id)
+    response = client.get(
+        f"/departments/teachers/{teacher_id}",
+        query_string={"academic_year_id": context["year_id"]},
+    )
+    assert response.status_code == 200
+    assert "Предварительная" in response.get_data(as_text=True)
+    assert "registry-matrix" in response.get_data(as_text=True)
+
+    with app.app_context():
+        version = db.session.get(TariffVersion, context["version_id"])
+        version.workload_approval_status = "APPROVED"
+        db.session.commit()
+
+    response = client.get(
+        f"/departments/teachers/{teacher_id}",
+        query_string={"academic_year_id": context["year_id"]},
+    )
+    assert response.status_code == 200
+    assert "Согласованная" in response.get_data(as_text=True)
 
 
 def test_generate_need_from_ready_group(app, make_user):
