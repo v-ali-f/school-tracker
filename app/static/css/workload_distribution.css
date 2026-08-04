@@ -1390,3 +1390,88 @@
     width: 34px;
   }
 }
+.workload-editing-toolbar,
+.workload-approval-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 7px 9px;
+  border: 1px solid #d6dfeb;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.workload-editing-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #526176;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workload-editing-state.is-editing {
+  color: #175caa;
+}
+
+.workload-editing-state.is-approved {
+  color: #146c43;
+}
+
+.workload-approval-panel > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.workload-approval-panel > div:first-child small {
+  overflow: hidden;
+  color: #6b778c;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workload-approval-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.workload-review-return {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.workload-review-return .form-control {
+  width: 210px;
+}
+
+@media (max-width: 767.98px) {
+  .workload-editing-toolbar,
+  .workload-approval-panel,
+  .workload-approval-panel > div:first-child {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workload-approval-panel__actions,
+  .workload-review-return {
+    justify-content: stretch;
+  }
+
+  .workload-review-return {
+    flex-direction: column;
+  }
+
+  .workload-review-return .form-control,
+  .workload-review-return .btn {
+    width: 100%;
+  }
+}

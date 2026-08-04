@@ -41,16 +41,16 @@
     <div class="small text-muted">Строк</div>
     <div class="fw-semibold">{{ plan.lines|length }}</div>
   </div>
-  {% if can_update %}
-  <form class="ms-auto" method="post" action="{{ url_for('workload.plan_change_status', plan_id=plan.id) }}">
+  {% if can_manage_editing %}
+  <form class="ms-auto" method="post" action="{{ url_for('workload.plan_change_editing_status', plan_id=plan.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="revision" value="{{ plan.revision }}">
+    <input type="hidden" name="part" value="{{ plan.plan_kind }}">
     {% if plan.status == 'DRAFT' %}
-    <input type="hidden" name="status" value="READY">
-    <button class="btn btn-outline-primary btn-sm" type="submit">Передать на проверку</button>
+    <input type="hidden" name="action" value="SAVE">
+    <button class="btn btn-primary btn-sm" type="submit">Сохранить изменения</button>
     {% elif plan.status == 'READY' %}
-    <input type="hidden" name="status" value="DRAFT">
-    <button class="btn btn-outline-secondary btn-sm" type="submit">Вернуть в черновик</button>
+    <input type="hidden" name="action" value="EDIT">
+    <button class="btn btn-outline-primary btn-sm" type="submit">Внести изменения</button>
     {% endif %}
   </form>
   {% endif %}

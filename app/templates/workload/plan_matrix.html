@@ -16,6 +16,27 @@
     </div>
   </div>
   <div class="page-actions d-flex gap-1">
+    {% if can_manage_editing %}
+    <form
+      method="post"
+      action="{{ url_for('workload.plan_change_editing_status', plan_id=bundle_root.id) }}"
+      data-plan-bundle-status
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="part" value="{{ plan.plan_kind }}">
+      {% if bundle_root.status == 'DRAFT' %}
+      <input type="hidden" name="action" value="SAVE">
+      <button class="btn btn-primary btn-sm" type="submit">
+        <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Сохранить изменения
+      </button>
+      {% elif bundle_root.status == 'READY' %}
+      <input type="hidden" name="action" value="EDIT">
+      <button class="btn btn-outline-primary btn-sm" type="submit">
+        <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Внести изменения
+      </button>
+      {% endif %}
+    </form>
+    {% endif %}
     {% if can_update %}
     <button
       class="btn btn-outline-secondary btn-sm"
@@ -32,6 +53,11 @@
       <i class="bi bi-arrow-left" aria-hidden="true"></i>
     </a>
   </div>
+</div>
+
+<div class="workload-editing-state {% if can_update %}is-editing{% else %}is-saved{% endif %}">
+  <i class="bi {% if can_update %}bi-pencil-square{% else %}bi-lock-fill{% endif %}" aria-hidden="true"></i>
+  <span>{{ plan_status_labels.get(bundle_root.status, bundle_root.status) }}</span>
 </div>
 
 {% if can_update %}

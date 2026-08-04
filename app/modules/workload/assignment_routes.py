@@ -40,6 +40,7 @@ from app.models import (
     WORKLOAD_ASSIGNMENT_KINDS,
     WORKLOAD_ASSIGNMENT_KIND_LABELS,
     WORKLOAD_ASSIGNMENT_STATUS_LABELS,
+    WORKLOAD_APPROVAL_STATUS_LABELS,
     WORKLOAD_NEED_STATUS_LABELS,
     WorkloadAssignment,
     WorkloadNeed,
@@ -73,6 +74,11 @@ from app.services.teaching_group_matrix_service import (
 )
 from app.services.teaching_group_service import current_population_snapshot
 from app.services.teacher_mcko_service import current_mcko_by_teacher
+from app.services.workload_editing_workflow_service import (
+    WorkloadEditingWorkflowError,
+    change_workload_approval_status,
+    require_workload_editable,
+)
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -111,6 +117,24 @@ def _require_assignments_update():
         current_user,
     ):
         abort(403)
+
+
+def _require_version_workload_editable(version):
+    try:
+        require_workload_editable(version)
+    except WorkloadEditingWorkflowError as exc:
+        abort(409, description=str(exc))
+
+
+def _can_review_workload():
+    return bool(
+        {"ADMIN", "DIRECTOR"}.intersection(
+            {
+                str(code).upper()
+                for code in getattr(current_user, "role_codes", ())
+            }
+        )
+    )
 
 
 def _parse_date(value, label):
@@ -167,6 +191,8 @@ def _get_need(need_id, *, for_update=False):
     else:
         _require_assignments_read()
     need = _scoped_need_query().filter(WorkloadNeed.id == need_id).first_or_404()
+    if for_update:
+        _require_version_workload_editable(need.tariff_version)
     return need
 
 
@@ -744,6 +770,8 @@ def register_assignment_routes(workload_bp):
                     "workload.assignments.update",
                     current_user,
                 )
+                and selected_version is not None
+                and selected_version.workload_approval_status == "EDITING"
             ),
         )
 
@@ -755,6 +783,7 @@ def register_assignment_routes(workload_bp):
         version = _draft_versions_query().filter(
             TariffVersion.id == version_id
         ).first_or_404()
+        _require_version_workload_editable(version)
         try:
             result = generate_plan_needs(
                 version,
@@ -799,6 +828,7 @@ def register_assignment_routes(workload_bp):
                     current_user,
                 )
                 and need.tariff_version.status == "DRAFT"
+                and need.tariff_version.workload_approval_status == "EDITING"
                 and need.status != "CANCELLED"
             ),
         )
@@ -971,6 +1001,8 @@ def register_assignment_routes(workload_bp):
                 "workload.assignments.update",
                 current_user,
             )
+            and selected_version is not None
+            and selected_version.workload_approval_status == "EDITING"
         )
         snapshot, plans, plan_matrices = _workspace_plan_context(
             selected_version,
@@ -1159,7 +1191,63 @@ def register_assignment_routes(workload_bp):
             need_status_labels=WORKLOAD_NEED_STATUS_LABELS,
             assignment_kind_labels=WORKLOAD_ASSIGNMENT_KIND_LABELS,
             can_update=can_update,
+            can_manage_editing=(
+                selected_version is not None
+                and is_feature_enabled(WORKLOAD_WRITE)
+                and can_use_workload_permission(
+                    "workload.assignments.update",
+                    current_user,
+                )
+            ),
+            can_review_workload=_can_review_workload(),
+            workload_approval_status_labels=(
+                WORKLOAD_APPROVAL_STATUS_LABELS
+            ),
         )
+
+    @workload_bp.post("/assignments/workspace/status")
+    @login_required
+    def assignment_workspace_change_status():
+        action = (request.form.get("action") or "").strip().upper()
+        version = _draft_versions_query().filter(
+            TariffVersion.id == request.form.get("version_id", type=int)
+        ).first_or_404()
+        if action in {"APPROVE", "REQUEST_CHANGES"}:
+            if not _can_review_workload():
+                abort(403)
+        else:
+            _require_assignments_update()
+        try:
+            change_workload_approval_status(
+                version,
+                action,
+                user_id=current_user.id,
+                comment=request.form.get("comment"),
+            )
+            db.session.commit()
+        except WorkloadEditingWorkflowError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            messages = {
+                "EDITING": "Редактирование нагрузки открыто.",
+                "SAVED": (
+                    "Изменения нагрузки сохранены. "
+                    "Редактирование закрыто."
+                ),
+                "PENDING_APPROVAL": (
+                    "Нагрузка отправлена директору на согласование."
+                ),
+                "APPROVED": "Нагрузка согласована директором.",
+                "CHANGES_REQUESTED": (
+                    "Нагрузка возвращена ответственным на исправление."
+                ),
+            }
+            flash(
+                messages[version.workload_approval_status],
+                "success",
+            )
+        return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/teachers")
     @login_required
@@ -1171,6 +1259,7 @@ def register_assignment_routes(workload_bp):
         version = _draft_versions_query().filter(
             TariffVersion.id == version_id
         ).first_or_404()
+        _require_version_workload_editable(version)
         key, state = _workspace_state(version.id)
         if holder_type == "vacancy":
             state["vacancies"].append(_next_vacancy(version.id, state))
@@ -1215,6 +1304,7 @@ def register_assignment_routes(workload_bp):
         version = _draft_versions_query().filter(
             TariffVersion.id == version_id
         ).first_or_404()
+        _require_version_workload_editable(version)
         teacher = db.session.get(User, teacher_id) if teacher_id else None
         activity = (
             db.session.get(EducationActivity, activity_id)
@@ -1298,6 +1388,7 @@ def register_assignment_routes(workload_bp):
             .filter(TariffVersion.id == version_id)
             .first_or_404()
         )
+        _require_version_workload_editable(version)
         activity = db.session.get(EducationActivity, activity_id)
         if (
             holder_type not in {"teacher", "vacancy"}
@@ -1401,6 +1492,7 @@ def register_assignment_routes(workload_bp):
             .filter(TariffVersion.id == version_id)
             .first_or_404()
         )
+        _require_version_workload_editable(version)
         if (
             holder_type not in {"teacher", "vacancy"}
             or (holder_type == "teacher" and teacher_id is None)
@@ -1798,6 +1890,7 @@ def register_assignment_routes(workload_bp):
         version = _draft_versions_query().filter(
             TariffVersion.id == version_id
         ).first_or_404()
+        _require_version_workload_editable(version)
 
         target_teacher = None
         target_vacancy = None

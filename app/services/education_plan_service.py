@@ -478,6 +478,40 @@ def change_plan_status(plan, target_status, *, user_id, expected_revision):
     return plan
 
 
+def change_plan_bundle_editing_status(plan, action, *, user_id):
+    root = plan_bundle_root(plan)
+    if root.tariff_version.status != "DRAFT":
+        raise PlanLockedError(
+            "Версия учебного года уже закрыта для изменения."
+        )
+    parts = list(plan_bundle_parts(root).values())
+    action = (action or "").strip().upper()
+    if action == "SAVE":
+        if root.status != "DRAFT":
+            raise PlanValidationError(
+                "Изменения учебного плана уже сохранены."
+            )
+        validate_plan_ready(root)
+        for part in parts:
+            if part is not root and part.lines:
+                validate_plan_ready(part)
+        target = "READY"
+    elif action == "EDIT":
+        if root.status != "READY":
+            raise PlanValidationError(
+                "Редактирование учебного плана уже открыто."
+            )
+        target = "DRAFT"
+    else:
+        raise PlanValidationError("Неизвестное действие с учебным планом.")
+
+    for part in parts:
+        part.status = target
+        part.revision += 1
+        part.updated_by_user_id = user_id
+    return root
+
+
 def touch_plan(plan, *, user_id):
     plan.revision += 1
     plan.updated_by_user_id = user_id
@@ -513,6 +547,7 @@ __all__ = [
     "validate_no_period_overlap",
     "validate_plan_ready",
     "change_plan_status",
+    "change_plan_bundle_editing_status",
     "touch_plan",
     "plans_visible_in_buildings",
 ]

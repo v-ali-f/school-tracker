@@ -42,6 +42,74 @@
 
 {% include "workload/_nav.html" %}
 
+{% if selected_version %}
+<section class="workload-approval-panel">
+  <div>
+    <div class="workload-editing-state {% if can_update %}is-editing{% elif selected_version.workload_approval_status == 'APPROVED' %}is-approved{% else %}is-saved{% endif %}">
+      <i class="bi {% if can_update %}bi-pencil-square{% elif selected_version.workload_approval_status == 'APPROVED' %}bi-patch-check-fill{% else %}bi-lock-fill{% endif %}" aria-hidden="true"></i>
+      <span>{{ workload_approval_status_labels.get(selected_version.workload_approval_status, selected_version.workload_approval_status) }}</span>
+    </div>
+    {% if selected_version.workload_review_comment %}
+    <small>Комментарий директора: {{ selected_version.workload_review_comment }}</small>
+    {% endif %}
+  </div>
+  <div class="workload-approval-panel__actions">
+    {% if can_manage_editing and selected_version.workload_approval_status == 'EDITING' %}
+    <form method="post" action="{{ url_for('workload.assignment_workspace_change_status') }}" data-workload-status-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <input type="hidden" name="action" value="SAVE">
+      <button class="btn btn-primary btn-sm" type="submit">
+        <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Сохранить изменения
+      </button>
+    </form>
+    {% elif can_manage_editing and selected_version.workload_approval_status == 'SAVED' %}
+    <form method="post" action="{{ url_for('workload.assignment_workspace_change_status') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <input type="hidden" name="action" value="EDIT">
+      <button class="btn btn-outline-primary btn-sm" type="submit">Внести изменения</button>
+    </form>
+    <form method="post" action="{{ url_for('workload.assignment_workspace_change_status') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <input type="hidden" name="action" value="SUBMIT">
+      <button class="btn btn-primary btn-sm" type="submit">
+        <i class="bi bi-send me-1" aria-hidden="true"></i>Отправить на согласование
+      </button>
+    </form>
+    {% elif can_manage_editing and selected_version.workload_approval_status == 'CHANGES_REQUESTED' %}
+    <form method="post" action="{{ url_for('workload.assignment_workspace_change_status') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <input type="hidden" name="action" value="EDIT">
+      <button class="btn btn-primary btn-sm" type="submit">Внести изменения</button>
+    </form>
+    {% endif %}
+
+    {% if can_review_workload and selected_version.workload_approval_status == 'PENDING_APPROVAL' %}
+    <form method="post" action="{{ url_for('workload.assignment_workspace_change_status') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <input type="hidden" name="action" value="APPROVE">
+      <button class="btn btn-success btn-sm" type="submit">
+        <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Согласовать
+      </button>
+    </form>
+    {% endif %}
+    {% if can_review_workload and selected_version.workload_approval_status in ('PENDING_APPROVAL', 'APPROVED') %}
+    <form class="workload-review-return" method="post" action="{{ url_for('workload.assignment_workspace_change_status') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ workspace_fields() }}
+      <input type="hidden" name="action" value="REQUEST_CHANGES">
+      <input class="form-control form-control-sm" name="comment" maxlength="500" placeholder="Что нужно исправить" required>
+      <button class="btn btn-outline-danger btn-sm" type="submit">Вернуть на исправление</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 <form class="workload-matrix-filterbar" method="get" data-workload-filterbar>
   <div class="workload-filter-field workload-filter-field--year">
     <label for="workspace-version">Учебный год</label>
@@ -430,6 +498,7 @@
 
 <script>
 (() => {
+  const pendingCellSaves = new Set();
   const view = document.querySelector("[data-workload-view]");
   const department = document.querySelector("[data-workload-department]");
   const syncView = () => {
@@ -580,12 +649,15 @@
       const formData = new FormData(form);
       form.classList.add("is-saving");
       button.disabled = true;
+      let requestPromise = null;
       try {
-        const response = await fetch(form.action, {
+        requestPromise = fetch(form.action, {
           method: "POST",
           body: formData,
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
         });
+        pendingCellSaves.add(requestPromise);
+        const response = await requestPromise;
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.message || "Не удалось сохранить часы.");
         updateNeedControls(payload);
@@ -593,6 +665,7 @@
       } catch (error) {
         window.alert(error.message);
       } finally {
+        if (requestPromise) pendingCellSaves.delete(requestPromise);
         saving = false;
         form.classList.remove("is-saving");
         if (!form.classList.contains("is-locked") && form.dataset.editable === "1") {
@@ -602,6 +675,15 @@
     };
     button.addEventListener("click", save);
   });
+  document.querySelector("[data-workload-status-form]")?.addEventListener(
+    "submit",
+    async (event) => {
+      if (!pendingCellSaves.size) return;
+      event.preventDefault();
+      await Promise.allSettled(Array.from(pendingCellSaves));
+      event.currentTarget.submit();
+    },
+  );
   recalculateSubjectTotals();
 })();
 </script>

@@ -18,10 +18,12 @@ from app.models import (
 from app.services.education_plan_service import (
     PlanValidationError,
     calculate_annual_hours,
+    change_plan_bundle_editing_status,
     ensure_draft_tariff_version,
     line_scope_key,
     plan_bundle_parts,
     plan_scope_code,
+    require_plan_editable,
     validate_line_values,
     validate_period_range,
 )
@@ -87,6 +89,49 @@ def _line_form(activity_id, revision=1, component="MANDATORY"):
         "grade": "5",
         "sort_order": "100",
     }
+
+
+def test_plan_save_locks_bundle_and_edit_reopens_it(app, make_user):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        plan_id, activity_id = _plan(user_id)
+        plan = db.session.get(EducationPlan, plan_id)
+        line = EducationPlanLine(
+            education_plan_id=plan.id,
+            education_activity_id=activity_id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("5"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("170"),
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(line)
+        db.session.flush()
+        db.session.add(EducationPlanLineScope(
+            education_plan_line_id=line.id,
+            scope_kind="GRADE",
+            grade=5,
+            scope_key=line_scope_key("GRADE", grade=5),
+        ))
+        db.session.flush()
+
+        change_plan_bundle_editing_status(
+            plan,
+            "SAVE",
+            user_id=user_id,
+        )
+        assert plan.status == "READY"
+        with pytest.raises(PlanValidationError):
+            require_plan_editable(plan)
+
+        change_plan_bundle_editing_status(
+            plan,
+            "EDIT",
+            user_id=user_id,
+        )
+        assert plan.status == "DRAFT"
+        require_plan_editable(plan)
 
 
 def test_draft_cycle_and_version_are_created_once(app, make_user):

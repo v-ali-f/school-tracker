@@ -334,6 +334,10 @@ def replace_teaching_group_count(
         raise GroupValidationError(
             "Количество групп можно менять только в рабочей версии."
         )
+    if version.groups_editing_status != "EDITING":
+        raise GroupValidationError(
+            "Изменение групп закрыто. Нажмите «Внести изменения»."
+        )
     if group_count < 1 or group_count > 9:
         raise GroupValidationError("Количество групп должно быть от 1 до 9.")
 
@@ -771,6 +775,10 @@ def replace_group_composition_assignments(
     groups = list(item["groups"])
     if not groups:
         raise GroupValidationError("Учебные группы не найдены.")
+    if groups[0].tariff_version.groups_editing_status != "EDITING":
+        raise GroupValidationError(
+            "Изменение групп закрыто. Нажмите «Внести изменения»."
+        )
     if any(
         not group.code.startswith(AUTO_GROUP_CODE_PREFIX)
         for group in groups
