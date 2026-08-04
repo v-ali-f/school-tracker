@@ -626,6 +626,97 @@ def _clear_group_composition_approval(
     )
 
 
+def _sync_metagroups_for_sources(groups, *, user_id):
+    source_ids = {group.id for group in groups}
+    if not source_ids:
+        return
+    metagroup_ids = {
+        link.metagroup_id
+        for link in (
+            TeachingMetagroupSource.query
+            .filter(
+                TeachingMetagroupSource.source_group_id.in_(source_ids)
+            )
+            .all()
+        )
+    }
+    for metagroup_id in metagroup_ids:
+        metagroup = db.session.get(TeachingGroup, metagroup_id)
+        if metagroup is None or metagroup.status == "CLOSED":
+            continue
+        sources = [
+            link.source_group
+            for link in metagroup.metagroup_sources
+            if link.source_group.status != "CLOSED"
+        ]
+        member_ids = [
+            member.snapshot_enrollment_id
+            for source in sources
+            for member in source.members
+        ]
+        if len(member_ids) != len(set(member_ids)):
+            raise GroupValidationError(
+                "Один ученик не может входить в метагруппу дважды."
+            )
+
+        for member in list(metagroup.members):
+            db.session.delete(member)
+        db.session.flush()
+        for member_id in sorted(member_ids):
+            db.session.add(TeachingGroupMember(
+                teaching_group_id=metagroup.id,
+                snapshot_enrollment_id=member_id,
+                valid_from=metagroup.valid_from,
+                valid_to=metagroup.valid_to,
+                source_kind="AUTO",
+            ))
+
+        members_by_class = {}
+        for source in sources:
+            for member in source.members:
+                class_id = (
+                    member.snapshot_enrollment
+                    .population_snapshot_class_id
+                )
+                members_by_class[class_id] = (
+                    members_by_class.get(class_id, 0) + 1
+                )
+        for source_class in metagroup.source_classes:
+            source_class.student_count = members_by_class.get(
+                source_class.population_snapshot_class_id,
+                0,
+            )
+
+        metagroup.actual_size = len(member_ids)
+        metagroup.planned_size = sum(
+            source.planned_size
+            if source.planned_size is not None
+            else source.actual_size
+            for source in sources
+        )
+        metagroup.status = (
+            "READY"
+            if (
+                sources
+                and all(
+                    source.status == "READY" and bool(source.members)
+                    for source in sources
+                )
+            )
+            else "DRAFT"
+        )
+        touch_group(
+            metagroup,
+            user_id=user_id,
+            event_code="METAGROUP_COMPOSITION_SYNCED",
+            details={
+                "source_group_ids": [source.id for source in sources],
+                "actual_size": len(member_ids),
+                "ready": metagroup.status == "READY",
+            },
+        )
+
+
 def approve_group_composition(item, *, user_id):
     if not item["complete"]:
         raise GroupValidationError(
@@ -697,11 +788,6 @@ def replace_group_composition_assignments(
         raise GroupValidationError(
             "По группам уже сформирована нагрузка. Сначала отмените её."
         )
-    if any(group.metagroup_membership is not None for group in groups):
-        raise GroupValidationError(
-            "Группы входят в метагруппу. Сначала удалите метагруппу."
-        )
-
     eligible_ids = {
         enrollment.id for enrollment in item["enrollments"]
     }
@@ -764,6 +850,10 @@ def replace_group_composition_assignments(
                 "complete": complete,
             },
         )
+    db.session.flush()
+    for group in groups:
+        db.session.expire(group, ["members"])
+    _sync_metagroups_for_sources(groups, user_id=user_id)
     return {
         "complete": complete,
         "assigned_count": len(normalized_assignments),

@@ -64,7 +64,7 @@ def _candidate_from_group(group, column, row, section):
     member_ids = frozenset(
         member.snapshot_enrollment_id for member in group.members
     )
-    if group.status != "READY" or not member_ids:
+    if group.status not in {"DRAFT", "READY"}:
         return None
     return {
         "token": f"group:{group.id}",
@@ -84,6 +84,7 @@ def _candidate_from_group(group, column, row, section):
         "student_count": len(member_ids),
         "label": group.name,
         "is_virtual": False,
+        "is_ready": group.status == "READY" and bool(member_ids),
     }
 
 
@@ -113,6 +114,7 @@ def _candidate_from_cell(cell, column, row, section):
             f"{row['activity'].name}"
         ),
         "is_virtual": True,
+        "is_ready": True,
     }
 
 
@@ -410,16 +412,16 @@ def create_metagroup(
     )
     if len(sources) < 2:
         raise GroupValidationError(
-            "Выберите не менее двух классов или готовых групп."
+            "Выберите не менее двух классов или групп."
         )
     if any(
         group.tariff_version_id != version.id
         or group.group_type == "METAGROUP"
-        or group.status != "READY"
+        or group.status not in {"DRAFT", "READY"}
         for group in sources
     ):
         raise GroupValidationError(
-            "Объединять можно только готовые исходные группы этой версии."
+            "Объединять можно только действующие исходные группы этой версии."
         )
     if any(group.metagroup_membership is not None for group in sources):
         raise GroupValidationError(
@@ -486,10 +488,10 @@ def create_metagroup(
             "Один ученик не может входить в метагруппу дважды."
         )
     member_ids = sorted(member_counter)
-    if not member_ids:
-        raise GroupValidationError(
-            "В выбранных группах нет обучающихся."
-        )
+    sources_ready = all(
+        group.status == "READY" and bool(group.members)
+        for group in sources
+    )
 
     normalized_name = " ".join((name or "").split())
     if not normalized_name:
@@ -523,12 +525,17 @@ def create_metagroup(
             next(iter(department_ids))
             if len(department_ids) == 1 else None
         ),
-        planned_size=len(member_ids),
+        planned_size=sum(
+            group.planned_size
+            if group.planned_size is not None
+            else group.actual_size
+            for group in sources
+        ),
         actual_size=len(member_ids),
         valid_from=valid_from,
         valid_to=valid_to,
         source_plan_line_id=sources[0].source_plan_line_id,
-        status="READY",
+        status="READY" if sources_ready else "DRAFT",
         created_by_user_id=user_id,
         updated_by_user_id=user_id,
     )
