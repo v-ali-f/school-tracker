@@ -275,7 +275,16 @@ def test_plan_registry_omits_redundant_bundle_column(
     app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
     user_id = make_user("ADMIN")
     with app.app_context():
-        _plan(user_id)
+        plan_id, activity_id = _plan(user_id)
+        db.session.add(EducationPlanLine(
+            education_plan_id=plan_id,
+            education_activity_id=activity_id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("5"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("170"),
+        ))
+        db.session.commit()
     login(user_id)
 
     response = client.get("/workload/plans/")
@@ -285,6 +294,12 @@ def test_plan_registry_omits_redundant_bundle_column(
     assert "УП + ВД + ДО".encode() not in response.data
     assert "ООО".encode() in response.data
     assert "OOO".encode() not in response.data
+    assert "registry-matrix".encode() in response.data
+    assert "Всего урочных часов за год".encode() in response.data
+    assert "170 ч.".encode() in response.data
+    assert ">Строк<".encode() not in response.data
+    assert b'<i class="bi bi-grid-3x3-gap"' in response.data
+    assert b"bi-grid-3x3-gap me-1" not in response.data
     assert "Удалить учебный план".encode() in response.data
 
 

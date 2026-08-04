@@ -2,7 +2,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260803_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260804_2">
 {% endblock %}
 
 {% block workspace_content %}
@@ -25,7 +25,7 @@
     {% endif %}
   </header>
 
-  <form class="plan-binding-filters" method="get" action="{{ url_for('workload.plan_bindings') }}" data-plan-binding-filters>
+  <form class="plan-binding-filters registry-filter-panel" method="get" action="{{ url_for('workload.plan_bindings') }}" data-plan-binding-filters>
     <label>
       <span>Учебный год</span>
       <select class="form-select form-select-sm" name="version_id" data-plan-binding-filter>
@@ -119,8 +119,8 @@
     <span><strong>{{ unassigned_count }}</strong> учеников без УП</span>
   </div>
 
-  <div class="table-responsive plan-binding-class-table-wrap">
-    <table class="table table-sm align-middle plan-binding-class-table">
+  <div class="table-responsive registry-matrix-card plan-binding-class-table-wrap">
+    <table class="registry-matrix registry-matrix-wide plan-binding-class-table">
       <thead>
         <tr>
           <th class="plan-binding-class-table__toggle" aria-label="Состав класса"></th>
@@ -191,7 +191,7 @@
               </select>
               {% if can_update %}
               <button
-                class="btn btn-primary btn-sm"
+                class="btn btn-primary btn-sm registry-row-action"
                 type="submit"
                 title="Сохранить учебный план класса"
                 aria-label="Сохранить учебный план класса {{ school_class.name_snapshot }}"
@@ -199,7 +199,6 @@
                 disabled
               >
                 <i class="bi bi-check-lg" aria-hidden="true"></i>
-                <span>Сохранить</span>
               </button>
               {% endif %}
               <span class="plan-binding-assignment__state" aria-live="polite"></span>
@@ -218,7 +217,7 @@
                 <strong>Ученики {{ school_class.name_snapshot }}</strong>
                 <span>План можно изменить индивидуально</span>
               </div>
-              <table>
+              <table class="registry-matrix registry-matrix-medium">
                 <thead>
                   <tr>
                     <th class="text-center">№</th>
@@ -259,7 +258,7 @@
                         </select>
                         {% if can_update %}
                         <button
-                          class="btn btn-primary btn-sm"
+                          class="btn btn-primary btn-sm registry-row-action"
                           type="submit"
                           title="Сохранить учебный план ученика"
                           aria-label="Сохранить учебный план ученика {{ enrollment.fio_snapshot }}"
@@ -267,7 +266,6 @@
                           disabled
                         >
                           <i class="bi bi-check-lg" aria-hidden="true"></i>
-                          <span>Сохранить</span>
                         </button>
                         {% endif %}
                         <span class="plan-binding-assignment__state" aria-live="polite"></span>

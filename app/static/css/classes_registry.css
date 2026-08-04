@@ -28,6 +28,13 @@
   padding-bottom: 0.25rem;
 }
 
+.classes-registry-table .registry-row-action {
+  width: 23px;
+  height: 23px;
+  min-height: 23px;
+  padding: 0;
+}
+
 .classes-registry-table tr.is-editing > td {
   background: #f3f7fd;
 }

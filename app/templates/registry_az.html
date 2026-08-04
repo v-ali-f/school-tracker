@@ -1,5 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
+
 <div class="page-head">
   <div>
     <h1 class="page-title">{{ title }}</h1>
@@ -10,12 +11,60 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ export_url }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
   </div>
 </div>
-<div class="card soft-card mb-3"><div class="card-body"><form method="get" class="row g-2 align-items-end">
-  <div class="col-md-2"><label class="form-label">Параллель</label><select name="grade" class="form-select" onchange="this.form.submit()"><option value="">Все</option>{% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select></div>
-  <div class="col-md-3"><label class="form-label">Класс</label><select name="class_id" class="form-select"><option value="">Все</option>{% for cls in classes %}<option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>{% endfor %}</select></div>
-  <div class="col-md-4"><label class="form-label">ФИО</label><input type="text" name="q" value="{{ q_text }}" class="form-control" placeholder="Поиск по ФИО"></div>
-  <div class="col-md-3 d-flex gap-2"><input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}"><button class="btn btn-primary" type="submit">Показать</button><a class="btn btn-outline-secondary" href="{{ url_for('children.registry_az') }}">Сбросить</a></div>
-</form></div></div>
-<div class="card soft-card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle"><thead><tr><th class="table-number-col">№</th><th>ФИО</th><th style="width:90px;">Класс</th><th>Предметы (открытые)</th></tr></thead><tbody>{% for r in rows %}{% set ch = r.child %}<tr><td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td><td><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td><td class="text-muted">{{ ch.current_class_name or ch.class_name or "—" }}</td><td>{{ r.subjects|join(", ") if r.subjects else "—" }}</td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endif %}</tbody></table></div></div>
+
+<form method="get" class="row g-2 registry-filter-panel">
+  <div class="col-md-2">
+    <label class="form-label">Параллель</label>
+    <select name="grade" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">Все</option>
+      {% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Класс</label>
+    <select name="class_id" class="form-select form-select-sm">
+      <option value="">Все классы</option>
+      {% for cls in classes %}<option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">ФИО</label>
+    <input type="text" name="q" value="{{ q_text }}" class="form-control form-control-sm" placeholder="Поиск по ФИО">
+  </div>
+  <div class="col-md-3 d-flex align-items-end gap-2">
+    <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}">
+    <button class="btn btn-outline-secondary btn-sm flex-fill" type="submit">Фильтр</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.registry_az') }}">Сброс</a>
+  </div>
+</form>
+
+<div class="registry-matrix-card">
+  <div class="table-responsive">
+    <table class="registry-matrix registry-matrix-medium">
+      <colgroup>
+        <col style="width:48px">
+        <col style="width:270px">
+        <col style="width:86px">
+        <col>
+        <col style="width:42px">
+      </colgroup>
+      <thead><tr><th>№</th><th>ФИО</th><th>Класс</th><th>Предметы с открытой задолженностью</th><th aria-label="Действия"></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        {% set ch = r.child %}
+        <tr>
+          <td class="registry-cell-center text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td>
+          <td class="registry-cell-clip"><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td>
+          <td class="registry-cell-center">{{ ch.current_class_name or ch.class_name or "—" }}</td>
+          <td class="registry-cell-clip" title="{{ r.subjects|join(', ') if r.subjects else '' }}">{{ r.subjects|join(", ") if r.subjects else "—" }}</td>
+          <td><div class="registry-row-actions"><a class="btn btn-outline-primary registry-row-action" href="{{ url_for('children.child_card', child_id=ch.id) }}" title="Открыть карточку" aria-label="Открыть карточку {{ ch.fio }}"><i class="bi bi-box-arrow-up-right"></i></a></div></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="registry-empty-row">Нет данных</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% include "components/pagination.html" %}
 {% endblock %}

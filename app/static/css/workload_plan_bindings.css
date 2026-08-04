@@ -33,6 +33,10 @@
   gap: 10px;
 }
 
+.plan-binding-filters.registry-filter-panel {
+  padding: 8px 10px;
+}
+
 .plan-binding-filters label > span {
   display: block;
   margin-bottom: 4px;
@@ -42,9 +46,16 @@
   text-transform: uppercase;
 }
 
-.plan-binding-filters .form-select,
+.plan-binding-filters .form-select {
+  min-height: 30px !important;
+  height: 30px !important;
+}
+
 .plan-binding-assignment .form-select {
-  min-height: 34px;
+  min-height: 28px !important;
+  height: 28px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
   border-color: var(--workload-border-strong);
   border-radius: 5px;
   font-size: 12px;
@@ -91,8 +102,7 @@
 }
 
 .plan-binding-class-table-wrap {
-  border: 1px solid var(--workload-border);
-  border-radius: 6px;
+  border-color: #c9d6e6;
 }
 
 .plan-binding-class-table {
@@ -103,16 +113,6 @@
 
 .plan-binding-class-table__toggle {
   width: 42px;
-}
-
-.plan-binding-class-table thead th {
-  height: 34px;
-  padding: 6px 8px;
-  color: #59667e;
-  background: #f4f7fb;
-  border-bottom-color: var(--workload-border-strong);
-  font-size: 10px;
-  text-transform: uppercase;
 }
 
 .plan-binding-class-table thead th:nth-child(2) {
@@ -129,9 +129,8 @@
 }
 
 .plan-binding-class-table tbody td {
-  height: 42px;
-  padding: 5px 8px;
-  border-color: var(--workload-border);
+  height: 31px;
+  padding: 1px 6px;
   vertical-align: middle;
 }
 
@@ -204,11 +203,16 @@
   text-align: right;
 }
 
+.plan-binding-assignment__state:empty {
+  display: none;
+}
+
 .plan-binding-assignment [data-plan-assignment-submit] {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  width: 23px !important;
+  height: 23px !important;
+  min-height: 23px !important;
+  padding: 0 !important;
+  border-radius: 4px !important;
   white-space: nowrap;
 }
 
@@ -253,18 +257,10 @@
   border-collapse: collapse;
 }
 
-.plan-binding-students th,
-.plan-binding-students td {
-  height: 36px !important;
-  padding: 4px 8px !important;
-  border-bottom: 1px solid #e2e8f1;
-}
-
-.plan-binding-students th {
-  color: #657188;
-  background: #fafbfd;
-  font-size: 9px;
-  text-transform: uppercase;
+.plan-binding-students table.registry-matrix th,
+.plan-binding-students table.registry-matrix td {
+  height: 29px !important;
+  padding: 1px 6px !important;
 }
 
 .plan-binding-students th:first-child {

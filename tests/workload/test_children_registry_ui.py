@@ -53,3 +53,18 @@ def test_children_registry_uses_compact_matrix_style(
     assert 'class="row g-2 registry-filter-panel"' in html
     assert "Иванова Анна Сергеевна" in html
     assert "registry-row-action" in html
+
+    registry_paths = (
+        "/registry/ovz",
+        "/registry/vshu",
+        "/registry/kdn",
+        "/registry/az",
+        f"/classes/{class_id}",
+        "/classes",
+    )
+    for path in registry_paths:
+        registry_response = client.get(path)
+        registry_html = registry_response.get_data(as_text=True)
+        assert registry_response.status_code == 200
+        assert "registry-matrix" in registry_html
+        assert "registry-matrix-card" in registry_html
