@@ -544,6 +544,72 @@
   outline: 0;
 }
 
+.workload-holder-row-actions {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workload-holder-row-actions .workload-holder-replace-button {
+  margin-top: 0;
+}
+
+.workload-holder-row-actions form,
+.workload-subject-row-head form {
+  margin: 0;
+}
+
+.workload-row-delete-button {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #a33a3a;
+  background: transparent;
+  border: 0;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workload-row-delete-button:hover,
+.workload-row-delete-button:focus-visible {
+  color: #7f1f1f;
+  text-decoration: underline;
+  outline: 0;
+}
+
+.workload-row-delete-button.is-icon-only {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  border: 1px solid #e1bcbc;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.workload-row-delete-button.is-icon-only:hover,
+.workload-row-delete-button.is-icon-only:focus-visible {
+  color: #fff;
+  background: #a33a3a;
+  border-color: #a33a3a;
+}
+
+.workload-subject-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.workload-subject-row-copy {
+  min-width: 0;
+}
+
 .workload-assignment-matrix__teacher-cell span,
 .workload-assignment-matrix__subject-cell span {
   font-weight: 700;
