@@ -13,6 +13,7 @@ from app.services.education_plan_service import (
     PLAN_BUNDLE_LABELS,
     plan_bundle_parts,
 )
+from app.utils.building_matrix_tones import building_matrix_tone
 
 
 EDUCATION_LEVEL_LABELS = {
@@ -55,6 +56,7 @@ def snapshot_building_options(snapshot, allowed_building_ids=None):
                     "id": UNASSIGNED_BUILDING_FILTER_ID,
                     "name": "Здание не указано",
                     "class_count": 0,
+                    "matrix_tone": 0,
                 },
             )
             option["class_count"] += 1
@@ -72,6 +74,7 @@ def snapshot_building_options(snapshot, allowed_building_ids=None):
                 or f"Здание {item.building_id}"
             ),
             "class_count": 0,
+            "matrix_tone": building_matrix_tone(item.building),
         })
         option["class_count"] += 1
     return sorted(

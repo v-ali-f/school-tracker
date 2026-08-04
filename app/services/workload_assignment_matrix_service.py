@@ -2,6 +2,8 @@ import re
 from collections import defaultdict
 from decimal import Decimal
 
+from app.utils.building_matrix_tones import building_matrix_tone
+
 
 ZERO = Decimal("0")
 
@@ -133,6 +135,13 @@ def _column_for_need(need, plan_context):
                 group.building.short_name or group.building.name
                 if group.building else ""
             ),
+            "building_tone": building_matrix_tone(
+                group.building
+                if group.building
+                else source_classes[0].building
+                if len(source_building_ids) == 1 and source_classes
+                else None
+            ),
             "sort_key": (
                 grade,
                 "яя",
@@ -156,6 +165,9 @@ def _column_for_need(need, plan_context):
             "building_id": snapshot_class.building_id,
             "building_name": (
                 snapshot_class.building_name_snapshot or ""
+            ),
+            "building_tone": building_matrix_tone(
+                snapshot_class.building
             ),
             "sort_key": (
                 snapshot_class.grade_snapshot or 99,
@@ -187,6 +199,11 @@ def _column_for_need(need, plan_context):
             if group is not None and group.building
             else need.building.short_name or need.building.name
             if need.building else ""
+        ),
+        "building_tone": building_matrix_tone(
+            group.building
+            if group is not None and group.building
+            else need.building
         ),
         "sort_key": (99, "яя", 2, group_name.casefold()),
     }
@@ -363,6 +380,9 @@ def build_workload_assignment_matrix(
                     "building_name": (
                         snapshot_class.building_name_snapshot or ""
                     ),
+                    "building_tone": building_matrix_tone(
+                        snapshot_class.building
+                    ),
                     "snapshot_class_id": snapshot_class.id,
                     "plan_id": root_plan.id,
                     "sort_key": (
@@ -538,26 +558,8 @@ def build_workload_assignment_matrix(
         columns_by_key.values(),
         key=lambda item: item["sort_key"],
     )
-    building_keys = sorted(
-        {
-            (
-                column.get("building_id"),
-                column.get("building_name") or "",
-            )
-            for column in columns
-            if column.get("building_id") is not None
-        },
-        key=lambda item: (item[1].casefold(), item[0]),
-    )
-    building_tone_by_id = {
-        building_id: index % 6
-        for index, (building_id, _name) in enumerate(building_keys)
-    }
     for column in columns:
-        column["building_tone"] = building_tone_by_id.get(
-            column.get("building_id"),
-            5,
-        )
+        column["building_tone"] = int(column.get("building_tone") or 0)
     class_groups = []
     class_groups_by_key = {}
     for column in columns:

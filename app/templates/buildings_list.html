@@ -4,7 +4,7 @@
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">Реестр зданий</h1>
-    <div class="page-sub">Название и адрес</div>
+    <div class="page-sub">Название, адрес и цвет здания в сводных таблицах</div>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}">На главную</a>
@@ -14,11 +14,18 @@
 <div class="card mb-3">
   <div class="card-body">
     <form class="row g-2" method="post" action="{{ url_for('children.buildings_new') }}">
-      <div class="col-md-4">
+      <div class="col-md-3">
         <input class="form-control" name="name" placeholder="Название здания" required>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-5">
         <input class="form-control" name="address" placeholder="Адрес (необязательно)">
+      </div>
+      <div class="col-md-2">
+        <select class="form-select" name="matrix_tone" aria-label="Цвет в сводных таблицах">
+          {% for value, label in building_tone_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-md-2">
         <button class="btn btn-primary w-100">Добавить</button>
@@ -35,6 +42,7 @@
           <th style="width:60px;">ID</th>
           <th>Название</th>
           <th>Адрес</th>
+          <th style="width:190px;">Цвет в таблицах</th>
           <th style="width:220px;"></th>
         </tr>
       </thead>
@@ -49,6 +57,15 @@
             <td>
                 <input class="form-control" name="address" value="{{ b.address or '' }}">
             </td>
+            <td>
+                <select class="form-select" name="matrix_tone" aria-label="Цвет здания {{ b.name }}">
+                  {% for value, label in building_tone_choices %}
+                    <option value="{{ value }}" {% if b.matrix_tone == value %}selected{% endif %}>
+                      {{ label }}
+                    </option>
+                  {% endfor %}
+                </select>
+            </td>
             <td class="text-end">
                 <button class="btn btn-outline-primary btn-sm">Сохранить</button>
               </form>
@@ -61,7 +78,7 @@
           </tr>
         {% endfor %}
         {% if buildings|length == 0 %}
-          <tr><td colspan="4" class="text-muted">Пока нет зданий</td></tr>
+          <tr><td colspan="5" class="text-muted">Пока нет зданий</td></tr>
         {% endif %}
       </tbody>
     </table>

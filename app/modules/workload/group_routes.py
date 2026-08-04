@@ -559,6 +559,10 @@ def _group_matrix_context(
         "selected_grade": selected_grade,
         "selected_building_id": selected_building_id,
         "building_options": building_options,
+        "building_tone_by_id": {
+            item["id"]: item.get("matrix_tone", 0)
+            for item in building_options
+        },
         "level_grades": level_grades,
         "level_labels": EDUCATION_LEVEL_LABELS,
         "level_counts": level_counts,

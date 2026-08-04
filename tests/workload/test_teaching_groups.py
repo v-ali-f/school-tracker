@@ -110,6 +110,41 @@ def test_group_changes_can_be_saved_and_reopened(app, make_user):
         require_groups_editable(version)
 
 
+def test_building_registry_updates_matrix_tone(
+    app,
+    client,
+    make_user,
+    login,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        building = Building(
+            name="Новый корпус",
+            address="Тестовый адрес",
+        )
+        db.session.add(building)
+        db.session.commit()
+        building_id = building.id
+
+    login(user_id)
+    registry = client.get("/buildings")
+    assert registry.status_code == 200
+    assert "Цвет в таблицах".encode() in registry.data
+    assert "Голубой".encode() in registry.data
+
+    response = client.post(
+        f"/buildings/{building_id}/update",
+        data={
+            "name": "Новый корпус",
+            "address": "Тестовый адрес",
+            "matrix_tone": "1",
+        },
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(Building, building_id).matrix_tone == 1
+
+
 def _group_context(user_id):
     year = AcademicYear(
         name="2026/2027",
@@ -383,6 +418,7 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
     user_id = make_user("ADMIN")
     with app.app_context():
         context = _group_context(user_id)
+        db.session.get(Building, context["building_id"]).matrix_tone = 1
         version = db.session.get(TariffVersion, context["version_id"])
         year = version.tariff_cycle.academic_year
         empty_class = SchoolClass(
@@ -497,7 +533,10 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
         b".contingent-classes-table.table tbody td"
         in response.data
     )
-    assert b"height: 24px !important" in response.data
+    assert b"height: 31px !important" in response.data
+    assert b"font-size: 15px !important" in response.data
+    assert b"padding: 3px 5px !important" in response.data
+    assert b"building-tone-1" in response.data
     assert b"contingent-mobile-table-note" in response.data
     assert b"col.col-teacher" in response.data
     assert b"visibility: collapse" in response.data
@@ -601,6 +640,7 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     user_id = make_user("ADMIN")
     with app.app_context():
         context = _group_context(user_id)
+        db.session.get(Building, context["building_id"]).matrix_tone = 1
         snapshot_id = _snapshot(user_id, context["version_id"])
         snapshot_class = (
             PopulationSnapshotClass.query
@@ -646,7 +686,7 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert "Всего по учебному плану".encode() in response.data
     assert 'class="class-plan-matrix__section-label"'.encode() in response.data
     assert 'class="class-plan-matrix__section-band"'.encode() in response.data
-    assert "building-tone-0".encode() in response.data
+    assert "building-tone-1".encode() in response.data
 
     building_response = client.get(
         f"/workload/plan-bindings/matrix"
@@ -886,6 +926,7 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     user_id = make_user("ADMIN")
     with app.app_context():
         context = _group_context(user_id)
+        db.session.get(Building, context["building_id"]).matrix_tone = 1
         snapshot_id = _snapshot(user_id, context["version_id"])
         snapshot_class = (
             PopulationSnapshotClass.query
@@ -925,6 +966,7 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert 'class="class-plan-matrix__section-band"' in html
     assert "group-matrix__cell--no-plan" in html
     assert "Учебный план не назначен классу" in html
+    assert "building-tone-1" in html
     assert html.count("data-group-count") == 1
 
     grade_response = client.get(
