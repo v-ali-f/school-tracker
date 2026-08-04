@@ -1344,7 +1344,7 @@ def test_matrix_can_reorder_subject_rows(
     assert "Переместить «Биология» ниже".encode() in matrix_response.data
     assert "Переместить «Математика» выше".encode() in matrix_response.data
     assert b"data-plan-row-reorder" in matrix_response.data
-    assert b"workload_plan_matrix.js?v=20260804_6" in matrix_response.data
+    assert b"workload_plan_matrix.js?v=20260804_7" in matrix_response.data
 
 
 def test_matrix_preserves_only_significant_decimal_places(
@@ -1414,6 +1414,54 @@ def test_matrix_hours_update_recalculates_annual_hours(
         assert line.weekly_hours == Decimal("6.000")
         assert line.weeks_count == Decimal("35.000")
         assert line.annual_hours == Decimal("210.000")
+        assert plan.revision == 3
+
+
+def test_matrix_hours_update_allows_clearing_existing_cell(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        plan_id, activity_id = _plan(user_id)
+    login(user_id)
+    client.post(
+        f"/workload/plans/{plan_id}/lines/new",
+        data=_line_form(activity_id),
+    )
+    with app.app_context():
+        line_id = EducationPlanLine.query.one().id
+
+    response = client.post(
+        f"/workload/plans/{plan_id}/lines/{line_id}/hours",
+        data={
+            "revision": "2",
+            "weekly_hours": "",
+            "weeks_count": "34",
+            "annual_hours": "",
+        },
+        headers={
+            "Accept": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["weekly_hours"] == "0"
+    assert payload["weeks_count"] == "34"
+    assert payload["annual_hours"] == "0"
+    with app.app_context():
+        line = db.session.get(EducationPlanLine, line_id)
+        plan = db.session.get(EducationPlan, plan_id)
+        assert line.weekly_hours == Decimal("0.000")
+        assert line.weeks_count == Decimal("34.000")
+        assert line.annual_hours == Decimal("0.000")
         assert plan.revision == 3
 
 

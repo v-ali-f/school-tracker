@@ -2018,11 +2018,16 @@ def register_plan_routes(workload_bp):
                 request.form.get("annual_hours"),
                 "часы в год",
             )
-            annual_hours = calculate_annual_hours(
-                weekly_hours,
-                weeks_count,
-                annual_hours,
-            )
+            if weekly_hours is None:
+                weekly_hours = Decimal("0")
+                weeks_count = weeks_count or DEFAULT_WEEKS_COUNT
+                annual_hours = Decimal("0")
+            else:
+                annual_hours = calculate_annual_hours(
+                    weekly_hours,
+                    weeks_count,
+                    annual_hours,
+                )
             validate_line_values(
                 plan,
                 line.education_activity,

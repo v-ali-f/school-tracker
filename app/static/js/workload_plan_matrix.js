@@ -434,32 +434,54 @@
     return payload;
   };
 
+  const showSaveError = (form, message) => {
+    const alreadyShown = form.classList.contains("is-save-error");
+    form.classList.add("is-save-error");
+    if (!alreadyShown) window.alert(message);
+  };
+
   const saveStandardForm = async (form) => {
     const values = refreshStandardForm(form);
-    if (!values.hasWeekly || !Number.isFinite(values.weeks)) {
-      if (!form.hasAttribute("data-plan-cell-create")) {
-        form.classList.add("is-save-error");
-        window.alert(
-          "Заполните часы в неделю и количество учебных недель.",
-        );
-      }
+    const currentSnapshot = standardSnapshot(form);
+    if (savedSnapshots.get(form) === currentSnapshot) {
+      form.classList.remove("is-save-error");
       return;
     }
-    const currentSnapshot = standardSnapshot(form);
-    if (savedSnapshots.get(form) === currentSnapshot) return;
+    const isCreate = form.hasAttribute("data-plan-cell-create");
+    if (!values.hasWeekly && isCreate) return;
+    if (values.hasWeekly && !Number.isFinite(values.weeks)) {
+      showSaveError(
+        form,
+        "Укажите количество учебных недель.",
+      );
+      return;
+    }
 
     form.classList.add("is-saving");
-    form.classList.remove("is-save-error");
     try {
       const payload = await postForm(form);
+      const isPlaceholder = (
+        Number(payload.weekly_hours) === 0
+        && Number(payload.annual_hours) === 0
+      );
+      if (isPlaceholder) {
+        form.elements.weekly_hours.value = "";
+        form.elements.annual_hours.value = "";
+        form.dataset.weekly = "";
+        form.dataset.annual = "";
+      }
+      form.elements.weeks_count.value = displayDecimal(
+        Number(payload.weeks_count),
+      );
       form.dataset.weeks = payload.weeks_count;
       form.removeAttribute("data-plan-cell-create");
       form.setAttribute("data-plan-cell", "");
       form.classList.remove("workload-hour-cell--new");
+      form.classList.remove("is-save-error");
       savedSnapshots.set(form, standardSnapshot(form));
+      recalculateMatrix();
     } catch (error) {
-      form.classList.add("is-save-error");
-      window.alert(error.message);
+      showSaveError(form, error.message);
     } finally {
       form.classList.remove("is-saving");
     }
@@ -472,7 +494,6 @@
     if (savedSnapshots.get(form) === currentSnapshot) return;
 
     form.classList.add("is-saving");
-    form.classList.remove("is-save-error");
     try {
       const payload = await postForm(form);
       const unchangedDuringSave = periodSnapshot(form) === currentSnapshot;
@@ -494,11 +515,11 @@
       form.removeAttribute("data-plan-period-cell-create");
       form.setAttribute("data-plan-period-cell", "");
       form.classList.remove("workload-period-cell--new");
+      form.classList.remove("is-save-error");
       savedSnapshots.set(form, currentSnapshot);
       recalculateMatrix();
     } catch (error) {
-      form.classList.add("is-save-error");
-      window.alert(error.message);
+      showSaveError(form, error.message);
     } finally {
       form.classList.remove("is-saving");
     }
@@ -552,6 +573,7 @@
         : standardSnapshot(form),
     );
     form.addEventListener("input", (event) => {
+      form.classList.remove("is-save-error");
       recalculateMatrix();
       if (
         event.target === form.elements.weekly_hours
@@ -611,6 +633,7 @@
     );
     form.addEventListener("input", (event) => {
       if (!event.target.matches("[data-period-index], [data-period-weeks-index]")) return;
+      form.classList.remove("is-save-error");
       recalculateMatrix();
       scheduleSave(form, savePeriodForm);
     });
