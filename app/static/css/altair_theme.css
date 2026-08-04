@@ -658,6 +658,18 @@ textarea.form-control:focus {
 
   .app-navbar > .container {
     width: calc(100% - 24px);
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .app-navbar .altair-navbar-identity {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .app-navbar .navbar-toggler {
+    flex: 0 0 auto;
+    margin-left: auto;
   }
 
   .app-navbar .navbar-collapse {
@@ -706,13 +718,20 @@ textarea.form-control:focus {
     flex-basis: 34px;
   }
 
+  .altair-org-brand {
+    flex: 1 1 auto;
+    gap: 6px;
+    overflow: hidden;
+  }
+
   .altair-org-name {
-    max-width: 115px;
+    max-width: 92px;
     font-size: 11px;
+    white-space: nowrap;
   }
 
   .altair-navbar-identity {
-    gap: 10px;
+    gap: 8px;
   }
 
   .altair-platform-brand {
@@ -788,7 +807,7 @@ textarea.form-control:focus {
   }
 
   .portal-home.portal-home-mobile-upgraded .portal-home-header {
-    margin-bottom: 0 !important;
+    display: none !important;
   }
 
   .portal-home-app-panel {
@@ -944,10 +963,10 @@ textarea.form-control:focus {
   }
 
   .portal-home-search-mobile {
-    position: sticky;
-    top: calc(74px + env(safe-area-inset-top, 0px));
-    z-index: 1030;
-    box-shadow: 0 14px 28px rgba(6, 20, 66, 0.08) !important;
+    position: static;
+    top: auto;
+    z-index: auto;
+    box-shadow: 0 10px 24px rgba(6, 20, 66, 0.05) !important;
   }
 
   .portal-home-search-mobile .portal-card-head {
@@ -990,28 +1009,27 @@ textarea.form-control:focus {
   }
 
   .portal-home-quick-section .portal-home-card-grid-quick {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px;
+    grid-template-columns: 1fr !important;
+    gap: 8px;
   }
 
   .portal-home-sections-grid .portal-home-card-grid {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
+    display: grid;
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .portal-home-sections-grid .portal-home-card-grid .portal-home-card {
-    min-width: 250px;
-    scroll-snap-align: start;
+    min-width: 0;
   }
 
   .portal-home .portal-home-card {
-    min-height: 92px;
+    min-height: 76px;
     grid-template-columns: 38px minmax(0, 1fr);
     gap: 0 12px;
-    padding: 13px 14px;
+    padding: 11px 13px;
     border-radius: 18px;
   }
 
