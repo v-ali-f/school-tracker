@@ -51,6 +51,10 @@ def need_education_level(need):
     return root_plan.education_level if root_plan is not None else None
 
 
+def need_plan_kind(need):
+    return _need_plan_context(need)["plan_kind"]
+
+
 def need_grades(need):
     group = need.teaching_group
     return {
@@ -644,4 +648,5 @@ __all__ = [
     "need_education_level",
     "need_grades",
     "need_matches_department",
+    "need_plan_kind",
 ]

@@ -65,6 +65,7 @@ from app.services.workload_assignment_matrix_service import (
     need_education_level,
     need_grades,
     need_matches_department,
+    need_plan_kind,
 )
 from app.services.teaching_group_matrix_service import (
     build_teaching_group_matrix,
@@ -282,6 +283,51 @@ def _filter_workspace_needs(
             continue
         result.append(need)
     return result
+
+
+def _workspace_form_needs(version):
+    view_mode = (request.form.get("view") or "all").strip().lower()
+    department_id = (
+        request.form.get("department_id", type=int)
+        if view_mode == "department" else None
+    )
+    education_level = (
+        request.form.get("education_level") or ""
+    ).strip().upper()
+    if education_level not in {"NOO", "OOO", "SOO"}:
+        education_level = None
+    grade = request.form.get("grade", type=int)
+    if grade not in range(1, 12):
+        grade = None
+    needs = (
+        _scoped_need_query()
+        .filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
+        )
+        .all()
+    )
+    return _filter_workspace_needs(
+        needs,
+        department_id=department_id,
+        building_id=request.form.get("building_id", type=int),
+        education_level=education_level,
+        grade=grade,
+    )
+
+
+def _state_row_matches_holder(
+    row,
+    holder_type,
+    teacher_id,
+    vacancy_key,
+):
+    row_holder_type = row.get("holder_type", "teacher")
+    if row_holder_type != holder_type:
+        return False
+    if holder_type == "vacancy":
+        return row.get("vacancy_key") == vacancy_key
+    return row.get("teacher_id") == teacher_id
 
 
 def _workspace_teacher_metadata(teachers, selected_version):
@@ -1229,6 +1275,221 @@ def register_assignment_routes(workload_bp):
         if row not in state["rows"]:
             state["rows"].append(row)
         _save_workspace_state(key, state)
+        return _workspace_redirect()
+
+    @workload_bp.post("/assignments/workspace/subjects/delete")
+    @login_required
+    def assignment_workspace_subject_delete():
+        _require_assignments_update()
+        version_id = request.form.get("version_id", type=int)
+        holder_type = (
+            request.form.get("holder_type") or "teacher"
+        ).strip()
+        teacher_id = request.form.get("teacher_id", type=int)
+        vacancy_key = (
+            request.form.get("vacancy_key") or ""
+        ).strip()
+        activity_id = request.form.get("activity_id", type=int)
+        plan_kind = (
+            request.form.get("plan_kind") or ""
+        ).strip().upper()
+        version = (
+            _draft_versions_query()
+            .filter(TariffVersion.id == version_id)
+            .first_or_404()
+        )
+        activity = db.session.get(EducationActivity, activity_id)
+        if (
+            holder_type not in {"teacher", "vacancy"}
+            or activity is None
+            or plan_kind not in PLAN_KIND_LABELS
+            or (holder_type == "teacher" and teacher_id is None)
+            or (holder_type == "vacancy" and not vacancy_key)
+        ):
+            flash("Строка предмета не найдена.", "danger")
+            return _workspace_redirect()
+
+        needs = [
+            need
+            for need in _workspace_form_needs(version)
+            if (
+                need.education_activity_id == activity.id
+                and need_plan_kind(need) == plan_kind
+            )
+        ]
+        need_ids = [need.id for need in needs]
+        query = WorkloadAssignment.query.filter(
+            WorkloadAssignment.tariff_version_id == version.id,
+            WorkloadAssignment.workload_need_id.in_(need_ids),
+            WorkloadAssignment.status != "CANCELLED",
+        )
+        if holder_type == "vacancy":
+            query = query.filter(
+                WorkloadAssignment.assignment_kind == "VACANCY",
+                WorkloadAssignment.position_code == vacancy_key,
+            )
+        else:
+            query = query.filter(
+                WorkloadAssignment.assignment_kind != "VACANCY",
+                WorkloadAssignment.employee_user_id == teacher_id,
+            )
+        assignments = query.all() if need_ids else []
+        key, state = _workspace_state(version.id)
+        state = {
+            **state,
+            "teacher_ids": list(state["teacher_ids"]),
+            "vacancies": list(state["vacancies"]),
+            "rows": list(state["rows"]),
+        }
+        rows_before = len(state["rows"])
+        state["rows"] = [
+            row
+            for row in state["rows"]
+            if not (
+                _state_row_matches_holder(
+                    row,
+                    holder_type,
+                    teacher_id,
+                    vacancy_key,
+                )
+                and row.get("activity_id") == activity.id
+                and row.get("plan_kind") == plan_kind
+            )
+        ]
+        removed_draft_rows = rows_before - len(state["rows"])
+        try:
+            for assignment in assignments:
+                cancel_assignment(
+                    assignment,
+                    user_id=current_user.id,
+                    expected_revision=assignment.revision,
+                    reason=(
+                        "Удалена предметная строка из матрицы "
+                        "распределения нагрузки"
+                    ),
+                )
+            db.session.commit()
+        except WorkloadDistributionError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            _save_workspace_state(key, state)
+            if assignments or removed_draft_rows:
+                flash(
+                    f"{activity.name}: строка удалена, "
+                    f"освобождено назначений — {len(assignments)}.",
+                    "success",
+                )
+            else:
+                flash("Строка предмета уже удалена.", "info")
+        return _workspace_redirect()
+
+    @workload_bp.post("/assignments/workspace/holders/delete")
+    @login_required
+    def assignment_workspace_holder_delete():
+        _require_assignments_update()
+        version_id = request.form.get("version_id", type=int)
+        holder_type = (
+            request.form.get("holder_type") or "teacher"
+        ).strip()
+        teacher_id = request.form.get("teacher_id", type=int)
+        vacancy_key = (
+            request.form.get("vacancy_key") or ""
+        ).strip()
+        version = (
+            _draft_versions_query()
+            .filter(TariffVersion.id == version_id)
+            .first_or_404()
+        )
+        if (
+            holder_type not in {"teacher", "vacancy"}
+            or (holder_type == "teacher" and teacher_id is None)
+            or (holder_type == "vacancy" and not vacancy_key)
+        ):
+            flash("Строка преподавателя не найдена.", "danger")
+            return _workspace_redirect()
+
+        need_ids = [
+            need.id for need in _workspace_form_needs(version)
+        ]
+        query = WorkloadAssignment.query.filter(
+            WorkloadAssignment.tariff_version_id == version.id,
+            WorkloadAssignment.workload_need_id.in_(need_ids),
+            WorkloadAssignment.status != "CANCELLED",
+        )
+        if holder_type == "vacancy":
+            query = query.filter(
+                WorkloadAssignment.assignment_kind == "VACANCY",
+                WorkloadAssignment.position_code == vacancy_key,
+            )
+            holder_label = next(
+                (
+                    item.position_title for item in query.all()
+                    if item.position_title
+                ),
+                "Вакансия",
+            )
+            assignments = query.all() if need_ids else []
+        else:
+            query = query.filter(
+                WorkloadAssignment.assignment_kind != "VACANCY",
+                WorkloadAssignment.employee_user_id == teacher_id,
+            )
+            assignments = query.all() if need_ids else []
+            teacher = db.session.get(User, teacher_id)
+            holder_label = (
+                teacher.fio if teacher is not None else "Преподаватель"
+            )
+
+        key, state = _workspace_state(version.id)
+        state = {
+            **state,
+            "teacher_ids": list(state["teacher_ids"]),
+            "vacancies": list(state["vacancies"]),
+            "rows": list(state["rows"]),
+        }
+        state["rows"] = [
+            row
+            for row in state["rows"]
+            if not _state_row_matches_holder(
+                row,
+                holder_type,
+                teacher_id,
+                vacancy_key,
+            )
+        ]
+        if holder_type == "vacancy":
+            state["vacancies"] = [
+                item for item in state["vacancies"]
+                if item.get("key") != vacancy_key
+            ]
+        else:
+            state["teacher_ids"] = [
+                item for item in state["teacher_ids"]
+                if item != teacher_id
+            ]
+        try:
+            for assignment in assignments:
+                cancel_assignment(
+                    assignment,
+                    user_id=current_user.id,
+                    expected_revision=assignment.revision,
+                    reason=(
+                        "Удалена строка преподавателя из матрицы "
+                        "распределения нагрузки"
+                    ),
+                )
+            db.session.commit()
+        except WorkloadDistributionError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            _save_workspace_state(key, state)
+            flash(
+                f"{holder_label}: строка удалена, "
+                f"освобождено назначений — {len(assignments)}.",
+                "success",
+            )
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/assign")

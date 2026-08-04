@@ -681,6 +681,154 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "disabled" in locked_matrix
 
 
+def test_workspace_can_delete_teacher_subject_row(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name = "Удаляемов"
+        teacher.first_name = "Предмет"
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        need_id = need.id
+        activity_id = need.education_activity_id
+        db.session.commit()
+    login(admin_id)
+    filters = {
+        "version_id": str(context["version_id"]),
+        "view": "all",
+    }
+
+    client.post(
+        "/workload/assignments/workspace/teachers",
+        data={**filters, "teacher_id": str(teacher_id)},
+    )
+    client.post(
+        "/workload/assignments/workspace/subjects",
+        data={
+            **filters,
+            "teacher_id": str(teacher_id),
+            "activity_plan_kind": f"{activity_id}:CURRICULUM",
+        },
+    )
+    client.post(
+        "/workload/assignments/workspace/cell",
+        data={
+            **filters,
+            "need_id": str(need_id),
+            "teacher_id": str(teacher_id),
+            "hours": "5",
+        },
+    )
+
+    before = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert "Удалить строку предмета" in before
+    assert "/workload/assignments/workspace/subjects/delete" in before
+    assert "Удалить всю строку" in before
+
+    deleted = client.post(
+        "/workload/assignments/workspace/subjects/delete",
+        data={
+            **filters,
+            "holder_type": "teacher",
+            "teacher_id": str(teacher_id),
+            "activity_id": str(activity_id),
+            "plan_kind": "CURRICULUM",
+        },
+        follow_redirects=True,
+    )
+    deleted_html = deleted.get_data(as_text=True)
+    assert deleted.status_code == 200
+    assert "строка удалена" in deleted_html
+    assert "Предмет не выбран" in deleted_html
+
+    with app.app_context():
+        assignment = WorkloadAssignment.query.one()
+        assert assignment.status == "CANCELLED"
+        assert assignment.workload_need.status == "OPEN"
+        change = (
+            WorkloadAssignmentChange.query
+            .filter_by(
+                workload_assignment_id=assignment.id,
+                change_kind="CANCEL",
+            )
+            .one()
+        )
+        assert "предметная строка" in change.reason
+
+
+def test_workspace_can_delete_entire_teacher_row(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name = "Удаляемов"
+        teacher.first_name = "Полностью"
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        db.session.add(_assignment(need, teacher_id, "5"))
+        db.session.commit()
+    login(admin_id)
+    filters = {
+        "version_id": str(context["version_id"]),
+        "view": "all",
+    }
+
+    before = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert f'data-source-teacher-id="{teacher_id}"' in before
+    assert "/workload/assignments/workspace/holders/delete" in before
+
+    deleted = client.post(
+        "/workload/assignments/workspace/holders/delete",
+        data={
+            **filters,
+            "holder_type": "teacher",
+            "teacher_id": str(teacher_id),
+        },
+        follow_redirects=True,
+    )
+    deleted_html = deleted.get_data(as_text=True)
+    assert deleted.status_code == 200
+    assert "строка удалена" in deleted_html
+    assert f'data-source-teacher-id="{teacher_id}"' not in deleted_html
+
+    with app.app_context():
+        assignment = WorkloadAssignment.query.one()
+        assert assignment.status == "CANCELLED"
+        assert assignment.workload_need.status == "OPEN"
+        change = (
+            WorkloadAssignmentChange.query
+            .filter_by(
+                workload_assignment_id=assignment.id,
+                change_kind="CANCEL",
+            )
+            .one()
+        )
+        assert "строка преподавателя" in change.reason
+
+
 def test_workspace_export_and_compact_hours(
     app,
     client,
