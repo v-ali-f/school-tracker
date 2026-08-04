@@ -57,10 +57,16 @@ from app.services.teaching_group_service import (
     population_registry_status,
     validate_group_sources,
 )
-from app.services.teaching_metagroup_service import create_metagroup
+from app.services.teaching_metagroup_service import (
+    build_metagroup_workspace,
+    create_metagroup,
+)
 from app.services.teaching_group_matrix_service import (
+    build_group_composition_workspace,
     build_teaching_group_matrix,
     materialize_default_teaching_groups,
+    replace_group_composition_assignments,
+    replace_teaching_group_count,
 )
 from app.services.workload_assignment_matrix_service import (
     build_workload_assignment_matrix,
@@ -2524,6 +2530,129 @@ def test_metagroup_constructor_filters_by_grade_and_activity(
     assert 'class="metagroup-cluster"' in html
     assert "5А" in html
     assert "5Б" in html
+
+
+def test_metagroup_can_be_planned_before_children_are_distributed(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        class_b = SchoolClass.query.filter_by(name="5Б").one()
+        child = _child("Кузнецова", "Мария")
+        db.session.add(ChildEnrollment(
+            child_id=child.id,
+            academic_year_id=class_b.academic_year_id,
+            school_class_id=class_b.id,
+            status="ACTIVE",
+            enrolled_at=datetime(2026, 9, 1),
+        ))
+        db.session.commit()
+
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        classes = sorted(
+            snapshot.classes,
+            key=lambda item: item.name_snapshot,
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        plan = line.education_plan
+        groups_by_class = {}
+        for snapshot_class in classes:
+            replace_plan_binding_members(
+                plan,
+                snapshot_class,
+                {
+                    enrollment.id
+                    for enrollment in snapshot_class.enrollments
+                },
+                user_id=user_id,
+            )
+            groups_by_class[snapshot_class.id] = (
+                replace_teaching_group_count(
+                    version=line.education_plan.tariff_version,
+                    snapshot=snapshot,
+                    plans=[plan],
+                    plan_line_id=line.id,
+                    snapshot_class_id=snapshot_class.id,
+                    plan_id=plan.id,
+                    group_count=2,
+                    user_id=user_id,
+                )
+            )
+        db.session.flush()
+
+        matrix = build_teaching_group_matrix(
+            snapshot,
+            [plan],
+            "OOO",
+            context["version_id"],
+            grade=5,
+        )
+        workspace = build_metagroup_workspace(
+            matrix,
+            context["version_id"],
+        )
+        assert [
+            option["activity"].name
+            for option in workspace["activity_options"]
+        ] == ["Математика"]
+
+        metagroup = create_metagroup(
+            version=line.education_plan.tariff_version,
+            snapshot=snapshot,
+            plans=[plan],
+            source_tokens=[
+                f"group:{groups_by_class[snapshot_class.id][0].id}"
+                for snapshot_class in classes
+            ],
+            name="Математика · объединённая группа",
+            user_id=user_id,
+        )
+        db.session.commit()
+        assert metagroup.status == "DRAFT"
+        assert metagroup.actual_size == 0
+
+        for index, snapshot_class in enumerate(classes):
+            matrix = build_teaching_group_matrix(
+                snapshot,
+                [plan],
+                "OOO",
+                context["version_id"],
+                grade=5,
+            )
+            composition = build_group_composition_workspace(matrix)
+            item = next(
+                item
+                for item in composition["items"]
+                if item["snapshot_class"].id == snapshot_class.id
+            )
+            assignments = {
+                enrollment.id: item["groups"][member_index].id
+                for member_index, enrollment in enumerate(
+                    item["enrollments"]
+                )
+            }
+            replace_group_composition_assignments(
+                item,
+                assignments,
+                user_id=user_id,
+            )
+            db.session.commit()
+            db.session.refresh(metagroup)
+            assert metagroup.status == (
+                "READY" if index == len(classes) - 1 else "DRAFT"
+            )
+
+        assert metagroup.actual_size == 2
+        assert len(metagroup.members) == 2
+        assert sorted(
+            item.student_count for item in metagroup.source_classes
+        ) == [1, 1]
 
 
 def test_metagroup_need_is_mirrored_across_source_class_columns(
