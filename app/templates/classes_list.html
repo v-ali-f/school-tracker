@@ -43,12 +43,10 @@
   </div>
 </div>
 
-<div class="card soft-card mb-3">
-  <div class="card-body">
-    <form method="get" action="{{ url_for('children.classes_registry') }}" class="row g-2 align-items-end">
+<form method="get" action="{{ url_for('children.classes_registry') }}" class="row g-2 registry-filter-panel">
       <div class="col-md-3">
         <label class="form-label">Учебный год</label>
-        <select class="form-select" name="academic_year_id" onchange="this.form.submit()">
+        <select class="form-select form-select-sm" name="academic_year_id" onchange="this.form.submit()">
           {% for y in all_years %}
             <option value="{{ y.id }}" {% if year and y.id == year.id %}selected{% endif %}>{{ y.name }}</option>
           {% endfor %}
@@ -56,7 +54,7 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">Уровень образования</label>
-        <select class="form-select" name="level" onchange="this.form.submit()">
+        <select class="form-select form-select-sm" name="level" onchange="this.form.submit()">
           <option value="">Все уровни</option>
           {% for code, label, _grades in level_options %}
             <option value="{{ code }}" {% if selected_level == code %}selected{% endif %}>{{ label }}</option>
@@ -65,7 +63,7 @@
       </div>
       <div class="col-md-2">
         <label class="form-label">Параллель</label>
-        <select class="form-select" name="grade" onchange="this.form.submit()">
+        <select class="form-select form-select-sm" name="grade" onchange="this.form.submit()">
           <option value="">Все параллели</option>
           {% for grade in grade_options %}
             <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
@@ -75,16 +73,14 @@
       <div class="col-md-4">
         <label class="form-label">Поиск</label>
         <div class="d-flex gap-2">
-          <input type="text" class="form-control" name="q" value="{{ q or '' }}" placeholder="Название класса или ФИО классрука">
-          <button class="btn btn-outline-secondary" aria-label="Найти"><i class="bi bi-search"></i></button>
+          <input type="text" class="form-control form-control-sm" name="q" value="{{ q or '' }}" placeholder="Название класса или ФИО классрука">
+          <button class="btn btn-outline-secondary btn-sm" aria-label="Найти"><i class="bi bi-search"></i></button>
           {% if q or selected_level or selected_grade %}
-            <a class="btn btn-outline-secondary" href="{{ url_for('children.classes_registry', academic_year_id=year.id if year else None) }}" aria-label="Сбросить фильтры" title="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.classes_registry', academic_year_id=year.id if year else None) }}" aria-label="Сбросить фильтры" title="Сбросить фильтры"><i class="bi bi-x-lg"></i></a>
           {% endif %}
         </div>
       </div>
     </form>
-  </div>
-</div>
 
 <div class="card soft-card mb-3">
   <div class="card-body">
@@ -117,7 +113,7 @@
   </div>
 </div>
 
-<div class="card soft-card">
+<div class="registry-matrix-card">
   <form
     id="bulk-delete-classes"
     method="post"
@@ -140,10 +136,10 @@
     </button>
   </div>
   <div class="table-responsive">
-    <table class="table table-striped mb-0 align-middle classes-registry-table">
+    <table class="registry-matrix registry-matrix-wide classes-registry-table">
       <thead>
         <tr>
-          <th class="text-center" style="width:44px;">
+          <th class="registry-cell-center" style="width:44px;">
             <input
               class="form-check-input"
               type="checkbox"
@@ -153,12 +149,12 @@
           </th>
           <th>Класс</th>
           <th>Здание</th>
-          <th class="num">Учеников</th>
-          <th class="num">Макс.</th>
-          <th class="num">Заяв.</th>
+          <th class="registry-cell-center">Учеников</th>
+          <th class="registry-cell-center">Макс.</th>
+          <th class="registry-cell-center">Заяв.</th>
           <th>Классный руководитель</th>
           <th>Телефон</th>
-          <th class="text-end">Действия</th>
+          <th class="registry-cell-center">Действия</th>
         </tr>
       </thead>
       <tbody>
@@ -166,7 +162,7 @@
       {% for c, teacher_fio, teacher_phone, active_count, _task_total, _task_overdue, sc_in_club, do_count in classes %}
         {% set _form_id = 'edit-class-' ~ c.id %}
         <tr data-inline-class-row data-class-id="{{ c.id }}">
-          <td class="text-center">
+          <td class="registry-cell-center">
             <input
               class="form-check-input class-selection"
               type="checkbox"
@@ -207,8 +203,8 @@
               {% endfor %}
             </select>
           </td>
-          <td class="num">{{ active_count }}</td>
-          <td class="num">
+          <td class="registry-cell-center">{{ active_count }}</td>
+          <td class="registry-cell-center">
             <span class="text-muted" data-class-view="max_students">{{ c.max_students or '—' }}</span>
             <input
               class="form-control form-control-sm class-number-input d-none"
@@ -222,7 +218,7 @@
               required
             >
           </td>
-          <td class="num">
+          <td class="registry-cell-center">
             <span data-class-view="applications_count">{{ c.applications_count or '—' }}</span>
             <input
               class="form-control form-control-sm class-number-input d-none"
@@ -258,7 +254,7 @@
           <td class="text-muted class-phone-cell">
             <span data-class-view="phone">{{ teacher_phone or '—' }}</span>
           </td>
-          <td class="text-end class-actions-cell">
+          <td class="registry-cell-center class-actions-cell">
             <form
               id="{{ _form_id }}"
               method="post"
@@ -269,13 +265,13 @@
               <input type="hidden" name="return_grade" value="{{ selected_grade or '' }}">
               <input type="hidden" name="return_q" value="{{ q or '' }}">
             </form>
-            <div class="class-view-actions" data-class-view-actions>
-              <button class="btn btn-sm btn-outline-secondary" type="button" data-class-edit>
-              <i class="bi bi-pencil me-1"></i>Изменить
+            <div class="class-view-actions registry-row-actions" data-class-view-actions>
+              <button class="btn btn-outline-secondary registry-row-action" type="button" data-class-edit title="Изменить класс" aria-label="Изменить класс {{ c.name }}">
+              <i class="bi bi-pencil"></i>
               </button>
               <form method="post" action="{{ url_for('children.classes_delete', class_id=c.id) }}" class="d-inline" onsubmit="return confirm('Удалить класс?');">
                 <input type="hidden" name="academic_year_id" value="{{ year.id }}">
-                <button class="btn btn-sm btn-outline-danger" aria-label="Удалить класс"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-outline-danger registry-row-action" aria-label="Удалить класс" title="Удалить класс"><i class="bi bi-trash"></i></button>
               </form>
             </div>
             <div class="class-edit-actions d-none" data-class-edit-actions>
@@ -290,7 +286,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="{{ _colspan }}" class="text-muted">Пока классов нет.</td></tr>
+        <tr><td colspan="{{ _colspan }}" class="registry-empty-row">Пока классов нет.</td></tr>
       {% endfor %}
       </tbody>
     </table>

@@ -464,6 +464,11 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
     assert "5–9 ·".encode() in response.data
     assert b'value=""' in response.data
     assert b'data-saved-value="0"' in response.data
+    assert (
+        b".contingent-classes-table.table tbody td"
+        in response.data
+    )
+    assert b"height: 24px !important" in response.data
 
 
 def test_plan_bindings_page_reads_snapshot_classes(
@@ -495,6 +500,9 @@ def test_plan_bindings_page_reads_snapshot_classes(
 
     assert response.status_code == 200
     assert "Привязка учебных планов".encode() in response.data
+    assert b"registry-filter-panel" in response.data
+    assert b"registry-matrix registry-matrix-wide" in response.data
+    assert b"registry-matrix-card" in response.data
     assert "5А".encode() in response.data
     assert "Иванов Иван".encode() not in response.data
 

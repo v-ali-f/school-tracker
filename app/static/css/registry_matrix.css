@@ -45,6 +45,14 @@ table.registry-matrix {
   table-layout: fixed;
 }
 
+table.registry-matrix.registry-matrix-medium {
+  min-width: 720px;
+}
+
+table.registry-matrix.registry-matrix-wide {
+  min-width: 1040px;
+}
+
 table.registry-matrix thead th {
   height: 29px;
   padding: 3px 6px;
@@ -87,6 +95,27 @@ table.registry-matrix .registry-cell-center {
   text-align: center;
 }
 
+table.registry-matrix .registry-cell-nowrap {
+  white-space: nowrap;
+}
+
+table.registry-matrix .registry-cell-clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table.registry-matrix a:not(.btn) {
+  color: #175caa;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+table.registry-matrix a:not(.btn):hover {
+  color: #0e477f;
+  text-decoration: underline;
+}
+
 .registry-row-actions {
   display: flex;
   align-items: center;
@@ -103,6 +132,14 @@ table.registry-matrix .registry-cell-center {
   border-radius: 4px;
   font-size: 11px;
   line-height: 1;
+}
+
+.container.my-4 .btn.registry-row-action {
+  width: 23px !important;
+  height: 23px !important;
+  min-height: 23px !important;
+  padding: 0 !important;
+  border-radius: 4px !important;
 }
 
 table.registry-matrix .registry-empty-row {

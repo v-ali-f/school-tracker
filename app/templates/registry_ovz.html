@@ -12,42 +12,57 @@
   </div>
 </div>
 
-<div class="card soft-card mb-3"><div class="card-body">
-  <form method="get" class="row g-2 align-items-end">
-    <div class="col-md-2">
-      <label class="form-label">Параллель</label>
-      <select name="grade" class="form-select" onchange="this.form.submit()">
-        <option value="">Все</option>
-        {% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Класс</label>
-      <select name="class_id" class="form-select">
-        <option value="">Все</option>
-        {% for cls in classes %}<option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">ФИО</label>
-      <input type="text" name="q" value="{{ q_text }}" class="form-control" placeholder="Поиск по ФИО">
-    </div>
-    <div class="col-md-3 d-flex gap-2">
-      <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}"><button class="btn btn-primary" type="submit">Показать</button>
-      <a class="btn btn-outline-secondary" href="{{ url_for('children.registry_ovz') }}">Сбросить</a>
-    </div>
-  </form>
-</div></div>
+<form method="get" class="row g-2 registry-filter-panel">
+  <div class="col-md-2">
+    <label class="form-label">Параллель</label>
+    <select name="grade" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">Все</option>
+      {% for grade in grades %}<option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Класс</label>
+    <select name="class_id" class="form-select form-select-sm">
+      <option value="">Все классы</option>
+      {% for cls in classes %}<option value="{{ cls.id }}" {% if selected_class_id == cls.id %}selected{% endif %}>{{ cls.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">ФИО</label>
+    <input type="text" name="q" value="{{ q_text }}" class="form-control form-control-sm" placeholder="Поиск по ФИО">
+  </div>
+  <div class="col-md-3 d-flex align-items-end gap-2">
+    <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}">
+    <button class="btn btn-outline-secondary btn-sm flex-fill" type="submit">Фильтр</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.registry_ovz') }}">Сброс</a>
+  </div>
+</form>
 
-<div class="card soft-card">
+<div class="registry-matrix-card">
   <div class="table-responsive">
-    <table class="table table-striped mb-0 align-middle">
-      <thead><tr><th class="table-number-col">№</th><th>ФИО</th><th style="width:90px;">Класс</th><th style="width:180px;">Нозология</th><th style="width:90px;">АООП</th></tr></thead>
+    <table class="registry-matrix registry-matrix-medium">
+      <colgroup>
+        <col style="width:48px">
+        <col style="width:280px">
+        <col style="width:86px">
+        <col style="width:230px">
+        <col style="width:100px">
+        <col style="width:42px">
+      </colgroup>
+      <thead><tr><th>№</th><th>ФИО</th><th>Класс</th><th>Нозология</th><th>АООП</th><th aria-label="Действия"></th></tr></thead>
       <tbody>
         {% for ch in children %}
-          <tr><td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td><td><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td><td class="text-muted">{{ ch.current_class_name or ch.class_name or "—" }}</td><td>{{ ch.ovz_nosology or "—" }}</td><td>{{ ch.ovz_variant or "—" }}</td></tr>
+        <tr>
+          <td class="registry-cell-center text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td>
+          <td class="registry-cell-clip"><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td>
+          <td class="registry-cell-center">{{ ch.current_class_name or ch.class_name or "—" }}</td>
+          <td class="registry-cell-clip" title="{{ ch.ovz_nosology or '' }}">{{ ch.ovz_nosology or "—" }}</td>
+          <td class="registry-cell-center">{{ ch.ovz_variant or "—" }}</td>
+          <td><div class="registry-row-actions"><a class="btn btn-outline-primary registry-row-action" href="{{ url_for('children.child_card', child_id=ch.id) }}" title="Открыть карточку" aria-label="Открыть карточку {{ ch.fio }}"><i class="bi bi-box-arrow-up-right"></i></a></div></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="registry-empty-row">Нет данных</td></tr>
         {% endfor %}
-        {% if children|length == 0 %}<tr><td colspan="5" class="text-muted">Нет данных</td></tr>{% endif %}
       </tbody>
     </table>
   </div>

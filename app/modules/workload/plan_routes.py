@@ -880,6 +880,14 @@ def register_plan_routes(workload_bp):
             TariffCycle.academic_year_id.desc(),
             EducationPlan.name.asc(),
         ).all()
+        for item in items:
+            item.curriculum_annual_hours = sum(
+                (
+                    Decimal(line.annual_hours or 0)
+                    for line in item.lines
+                ),
+                Decimal("0"),
+            )
         can_update = (
             is_feature_enabled(WORKLOAD_WRITE)
             and can_use_workload_permission(

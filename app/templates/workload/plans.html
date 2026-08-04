@@ -21,8 +21,8 @@
 
 {% include "workload/_nav.html" %}
 
-<form class="workload-plan-filter" method="get">
-  <div>
+<form class="row g-2 registry-filter-panel" method="get">
+  <div class="col-md-4">
     <label class="form-label small" for="plan-year-filter">Учебный год</label>
     <select class="form-select form-select-sm" id="plan-year-filter" name="academic_year_id">
       <option value="">Все учебные годы</option>
@@ -31,23 +31,32 @@
       {% endfor %}
     </select>
   </div>
-  <div class="workload-plan-filter__action">
+  <div class="col-auto d-flex align-items-end">
     <button class="btn btn-outline-secondary btn-sm" type="submit" title="Применить фильтр" aria-label="Применить фильтр">
       <i class="bi bi-funnel" aria-hidden="true"></i>
     </button>
   </div>
 </form>
 
-<div class="table-responsive workload-plan-registry">
-  <table class="table table-sm align-middle mb-0">
+<div class="registry-matrix-card workload-plan-registry">
+  <div class="table-responsive">
+  <table class="registry-matrix registry-matrix-medium">
+    <colgroup>
+      <col style="width:120px">
+      <col>
+      <col style="width:150px">
+      <col style="width:170px">
+      <col style="width:160px">
+      <col style="width:145px">
+    </colgroup>
     <thead>
       <tr>
         <th>Учебный год</th>
         <th>Наименование</th>
         <th>Уровень</th>
         <th>Профиль</th>
-        <th class="text-end">Строк</th>
-        <th class="text-end">Действие</th>
+        <th>Всего урочных часов за год</th>
+        <th>Действия</th>
       </tr>
     </thead>
     <tbody>
@@ -62,16 +71,12 @@
           {% if plan.building %}<div class="small text-muted">{{ plan.building.short_name or plan.building.name }}</div>{% endif %}
         </td>
         <td>{{ plan.profile_name or "—" }}</td>
-        {% set line_count = namespace(value=plan.lines|length) %}
-        {% for companion in plan.companion_plans %}
-          {% set line_count.value = line_count.value + companion.lines|length %}
-        {% endfor %}
-        <td class="text-end">{{ line_count.value }}</td>
-        <td class="text-end">
-          <div class="d-inline-flex gap-1">
+        <td class="registry-cell-center registry-cell-nowrap">{{ plan.curriculum_annual_hours|compact_decimal }} ч.</td>
+        <td class="registry-cell-center">
+          <div class="registry-row-actions">
           {% if can_update %}
           <button
-            class="btn btn-sm btn-outline-secondary"
+            class="btn btn-sm btn-outline-secondary registry-row-action"
             type="button"
             title="Изменить название и профиль"
             aria-label="Изменить учебный план {{ plan.name }}"
@@ -81,7 +86,7 @@
             <i class="bi bi-pencil" aria-hidden="true"></i>
           </button>
           <a
-            class="btn btn-sm btn-outline-secondary"
+            class="btn btn-sm btn-outline-secondary registry-row-action"
             href="{{ url_for('workload.plan_create', source_plan_id=plan.id) }}"
             title="Создать на основе этого плана"
             aria-label="Создать на основе плана {{ plan.name }}"
@@ -89,7 +94,7 @@
             <i class="bi bi-copy" aria-hidden="true"></i>
           </a>
           <button
-            class="btn btn-sm btn-outline-danger"
+            class="btn btn-sm btn-outline-danger registry-row-action"
             type="button"
             title="Удалить учебный план"
             aria-label="Удалить учебный план {{ plan.name }}"
@@ -99,17 +104,23 @@
             <i class="bi bi-trash" aria-hidden="true"></i>
           </button>
           {% endif %}
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}">
-            <i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Открыть
+          <a
+            class="btn btn-sm btn-outline-primary registry-row-action"
+            href="{{ url_for('workload.plan_matrix', plan_id=plan.id) }}"
+            title="Открыть учебный план"
+            aria-label="Открыть учебный план {{ plan.name }}"
+          >
+            <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
           </a>
           </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="text-center text-muted py-4">Учебные планы ещё не созданы.</td></tr>
+      <tr><td colspan="6" class="registry-empty-row">Учебные планы ещё не созданы.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 
 {% if can_update %}

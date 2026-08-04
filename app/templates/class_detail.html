@@ -29,701 +29,80 @@
 </div>
 
 {% if is_admin %}
-  {% set _rating = kubok_rating(school_class.name) %}
-  {% if _rating %}
-    {% set _max = (_rating.activities|map(attribute='points')|max) if _rating.activities else 0 %}
+  {% set rating = kubok_rating(school_class.name) %}
+  {% if rating %}
+    {% set max_points = (rating.activities|map(attribute='points')|max) if rating.activities else 0 %}
     <div class="card soft-card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span class="section-title mb-0">Кубок школы · класс {{ _rating.class_name }}</span>
-        <a href="{{ url_for('datalens.class_rating_page', class_id=school_class.id) }}"
-           class="small text-decoration-none">Подробный дашборд &rarr;</a>
+        <span class="section-title mb-0">Кубок школы · класс {{ rating.class_name }}</span>
+        <a href="{{ url_for('datalens.class_rating_page', class_id=school_class.id) }}" class="small text-decoration-none">Подробный дашборд &rarr;</a>
       </div>
       <div class="card-body">
         <div class="row g-4 align-items-start">
           <div class="col-md-4">
-            <div class="mb-3">
-              <div class="text-muted small">Место</div>
-              <div class="fw-bold" style="font-size:2.2rem; line-height:1.1;">
-                {{ _rating.place }}
-                <span class="text-muted fw-normal" style="font-size:.95rem;">из {{ _rating.total_classes }}</span>
-              </div>
-              <div class="mt-2 d-flex flex-wrap gap-2">
-                {% if _rating.place_in_parallel and _rating.total_in_parallel and _rating.grade %}
-                  <span class="badge rounded-pill text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
-                        title="Место в параллели {{ _rating.grade }}-х классов">
-                    <i class="bi bi-stack"></i>
-                    {{ _rating.grade }}-е классы: #{{ _rating.place_in_parallel }} из {{ _rating.total_in_parallel }}
-                  </span>
-                {% endif %}
-                {% if _rating.place_in_building and _rating.total_in_building and _rating.building_name %}
-                  <span class="badge rounded-pill text-bg-info-subtle text-info-emphasis border border-info-subtle"
-                        title="Место среди классов здания «{{ _rating.building_name }}»">
-                    <i class="bi bi-building"></i>
-                    {{ _rating.building_name }}: #{{ _rating.place_in_building }} из {{ _rating.total_in_building }}
-                  </span>
-                {% endif %}
-              </div>
-            </div>
-            <div>
-              <div class="text-muted small">Сумма баллов</div>
-              <div class="fw-bold" style="font-size:2.2rem; line-height:1.1;">{{ '{:g}'.format(_rating.total_points) }}</div>
-            </div>
-            <div class="small text-muted mt-3">Активностей: {{ _rating.activities|length if _rating.activities else 0 }}</div>
+            <div class="text-muted small">Место</div>
+            <div class="fs-3 fw-semibold">{{ rating.place }} <span class="text-muted fs-6 fw-normal">из {{ rating.total_classes }}</span></div>
+            <div class="text-muted small mt-3">Сумма баллов</div>
+            <div class="fs-3 fw-semibold">{{ '{:g}'.format(rating.total_points) }}</div>
           </div>
           <div class="col-md-8">
-            {% if _rating.activities %}
-              <div class="small text-muted mb-2">Баллы по активностям</div>
-              <div class="kubok-chart">
-                {% for a in _rating.activities %}
-                  {% set _pct = ((a.points / _max) * 100)|round(1) if _max else 0 %}
-                  <div class="d-flex align-items-center gap-2 mb-1" title="{{ a.name }}: {{ '{:g}'.format(a.points) }} баллов">
-                    <div class="small text-truncate" style="flex:0 0 35%;">{{ a.name }}</div>
-                    <div class="flex-grow-1 kubok-bar-track">
-                      <div class="kubok-bar-fill" style="width: {{ _pct }}%;"></div>
-                    </div>
-                    <div class="small fw-semibold text-end" style="flex:0 0 44px;">{{ '{:g}'.format(a.points) }}</div>
-                  </div>
-                {% endfor %}
+            {% for activity in rating.activities or [] %}
+              {% set percent = ((activity.points / max_points) * 100)|round(1) if max_points else 0 %}
+              <div class="d-flex align-items-center gap-2 mb-1" title="{{ activity.name }}: {{ '{:g}'.format(activity.points) }} баллов">
+                <div class="small text-truncate" style="flex:0 0 35%;">{{ activity.name }}</div>
+                <div class="progress flex-grow-1" style="height:8px;"><div class="progress-bar bg-warning" style="width:{{ percent }}%"></div></div>
+                <div class="small fw-semibold text-end" style="width:44px;">{{ '{:g}'.format(activity.points) }}</div>
               </div>
             {% else %}
               <div class="text-muted small">Данных по активностям нет.</div>
-            {% endif %}
+            {% endfor %}
           </div>
         </div>
       </div>
     </div>
-    <style>
-      .kubok-bar-track { height: 10px; background: #f1f3f5; border-radius: 999px; overflow: hidden; }
-      .kubok-bar-fill { height: 100%; background: linear-gradient(90deg, #f0b429 0%, #f59e0b 100%); border-radius: 999px; transition: width .4s ease; }
-    </style>
   {% endif %}
 {% endif %}
 
-<div class="card soft-card">
-  <div class="card-body p-0">
-    <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-      <div class="section-title mb-0">Список учеников</div>
-      <span class="badge text-bg-secondary">{{ students|length }}</span>
-    </div>
-    <div class="table-responsive">
-      <table class="table class-registry-table mb-0 align-middle">
-        <thead>
-          <tr>
-            <th style="width:50px">#</th>
-            <th>ФИО</th>
-            <th>Дата рождения</th>
-            <th class="text-end"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ch in students %}
-            <tr>
-              <td class="text-muted">{{ loop.index }}</td>
-              <td>
-                <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="text-decoration-none fw-semibold">
-                  {{ ch.last_name }} {{ ch.first_name }}{% if ch.middle_name %} {{ ch.middle_name }}{% endif %}
-                </a>
-              </td>
-              <td class="text-muted">{{ ch.birth_date.strftime('%d.%m.%Y') if ch.birth_date else '—' }}</td>
-              <td class="text-end">
-                <a href="{{ url_for('children.child_card', child_id=ch.id) }}" class="btn btn-sm btn-outline-secondary">
-                  Открыть
-                </a>
-              </td>
-            </tr>
-          {% else %}
-            <tr><td colspan="4" class="text-muted text-center py-4">В классе пока нет учеников.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+<div class="registry-matrix-card">
+  <div class="d-flex align-items-center justify-content-between px-2 py-1 border-bottom">
+    <div class="section-title mb-0">Список учеников</div>
+    <span class="badge text-bg-secondary">{{ students|length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="registry-matrix registry-matrix-medium class-registry-table">
+      <colgroup>
+        <col style="width:48px">
+        <col>
+        <col style="width:150px">
+        <col style="width:42px">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>№</th>
+          <th>ФИО</th>
+          <th>Дата рождения</th>
+          <th aria-label="Действия"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ch in students %}
+        {% set child_fio = ((ch.last_name or '') ~ ' ' ~ (ch.first_name or '') ~ ' ' ~ (ch.middle_name or ''))|trim %}
+        <tr>
+          <td class="registry-cell-center text-muted">{{ loop.index }}</td>
+          <td class="registry-cell-clip"><a href="{{ url_for('children.child_card', child_id=ch.id) }}" title="{{ child_fio }}">{{ child_fio }}</a></td>
+          <td class="registry-cell-center registry-cell-nowrap">{{ ch.birth_date.strftime('%d.%m.%Y') if ch.birth_date else '—' }}</td>
+          <td>
+            <div class="registry-row-actions">
+              <a class="btn btn-outline-primary registry-row-action" href="{{ url_for('children.child_card', child_id=ch.id) }}" title="Открыть карточку" aria-label="Открыть карточку {{ child_fio }}"><i class="bi bi-box-arrow-up-right"></i></a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="registry-empty-row">В классе пока нет учеников.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
-
-
-
-<style id="class-detail-standard-css">
-
-  /* Страница класса: приводим к стандарту портала / ДОУ / Диска */
-
-  .page-head {
-
-    display: flex !important;
-
-    align-items: center !important;
-
-    justify-content: space-between !important;
-
-    gap: 18px !important;
-
-    margin: 0 0 14px !important;
-
-    padding: 16px 18px !important;
-
-    min-height: 72px !important;
-
-    border: 1px solid #dbe4f0 !important;
-
-    border-radius: 18px !important;
-
-    background: #ffffff !important;
-
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
-
-  }
-
-  .page-title {
-
-    margin: 0 0 4px !important;
-
-    color: #1f2937 !important;
-
-    font-size: 22px !important;
-
-    line-height: 1.22 !important;
-
-    font-weight: 500 !important;
-
-    letter-spacing: 0 !important;
-
-  }
-
-  .page-sub {
-
-    margin: 0 !important;
-
-    color: #64748b !important;
-
-    font-size: 14px !important;
-
-    line-height: 1.35 !important;
-
-    font-weight: 400 !important;
-
-  }
-
-  .page-actions {
-
-    display: flex !important;
-
-    align-items: center !important;
-
-    justify-content: flex-end !important;
-
-    gap: 8px !important;
-
-    flex-wrap: wrap !important;
-
-  }
-
-  .page-actions .btn {
-
-    min-height: 32px !important;
-
-    padding: 0 13px !important;
-
-    border-radius: 999px !important;
-
-    font-size: 13px !important;
-
-    font-weight: 500 !important;
-
-    line-height: 1 !important;
-
-    box-shadow: none !important;
-
-  }
-
-  .soft-card {
-
-    border: 1px solid #dbe4f0 !important;
-
-    border-radius: 18px !important;
-
-    background: #ffffff !important;
-
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
-
-    overflow: hidden !important;
-
-  }
-
-  .soft-card .p-3 {
-
-    padding: 14px 16px !important;
-
-  }
-
-  .section-title {
-
-    margin: 0 !important;
-
-    color: #1f2937 !important;
-
-    font-size: 16px !important;
-
-    line-height: 1.25 !important;
-
-    font-weight: 500 !important;
-
-  }
-
-  .soft-card .badge {
-
-    border-radius: 999px !important;
-
-    font-size: 12px !important;
-
-    font-weight: 500 !important;
-
-    padding: 4px 8px !important;
-
-  }
-
-  .table-responsive {
-
-    border-radius: 0 0 18px 18px !important;
-
-    overflow: hidden !important;
-
-  }
-
-  table.table {
-
-    width: 100% !important;
-
-    margin-bottom: 0 !important;
-
-    border-collapse: collapse !important;
-
-    font-size: 15px !important;
-
-  }
-
-  table.table thead th {
-
-    padding: 10px 12px !important;
-
-    color: #64748b !important;
-
-    background: #f8fafc !important;
-
-    border-top: 0 !important;
-
-    border-bottom: 1px solid #dbe4f0 !important;
-
-    font-size: 14px !important;
-
-    line-height: 1.3 !important;
-
-    font-weight: 500 !important;
-
-    text-transform: none !important;
-
-    letter-spacing: 0 !important;
-
-  }
-
-  table.table tbody td {
-
-    padding: 10px 12px !important;
-
-    color: #1f2937 !important;
-
-    background: #ffffff !important;
-
-    border-bottom: 1px solid #e2e8f0 !important;
-
-    font-size: 15px !important;
-
-    line-height: 1.35 !important;
-
-    font-weight: 400 !important;
-
-    vertical-align: middle !important;
-
-  }
-
-  table.table-striped tbody tr:nth-of-type(odd) > * {
-
-    --bs-table-accent-bg: #ffffff !important;
-
-    background-color: #ffffff !important;
-
-  }
-
-  table.table-striped tbody tr:nth-of-type(even) > * {
-
-    --bs-table-accent-bg: #fbfdff !important;
-
-    background-color: #fbfdff !important;
-
-  }
-
-  table.table tbody tr:hover > * {
-
-    --bs-table-accent-bg: #f8fafc !important;
-
-    background-color: #f8fafc !important;
-
-  }
-
-  table.table a {
-
-    color: #2563eb !important;
-
-    font-size: 15px !important;
-
-    font-weight: 500 !important;
-
-    text-decoration: none !important;
-
-  }
-
-  table.table a:hover {
-
-    color: #1d4ed8 !important;
-
-    text-decoration: underline !important;
-
-  }
-
-  table.table .btn,
-
-  .soft-card .btn {
-
-    display: inline-flex !important;
-
-    align-items: center !important;
-
-    justify-content: center !important;
-
-    min-height: 30px !important;
-
-    padding: 0 12px !important;
-
-    border-radius: 999px !important;
-
-    font-size: 13px !important;
-
-    line-height: 1 !important;
-
-    font-weight: 500 !important;
-
-    box-shadow: none !important;
-
-    text-decoration: none !important;
-
-    white-space: nowrap !important;
-
-  }
-
-  table.table .btn-outline-primary,
-
-  .soft-card .btn-outline-primary,
-
-  .page-actions .btn-outline-secondary {
-
-    background: #ffffff !important;
-
-    border-color: #dbe4f0 !important;
-
-    color: #334155 !important;
-
-  }
-
-  table.table .btn-outline-primary:hover,
-
-  .soft-card .btn-outline-primary:hover,
-
-  .page-actions .btn-outline-secondary:hover {
-
-    background: #f8fafc !important;
-
-    border-color: #cbd5e1 !important;
-
-    color: #1e293b !important;
-
-  }
-
-  @media (max-width: 980px) {
-
-    .page-head {
-
-      align-items: flex-start !important;
-
-      flex-direction: column !important;
-
-    }
-
-    .page-actions {
-
-      justify-content: flex-start !important;
-
-    }
-
-  }
-
-</style>
-
-
-
-<style id="class-detail-registry-like-css">
-
-  /* Страница класса: стиль реестра как Диск / ДОУ */
-
-  .page-head {
-
-    margin-bottom: 12px !important;
-
-    padding: 16px 18px !important;
-
-    border: 1px solid #dbe4f0 !important;
-
-    border-radius: 18px !important;
-
-    background: #fff !important;
-
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
-
-  }
-
-  .page-title {
-
-    font-size: 22px !important;
-
-    line-height: 1.22 !important;
-
-    font-weight: 500 !important;
-
-    color: #1f2937 !important;
-
-    margin: 0 0 4px !important;
-
-  }
-
-  .page-sub {
-
-    font-size: 14px !important;
-
-    line-height: 1.35 !important;
-
-    font-weight: 400 !important;
-
-    color: #64748b !important;
-
-    margin: 0 !important;
-
-  }
-
-  .soft-card {
-
-    border: 1px solid #dbe4f0 !important;
-
-    border-radius: 18px !important;
-
-    background: #fff !important;
-
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04) !important;
-
-    overflow: hidden !important;
-
-  }
-
-  .section-title {
-
-    font-size: 16px !important;
-
-    line-height: 1.25 !important;
-
-    font-weight: 500 !important;
-
-    color: #1f2937 !important;
-
-  }
-
-  .class-registry-table,
-
-  table.class-registry-table {
-
-    width: 100% !important;
-
-    margin-bottom: 0 !important;
-
-    border-collapse: collapse !important;
-
-    font-size: 15px !important;
-
-  }
-
-  table.class-registry-table thead th {
-
-    padding: 10px 12px !important;
-
-    background: #f8fafc !important;
-
-    color: #64748b !important;
-
-    border-bottom: 1px solid #dbe4f0 !important;
-
-    font-size: 14px !important;
-
-    line-height: 1.3 !important;
-
-    font-weight: 500 !important;
-
-    text-transform: none !important;
-
-    letter-spacing: 0 !important;
-
-  }
-
-  table.class-registry-table tbody td {
-
-    padding: 10px 12px !important;
-
-    background: #fff !important;
-
-    color: #1f2937 !important;
-
-    border-bottom: 1px solid #e2e8f0 !important;
-
-    font-size: 15px !important;
-
-    line-height: 1.35 !important;
-
-    font-weight: 400 !important;
-
-    vertical-align: middle !important;
-
-  }
-
-  table.class-registry-table tbody tr:hover td {
-
-    background: #f8fafc !important;
-
-  }
-
-  table.class-registry-table a {
-
-    color: #2563eb !important;
-
-    font-size: 15px !important;
-
-    font-weight: 500 !important;
-
-    text-decoration: none !important;
-
-  }
-
-  table.class-registry-table a:hover {
-
-    color: #1d4ed8 !important;
-
-    text-decoration: underline !important;
-
-  }
-
-  table.class-registry-table .btn,
-
-  .page-actions .btn {
-
-    display: inline-flex !important;
-
-    align-items: center !important;
-
-    justify-content: center !important;
-
-    min-height: 30px !important;
-
-    padding: 0 12px !important;
-
-    border-radius: 999px !important;
-
-    font-size: 13px !important;
-
-    line-height: 1 !important;
-
-    font-weight: 500 !important;
-
-    box-shadow: none !important;
-
-    text-decoration: none !important;
-
-    white-space: nowrap !important;
-
-  }
-
-  table.class-registry-table .btn-outline-primary,
-
-  .page-actions .btn-outline-secondary {
-
-    background: #fff !important;
-
-    border-color: #dbe4f0 !important;
-
-    color: #334155 !important;
-
-  }
-
-  table.class-registry-table .btn-outline-primary:hover,
-
-  .page-actions .btn-outline-secondary:hover {
-
-    background: #f8fafc !important;
-
-    border-color: #cbd5e1 !important;
-
-    color: #1e293b !important;
-
-  }
-
-  .soft-card .badge {
-
-    border-radius: 999px !important;
-
-    font-size: 12px !important;
-
-    font-weight: 500 !important;
-
-    padding: 4px 8px !important;
-
-  }
-
-</style>
-
-
-<style id="class-detail-compact-rows-css">
-  table.class-registry-table thead th,
-  table.table thead th {
-    padding: 6px 12px !important;
-    font-size: 14px !important;
-    line-height: 1.2 !important;
-    font-weight: 500 !important;
-  }
-
-  table.class-registry-table tbody td,
-  table.table tbody td {
-    padding: 6px 12px !important;
-    font-size: 15px !important;
-    line-height: 1.2 !important;
-    font-weight: 400 !important;
-  }
-
-  table.class-registry-table tbody td a,
-  table.table tbody td a {
-    font-size: 15px !important;
-    font-weight: 400 !important;
-  }
-
-  table.class-registry-table .btn,
-  table.table .btn {
-    min-height: 25px !important;
-    padding: 0 10px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    border-radius: 999px !important;
-  }
-</style>
 
 {% endblock %}

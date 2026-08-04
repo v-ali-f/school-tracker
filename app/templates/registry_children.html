@@ -12,71 +12,84 @@
   </div>
 </div>
 
-<div class="card soft-card mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-2">
-        <label class="form-label">Параллель</label>
-        <select class="form-select" name="grade" onchange="this.form.submit()">
-          <option value="">Все</option>
-          {% for grade in grades %}
-            <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Класс</label>
-        <select class="form-select" name="class_id">
-          <option value="">Все</option>
-          {% for c in classes %}
-            <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">ФИО</label>
-        <input class="form-control" name="q" value="{{ q_text or '' }}" placeholder="Например Иванов">
-      </div>
-      <div class="col-md-3 d-flex gap-2">
-        <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}"><button class="btn btn-primary" type="submit">Показать</button>
-        <a class="btn btn-outline-secondary" href="?">Сброс</a>
-      </div>
-    </form>
+<form method="get" class="row g-2 registry-filter-panel">
+  <div class="col-md-2">
+    <label class="form-label">Параллель</label>
+    <select class="form-select form-select-sm" name="grade" onchange="this.form.submit()">
+      <option value="">Все</option>
+      {% for grade in grades %}
+      <option value="{{ grade }}" {% if selected_grade == grade %}selected{% endif %}>{{ grade }} класс</option>
+      {% endfor %}
+    </select>
   </div>
-</div>
+  <div class="col-md-3">
+    <label class="form-label">Класс</label>
+    <select class="form-select form-select-sm" name="class_id">
+      <option value="">Все классы</option>
+      {% for c in classes %}
+      <option value="{{ c.id }}" {% if selected_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">ФИО</label>
+    <input class="form-control form-control-sm" name="q" value="{{ q_text or '' }}" placeholder="Поиск по ФИО">
+  </div>
+  <div class="col-md-3 d-flex align-items-end gap-2">
+    <input type="hidden" name="per_page" value="{{ pagination.per_page if pagination else 20 }}">
+    <button class="btn btn-outline-secondary btn-sm flex-fill" type="submit">Фильтр</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ request.path }}">Сброс</a>
+  </div>
+</form>
 
-<div class="card soft-card">
+<div class="registry-matrix-card">
   <div class="table-responsive">
-    <table class="table table-striped mb-0 align-middle">
+    <table class="registry-matrix registry-matrix-wide">
+      <colgroup>
+        <col style="width:48px">
+        <col style="width:210px">
+        <col style="width:76px">
+        <col style="width:190px">
+        <col style="width:145px">
+        <col style="width:190px">
+        <col style="width:145px">
+        <col style="width:42px">
+      </colgroup>
       <thead>
         <tr>
-          <th class="table-number-col">№</th>
+          <th>№</th>
           <th>ФИО</th>
-          <th style="width:100px;">Класс</th>
+          <th>Класс</th>
           <th>Мама</th>
-          <th style="width:160px;">Телефон мамы</th>
+          <th>Телефон мамы</th>
           <th>Папа</th>
-          <th style="width:160px;">Телефон папы</th>
+          <th>Телефон папы</th>
+          <th aria-label="Действия"></th>
         </tr>
       </thead>
       <tbody>
         {% for ch in children %}
-          <tr>
-            <td class="text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td>
-            <td><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td>
-            <td class="text-muted">{{ ch.current_class_name or ch.class_name or "—" }}</td>
-            <td>{{ ch.mother_fio or "—" }}</td>
-            <td class="text-muted">{{ ch.mother_phone or "—" }}</td>
-            <td>{{ ch.father_fio or "—" }}</td>
-            <td class="text-muted">{{ ch.father_phone or "—" }}</td>
-          </tr>
+        <tr>
+          <td class="registry-cell-center text-muted">{{ (pagination.first_item if pagination else 1) + loop.index0 }}</td>
+          <td class="registry-cell-clip"><a href="{{ url_for('children.child_card', child_id=ch.id) }}">{{ ch.fio }}</a></td>
+          <td class="registry-cell-center">{{ ch.current_class_name or ch.class_name or "—" }}</td>
+          <td class="registry-cell-clip" title="{{ ch.mother_fio or '' }}">{{ ch.mother_fio or "—" }}</td>
+          <td class="registry-cell-nowrap">{{ ch.mother_phone or "—" }}</td>
+          <td class="registry-cell-clip" title="{{ ch.father_fio or '' }}">{{ ch.father_fio or "—" }}</td>
+          <td class="registry-cell-nowrap">{{ ch.father_phone or "—" }}</td>
+          <td>
+            <div class="registry-row-actions">
+              <a class="btn btn-outline-primary registry-row-action" href="{{ url_for('children.child_card', child_id=ch.id) }}" title="Открыть карточку" aria-label="Открыть карточку {{ ch.fio }}"><i class="bi bi-box-arrow-up-right"></i></a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="registry-empty-row">Нет данных</td></tr>
         {% endfor %}
-        {% if children|length == 0 %}
-          <tr><td colspan="7" class="text-muted">Нет данных</td></tr>
-        {% endif %}
       </tbody>
     </table>
   </div>
 </div>
 
+{% include "components/pagination.html" %}
 {% endblock %}
