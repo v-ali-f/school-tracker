@@ -47,25 +47,6 @@
     </div>
   </div>
 
-  <div class="portal-home-mobile-actions" aria-label="Быстрые действия на телефоне">
-    <a class="portal-home-mobile-action" href="{{ url_for('tasks.my_tasks') }}">
-      <i class="bi bi-check2-square"></i>
-      <span>Задачи</span>
-    </a>
-    <a class="portal-home-mobile-action" href="{{ url_for('children.incidents_my') }}">
-      <i class="bi bi-exclamation-circle"></i>
-      <span>Инциденты</span>
-    </a>
-    <a class="portal-home-mobile-action" href="{{ url_for('children.list_children') }}">
-      <i class="bi bi-people"></i>
-      <span>Ученики</span>
-    </a>
-    <a class="portal-home-mobile-action" href="{{ url_for('drive.index') }}">
-      <i class="bi bi-hdd-network"></i>
-      <span>Диск</span>
-    </a>
-  </div>
-
   {% if show_home_summary and show_quick_summary and quick_summary %}
   <div class="portal-home-stats portal-home-stats-mobile">
     {% for card in quick_summary %}
