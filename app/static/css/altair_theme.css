@@ -667,6 +667,10 @@ textarea.form-control:focus {
     overflow: hidden;
   }
 
+  .app-navbar .altair-platform-brand {
+    flex: 0 0 auto;
+  }
+
   .app-navbar .navbar-toggler {
     flex: 0 0 auto;
     margin-left: auto;
@@ -719,7 +723,7 @@ textarea.form-control:focus {
   }
 
   .altair-org-brand {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     gap: 6px;
     overflow: hidden;
   }

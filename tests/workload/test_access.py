@@ -117,6 +117,10 @@ def test_mobile_dashboard_omits_pwa_information_panels(
     assert b'id="appModeStrip"' not in response.data
     assert "Приложение на телефоне".encode() not in response.data
     assert b'id="pwaOnboardingCard"' not in response.data
+    assert (
+        'aria-label="Быстрые действия на телефоне"'.encode()
+        not in response.data
+    )
 
     theme_css = (
         Path(__file__).parents[2]
@@ -133,6 +137,7 @@ def test_mobile_dashboard_omits_pwa_information_panels(
     assert "position: sticky" not in search_rule
     assert "flex-wrap: nowrap" in theme_css
     assert ".app-navbar .altair-navbar-identity" in theme_css
+    assert "flex: 0 0 auto" in theme_css
     sections_rule = theme_css.split(
         ".portal-home-sections-grid .portal-home-card-grid {",
         1,
