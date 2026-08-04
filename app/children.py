@@ -158,6 +158,11 @@ from .models import (
     TariffVersion,
 )
 from app.services.teaching_group_service import current_population_snapshot
+from app.utils.building_matrix_tones import (
+    BUILDING_MATRIX_TONE_CHOICES,
+    building_matrix_tone,
+    normalize_building_matrix_tone,
+)
 from .ovz_rules import OVZ_LEVELS, OVZ_NOZOLOGIES, allowed_variants, is_allowed
 from .roles import require_roles
 from app.service_staff import child_support_assignments, can_view_child_service_block
@@ -1759,8 +1764,8 @@ def contingent():
     teachers_map = {u.id: u for u in teachers}
     buildings_map = {b.id: b for b in buildings}
     building_tone_map = {
-        building.id: index % 6
-        for index, building in enumerate(buildings)
+        building.id: building_matrix_tone(building)
+        for building in buildings
     }
 
     class_counts = dict(
@@ -2059,7 +2064,7 @@ def contingent():
             "teacher_phone": teacher_phone,
             "profile_names": profiles_by_class.get(c.id, []),
             "applications_count": int(c.applications_count or 0),
-            "building_tone": building_tone_map.get(c.building_id, 5),
+            "building_tone": building_tone_map.get(c.building_id, 0),
             "level_code": level_code,
             "level_display_code": level_display_code,
             "level_label": level_label,
@@ -5802,7 +5807,11 @@ def incidents_dashboard_legacy():
 @require_roles("ADMIN")
 def buildings_registry():
     buildings = Building.query.order_by(Building.name.asc()).all()
-    return render_template("buildings_list.html", buildings=buildings)
+    return render_template(
+        "buildings_list.html",
+        buildings=buildings,
+        building_tone_choices=BUILDING_MATRIX_TONE_CHOICES,
+    )
 
 
 @children_bp.route("/buildings/new", methods=["POST"])
@@ -5811,12 +5820,20 @@ def buildings_new():
     name = (request.form.get("name") or "").strip()
     address = (request.form.get("address") or "").strip() or None
     short_name = (request.form.get("short_name") or "").strip() or None
+    matrix_tone = normalize_building_matrix_tone(
+        request.form.get("matrix_tone")
+    )
 
     if not name:
         flash("Укажите название здания", "danger")
         return redirect(url_for("children.buildings_registry"))
 
-    db.session.add(Building(name=name, address=address, short_name=short_name))
+    db.session.add(Building(
+        name=name,
+        address=address,
+        short_name=short_name,
+        matrix_tone=matrix_tone,
+    ))
     db.session.commit()
     flash("Здание добавлено", "success")
     return redirect(url_for("children.buildings_registry"))
@@ -5830,6 +5847,9 @@ def buildings_update(building_id: int):
     b.name = (request.form.get("name") or "").strip()
     b.short_name = (request.form.get("short_name") or "").strip() or None
     b.address = (request.form.get("address") or "").strip() or None
+    b.matrix_tone = normalize_building_matrix_tone(
+        request.form.get("matrix_tone")
+    )
 
     if not b.name:
         flash("Название здания не может быть пустым", "danger")

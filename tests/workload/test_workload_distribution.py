@@ -583,6 +583,7 @@ def test_admin_creates_assignment_through_route(
     teacher_id = make_user("TEACHER")
     with app.app_context():
         context = _distribution_context(admin_id)
+        db.session.get(Building, context["building_id"]).matrix_tone = 1
         _generate(context, admin_id)
         need_id = WorkloadNeed.query.one().id
     login(admin_id)
@@ -622,7 +623,7 @@ def test_admin_creates_assignment_through_route(
     assert "ФИО преподавателя" in workspace_html
     assert "По предмету" in workspace_html
     assert "workload-assignment-matrix__class-plan" in workspace_html
-    assert "building-tone-0" in workspace_html
+    assert "building-tone-1" in workspace_html
     assert workspace_html.index(
         "data-matrix-subject-column"
     ) < workspace_html.index(

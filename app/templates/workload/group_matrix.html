@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_4">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260804_4">
 {% endblock %}
 
@@ -117,7 +117,7 @@
         <tr>
           <th class="class-plan-matrix__subject" rowspan="2">Предмет или курс</th>
           {% for group in matrix.class_groups %}
-          <th class="class-plan-matrix__class {% if loop.index is even %}is-alt{% endif %}" colspan="{{ group.columns|length }}">
+          <th class="class-plan-matrix__class {% if loop.index is even %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(group.snapshot_class.building_id, 0) }}{% endif %}" colspan="{{ group.columns|length }}">
             {{ group.snapshot_class.name_snapshot }}
           </th>
           {% endfor %}
@@ -126,7 +126,7 @@
           {% for group in matrix.class_groups %}
             {% set group_alt = loop.index is even %}
             {% for column in group.columns %}
-            <th class="class-plan-matrix__plan {% if group_alt %}is-alt{% endif %} {% if column.is_unassigned %}is-unassigned{% endif %}">
+            <th class="class-plan-matrix__plan {% if group_alt %}is-alt{% endif %} {% if column.is_unassigned %}is-unassigned{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">
               <span title="{{ column.plan.name if column.plan else 'Учебный план не назначен' }}">
                 {{ column.plan.name if column.plan else 'Без УП' }}
               </span>
@@ -152,7 +152,7 @@
             {% set cell = row.cells.get(column.key) %}
             {% set empty_label = 'Учебный план не назначен классу' if column.is_unassigned else 'Предмет отсутствует в учебном плане класса' if not cell else '' %}
             <td
-              class="group-matrix__cell {% if column.is_unassigned %}is-unassigned group-matrix__cell--locked group-matrix__cell--no-plan{% elif not cell %}group-matrix__cell--locked group-matrix__cell--not-in-plan{% elif cell.group_count > 1 %}is-divided{% endif %} {% if cell and cell.needs_composition %}needs-composition{% endif %} {% if cell and cell.composition_approved %}is-approved{% endif %}"
+              class="group-matrix__cell {% if column.is_unassigned %}is-unassigned group-matrix__cell--locked group-matrix__cell--no-plan{% elif not cell %}group-matrix__cell--locked group-matrix__cell--not-in-plan{% elif cell.group_count > 1 %}is-divided{% endif %} {% if cell and cell.needs_composition %}needs-composition{% endif %} {% if cell and cell.composition_approved %}is-approved{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}"
               data-column-key="{{ column.key }}"
               {% if empty_label %}title="{{ empty_label }}"{% endif %}
             >

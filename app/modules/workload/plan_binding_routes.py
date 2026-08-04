@@ -351,8 +351,8 @@ def _matrix_context(
         if column["is_unassigned"]
     )
     building_tone_by_id = {
-        item["id"]: index % 6
-        for index, item in enumerate(building_options)
+        item["id"]: item.get("matrix_tone", 0)
+        for item in building_options
     }
     return {
         "versions": versions,

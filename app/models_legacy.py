@@ -34,11 +34,23 @@ class AcademicYear(db.Model):
 # =========================
 class Building(db.Model):
     __tablename__ = "buildings"
+    __table_args__ = (
+        db.CheckConstraint(
+            "matrix_tone IN (0,1,2,3,4,5)",
+            name="ck_buildings_matrix_tone",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
     short_name = db.Column(db.String(50), nullable=True)
     address = db.Column(db.String(255), nullable=True)
+    matrix_tone = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 

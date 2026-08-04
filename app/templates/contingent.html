@@ -355,7 +355,7 @@
             </tr>
           {% endif %}
 
-          <tr class="building-tone-{{ r.building_tone }}">
+          <tr class="{% if not building_id %}building-tone-{{ r.building_tone }}{% endif %}">
             <td>
               <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="class-link">
                 {{ r.class.name }}
@@ -761,25 +761,25 @@
   .contingent-page .contingent-classes-table col.col-free { width: 5%; }
 
   .contingent-page .contingent-classes-table th {
-    padding: 5px 3px !important;
-    font-size: 11px !important;
-    line-height: 1.15 !important;
+    padding: 6px 4px !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
     text-align: center !important;
     letter-spacing: 0 !important;
     overflow-wrap: anywhere;
   }
 
   .contingent-page .contingent-classes-table.table thead th {
-    padding: 4px 3px !important;
+    padding: 6px 4px !important;
     text-align: center !important;
     vertical-align: middle !important;
   }
 
   .contingent-page .contingent-classes-table th.tight-header {
-    padding-left: 1px !important;
-    padding-right: 1px !important;
-    font-size: 9px !important;
-    line-height: 1.05 !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
     white-space: normal !important;
     overflow-wrap: normal;
     text-align: center !important;
@@ -791,14 +791,14 @@
   }
 
   .contingent-page .contingent-classes-table.table tbody td {
-    padding: 1px 4px !important;
-    font-size: 13px !important;
-    line-height: 1 !important;
+    padding: 3px 5px !important;
+    font-size: 15px !important;
+    line-height: 1.15 !important;
     overflow-wrap: anywhere;
   }
 
   .contingent-page .contingent-classes-table tbody tr:not(.section-row):not(.education-level-total) td {
-    height: 24px !important;
+    height: 31px !important;
   }
 
   .contingent-page .contingent-classes-table th,
@@ -813,20 +813,20 @@
   }
 
   .contingent-page .contingent-classes-table .section-row td {
-    font-size: 13px !important;
+    font-size: 14px !important;
   }
 
   .contingent-page .contingent-classes-table tr.building-tone-0 td {
     background: #ffffff !important;
   }
   .contingent-page .contingent-classes-table tr.building-tone-1 td {
-    background: #edf7ed !important;
+    background: #eef5ff !important;
   }
   .contingent-page .contingent-classes-table tr.building-tone-2 td {
-    background: #fff8e6 !important;
+    background: #edf7ed !important;
   }
   .contingent-page .contingent-classes-table tr.building-tone-3 td {
-    background: #eef5ff !important;
+    background: #fff8e6 !important;
   }
   .contingent-page .contingent-classes-table tr.building-tone-4 td {
     background: #f6f0ff !important;
@@ -836,14 +836,14 @@
   }
 
   .contingent-page .contingent-classes-table .parallel-row td {
-    padding: 3px 6px !important;
+    padding: 4px 7px !important;
     background: #e8eef7 !important;
     color: #263750 !important;
     text-align: left !important;
   }
 
   .contingent-page .contingent-classes-table .education-level-row td {
-    padding: 3px 7px !important;
+    padding: 5px 8px !important;
     background: #d7e4f4 !important;
     color: #183a67 !important;
     font-weight: 700 !important;
@@ -852,7 +852,7 @@
   }
 
   .contingent-page .contingent-classes-table .education-level-total td {
-    padding: 3px 5px !important;
+    padding: 5px 6px !important;
     background: #ffeca9 !important;
     color: #27354b !important;
     font-weight: 700 !important;
@@ -894,13 +894,14 @@
   .contingent-page .applications-cell-input {
     width: 100% !important;
     height: 100% !important;
-    min-height: 20px !important;
+    min-height: 27px !important;
     padding: 0 3px !important;
     border: 0 !important;
     border-radius: 0 !important;
     outline: 0 !important;
     background: transparent !important;
     text-align: center !important;
+    font-size: 15px !important;
     font-variant-numeric: tabular-nums;
     box-shadow: none !important;
   }
@@ -922,7 +923,7 @@
   .contingent-page .contingent-classes-table .parallel-population {
     background: #f3f6fa !important;
     color: #25344d !important;
-    font-size: 16px !important;
+    font-size: 17px !important;
     font-weight: 600 !important;
     border-left: 2px solid #b9c8db !important;
     border-right: 2px solid #b9c8db !important;
@@ -1048,9 +1049,9 @@
 
   (function fitContingentTextCells() {
     function fitCell(cell) {
-      let fontSize = 13;
+      let fontSize = 15;
       cell.style.setProperty("--fit-font-size", fontSize + "px");
-      while (cell.scrollWidth > cell.clientWidth && fontSize > 11) {
+      while (cell.scrollWidth > cell.clientWidth && fontSize > 13) {
         fontSize -= 0.5;
         cell.style.setProperty("--fit-font-size", fontSize + "px");
       }
