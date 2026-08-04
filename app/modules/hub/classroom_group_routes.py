@@ -19,6 +19,7 @@ from app.core.feature_flags import (
 from app.models import AcademicYear, SchoolClass
 from app.services.classroom_group_service import (
     build_classroom_group_context,
+    build_classroom_curriculum_rows,
     build_classroom_group_xlsx,
     select_classroom_composition_item,
 )
@@ -171,6 +172,22 @@ def _redirect_to_classroom(context, item_key):
 
 
 def register_classroom_group_routes(hub_bp):
+    @hub_bp.get("/classroom/curriculum")
+    @login_required
+    def classroom_curriculum():
+        context = _classroom_page_context(
+            request.args.get("class_id"),
+        )
+        context["curriculum_rows"] = (
+            build_classroom_curriculum_rows(context)
+            if context["selected_class"] is not None
+            else []
+        )
+        return render_template(
+            "hub/classroom_curriculum.html",
+            **context,
+        )
+
     @hub_bp.get("/classroom/groups")
     @login_required
     def classroom_groups():

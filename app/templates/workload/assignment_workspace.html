@@ -2,7 +2,7 @@
 {% block title %}Распределение нагрузки{% endblock %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_3">
 {% endblock %}
 
 {% macro workspace_fields() %}
@@ -131,7 +131,7 @@
         <th class="workload-assignment-matrix__subject-total" rowspan="2">По предмету</th>
         {% for class_group in matrix.class_groups %}
         <th
-          class="workload-assignment-matrix__class-group {% if class_group.is_alt %}is-alt{% endif %}"
+          class="workload-assignment-matrix__class-group {% if class_group.is_alt %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ class_group.building_tone }}{% endif %}"
           colspan="{{ class_group.columns|length }}"
           data-matrix-class-column
         >
@@ -142,7 +142,7 @@
       <tr>
         {% for class_group in matrix.class_groups %}
           {% for column in class_group.columns %}
-          <th class="workload-assignment-matrix__class-plan {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %}">
+          <th class="workload-assignment-matrix__class-plan {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
             <span title="{{ column.subheader_label }}">{{ column.subheader_label }}</span>
           </th>
           {% endfor %}
@@ -250,7 +250,7 @@
           >{{ row.total|compact_decimal }}</td>
           {% for column in matrix.columns %}
           {% set matrix_cell = row.matrix_cells.get(column.key) %}
-          <td class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %}">
+          <td class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
             {% if matrix_cell %}
             <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
               {% for slot in matrix_cell.slots %}

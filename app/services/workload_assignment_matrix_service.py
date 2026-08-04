@@ -99,6 +99,10 @@ def _column_for_need(need, plan_context):
     )
     if group and (group.group_type == "METAGROUP" or len(source_classes) > 1):
         class_names = tuple(item.name_snapshot for item in source_classes)
+        source_building_ids = {
+            item.building_id
+            for item in source_classes
+        }
         grade = min(
             (
                 item.grade_snapshot
@@ -120,6 +124,15 @@ def _column_for_need(need, plan_context):
             "is_orphan": False,
             "grade": grade,
             "class_name": group.name,
+            "building_id": (
+                next(iter(source_building_ids))
+                if len(source_building_ids) == 1
+                else None
+            ),
+            "building_name": (
+                group.building.short_name or group.building.name
+                if group.building else ""
+            ),
             "sort_key": (
                 grade,
                 "яя",
@@ -140,6 +153,10 @@ def _column_for_need(need, plan_context):
             "is_orphan": False,
             "grade": snapshot_class.grade_snapshot or 99,
             "class_name": snapshot_class.name_snapshot,
+            "building_id": snapshot_class.building_id,
+            "building_name": (
+                snapshot_class.building_name_snapshot or ""
+            ),
             "sort_key": (
                 snapshot_class.grade_snapshot or 99,
                 _class_sort_key(snapshot_class.name_snapshot)[1],
@@ -162,6 +179,15 @@ def _column_for_need(need, plan_context):
         "is_orphan": True,
         "grade": 99,
         "class_name": group_name,
+        "building_id": (
+            group.building_id if group is not None else need.building_id
+        ),
+        "building_name": (
+            group.building.short_name or group.building.name
+            if group is not None and group.building
+            else need.building.short_name or need.building.name
+            if need.building else ""
+        ),
         "sort_key": (99, "яя", 2, group_name.casefold()),
     }
 
@@ -333,6 +359,10 @@ def build_workload_assignment_matrix(
                     "is_orphan": False,
                     "grade": snapshot_class.grade_snapshot or 99,
                     "class_name": snapshot_class.name_snapshot,
+                    "building_id": snapshot_class.building_id,
+                    "building_name": (
+                        snapshot_class.building_name_snapshot or ""
+                    ),
                     "snapshot_class_id": snapshot_class.id,
                     "plan_id": root_plan.id,
                     "sort_key": (
@@ -508,6 +538,26 @@ def build_workload_assignment_matrix(
         columns_by_key.values(),
         key=lambda item: item["sort_key"],
     )
+    building_keys = sorted(
+        {
+            (
+                column.get("building_id"),
+                column.get("building_name") or "",
+            )
+            for column in columns
+            if column.get("building_id") is not None
+        },
+        key=lambda item: (item[1].casefold(), item[0]),
+    )
+    building_tone_by_id = {
+        building_id: index % 6
+        for index, (building_id, _name) in enumerate(building_keys)
+    }
+    for column in columns:
+        column["building_tone"] = building_tone_by_id.get(
+            column.get("building_id"),
+            5,
+        )
     class_groups = []
     class_groups_by_key = {}
     for column in columns:
@@ -522,6 +572,9 @@ def build_workload_assignment_matrix(
                 "label": column["class_name"],
                 "is_metagroup": column["is_metagroup"],
                 "is_orphan": column["is_orphan"],
+                "building_id": column.get("building_id"),
+                "building_name": column.get("building_name") or "",
+                "building_tone": column["building_tone"],
                 "columns": [],
             }
             class_groups_by_key[group_key] = class_group

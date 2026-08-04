@@ -720,6 +720,10 @@ def test_plan_matrix_renders_scope_columns(
     assert 'name="weeks_count"'.encode() in response.data
     assert 'value="5"'.encode() in response.data
     assert 'value="34"'.encode() in response.data
+    assert b'data-matrix-view="hours"' in response.data
+    assert b'data-plan-matrix-view-option="hours"' in response.data
+    assert b'data-plan-matrix-view-option="weeks"' in response.data
+    assert "Количество недель".encode() in response.data
     assert "170.000".encode() not in response.data
     assert 'data-annual="170"'.encode() in response.data
     assert response.data.count(">год.<".encode()) == 6
@@ -1294,6 +1298,8 @@ def test_matrix_can_reorder_subject_rows(
     )
     assert "Переместить «Биология» ниже".encode() in matrix_response.data
     assert "Переместить «Математика» выше".encode() in matrix_response.data
+    assert b"data-plan-row-reorder" in matrix_response.data
+    assert b"workload_plan_matrix.js?v=20260804_6" in matrix_response.data
 
 
 def test_matrix_preserves_only_significant_decimal_places(

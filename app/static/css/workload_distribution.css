@@ -1340,6 +1340,30 @@
   font-size: 13px;
 }
 
+.workload-assignment-matrix .building-tone-0 {
+  background: #ffffff !important;
+}
+
+.workload-assignment-matrix .building-tone-1 {
+  background: #edf7ed !important;
+}
+
+.workload-assignment-matrix .building-tone-2 {
+  background: #fff8e6 !important;
+}
+
+.workload-assignment-matrix .building-tone-3 {
+  background: #eef5ff !important;
+}
+
+.workload-assignment-matrix .building-tone-4 {
+  background: #f6f0ff !important;
+}
+
+.workload-assignment-matrix .building-tone-5 {
+  background: #fff1f3 !important;
+}
+
 @media (max-width: 991.98px) {
   .workload-compact-filters {
     grid-template-columns: repeat(2, minmax(150px, 1fr));

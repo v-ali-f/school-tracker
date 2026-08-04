@@ -2,7 +2,7 @@
 {% block title %}Матрица — {{ bundle_root.name }}{% endblock %}
 {% block head_extra %}
   {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260804_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_hours.css') }}?v=20260804_6">
 {% endblock %}
 
 {% block workspace_content %}
@@ -79,6 +79,18 @@
   {% endfor %}
 </nav>
 
+<div class="workload-plan-viewbar" aria-label="Вид значений учебного плана">
+  <span>Показывать в ячейках</span>
+  <div class="workload-plan-view-toggle" role="group">
+    <button class="is-active" type="button" data-plan-matrix-view-option="hours" aria-pressed="true">
+      Часы в неделю
+    </button>
+    <button type="button" data-plan-matrix-view-option="weeks" aria-pressed="false">
+      Количество недель
+    </button>
+  </div>
+</div>
+
 {% if can_update %}
 <form
   class="workload-matrix-add-row"
@@ -111,7 +123,7 @@
 {% endif %}
 
 <div class="workload-plan-matrix-wrap">
-  <table class="workload-plan-matrix" data-plan-matrix>
+  <table class="workload-plan-matrix" data-plan-matrix data-matrix-view="hours">
     <colgroup>
       <col class="workload-plan-matrix__subject-col">
       {% for scope in matrix.scope_columns %}
@@ -120,11 +132,11 @@
         <col class="workload-plan-matrix__period-col">
         {% endfor %}
         {% if scope.period_scheme.show_annual %}
-        <col class="workload-plan-matrix__annual-col">
+        <col class="workload-plan-matrix__annual-col workload-plan-matrix__annual-col--period">
         {% endif %}
       {% else %}
       <col class="workload-plan-matrix__weekly-col">
-      <col class="workload-plan-matrix__annual-col">
+      <col class="workload-plan-matrix__annual-col workload-plan-matrix__annual-col--standard">
       {% endif %}
       {% endfor %}
       <col class="workload-plan-matrix__total-col">
@@ -133,7 +145,13 @@
       <tr>
         <th class="workload-plan-matrix__subject" rowspan="2">Учебные предметы</th>
         {% for scope in matrix.scope_columns %}
-        <th class="workload-plan-matrix__scope workload-plan-matrix__scope-end {% if loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}" colspan="{{ scope.column_span }}">{{ scope.label }}</th>
+        <th
+          class="workload-plan-matrix__scope workload-plan-matrix__scope-end {% if loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+          colspan="{{ scope.column_span }}"
+          data-matrix-responsive-colspan
+          data-hours-colspan="{{ scope.column_span }}"
+          data-weeks-colspan="{{ scope.column_span }}"
+        >{{ scope.label }}</th>
         {% endfor %}
         <th class="workload-plan-matrix__total">Всего</th>
       </tr>
@@ -142,7 +160,14 @@
         {% set scope_loop = loop %}
         {% if scope.period_scheme %}
           {% for period in scope.period_scheme.periods %}
-          <th class="workload-plan-matrix__period-head {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %} {% if loop.last and not scope.period_scheme.show_annual %}workload-plan-matrix__scope-end{% endif %}">
+          <th
+            class="workload-plan-matrix__period-head {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %} {% if loop.last and not scope.period_scheme.show_annual %}workload-plan-matrix__scope-end{% endif %}"
+            {% if loop.last and scope.period_scheme.show_annual %}
+            data-matrix-responsive-colspan
+            data-hours-colspan="1"
+            data-weeks-colspan="2"
+            {% endif %}
+          >
             {{ period.label }}
             <small>{{ period.weeks_count|compact_decimal }} нед.</small>
           </th>
@@ -151,7 +176,15 @@
           <th class="workload-plan-matrix__annual workload-plan-matrix__scope-end">год.</th>
           {% endif %}
         {% else %}
-        <th class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}">нед.</th>
+        <th
+          class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+          data-matrix-responsive-colspan
+          data-hours-colspan="1"
+          data-weeks-colspan="2"
+        >
+          <span data-matrix-hours-label>ч/нед.</span>
+          <span data-matrix-weeks-label>недели</span>
+        </th>
         <th class="workload-plan-matrix__annual workload-plan-matrix__scope-end">год.</th>
         {% endif %}
         {% endfor %}
@@ -177,7 +210,7 @@
             {% if can_update %}
             <div class="workload-plan-matrix__row-actions">
               {% if row.can_move_up %}
-              <form method="post" action="{{ url_for('workload.plan_matrix_reorder_row', plan_id=plan.id) }}">
+              <form method="post" action="{{ url_for('workload.plan_matrix_reorder_row', plan_id=plan.id) }}" data-plan-row-reorder>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="revision" value="{{ plan.revision }}">
                 <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
@@ -190,7 +223,7 @@
               </form>
               {% endif %}
               {% if row.can_move_down %}
-              <form method="post" action="{{ url_for('workload.plan_matrix_reorder_row', plan_id=plan.id) }}">
+              <form method="post" action="{{ url_for('workload.plan_matrix_reorder_row', plan_id=plan.id) }}" data-plan-row-reorder>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="revision" value="{{ plan.revision }}">
                 <input type="hidden" name="education_activity_id" value="{{ row.activity.id }}">
@@ -232,6 +265,9 @@
         <td
           class="workload-plan-matrix__period-block workload-plan-matrix__scope-end {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
           colspan="{{ scope.column_span }}"
+          data-matrix-responsive-colspan
+          data-hours-colspan="{{ scope.column_span }}"
+          data-weeks-colspan="{{ scope.column_span }}"
         >
           {% if line or (can_update and scope.kind == 'GRADE') %}
           <form
@@ -294,7 +330,12 @@
           {% endif %}
         </td>
         {% else %}
-        <td class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}">
+        <td
+          class="workload-plan-matrix__weekly {% if scope_loop.index is even %}workload-plan-matrix__scope-band--alt{% endif %}"
+          data-matrix-responsive-colspan
+          data-hours-colspan="1"
+          data-weeks-colspan="2"
+        >
           {% if line %}
           {% set placeholder_line = line.weekly_hours == 0 and line.annual_hours == 0 %}
           <form
@@ -576,5 +617,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_plan_matrix.js') }}?v=20260804_1"></script>
+<script src="{{ url_for('static', filename='js/workload_plan_matrix.js') }}?v=20260804_6"></script>
 {% endblock %}

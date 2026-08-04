@@ -350,6 +350,10 @@ def _matrix_context(
         for column in matrix["columns"]
         if column["is_unassigned"]
     )
+    building_tone_by_id = {
+        item["id"]: index % 6
+        for index, item in enumerate(building_options)
+    }
     return {
         "versions": versions,
         "selected_version": version,
@@ -360,6 +364,7 @@ def _matrix_context(
         "selected_grade": selected_grade,
         "selected_building_id": selected_building_id,
         "building_options": building_options,
+        "building_tone_by_id": building_tone_by_id,
         "level_grades": level_grades,
         "level_labels": EDUCATION_LEVEL_LABELS,
         "level_counts": level_counts,
