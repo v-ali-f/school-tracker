@@ -332,6 +332,67 @@ def test_administrator_can_create_catalog_item_when_write_is_enabled(
         assert item.education_level == "OOO"
 
 
+def test_catalog_allows_same_name_for_different_activity_kinds(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    login(make_user("ADMIN"))
+
+    course_response = client.post(
+        "/workload/catalog/new",
+        data={
+            "section": "SUBJECTS",
+            "name": "Функциональная грамотность",
+            "activity_kind": "COURSE",
+            "education_levels": ["OOO"],
+        },
+    )
+    extracurricular_response = client.post(
+        "/workload/catalog/new",
+        data={
+            "section": "EXTRACURRICULAR",
+            "name": "Функциональная грамотность",
+            "activity_kind": "EXTRACURRICULAR_COURSE",
+            "education_levels": ["OOO"],
+        },
+    )
+
+    assert course_response.status_code == 302
+    assert extracurricular_response.status_code == 302
+    with app.app_context():
+        activities = EducationActivity.query.filter_by(
+            name="Функциональная грамотность",
+        ).all()
+        assert {
+            activity.activity_kind
+            for activity in activities
+        } == {"COURSE", "EXTRACURRICULAR_COURSE"}
+
+    duplicate_response = client.post(
+        "/workload/catalog/new",
+        data={
+            "section": "SUBJECTS",
+            "name": "Функциональная грамотность",
+            "activity_kind": "COURSE",
+            "education_levels": ["SOO"],
+        },
+    )
+
+    assert duplicate_response.status_code == 200
+    assert (
+        "Элемент с таким наименованием и видом уже существует.".encode()
+        in duplicate_response.data
+    )
+    with app.app_context():
+        assert EducationActivity.query.filter_by(
+            name="Функциональная грамотность",
+        ).count() == 2
+
+
 def test_catalog_sections_are_separate_and_sorted_alphabetically(
     app, client, make_user, login
 ):

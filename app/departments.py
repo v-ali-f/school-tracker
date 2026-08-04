@@ -18,7 +18,6 @@ from app.services.education_activity_service import (
     get_or_create_subject_activity,
     get_subject_activity,
     list_subject_activities,
-    replace_activity_departments,
 )
 from app.services.workload_integration_service import (
     current_department_load_rows,
@@ -31,6 +30,7 @@ from app.services.teacher_mcko_service import (
     normalize_mcko_level,
 )
 from .models import (
+    ACTIVITY_KIND_LABELS,
     Building,
     ControlWork,
     ControlWorkAssignment,
@@ -41,6 +41,7 @@ from .models import (
     DepartmentSubject,
     Debt,
     EducationActivity,
+    EducationActivityDepartment,
     Incident,
     TeacherAttestation,
     TeacherCourse,
@@ -333,6 +334,76 @@ def _subject_activity_ids_for_department(dep: Department):
         for link in dep.subject_links
         if link.education_activity_id
     ]
+
+
+DEPARTMENT_LEADER_ROLE_CODES = {
+    TEACHER,
+    CLASS_TEACHER,
+    METHODIST,
+    DEPARTMENT_HEAD,
+}
+
+
+def _department_leader_candidates():
+    users = (
+        User.query
+        .filter(
+            User.is_active_user.is_(True),
+            User.employment_status == "ACTIVE",
+        )
+        .order_by(
+            User.last_name.asc(),
+            User.first_name.asc(),
+            User.middle_name.asc(),
+        )
+        .all()
+    )
+    return [
+        user
+        for user in users
+        if any(
+            has_role(role_code, user=user)
+            for role_code in DEPARTMENT_LEADER_ROLE_CODES
+        )
+    ]
+
+
+def _department_activities():
+    links = (
+        EducationActivityDepartment.query
+        .join(
+            EducationActivity,
+            EducationActivity.id
+            == EducationActivityDepartment.education_activity_id,
+        )
+        .filter(
+            EducationActivityDepartment.is_active.is_(True),
+            or_(
+                EducationActivityDepartment.valid_from.is_(None),
+                EducationActivityDepartment.valid_from <= date.today(),
+            ),
+            or_(
+                EducationActivityDepartment.valid_to.is_(None),
+                EducationActivityDepartment.valid_to >= date.today(),
+            ),
+            EducationActivity.is_active.is_(True),
+        )
+        .order_by(
+            EducationActivity.name.asc(),
+            EducationActivity.activity_kind.asc(),
+            EducationActivity.id.asc(),
+        )
+        .all()
+    )
+    result = defaultdict(list)
+    seen = defaultdict(set)
+    for link in links:
+        activity = link.education_activity
+        if activity is None or activity.id in seen[link.department_id]:
+            continue
+        seen[link.department_id].add(activity.id)
+        result[link.department_id].append(activity)
+    return result
 
 
 def _department_for_load(subject_name: Optional[str], grade: Optional[int]):
@@ -883,10 +954,16 @@ def settings():
         return redirect(url_for("departments.settings"))
 
     departments = Department.query.order_by(Department.name.asc()).all()
-    users = User.query.order_by(User.last_name.asc(), User.first_name.asc()).all()
-    subjects = list_subject_activities()
+    users = _department_leader_candidates()
     buildings = Building.query.order_by(Building.name.asc()).all()
-    return render_template("departments/settings.html", departments=departments, users=users, subjects=subjects, buildings=buildings)
+    return render_template(
+        "departments/settings.html",
+        departments=departments,
+        users=users,
+        buildings=buildings,
+        department_activities=_department_activities(),
+        activity_kind_labels=ACTIVITY_KIND_LABELS,
+    )
 
 
 @departments_bp.route("/settings/<int:department_id>/update", methods=["POST"])
@@ -897,24 +974,7 @@ def settings_update(department_id):
     dep = Department.query.get_or_404(department_id)
     dep.name = (request.form.get("name") or dep.name).strip()
     dep.description = (request.form.get("description") or "").strip() or None
-    selected_activity_ids = {
-        int(x)
-        for x in request.form.getlist("subject_ids")
-        if str(x).isdigit()
-    }
-    for activity in list_subject_activities(include_inactive=True):
-        current_ids = {
-            link.department_id
-            for link in activity.department_links
-            if link.is_active and link.valid_from is None
-        }
-        if activity.id in selected_activity_ids:
-            current_ids.add(dep.id)
-        else:
-            current_ids.discard(dep.id)
-        replace_activity_departments(activity, current_ids)
     db.session.commit()
-    _rebind_all_loads_to_departments()
     flash("Настройки кафедры сохранены.", "success")
     return redirect(url_for("departments.settings"))
 
@@ -926,16 +986,23 @@ def add_leader(department_id):
         abort(403)
     dep = Department.query.get_or_404(department_id)
     selected_user_ids = []
-    for raw in request.form.getlist("user_ids"):
+    raw_user_ids = request.form.getlist("user_ids")
+    if request.form.get("user_id"):
+        raw_user_ids.append(request.form.get("user_id"))
+    candidate_ids = {
+        user.id
+        for user in _department_leader_candidates()
+    }
+    for raw in raw_user_ids:
         try:
             value = int(raw)
         except Exception:
             continue
-        if value not in selected_user_ids:
+        if value in candidate_ids and value not in selected_user_ids:
             selected_user_ids.append(value)
     building_id = request.form.get("building_id", type=int)
     if not selected_user_ids:
-        flash("Выберите хотя бы одного руководителя кафедры.", "danger")
+        flash("Выберите учителя для руководства кафедрой.", "danger")
         return redirect(url_for("departments.settings"))
 
     added = 0
@@ -969,7 +1036,7 @@ def delete_leader(leader_id):
     leader = DepartmentLeader.query.get_or_404(leader_id)
     db.session.delete(leader)
     db.session.commit()
-    flash("Руководитель кафедры удалён.", "success")
+    flash("Сотрудник исключён из руководства кафедрой.", "success")
     return redirect(url_for("departments.settings"))
 
 

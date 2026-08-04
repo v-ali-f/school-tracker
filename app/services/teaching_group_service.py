@@ -62,6 +62,52 @@ def current_population_snapshot(tariff_version_id):
     )
 
 
+def _population_checksum(digest_rows):
+    return hashlib.sha256(
+        "\n".join(sorted(digest_rows)).encode("utf-8")
+    ).hexdigest()
+
+
+def _live_population_checksum(academic_year_id):
+    classes = (
+        SchoolClass.query
+        .filter_by(
+            academic_year_id=academic_year_id,
+            is_archived=False,
+        )
+        .order_by(SchoolClass.id.asc())
+        .all()
+    )
+    digest_rows = [
+        (
+            f"CLASS:{school_class.id}:{school_class.name}:"
+            f"{school_class.grade}:{school_class.building_id or ''}"
+        )
+        for school_class in classes
+    ]
+    class_ids = [school_class.id for school_class in classes]
+    if class_ids:
+        enrollments = (
+            ChildEnrollment.query
+            .filter(
+                ChildEnrollment.academic_year_id == academic_year_id,
+                ChildEnrollment.school_class_id.in_(class_ids),
+                ChildEnrollment.status == "ACTIVE",
+                ChildEnrollment.ended_at.is_(None),
+            )
+            .all()
+        )
+        digest_rows.extend(
+            (
+                f"{enrollment.school_class_id}:"
+                f"{enrollment.child_id}:{enrollment.id}:"
+                f"{enrollment.status}"
+            )
+            for enrollment in enrollments
+        )
+    return _population_checksum(digest_rows)
+
+
 def population_registry_status(tariff_version, snapshot=None):
     academic_year_id = tariff_version.tariff_cycle.academic_year_id
     class_count = (
@@ -108,16 +154,28 @@ def population_registry_status(tariff_version, snapshot=None):
             .one()
         )
 
+    live_checksum = (
+        _live_population_checksum(academic_year_id)
+        if snapshot is not None
+        else None
+    )
+    structure_changed = (
+        snapshot is not None
+        and live_checksum != snapshot.checksum
+    )
+
     return {
         "class_count": int(class_count),
         "student_count": int(student_count),
         "snapshot_class_count": int(snapshot_class_count),
         "snapshot_student_count": int(snapshot_student_count),
+        "structure_changed": structure_changed,
         "is_stale": (
             snapshot is not None
             and (
                 class_count != snapshot_class_count
                 or student_count != snapshot_student_count
+                or structure_changed
             )
         ),
     }
@@ -202,9 +260,7 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
         .scalar()
         or 0
     )
-    checksum = hashlib.sha256(
-        "\n".join(sorted(digest_rows)).encode("utf-8")
-    ).hexdigest()
+    checksum = _population_checksum(digest_rows)
     snapshot = PopulationSnapshot(
         tariff_version_id=tariff_version.id,
         revision_no=max_revision + 1,

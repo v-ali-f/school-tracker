@@ -1884,6 +1884,63 @@ def test_plan_bindings_page_warns_when_population_registry_changed(
     assert "Обновить данные".encode() in response.data
 
 
+def test_population_registry_detects_building_change_without_count_change(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        version = db.session.get(TariffVersion, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+
+        initial_status = population_registry_status(version, snapshot)
+        assert initial_status["is_stale"] is False
+        assert initial_status["structure_changed"] is False
+
+        second_building = Building(
+            name="Второе здание",
+            short_name="ВЗ",
+        )
+        db.session.add(second_building)
+        db.session.flush()
+        school_class = SchoolClass.query.filter_by(
+            academic_year_id=context["year_id"],
+            name="5А",
+        ).one()
+        school_class.building_id = second_building.id
+        db.session.commit()
+
+        changed_status = population_registry_status(version, snapshot)
+        assert changed_status["is_stale"] is True
+        assert changed_status["structure_changed"] is True
+        assert changed_status["class_count"] == changed_status[
+            "snapshot_class_count"
+        ]
+        assert changed_status["student_count"] == changed_status[
+            "snapshot_student_count"
+        ]
+
+        refreshed_snapshot = build_population_snapshot(
+            version,
+            user_id=user_id,
+            snapshot_date=date(2026, 9, 2),
+        )
+        db.session.commit()
+        refreshed_class = next(
+            item
+            for item in refreshed_snapshot.classes
+            if item.source_school_class_id == school_class.id
+        )
+        assert refreshed_class.building_id == second_building.id
+        assert refreshed_class.building_name_snapshot == "ВЗ"
+        assert population_registry_status(
+            version,
+            refreshed_snapshot,
+        )["is_stale"] is False
+
+
 def test_class_plan_can_be_overridden_for_one_student(
     app,
     client,
