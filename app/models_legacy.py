@@ -1023,6 +1023,9 @@ class ChildTransferHistory(db.Model):
     comment = db.Column(db.Text, nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    reversed_at = db.Column(db.DateTime, nullable=True, index=True)
+    reversed_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    reversal_reason = db.Column(db.Text, nullable=True)
 
     child = db.relationship("Child", backref=db.backref("transfer_history", lazy=True, cascade="all, delete-orphan"))
     from_academic_year = db.relationship("AcademicYear", foreign_keys=[from_academic_year_id])
@@ -1030,6 +1033,7 @@ class ChildTransferHistory(db.Model):
     from_class = db.relationship("SchoolClass", foreign_keys=[from_class_id])
     to_class = db.relationship("SchoolClass", foreign_keys=[to_class_id])
     creator = db.relationship("User", foreign_keys=[created_by])
+    reverser = db.relationship("User", foreign_keys=[reversed_by])
 
     def __repr__(self):
         return f"<ChildTransferHistory child={self.child_id} type={self.transfer_type}>"

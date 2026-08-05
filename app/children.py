@@ -113,7 +113,7 @@ from flask import (
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload, subqueryload, contains_eager, selectinload
+from sqlalchemy.orm import aliased, joinedload, subqueryload, contains_eager, selectinload
 from openpyxl import load_workbook, Workbook
 from io import BytesIO
 
@@ -144,6 +144,7 @@ from .models import (
     ChildComment,
     ChildEvent,
     ChildTransferHistory,
+    ChildMovement,
     Incident,
     IncidentChild,
     IncidentNote,
@@ -565,7 +566,10 @@ def _export_children_xlsx(title: str, children):
 def _children_base_query_for_current_year():
     year = _get_current_year()
 
-    q = db.session.query(Child)
+    q = db.session.query(Child).filter(
+        Child.status == "ACTIVE",
+        ~_active_expel_exists(Child.id),
+    )
 
     if year:
         q = (
@@ -573,6 +577,7 @@ def _children_base_query_for_current_year():
                 ChildEnrollment,
                 (ChildEnrollment.child_id == Child.id)
                 & (ChildEnrollment.academic_year_id == year.id)
+                & (ChildEnrollment.status == "ACTIVE")
                 & (ChildEnrollment.ended_at.is_(None))
             )
             .outerjoin(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
@@ -582,12 +587,209 @@ def _children_base_query_for_current_year():
             q.outerjoin(
                 ChildEnrollment,
                 (ChildEnrollment.child_id == Child.id)
+                & (ChildEnrollment.status == "ACTIVE")
                 & (ChildEnrollment.ended_at.is_(None))
             )
             .outerjoin(SchoolClass, SchoolClass.id == ChildEnrollment.school_class_id)
         )
 
     return q, year
+
+
+def _matching_transfer_history_for_enrollment(enrollment):
+    """Return the active transfer record that created an enrollment."""
+    if enrollment is None or enrollment.enrolled_at is None:
+        return None
+    candidates = (
+        ChildTransferHistory.query
+        .filter(
+            ChildTransferHistory.child_id == enrollment.child_id,
+            ChildTransferHistory.to_academic_year_id
+            == enrollment.academic_year_id,
+            ChildTransferHistory.to_class_id
+            == enrollment.school_class_id,
+            ChildTransferHistory.reversed_at.is_(None),
+        )
+        .order_by(
+            ChildTransferHistory.created_at.desc(),
+            ChildTransferHistory.id.desc(),
+        )
+        .all()
+    )
+    for history in candidates:
+        if history.created_at is None:
+            continue
+        if abs(
+            (history.created_at - enrollment.enrolled_at).total_seconds()
+        ) <= 10 * 60:
+            return history
+    return None
+
+
+def _source_enrollment_for_undo(target_enrollment, history=None):
+    if target_enrollment is None:
+        return None
+    query = ChildEnrollment.query.filter(
+        ChildEnrollment.child_id == target_enrollment.child_id,
+        ChildEnrollment.id != target_enrollment.id,
+        ChildEnrollment.status != "CANCELLED",
+    )
+    if history is not None:
+        if (
+            history.from_academic_year_id is None
+            or history.from_class_id is None
+        ):
+            return None
+        query = query.filter(
+            ChildEnrollment.academic_year_id
+            == history.from_academic_year_id,
+            ChildEnrollment.school_class_id == history.from_class_id,
+        )
+    else:
+        # Older manual changes from the child card did not have a transfer
+        # history row and always replaced a class in the same academic year.
+        query = query.filter(
+            ChildEnrollment.academic_year_id
+            == target_enrollment.academic_year_id,
+        )
+    if target_enrollment.enrolled_at is not None:
+        query = query.filter(
+            ChildEnrollment.enrolled_at
+            <= target_enrollment.enrolled_at,
+        )
+    return query.order_by(
+        ChildEnrollment.enrolled_at.desc(),
+        ChildEnrollment.id.desc(),
+    ).first()
+
+
+def _latest_reversible_enrollment(child_id):
+    target = (
+        ChildEnrollment.query
+        .filter(
+            ChildEnrollment.child_id == child_id,
+            ChildEnrollment.ended_at.is_(None),
+            ChildEnrollment.status != "CANCELLED",
+        )
+        .order_by(
+            ChildEnrollment.enrolled_at.desc(),
+            ChildEnrollment.id.desc(),
+        )
+        .first()
+    )
+    if target is None:
+        return None
+    history = _matching_transfer_history_for_enrollment(target)
+    source = _source_enrollment_for_undo(target, history)
+    if source is None:
+        return None
+    return {
+        "target": target,
+        "source": source,
+        "history": history,
+    }
+
+
+def _active_expel_event(child_id):
+    """Return the last non-reversed expulsion event for a child."""
+    latest = (
+        ChildEvent.query
+        .filter(
+            ChildEvent.child_id == child_id,
+            ChildEvent.event_type.in_(("EXPEL", "EXPEL_UNDO")),
+            db.or_(
+                ChildEvent.promotion_kind.is_(None),
+                ChildEvent.promotion_kind != "ARCHIVED",
+            ),
+        )
+        .order_by(
+            ChildEvent.created_at.desc(),
+            ChildEvent.id.desc(),
+        )
+        .first()
+    )
+    return latest if latest and latest.event_type == "EXPEL" else None
+
+
+def _expelled_enrollments_for_event(event):
+    if event is None or event.created_at is None:
+        return []
+    window = timedelta(minutes=10)
+    return (
+        ChildEnrollment.query
+        .filter(
+            ChildEnrollment.child_id == event.child_id,
+            ChildEnrollment.status == "EXPELLED",
+            ChildEnrollment.ended_at.isnot(None),
+            ChildEnrollment.ended_at >= event.created_at - window,
+            ChildEnrollment.ended_at <= event.created_at + window,
+        )
+        .order_by(
+            ChildEnrollment.enrolled_at.desc(),
+            ChildEnrollment.id.desc(),
+        )
+        .all()
+    )
+
+
+def _active_expel_events_query():
+    """Base query containing only expellings that were not later undone."""
+    return (
+        ChildEvent.query
+        .join(Child, ChildEvent.child_id == Child.id)
+        .filter(
+            ChildEvent.event_type == "EXPEL",
+            db.or_(
+                ChildEvent.promotion_kind.is_(None),
+                ChildEvent.promotion_kind != "ARCHIVED",
+            ),
+            ~_later_expel_undo_exists(
+                ChildEvent.child_id,
+                ChildEvent.created_at,
+                ChildEvent.id,
+            ),
+        )
+    )
+
+
+def _later_expel_undo_exists(child_id, created_at, event_id):
+    undo_event = aliased(ChildEvent)
+    return (
+        db.session.query(undo_event.id)
+        .filter(
+            undo_event.child_id == child_id,
+            undo_event.event_type == "EXPEL_UNDO",
+            db.or_(
+                undo_event.created_at > created_at,
+                db.and_(
+                    undo_event.created_at == created_at,
+                    undo_event.id > event_id,
+                ),
+            ),
+        )
+        .exists()
+    )
+
+
+def _active_expel_exists(child_id):
+    expel_event = aliased(ChildEvent)
+    return (
+        db.session.query(expel_event.id)
+        .filter(
+            expel_event.child_id == child_id,
+            expel_event.event_type == "EXPEL",
+            db.or_(
+                expel_event.promotion_kind.is_(None),
+                expel_event.promotion_kind != "ARCHIVED",
+            ),
+            ~_later_expel_undo_exists(
+                expel_event.child_id,
+                expel_event.created_at,
+                expel_event.id,
+            ),
+        )
+        .exists()
+    )
 
 def parse_aoop_variant(raw_value: str):
     text = (raw_value or "").strip().upper()
@@ -694,6 +896,7 @@ def list_children():
         selected_class_id=filters["selected_class_id"],
         classes=filters["classes"],
         grades=filters["grades"],
+        academic_year=year,
     )
 
 
@@ -1001,6 +1204,29 @@ def child_card(child_id: int):
         .order_by(ChildEnrollment.enrolled_at.desc())
         .all()
     )
+    expel_event = (
+        _active_expel_event(child.id)
+        if is_admin(current_user)
+        else None
+    )
+    expel_undo = (
+        {
+            "event": expel_event,
+            "enrollments": _expelled_enrollments_for_event(expel_event),
+        }
+        if expel_event is not None
+        else None
+    )
+    active_enrollment_count = sum(
+        1
+        for enrollment in enrollment_history
+        if enrollment.status == "ACTIVE" and enrollment.ended_at is None
+    )
+    transfer_undo = (
+        _latest_reversible_enrollment(child.id)
+        if is_admin(current_user) and expel_undo is None
+        else None
+    )
     control_results_q = ControlWorkResult.query.filter_by(child_id=child.id)
     if selected_year_id:
         control_results_q = control_results_q.filter_by(academic_year_id=selected_year_id)
@@ -1062,6 +1288,14 @@ def child_card(child_id: int):
         events=events,
         transfer_history=transfer_history,
         enrollment_history=enrollment_history,
+        transfer_undo=transfer_undo,
+        expel_undo=expel_undo,
+        can_manage_active_enrollment=(
+            is_admin(current_user)
+            and child.status == "ACTIVE"
+            and active_enrollment_count > 0
+            and expel_undo is None
+        ),
         control_results=control_results,
         olympiad_results=olympiad_results,
         today=date.today(),
@@ -1599,6 +1833,260 @@ def delete_child_comment(comment_id: int):
 # =========================================================
 # TRANSFER / EXPEL
 # =========================================================
+@children_bp.route(
+    "/children/<int:child_id>/enrollments/<int:enrollment_id>/undo",
+    methods=["POST"],
+)
+@require_roles("ADMIN")
+def undo_child_enrollment(child_id: int, enrollment_id: int):
+    child = Child.query.get_or_404(child_id)
+    requested_target = ChildEnrollment.query.filter_by(
+        id=enrollment_id,
+        child_id=child.id,
+    ).first_or_404()
+    undo_state = _latest_reversible_enrollment(child.id)
+    if (
+        undo_state is None
+        or undo_state["target"].id != requested_target.id
+    ):
+        flash(
+            "Эту запись нельзя отменить: сначала отмените более позднее "
+            "изменение обучения ученика.",
+            "warning",
+        )
+        return redirect(url_for("children.child_card", child_id=child.id))
+
+    target = undo_state["target"]
+    source = undo_state["source"]
+    history = undo_state["history"]
+    conflict = (
+        ChildEnrollment.query
+        .filter(
+            ChildEnrollment.child_id == child.id,
+            ChildEnrollment.academic_year_id
+            == source.academic_year_id,
+            ChildEnrollment.ended_at.is_(None),
+            ChildEnrollment.id.notin_([target.id, source.id]),
+        )
+        .first()
+    )
+    if conflict is not None:
+        flash(
+            "Отмена невозможна: в исходном учебном году уже есть другое "
+            "активное зачисление. Сначала исправьте более позднюю запись.",
+            "danger",
+        )
+        return redirect(url_for("children.child_card", child_id=child.id))
+
+    operation_at = datetime.utcnow()
+    target_class = target.school_class
+    source_class = source.school_class
+    target.status = "CANCELLED"
+    target.ended_at = operation_at
+    target.note = (
+        f"{target.note + '. ' if target.note else ''}"
+        "Зачисление отменено администратором."
+    )
+    # Close the target first so restoring a source from the same academic year
+    # cannot violate the one-active-enrollment-per-year constraint.
+    db.session.flush()
+
+    source.status = "ACTIVE"
+    source.ended_at = None
+    child.status = "ACTIVE"
+    child.archived_at = None
+
+    reversal_reason = (
+        request.form.get("reason") or "Исправление ошибочного перевода"
+    ).strip()
+    if history is None:
+        # Preserve an audit trail for legacy manual class changes that created
+        # enrollments but did not write ChildTransferHistory.
+        history = ChildTransferHistory(
+            child_id=child.id,
+            from_academic_year_id=source.academic_year_id,
+            to_academic_year_id=target.academic_year_id,
+            from_class_id=source.school_class_id,
+            to_class_id=target.school_class_id,
+            transfer_type="MANUAL",
+            transfer_date=(
+                target.enrolled_at.date()
+                if target.enrolled_at
+                else date.today()
+            ),
+            comment="Восстановлена запись старого ручного перевода",
+            created_by=getattr(current_user, "id", None),
+            created_at=target.enrolled_at or operation_at,
+        )
+        db.session.add(history)
+
+    history.reversed_at = operation_at
+    history.reversed_by = getattr(current_user, "id", None)
+    history.reversal_reason = reversal_reason
+
+    db.session.add(ChildEvent(
+        child_id=child.id,
+        author_id=current_user.id,
+        event_type="TRANSFER_UNDO",
+        from_class=target_class.name if target_class else None,
+        to_class=source_class.name if source_class else None,
+        promotion_kind="UNDO",
+        reason=reversal_reason,
+        created_at=operation_at,
+    ))
+    db.session.add(ChildMovement(
+        child_id=child.id,
+        academic_year_id=source.academic_year_id,
+        movement_type="correction",
+        movement_date=date.today(),
+        from_class_id=target.school_class_id,
+        to_class_id=source.school_class_id,
+        reason=reversal_reason,
+        created_by=current_user.id,
+        created_at=operation_at,
+    ))
+    db.session.commit()
+
+    flash(
+        "Последнее изменение отменено. Восстановлен класс "
+        f"{source_class.name if source_class else '—'} "
+        f"({source.academic_year.name if source.academic_year else '—'}).",
+        "success",
+    )
+    return redirect(url_for("children.child_card", child_id=child.id))
+
+
+@children_bp.route(
+    "/children/<int:child_id>/expel/undo",
+    methods=["POST"],
+)
+@require_roles("ADMIN")
+def undo_child_expulsion(child_id: int):
+    child = Child.query.get_or_404(child_id)
+    expel_event = _active_expel_event(child.id)
+    if expel_event is None:
+        flash(
+            "Отмена невозможна: последнее отчисление уже отменено "
+            "или после него выполнено другое действие.",
+            "warning",
+        )
+        return redirect(url_for("children.child_card", child_id=child.id))
+
+    enrollments = _expelled_enrollments_for_event(expel_event)
+    legacy_active_enrollments = []
+    if not enrollments:
+        # Older expulsion code could write the event but leave a future-year
+        # enrollment active. Cancelling that event must keep this enrollment.
+        legacy_active_enrollments = (
+            ChildEnrollment.query
+            .filter(
+                ChildEnrollment.child_id == child.id,
+                ChildEnrollment.status == "ACTIVE",
+                ChildEnrollment.ended_at.is_(None),
+                ChildEnrollment.enrolled_at <= expel_event.created_at,
+            )
+            .order_by(
+                ChildEnrollment.enrolled_at.desc(),
+                ChildEnrollment.id.desc(),
+            )
+            .all()
+        )
+        if not legacy_active_enrollments:
+            flash(
+                "Не найдена запись обучения, связанная с этим отчислением. "
+                "Данные не изменены.",
+                "danger",
+            )
+            return redirect(
+                url_for("children.child_card", child_id=child.id)
+            )
+
+    enrollment_ids = [item.id for item in enrollments]
+    year_ids = {item.academic_year_id for item in enrollments}
+    conflict = (
+        ChildEnrollment.query
+        .filter(
+            ChildEnrollment.child_id == child.id,
+            ChildEnrollment.academic_year_id.in_(year_ids),
+            ChildEnrollment.status == "ACTIVE",
+            ChildEnrollment.ended_at.is_(None),
+            ChildEnrollment.id.notin_(enrollment_ids),
+        )
+        .first()
+    )
+    if conflict is not None:
+        flash(
+            "Отмена невозможна: после отчисления уже создано новое "
+            "активное зачисление. Сначала отмените более позднее действие.",
+            "danger",
+        )
+        return redirect(url_for("children.child_card", child_id=child.id))
+
+    operation_at = datetime.utcnow()
+    for enrollment in enrollments:
+        enrollment.status = "ACTIVE"
+        enrollment.ended_at = None
+        enrollment.note = (
+            f"{enrollment.note + '. ' if enrollment.note else ''}"
+            "Ошибочное отчисление отменено администратором."
+        )
+
+    child.status = "ACTIVE"
+    child.archived_at = None
+    reversal_reason = (
+        request.form.get("reason") or "Исправление ошибочного отчисления"
+    ).strip()
+    histories = (
+        ChildTransferHistory.query
+        .filter(
+            ChildTransferHistory.child_id == child.id,
+            ChildTransferHistory.transfer_type == "EXPELLED",
+            ChildTransferHistory.reversed_at.is_(None),
+            ChildTransferHistory.created_at
+            >= expel_event.created_at - timedelta(minutes=10),
+            ChildTransferHistory.created_at
+            <= expel_event.created_at + timedelta(minutes=10),
+        )
+        .all()
+    )
+    for history in histories:
+        history.reversed_at = operation_at
+        history.reversed_by = current_user.id
+        history.reversal_reason = reversal_reason
+
+    restored = (enrollments or legacy_active_enrollments)[0]
+    restored_class = restored.school_class
+    db.session.add(ChildEvent(
+        child_id=child.id,
+        author_id=current_user.id,
+        event_type="EXPEL_UNDO",
+        from_class=None,
+        to_class=restored_class.name if restored_class else None,
+        promotion_kind="UNDO",
+        reason=reversal_reason,
+        created_at=operation_at,
+    ))
+    db.session.add(ChildMovement(
+        child_id=child.id,
+        academic_year_id=restored.academic_year_id,
+        movement_type="correction",
+        movement_date=date.today(),
+        from_class_id=None,
+        to_class_id=restored.school_class_id,
+        reason=reversal_reason,
+        created_by=current_user.id,
+        created_at=operation_at,
+    ))
+    db.session.commit()
+
+    flash(
+        "Отчисление отменено. Ученик восстановлен в классе "
+        f"{restored_class.name if restored_class else '—'}.",
+        "success",
+    )
+    return redirect(url_for("children.child_card", child_id=child.id))
+
+
 @children_bp.route("/children/<int:child_id>/transfer", methods=["POST"])
 @require_roles("ADMIN")
 def transfer_child(child_id: int):
@@ -1622,7 +2110,11 @@ def transfer_child(child_id: int):
         .first()
     )
 
-    old_class = child.current_class_name or "—"
+    old_class = (
+        en.school_class.name
+        if en and en.school_class
+        else child.current_class_name or "—"
+    )
 
     if is_repeat:
         db.session.add(ChildEvent(
@@ -1655,17 +2147,25 @@ def transfer_child(child_id: int):
         flash("Выбранный класс не найден в текущем учебном году", "danger")
         return redirect(url_for("children.child_card", child_id=child_id))
 
+    if en and en.school_class_id == sc.id:
+        flash("Ученик уже находится в выбранном классе.", "info")
+        return redirect(url_for("children.child_card", child_id=child_id))
+
+    operation_at = datetime.utcnow()
     if en:
-        en.ended_at = datetime.utcnow()
+        en.ended_at = operation_at
         en.status = "TRANSFERRED"
 
     new_en = ChildEnrollment(
         child_id=child.id,
         academic_year_id=year.id,
         school_class_id=sc.id,
-        status="ACTIVE"
+        status="ACTIVE",
+        enrolled_at=operation_at,
     )
     db.session.add(new_en)
+    child.status = "ACTIVE"
+    child.archived_at = None
 
     db.session.add(ChildEvent(
         child_id=child.id,
@@ -1673,8 +2173,32 @@ def transfer_child(child_id: int):
         event_type="TRANSFER",
         from_class=old_class,
         to_class=sc.name,
+        promotion_kind="MANUAL",
         reason=note,
-        created_at=datetime.utcnow(),
+        created_at=operation_at,
+    ))
+    db.session.add(ChildTransferHistory(
+        child_id=child.id,
+        from_academic_year_id=en.academic_year_id if en else None,
+        to_academic_year_id=year.id,
+        from_class_id=en.school_class_id if en else None,
+        to_class_id=sc.id,
+        transfer_type="MANUAL",
+        transfer_date=date.today(),
+        comment=note,
+        created_by=current_user.id,
+        created_at=operation_at,
+    ))
+    db.session.add(ChildMovement(
+        child_id=child.id,
+        academic_year_id=year.id,
+        movement_type="transfer",
+        movement_date=date.today(),
+        from_class_id=en.school_class_id if en else None,
+        to_class_id=sc.id,
+        reason=note,
+        created_by=current_user.id,
+        created_at=operation_at,
     ))
 
     db.session.commit()
@@ -1689,23 +2213,62 @@ def expel_child(child_id: int):
 
     note = (request.form.get("note") or "").strip() or None
     to_where = (request.form.get("to_where") or "").strip() or None
-    old_class = child.current_class_name or "—"
-
-    year = _get_current_year()
-    if year:
-        en = (
-            ChildEnrollment.query
-            .filter(
-                ChildEnrollment.child_id == child.id,
-                ChildEnrollment.academic_year_id == year.id,
-                ChildEnrollment.ended_at.is_(None)
-            )
-            .first()
+    active_enrollments = (
+        ChildEnrollment.query
+        .filter(
+            ChildEnrollment.child_id == child.id,
+            ChildEnrollment.status == "ACTIVE",
+            ChildEnrollment.ended_at.is_(None),
         )
-        if en:
-            en.ended_at = datetime.utcnow()
-            en.status = "EXPELLED"
-            en.note = note
+        .order_by(
+            ChildEnrollment.enrolled_at.desc(),
+            ChildEnrollment.id.desc(),
+        )
+        .all()
+    )
+    if not active_enrollments or _active_expel_event(child.id) is not None:
+        flash(
+            "Ученик уже отчислен или не имеет активного зачисления.",
+            "warning",
+        )
+        return redirect(url_for("children.child_card", child_id=child_id))
+
+    operation_at = datetime.utcnow()
+    primary_enrollment = active_enrollments[0]
+    old_class = (
+        primary_enrollment.school_class.name
+        if primary_enrollment.school_class
+        else "—"
+    )
+    for enrollment in active_enrollments:
+        enrollment.ended_at = operation_at
+        enrollment.status = "EXPELLED"
+        enrollment.note = note
+
+    child.status = "EXPELLED"
+    db.session.add(ChildTransferHistory(
+        child_id=child.id,
+        from_academic_year_id=primary_enrollment.academic_year_id,
+        to_academic_year_id=None,
+        from_class_id=primary_enrollment.school_class_id,
+        to_class_id=None,
+        transfer_type="EXPELLED",
+        transfer_date=date.today(),
+        comment=note,
+        created_by=current_user.id,
+        created_at=operation_at,
+    ))
+    db.session.add(ChildMovement(
+        child_id=child.id,
+        academic_year_id=primary_enrollment.academic_year_id,
+        movement_type="leave",
+        movement_date=date.today(),
+        from_class_id=primary_enrollment.school_class_id,
+        to_class_id=None,
+        reason=note,
+        created_by=current_user.id,
+        created_at=operation_at,
+    ))
 
     db.session.add(
         ChildEvent(
@@ -1715,7 +2278,7 @@ def expel_child(child_id: int):
             from_class=old_class,
             to_class=to_where,
             reason=note,
-            created_at=datetime.utcnow(),
+            created_at=operation_at,
         )
     )
 
@@ -1792,7 +2355,10 @@ def contingent():
     if year_id:
         for t_type, cnt in (
             db.session.query(ChildTransferHistory.transfer_type, db.func.count(ChildTransferHistory.id))
-            .filter(ChildTransferHistory.from_academic_year_id == year_id)
+            .filter(
+                ChildTransferHistory.from_academic_year_id == year_id,
+                ChildTransferHistory.reversed_at.is_(None),
+            )
             .group_by(ChildTransferHistory.transfer_type)
             .all()
         ):
@@ -2003,6 +2569,7 @@ def contingent():
                 ChildEnrollment.ended_at.is_(None),
                 ChildEnrollment.school_class_id.in_(class_ids),
                 ChildTransferHistory.from_academic_year_id == year_id,
+                ChildTransferHistory.reversed_at.is_(None),
             )
             .group_by(ChildEnrollment.school_class_id, ChildTransferHistory.transfer_type)
             .all()
@@ -2734,10 +3301,14 @@ def class_detail(class_id):
 
     enrollments = (
         ChildEnrollment.query
+        .join(Child, Child.id == ChildEnrollment.child_id)
         .options(joinedload(ChildEnrollment.child))
         .filter(
             ChildEnrollment.school_class_id == class_id,
+            ChildEnrollment.status == "ACTIVE",
             ChildEnrollment.ended_at.is_(None),
+            Child.status == "ACTIVE",
+            ~_active_expel_exists(Child.id),
         )
         .all()
     )
@@ -3211,11 +3782,7 @@ def registry_expelled():
     year = _get_current_year()
     filters = _registry_filter_state(year, allow_only_own_class=should_limit_children_to_own_class())
 
-    events = (
-        ChildEvent.query
-        .join(Child, ChildEvent.child_id == Child.id)
-        .filter(ChildEvent.event_type == "EXPEL")
-    )
+    events = _active_expel_events_query()
 
     if filters["selected_grade"] is not None:
         grade_classes = [c.name for c in filters["classes"]]
@@ -3263,11 +3830,7 @@ def registry_expelled_export():
     year = _get_current_year()
     filters = _registry_filter_state(year, allow_only_own_class=should_limit_children_to_own_class())
 
-    events = (
-        ChildEvent.query
-        .join(Child, ChildEvent.child_id == Child.id)
-        .filter(ChildEvent.event_type == "EXPEL")
-    )
+    events = _active_expel_events_query()
 
     if filters["selected_grade"] is not None:
         grade_classes = [c.name for c in filters["classes"]]

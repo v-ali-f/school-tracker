@@ -20,6 +20,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy.exc import IntegrityError
 
+from app.core.cache import cache, make_key
 from app.core.extensions import db
 from app.core.feature_flags import WORKLOAD_WRITE, is_feature_enabled
 from app.models import (
@@ -27,6 +28,7 @@ from app.models import (
     Department,
     EducationActivity,
     EducationPlan,
+    EducationPlanLine,
     OrganizationSettings,
     SchoolClass,
     TariffCycle,
@@ -72,7 +74,7 @@ from app.services.teaching_group_matrix_service import (
     build_teaching_group_matrix,
     materialize_default_teaching_groups,
 )
-from app.services.teaching_group_service import current_population_snapshot
+from app.services.teaching_group_service import ensure_population_snapshot
 from app.services.teacher_mcko_service import current_mcko_by_teacher
 from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
@@ -494,7 +496,10 @@ def _workspace_plan_context(
 ):
     if version is None:
         return None, [], []
-    snapshot = current_population_snapshot(version.id)
+    snapshot = ensure_population_snapshot(
+        version,
+        user_id=current_user.id,
+    )[0]
     plans = (
         EducationPlan.query
         .filter_by(
@@ -512,11 +517,7 @@ def _workspace_plan_context(
     allowed_building_ids = (
         None if scope.unrestricted else set(scope.building_ids)
     )
-    levels = (
-        [education_level]
-        if education_level in {"NOO", "OOO", "SOO"}
-        else ["NOO", "OOO", "SOO"]
-    )
+    levels = _workspace_matrix_levels(education_level, grade)
     matrices = [
         build_teaching_group_matrix(
             snapshot,
@@ -532,8 +533,72 @@ def _workspace_plan_context(
     return snapshot, plans, matrices
 
 
+def _workspace_matrix_levels(education_level, grade):
+    grade_level = (
+        "NOO" if grade in range(1, 5)
+        else "OOO" if grade in range(5, 10)
+        else "SOO" if grade in range(10, 12)
+        else None
+    )
+    return (
+        [education_level]
+        if education_level in {"NOO", "OOO", "SOO"}
+        else [grade_level]
+        if grade_level is not None
+        else ["NOO", "OOO", "SOO"]
+    )
+
+
 def _ensure_workspace_plan_needs(version, snapshot, plans):
     if version is None or snapshot is None or version.status != "DRAFT":
+        return False
+    plan_state = (
+        db.session.query(
+            db.func.count(EducationPlanLine.id),
+            db.func.max(EducationPlanLine.updated_at),
+            db.func.sum(EducationPlan.revision),
+            db.func.max(EducationPlan.updated_at),
+        )
+        .join(
+            EducationPlan,
+            EducationPlan.id == EducationPlanLine.education_plan_id,
+        )
+        .filter(EducationPlan.tariff_version_id == version.id)
+        .one()
+    )
+    group_state = (
+        db.session.query(
+            db.func.count(TeachingGroup.id),
+            db.func.max(TeachingGroup.updated_at),
+            db.func.sum(TeachingGroup.revision),
+        )
+        .filter(
+            TeachingGroup.tariff_version_id == version.id,
+            TeachingGroup.status != "CLOSED",
+        )
+        .one()
+    )
+    need_state = (
+        db.session.query(
+            db.func.count(WorkloadNeed.id),
+            db.func.max(WorkloadNeed.updated_at),
+            db.func.sum(WorkloadNeed.revision),
+        )
+        .filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadNeed.status != "CANCELLED",
+        )
+        .one()
+    )
+    sync_key = make_key(
+        "workload-plan-needs",
+        version.id,
+        snapshot.checksum,
+        *plan_state,
+        *group_state,
+        *need_state,
+    )
+    if cache.get(sync_key):
         return False
     created_groups = materialize_default_teaching_groups(
         version=version,
@@ -590,9 +655,11 @@ def _ensure_workspace_plan_needs(version, snapshot, plans):
         ).all()
     }
     if not created_groups and expected_group_ids <= current_group_ids:
+        cache.set(sync_key, True, timeout=3600)
         return False
     generate_plan_needs(version, user_id=current_user.id)
     db.session.commit()
+    cache.set(sync_key, True, timeout=3600)
     return True
 
 
@@ -1044,16 +1111,22 @@ def register_assignment_routes(workload_bp):
             education_level=education_level or None,
             grade=grade,
         )
-        need_ids = [item.id for item in needs]
-        assignments = (
+        all_need_ids = [item.id for item in all_needs]
+        all_assignments = (
             WorkloadAssignment.query
             .filter(
-                WorkloadAssignment.workload_need_id.in_(need_ids),
+                WorkloadAssignment.workload_need_id.in_(all_need_ids),
                 WorkloadAssignment.status != "CANCELLED",
             )
             .all()
-            if need_ids else []
+            if all_need_ids else []
         )
+        need_ids = {item.id for item in needs}
+        assignments = [
+            item
+            for item in all_assignments
+            if item.workload_need_id in need_ids
+        ]
         state_key, state = _workspace_state(version_id or 0)
         employees = _active_employees()
         employee_by_id = {item.id: item for item in employees}
@@ -1147,6 +1220,7 @@ def register_assignment_routes(workload_bp):
                 list(matrix_teachers.values()),
                 selected_version,
             ),
+            total_assignments=all_assignments,
         )
         if view_mode == "vacancies":
             matrix["blocks"] = [
@@ -1841,8 +1915,25 @@ def register_assignment_routes(workload_bp):
                 WorkloadAssignment.employee_user_id == teacher.id,
             )
             holder_key = f"teacher:{teacher.id}"
+        holder_assignment_items = holder_assignments.all()
         holder_total = sum(
-            (Decimal(item.weekly_hours or ZERO) for item in holder_assignments.all()),
+            (
+                Decimal(item.weekly_hours or ZERO)
+                for item in holder_assignment_items
+            ),
+            ZERO,
+        )
+        plan_kind = need_plan_kind(need)
+        subject_total = sum(
+            (
+                Decimal(item.weekly_hours or ZERO)
+                for item in holder_assignment_items
+                if (
+                    item.workload_need.education_activity_id
+                    == need.education_activity_id
+                    and need_plan_kind(item.workload_need) == plan_kind
+                )
+            ),
             ZERO,
         )
         if is_ajax:
@@ -1852,6 +1943,9 @@ def register_assignment_routes(workload_bp):
                 "holder_key": holder_key,
                 "value": float(value) if value is not None else None,
                 "holder_total": float(holder_total),
+                "activity_id": need.education_activity_id,
+                "plan_kind": plan_kind,
+                "subject_total": float(subject_total),
                 "allocated": float(allocated),
                 "remaining": float(planned_total - allocated),
             })

@@ -252,10 +252,14 @@ def _study_year_dashboard_stats():
         "current_year_name": current_year.name,
         "classes_count": SchoolClass.query.filter_by(academic_year_id=current_year.id).count(),
         "active_count": active_q.count(),
-        "transfers_count": ChildTransferHistory.query.filter(ChildTransferHistory.from_academic_year_id == current_year.id).count(),
+        "transfers_count": ChildTransferHistory.query.filter(
+            ChildTransferHistory.from_academic_year_id == current_year.id,
+            ChildTransferHistory.reversed_at.is_(None),
+        ).count(),
         "archive_count": ChildTransferHistory.query.filter(
             ChildTransferHistory.from_academic_year_id == current_year.id,
             ChildTransferHistory.transfer_type.in_(["ARCHIVED", "EXPELLED", "TRANSFERRED_OUT"]),
+            ChildTransferHistory.reversed_at.is_(None),
         ).count(),
     }
 

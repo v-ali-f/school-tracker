@@ -1180,6 +1180,7 @@
 {% if is_admin %}
   <div class="card mb-3">
     <div class="card-body d-flex gap-2">
+      {% if can_manage_active_enrollment %}
       <button type="button"
               class="btn btn-outline-warning"
               data-bs-toggle="modal"
@@ -1193,6 +1194,11 @@
               data-bs-target="#expelModal">
         Отчисление
       </button>
+      {% else %}
+      <span class="badge text-bg-secondary align-self-center">
+        Активного зачисления нет
+      </span>
+      {% endif %}
 
       <a href="/children" class="btn btn-outline-secondary ms-auto">Назад</a>
     </div>
@@ -1501,14 +1507,54 @@ document.addEventListener("change", function(e){
       <div class="col-md-4"><div class="small text-muted">Текущий класс</div><div class="fw-semibold">{{ child.current_class_name or '—' }}</div></div>
       <div class="col-md-4"><div class="small text-muted">Текущий учебный год</div><div class="fw-semibold">{{ current_year_name or "—" }}</div></div>
     </div>
+    {% if expel_undo %}
+    <div class="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 px-3">
+      <div class="small">
+        <strong>Ученик отчислен.</strong>
+        Отчисление можно отменить, пока после него не создано новое зачисление.
+      </div>
+      <form
+        method="post"
+        action="{{ url_for('children.undo_child_expulsion', child_id=child.id) }}"
+        onsubmit="return confirm('Отменить последнее отчисление? Ученик будет восстановлен в прежнем классе.');"
+      >
+        <input type="hidden" name="reason" value="Исправление ошибочного отчисления">
+        <button class="btn btn-danger btn-sm" type="submit">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Отменить отчисление
+        </button>
+      </form>
+    </div>
+    {% endif %}
+    {% if transfer_undo %}
+    <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 px-3">
+      <div class="small">
+        <strong>Последнее изменение:</strong>
+        {{ transfer_undo.source.school_class.name if transfer_undo.source.school_class else "—" }}
+        →
+        {{ transfer_undo.target.school_class.name if transfer_undo.target.school_class else "—" }}
+        ({{ transfer_undo.target.academic_year.name if transfer_undo.target.academic_year else "—" }}).
+        Отмена выполняется строго от последней операции к предыдущей.
+      </div>
+      <form
+        method="post"
+        action="{{ url_for('children.undo_child_enrollment', child_id=child.id, enrollment_id=transfer_undo.target.id) }}"
+        onsubmit="return confirm('Отменить последнее изменение обучения? Исходный класс будет восстановлен.');"
+      >
+        <input type="hidden" name="reason" value="Исправление ошибочного перевода">
+        <button class="btn btn-outline-danger btn-sm" type="submit">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Отменить последнее изменение
+        </button>
+      </form>
+    </div>
+    {% endif %}
     <div class="row g-4">
       <div class="col-lg-6">
         <h6>История обучения</h6>
-        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Класс</th><th>Статус</th><th>Дата</th></tr></thead><tbody>{% for e in enrollment_history %}<tr><td>{{ e.academic_year.name if e.academic_year else '—' }}</td><td>{{ e.school_class.name if e.school_class else '—' }}</td><td>{{ e.status }}</td><td>{{ e.enrolled_at.strftime('%d.%m.%Y') if e.enrolled_at else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Класс</th><th>Статус</th><th>Дата</th></tr></thead><tbody>{% for e in enrollment_history %}<tr class="{% if e.status == 'CANCELLED' %}text-muted{% endif %}"><td>{{ e.academic_year.name if e.academic_year else '—' }}</td><td>{{ e.school_class.name if e.school_class else '—' }}</td><td>{% if e.status == 'CANCELLED' %}<span class="badge text-bg-secondary">Отменено</span>{% else %}{{ e.status }}{% endif %}</td><td>{{ e.enrolled_at.strftime('%d.%m.%Y') if e.enrolled_at else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
       </div>
       <div class="col-lg-6">
         <h6>История переводов</h6>
-        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата</th><th>Из класса</th><th>В класс</th><th>Тип</th></tr></thead><tbody>{% for h in transfer_history %}<tr><td>{{ h.transfer_date.strftime('%d.%m.%Y') if h.transfer_date else '—' }}</td><td>{{ h.from_class.name if h.from_class else '—' }}</td><td>{{ h.to_class.name if h.to_class else '—' }}</td><td>{{ h.transfer_type }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата</th><th>Из класса</th><th>В класс</th><th>Тип</th></tr></thead><tbody>{% for h in transfer_history %}<tr class="{% if h.reversed_at %}text-muted{% endif %}"><td>{{ h.transfer_date.strftime('%d.%m.%Y') if h.transfer_date else '—' }}</td><td>{{ h.from_class.name if h.from_class else '—' }}</td><td>{{ h.to_class.name if h.to_class else '—' }}</td><td>{% if h.reversed_at %}<span class="badge text-bg-secondary" title="{{ h.reversal_reason or '' }}">Отменён</span>{% else %}{{ h.transfer_type }}{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
       </div>
     </div>
     <div class="mt-3">

@@ -7,6 +7,7 @@ from app.core.extensions import db
 from app.models import (
     Child,
     ChildEnrollment,
+    ChildEvent,
     EducationPlanLine,
     PopulationSnapshot,
     PopulationSnapshotClass,
@@ -17,6 +18,7 @@ from app.models import (
     TeachingGroupHistory,
     TeachingGroupMember,
 )
+from sqlalchemy.orm import aliased, joinedload, selectinload
 
 
 GROUP_TYPES_BY_PLAN_KIND = {
@@ -68,9 +70,43 @@ def _population_checksum(digest_rows):
     ).hexdigest()
 
 
-def _live_population_checksum(academic_year_id):
+def _active_expel_exists(child_id):
+    expel_event = aliased(ChildEvent)
+    undo_event = aliased(ChildEvent)
+    later_undo = (
+        db.session.query(undo_event.id)
+        .filter(
+            undo_event.child_id == expel_event.child_id,
+            undo_event.event_type == "EXPEL_UNDO",
+            db.or_(
+                undo_event.created_at > expel_event.created_at,
+                db.and_(
+                    undo_event.created_at == expel_event.created_at,
+                    undo_event.id > expel_event.id,
+                ),
+            ),
+        )
+        .exists()
+    )
+    return (
+        db.session.query(expel_event.id)
+        .filter(
+            expel_event.child_id == child_id,
+            expel_event.event_type == "EXPEL",
+            db.or_(
+                expel_event.promotion_kind.is_(None),
+                expel_event.promotion_kind != "ARCHIVED",
+            ),
+            ~later_undo,
+        )
+        .exists()
+    )
+
+
+def _live_population_rows(academic_year_id):
     classes = (
         SchoolClass.query
+        .options(selectinload(SchoolClass.building))
         .filter_by(
             academic_year_id=academic_year_id,
             is_archived=False,
@@ -86,26 +122,41 @@ def _live_population_checksum(academic_year_id):
         for school_class in classes
     ]
     class_ids = [school_class.id for school_class in classes]
+    enrollments_by_class = defaultdict(list)
     if class_ids:
         enrollments = (
             ChildEnrollment.query
+            .join(Child, Child.id == ChildEnrollment.child_id)
+            .options(joinedload(ChildEnrollment.child))
             .filter(
                 ChildEnrollment.academic_year_id == academic_year_id,
                 ChildEnrollment.school_class_id.in_(class_ids),
                 ChildEnrollment.status == "ACTIVE",
                 ChildEnrollment.ended_at.is_(None),
+                Child.status == "ACTIVE",
+                ~_active_expel_exists(Child.id),
+            )
+            .order_by(
+                Child.last_name.asc(),
+                Child.first_name.asc(),
+                Child.middle_name.asc(),
             )
             .all()
         )
-        digest_rows.extend(
-            (
+        for enrollment in enrollments:
+            enrollments_by_class[enrollment.school_class_id].append(
+                enrollment
+            )
+            digest_rows.append(
                 f"{enrollment.school_class_id}:"
                 f"{enrollment.child_id}:{enrollment.id}:"
                 f"{enrollment.status}"
             )
-            for enrollment in enrollments
-        )
-    return _population_checksum(digest_rows)
+    return classes, enrollments_by_class, _population_checksum(digest_rows)
+
+
+def _live_population_checksum(academic_year_id):
+    return _live_population_rows(academic_year_id)[2]
 
 
 def population_registry_status(tariff_version, snapshot=None):
@@ -125,12 +176,15 @@ def population_registry_status(tariff_version, snapshot=None):
             SchoolClass,
             SchoolClass.id == ChildEnrollment.school_class_id,
         )
+        .join(Child, Child.id == ChildEnrollment.child_id)
         .filter(
             ChildEnrollment.academic_year_id == academic_year_id,
             ChildEnrollment.status == "ACTIVE",
             ChildEnrollment.ended_at.is_(None),
             SchoolClass.academic_year_id == academic_year_id,
             SchoolClass.is_archived.is_(False),
+            Child.status == "ACTIVE",
+            ~_active_expel_exists(Child.id),
         )
         .scalar()
         or 0
@@ -188,17 +242,10 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
         )
 
     academic_year = tariff_version.tariff_cycle.academic_year
-    classes = (
-        SchoolClass.query
-        .filter_by(
-            academic_year_id=academic_year.id,
-            is_archived=False,
-        )
-        .order_by(SchoolClass.grade.asc(), SchoolClass.name.asc())
-        .all()
+    classes, enrollments_by_class, checksum = _live_population_rows(
+        academic_year.id
     )
     rows = []
-    digest_rows = []
     for school_class in classes:
         building_name = None
         if school_class.building is not None:
@@ -206,26 +253,7 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
                 school_class.building.short_name
                 or school_class.building.name
             )
-        digest_rows.append(
-            f"CLASS:{school_class.id}:{school_class.name}:"
-            f"{school_class.grade}:{school_class.building_id or ''}"
-        )
-        enrollments = (
-            ChildEnrollment.query
-            .filter(
-                ChildEnrollment.academic_year_id == academic_year.id,
-                ChildEnrollment.school_class_id == school_class.id,
-                ChildEnrollment.status == "ACTIVE",
-                ChildEnrollment.ended_at.is_(None),
-            )
-            .join(ChildEnrollment.child)
-            .order_by(
-                Child.last_name.asc(),
-                Child.first_name.asc(),
-                Child.middle_name.asc(),
-            )
-            .all()
-        )
+        enrollments = enrollments_by_class[school_class.id]
         enrollment_rows = []
         for enrollment in enrollments:
             child = enrollment.child
@@ -244,10 +272,6 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
                     if enrollment.ended_at else None
                 ),
             })
-            digest_rows.append(
-                f"{school_class.id}:{child.id}:{enrollment.id}:"
-                f"{enrollment.status}"
-            )
         rows.append((school_class, enrollment_rows, building_name))
 
     current = current_population_snapshot(tariff_version.id)
@@ -260,7 +284,6 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
         .scalar()
         or 0
     )
-    checksum = _population_checksum(digest_rows)
     snapshot = PopulationSnapshot(
         tariff_version_id=tariff_version.id,
         revision_no=max_revision + 1,
@@ -302,6 +325,21 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
             user_id=user_id,
         )
     return snapshot
+
+
+def ensure_population_snapshot(tariff_version, *, user_id):
+    """Create registry data automatically for a new working version."""
+    snapshot = current_population_snapshot(tariff_version.id)
+    if tariff_version.status != "DRAFT":
+        return snapshot, False
+    if snapshot is None:
+        snapshot = build_population_snapshot(
+            tariff_version,
+            user_id=user_id,
+        )
+        db.session.commit()
+        return snapshot, True
+    return snapshot, False
 
 
 def require_group_editable(group, *, expected_revision=None):
@@ -656,6 +694,7 @@ __all__ = [
     "GroupValidationError",
     "add_group_history",
     "build_population_snapshot",
+    "ensure_population_snapshot",
     "change_group_status",
     "current_population_snapshot",
     "population_registry_status",
