@@ -685,7 +685,7 @@ class EducationPlanBinding(db.Model):
 
     __table_args__ = (
         db.CheckConstraint(
-            "binding_mode IN ('CLASS','STUDENTS')",
+            "binding_mode IN ('CLASS','STUDENTS','PLAN_SET')",
             name="ck_education_plan_binding_mode",
         ),
         db.CheckConstraint(

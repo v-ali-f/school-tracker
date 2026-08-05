@@ -2,7 +2,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260804_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260805_1">
 {% endblock %}
 
 {% block workspace_content %}
@@ -10,7 +10,7 @@
   <header class="plan-binding-heading">
     <div>
       <h2>Привязка учебных планов</h2>
-      <p>Назначьте комплект УП классу целиком или измените план отдельного ученика</p>
+      <p>Для 10–11 классов сначала выберите несколько УП, затем распределите по ним учеников</p>
     </div>
     {% if selected_version and can_update %}
     <form method="post" action="{{ url_for('workload.plan_bindings_snapshot_refresh') }}">
@@ -164,6 +164,61 @@
           </td>
           <td>
             {% if row.plans %}
+            {% if row.is_multi_plan_class %}
+            <form
+              class="plan-binding-plan-set"
+              method="post"
+              action="{{ url_for('workload.plan_bindings_assign_class_plans') }}"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="version_id" value="{{ selected_version.id }}">
+              <input type="hidden" name="class_id" value="{{ school_class.id }}">
+              <input type="hidden" name="level" value="{{ selected_level or '' }}">
+              <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
+              <details class="plan-binding-plan-set__details">
+                <summary>
+                  {% if row.selected_plan_ids %}
+                  Выбрано УП: {{ row.selected_plan_ids|length }}
+                  {% else %}
+                  Выбрать учебные планы
+                  {% endif %}
+                </summary>
+                <div class="plan-binding-plan-set__menu">
+                  <strong>Учебные планы {{ school_class.name_snapshot }}</strong>
+                  <span>Можно выбрать несколько планов до добавления учеников.</span>
+                  <div class="plan-binding-plan-set__options">
+                    {% for plan in row.plans %}
+                    <label>
+                      <input
+                        type="checkbox"
+                        name="plan_ids"
+                        value="{{ plan.id }}"
+                        {% if plan.id in row.selected_plan_ids %}checked{% endif %}
+                        {% if not can_update %}disabled{% endif %}
+                      >
+                      <span>{{ plan.name }}</span>
+                    </label>
+                    {% endfor %}
+                  </div>
+                  {% if can_update %}
+                  <button class="btn btn-primary btn-sm" type="submit">
+                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                    Сохранить набор УП
+                  </button>
+                  {% endif %}
+                </div>
+              </details>
+              {% if row.selected_plan_ids %}
+              <div class="plan-binding-plan-set__selected">
+                {% for plan in row.plans if plan.id in row.selected_plan_ids %}
+                <span>{{ plan.name }}</span>
+                {% endfor %}
+              </div>
+              {% else %}
+              <span class="plan-binding-plan-set__empty">УП для класса ещё не выбраны</span>
+              {% endif %}
+            </form>
+            {% else %}
             <form
               class="plan-binding-assignment"
               method="post"
@@ -203,6 +258,7 @@
               {% endif %}
               <span class="plan-binding-assignment__state" aria-live="polite"></span>
             </form>
+            {% endif %}
             {% else %}
             <span class="plan-binding-no-plan">Нет УП для уровня класса</span>
             {% endif %}
@@ -215,7 +271,13 @@
             <div class="plan-binding-students">
               <div class="plan-binding-students__head">
                 <strong>Ученики {{ school_class.name_snapshot }}</strong>
-                <span>План можно изменить индивидуально</span>
+                <span>
+                  {% if row.is_multi_plan_class %}
+                  Распределите учеников по выбранным УП
+                  {% else %}
+                  План можно изменить индивидуально
+                  {% endif %}
+                </span>
               </div>
               <table class="registry-matrix registry-matrix-medium">
                 <thead>
@@ -252,7 +314,7 @@
                           data-plan-assignment-select
                         >
                           <option value="" {% if not current_plan_id %}selected{% endif %}>Не назначен</option>
-                          {% for plan in row.plans %}
+                          {% for plan in row.student_plans %}
                           <option value="{{ plan.id }}" {% if current_plan_id == plan.id %}selected{% endif %}>{{ plan.name }}</option>
                           {% endfor %}
                         </select>
@@ -273,7 +335,12 @@
                     </td>
                   </tr>
                   {% else %}
-                  <tr><td colspan="3" class="text-center text-muted">В классе нет учеников</td></tr>
+                  <tr>
+                    <td colspan="3" class="text-center text-muted">
+                      Учеников пока нет. Выбранный набор УП сохранится и будет
+                      доступен после добавления учеников.
+                    </td>
+                  </tr>
                   {% endfor %}
                 </tbody>
               </table>
@@ -290,5 +357,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260801_3"></script>
+<script src="{{ url_for('static', filename='js/workload_plan_bindings.js') }}?v=20260805_1"></script>
 {% endblock %}
