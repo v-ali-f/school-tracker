@@ -1341,14 +1341,17 @@ def register_assignment_routes(workload_bp):
         if plan_kind not in PLAN_KIND_LABELS:
             flash("Выберите допустимую часть учебного плана.", "danger")
             return _workspace_redirect()
-        has_need = (
-            _scoped_need_query()
-            .filter(
-                WorkloadNeed.tariff_version_id == version.id,
-                WorkloadNeed.education_activity_id == activity.id,
-                WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
+        matching_needs = [
+            need
+            for need in _workspace_form_needs(version)
+            if (
+                need.education_activity_id == activity.id
+                and need_plan_kind(need) == plan_kind
             )
-            .first()
+        ]
+        has_need = next(
+            iter(matching_needs),
+            None,
         )
         if has_need is None:
             flash("В выбранной версии нет часов по этому предмету.", "danger")

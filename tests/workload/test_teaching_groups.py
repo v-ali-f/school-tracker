@@ -1891,6 +1891,128 @@ def test_generating_needs_materializes_default_one_group(
         assert WorkloadNeed.query.one().teaching_group_id == group.id
 
 
+def test_generating_needs_includes_all_plan_subjects_for_empty_class(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        source_class = SchoolClass.query.filter_by(name="5А").one()
+        ChildEnrollment.query.filter_by(
+            school_class_id=source_class.id,
+        ).delete(synchronize_session=False)
+        first_line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        plan = first_line.education_plan
+        literature = EducationActivity(
+            code="LITERATURE_EMPTY_CLASS",
+            name="Литература",
+            activity_kind="SUBJECT",
+            is_global=True,
+            is_tariffable=True,
+            is_active=True,
+        )
+        db.session.add(literature)
+        db.session.flush()
+        literature_line = EducationPlanLine(
+            education_plan_id=plan.id,
+            education_activity_id=literature.id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("3"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("102"),
+            sort_order=20,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(literature_line)
+        db.session.flush()
+        db.session.add(EducationPlanLineScope(
+            education_plan_line_id=literature_line.id,
+            scope_kind="GRADE",
+            grade=5,
+            building_id=context["building_id"],
+            scope_key=line_scope_key(
+                "GRADE",
+                grade=5,
+                building_id=context["building_id"],
+            ),
+        ))
+        db.session.commit()
+
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        assign_class_plan(
+            snapshot_class,
+            [plan],
+            plan.id,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        result = generate_plan_needs(
+            db.session.get(TariffVersion, context["version_id"]),
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert result["created"] == 2
+        groups = TeachingGroup.query.order_by(TeachingGroup.id).all()
+        assert len(groups) == 2
+        assert all(group.status == "READY" for group in groups)
+        assert all(not group.members for group in groups)
+        needs = WorkloadNeed.query.order_by(
+            WorkloadNeed.education_activity_id
+        ).all()
+        assert len(needs) == 2
+        literature_need = next(
+            item
+            for item in needs
+            if item.education_activity_id == literature.id
+        )
+        assert literature_need.weekly_hours == Decimal("3.000")
+
+        child = Child.query.order_by(Child.id.asc()).first()
+        enrollment = PopulationSnapshotEnrollment(
+            population_snapshot_class_id=snapshot_class.id,
+            source_child_id=child.id,
+            fio_snapshot="Новый Ученик",
+            status_snapshot="ACTIVE",
+        )
+        db.session.add(enrollment)
+        snapshot_class.student_count = 1
+        db.session.commit()
+
+        created = materialize_default_teaching_groups(
+            version=db.session.get(
+                TariffVersion,
+                context["version_id"],
+            ),
+            snapshot=snapshot,
+            plans=[plan],
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert created == 0
+        assert all(
+            {member.snapshot_enrollment_id for member in group.members}
+            == {enrollment.id}
+            for group in TeachingGroup.query.all()
+        )
+
+
 def test_class_plan_matrix_places_all_bundle_parts_on_one_sheet(
     app,
     client,
