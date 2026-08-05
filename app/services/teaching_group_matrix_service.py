@@ -417,7 +417,7 @@ def replace_teaching_group_count(
                 index,
             ),
             name=(
-                f"{snapshot_class.name_snapshot} · "
+                f"{column['class_display_name']} · "
                 f"{line.education_activity.name}"
                 + ("" if is_single else f" · группа {index}")
             ),
@@ -882,22 +882,24 @@ def materialize_default_teaching_groups(
 ):
     if version.status != "DRAFT" or snapshot is None:
         return 0
-    existing_keys = {
-        (
-            group.source_plan_line_id,
-            source.population_snapshot_class_id,
+    existing_groups_by_key = {}
+    for group in (
+        TeachingGroup.query
+        .filter(
+            TeachingGroup.tariff_version_id == version.id,
+            TeachingGroup.status != "CLOSED",
+            TeachingGroup.group_type != "METAGROUP",
         )
-        for group in (
-            TeachingGroup.query
-            .filter(
-                TeachingGroup.tariff_version_id == version.id,
-                TeachingGroup.status != "CLOSED",
-                TeachingGroup.group_type != "METAGROUP",
-            )
-            .all()
-        )
-        for source in group.source_classes
-    }
+        .all()
+    ):
+        for source in group.source_classes:
+            existing_groups_by_key.setdefault(
+                (
+                    group.source_plan_line_id,
+                    source.population_snapshot_class_id,
+                ),
+                [],
+            ).append(group)
     academic_year = version.tariff_cycle.academic_year
     created = 0
     for education_level in ("NOO", "OOO", "SOO"):
@@ -923,10 +925,71 @@ def materialize_default_teaching_groups(
                     line = cell["line"]
                     snapshot_class = column["snapshot_class"]
                     key = (line.id, snapshot_class.id)
-                    if key in existing_keys:
-                        continue
                     member_ids = set(column["member_ids"])
-                    if not member_ids:
+                    existing_groups = existing_groups_by_key.get(key, [])
+                    if existing_groups:
+                        if (
+                            len(existing_groups) == 1
+                            and existing_groups[0].code.startswith(
+                                AUTO_GROUP_CODE_PREFIX
+                            )
+                            and all(
+                                member.source_kind == "AUTO"
+                                for member in existing_groups[0].members
+                            )
+                        ):
+                            group = existing_groups[0]
+                            current_member_ids = {
+                                member.snapshot_enrollment_id
+                                for member in group.members
+                            }
+                            if current_member_ids != member_ids:
+                                for member in list(group.members):
+                                    db.session.delete(member)
+                                for member_id in sorted(member_ids):
+                                    db.session.add(TeachingGroupMember(
+                                        teaching_group_id=group.id,
+                                        snapshot_enrollment_id=member_id,
+                                        valid_from=group.valid_from,
+                                        valid_to=group.valid_to,
+                                        source_kind="AUTO",
+                                    ))
+                                is_full_class = member_ids == {
+                                    item.id
+                                    for item in snapshot_class.enrollments
+                                }
+                                group.group_type = _group_type(
+                                    line.education_plan.plan_kind,
+                                    1,
+                                    is_full_class,
+                                )
+                                group.name = (
+                                    f"{column['class_display_name']} · "
+                                    f"{line.education_activity.name}"
+                                )
+                                group.planned_size = len(member_ids)
+                                group.actual_size = len(member_ids)
+                                group.status = "READY"
+                                for source in group.source_classes:
+                                    if (
+                                        source.population_snapshot_class_id
+                                        == snapshot_class.id
+                                    ):
+                                        source.relation_kind = (
+                                            "FULL"
+                                            if is_full_class
+                                            else "PARTIAL"
+                                        )
+                                        source.student_count = len(member_ids)
+                                touch_group(
+                                    group,
+                                    user_id=user_id,
+                                    event_code="MATRIX_DEFAULT_SYNCED",
+                                    details={
+                                        "student_count": len(member_ids),
+                                        "plan_id": column["plan"].id,
+                                    },
+                                )
                         continue
                     is_full_class = member_ids == {
                         item.id for item in snapshot_class.enrollments
@@ -946,7 +1009,7 @@ def materialize_default_teaching_groups(
                             1,
                         ),
                         name=(
-                            f"{snapshot_class.name_snapshot} · "
+                            f"{column['class_display_name']} · "
                             f"{line.education_activity.name}"
                         ),
                         composition_mode="PERSONAL",
@@ -986,7 +1049,7 @@ def materialize_default_teaching_groups(
                             "plan_id": column["plan"].id,
                         },
                     )
-                    existing_keys.add(key)
+                    existing_groups_by_key[key] = [group]
                     created += 1
     return created
 
