@@ -233,6 +233,8 @@
 .plan-binding-plan-set__details > summary {
   min-height: 28px;
   padding: 4px 30px 4px 9px;
+  display: flex;
+  align-items: center;
   color: #173b72;
   background: #f7faff;
   border: 1px solid var(--workload-border-strong);
@@ -240,7 +242,9 @@
   cursor: pointer;
   font-size: 12px;
   font-weight: 650;
+  line-height: 1.25;
   list-style: none;
+  white-space: normal;
 }
 
 .plan-binding-plan-set__details > summary::-webkit-details-marker {
@@ -260,17 +264,14 @@
 }
 
 .plan-binding-plan-set__menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  right: 0;
-  width: min(420px, 70vw);
+  width: 100%;
+  margin-top: 4px;
   padding: 10px;
   color: var(--workload-text);
   background: #fff;
   border: 1px solid #bfcde0;
   border-radius: 6px;
-  box-shadow: 0 12px 30px rgba(31, 54, 91, .18);
+  box-shadow: 0 5px 14px rgba(31, 54, 91, .1);
 }
 
 .plan-binding-plan-set__menu > strong,
@@ -303,24 +304,12 @@
   font-size: 11px;
 }
 
-.plan-binding-plan-set__selected {
-  margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-
-.plan-binding-plan-set__selected span {
+.plan-binding-plan-set__summary-label {
+  display: block;
   max-width: 100%;
-  padding: 2px 5px;
-  overflow: hidden;
   color: #145a3c;
-  background: #eaf7f0;
-  border-radius: 3px;
-  font-size: 9px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .plan-binding-plan-set__empty {

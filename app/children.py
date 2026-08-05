@@ -1867,6 +1867,7 @@ def contingent():
             profile_rows = (
                 db.session.query(
                     PopulationSnapshotClass.source_school_class_id,
+                    EducationPlan.name,
                     EducationPlan.profile_name,
                 )
                 .join(
@@ -1891,9 +1892,10 @@ def contingent():
                 .all()
             )
             profile_sets = defaultdict(set)
-            for school_class_id, profile_name in profile_rows:
-                if profile_name:
-                    profile_sets[school_class_id].add(profile_name)
+            for school_class_id, plan_name, profile_name in profile_rows:
+                display_name = profile_name or plan_name
+                if display_name:
+                    profile_sets[school_class_id].add(display_name)
             profiles_by_class = {
                 class_id: sorted(
                     profile_names,

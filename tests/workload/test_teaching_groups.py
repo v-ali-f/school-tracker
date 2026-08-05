@@ -660,6 +660,7 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
         )
         first_plan.education_level = "SOO"
         first_plan.scope_code = "SOO_MAIN"
+        first_plan.profile_name = "Инженерный"
         second_plan = EducationPlan(
             tariff_version_id=context["version_id"],
             plan_kind="CURRICULUM",
@@ -667,6 +668,7 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
             education_level="SOO",
             building_id=context["building_id"],
             scope_code="SOO_TECH",
+            profile_name="Предпринимательский",
             status="DRAFT",
             created_by_user_id=user_id,
             updated_by_user_id=user_id,
@@ -729,7 +731,6 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
 
     page = client.get(response.headers["Location"])
     assert page.status_code == 200
-    assert "Выбрано УП: 2".encode() in page.data
     assert "Основной учебный план".encode() in page.data
     assert "Технологический профиль".encode() in page.data
 
@@ -764,6 +765,14 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
         assert allocations[first_plan_id] == set()
         assert allocations[second_plan_id] == {enrollment_id}
         assert student_plan_ids[enrollment_id] == second_plan_id
+
+    contingent_page = client.get(
+        f"/contingent?year_id={context['year_id']}"
+    )
+    assert contingent_page.status_code == 200
+    assert "Инженерный / Предпринимательский".encode() in (
+        contingent_page.data
+    )
 
 
 def test_class_plan_matrix_uses_assigned_plan_hours(
