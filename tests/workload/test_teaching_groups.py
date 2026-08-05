@@ -714,6 +714,42 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
         assert {item.binding_mode for item in bindings} == {"PLAN_SET"}
         assert all(not item.members for item in bindings)
 
+        matrix = build_class_plan_matrix(
+            db.session.get(
+                PopulationSnapshotClass,
+                class_id,
+            ).population_snapshot,
+            [
+                db.session.get(EducationPlan, first_plan_id),
+                db.session.get(EducationPlan, second_plan_id),
+            ],
+            "SOO",
+            grade=10,
+        )
+        profile_group = next(
+            item
+            for item in matrix["class_groups"]
+            if item["snapshot_class"].id == class_id
+        )
+        assert profile_group["split_profile_columns"]
+        assert {
+            item["class_display_name"]
+            for item in profile_group["columns"]
+        } == {"10А Инженерный", "10А Предпринимательский"}
+        assert all(
+            not item["is_unassigned"]
+            for item in profile_group["columns"]
+        )
+        workload_matrix = build_workload_assignment_matrix(
+            [],
+            [],
+            plan_matrices=[matrix],
+        )
+        assert {
+            item["label"]
+            for item in workload_matrix["class_groups"]
+        } == {"10А Инженерный", "10А Предпринимательский"}
+
         child = Child.query.order_by(Child.id.asc()).first()
         enrollment = PopulationSnapshotEnrollment(
             population_snapshot_class_id=class_id,
@@ -733,6 +769,21 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
     assert page.status_code == 200
     assert "Основной учебный план".encode() in page.data
     assert "Технологический профиль".encode() in page.data
+
+    matrix_page = client.get(
+        "/workload/plan-bindings/matrix",
+        query_string={
+            "version_id": version_id,
+            "level": "SOO",
+            "grade": 10,
+        },
+    )
+    assert matrix_page.status_code == 200
+    assert 'data-class-name="10А Инженерный"'.encode() in matrix_page.data
+    assert (
+        'data-class-name="10А Предпринимательский"'.encode()
+        in matrix_page.data
+    )
 
     assigned = client.post(
         "/workload/plan-bindings/student",

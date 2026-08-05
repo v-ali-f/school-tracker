@@ -132,9 +132,18 @@
         <tr>
           <th class="class-plan-matrix__subject" rowspan="2">Предмет или курс</th>
           {% for group in matrix.class_groups %}
-          <th class="class-plan-matrix__class {% if loop.index is even %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(group.snapshot_class.building_id, 0) }}{% endif %}" data-class-name="{{ group.snapshot_class.name_snapshot }}" colspan="{{ group.columns|length }}">
-            {{ group.snapshot_class.name_snapshot }}
-          </th>
+            {% set group_alt = loop.index is even %}
+            {% if group.split_profile_columns %}
+              {% for column in group.columns %}
+              <th class="class-plan-matrix__class {% if group_alt %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(group.snapshot_class.building_id, 0) }}{% endif %}" data-class-name="{{ column.class_display_name }}">
+                {{ column.class_display_name }}
+              </th>
+              {% endfor %}
+            {% else %}
+            <th class="class-plan-matrix__class {% if group_alt %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(group.snapshot_class.building_id, 0) }}{% endif %}" data-class-name="{{ group.snapshot_class.name_snapshot }}" colspan="{{ group.columns|length }}">
+              {{ group.snapshot_class.name_snapshot }}
+            </th>
+            {% endif %}
           {% endfor %}
         </tr>
         <tr>

@@ -369,13 +369,13 @@ def build_workload_assignment_matrix(
                 root_plan = source_column["plan"]
                 columns_by_key[source_column["key"]] = {
                     "key": source_column["key"],
-                    "label": snapshot_class.name_snapshot,
+                    "label": source_column["class_display_name"],
                     "detail": "",
                     "plan_name": root_plan.name,
                     "is_metagroup": False,
                     "is_orphan": False,
                     "grade": snapshot_class.grade_snapshot or 99,
-                    "class_name": snapshot_class.name_snapshot,
+                    "class_name": source_column["class_display_name"],
                     "building_id": snapshot_class.building_id,
                     "building_name": (
                         snapshot_class.building_name_snapshot or ""
