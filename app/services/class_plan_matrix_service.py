@@ -6,6 +6,7 @@ from app.services.education_plan_binding_service import (
     EDUCATION_LEVEL_GRADES,
     class_level_plan_ids,
     class_plan_allocations,
+    class_plan_option_ids,
     plan_matches_snapshot_class,
 )
 from app.services.education_plan_service import (
@@ -99,6 +100,17 @@ def _line_matches_snapshot_class(line, snapshot_class):
     return False
 
 
+def _plan_profile_label(plan):
+    label = (plan.profile_name or plan.name or "").strip()
+    if not plan.profile_name:
+        upper_label = label.upper()
+        for prefix in ("СОО ", "ООО ", "НОО "):
+            if upper_label.startswith(prefix):
+                label = label[len(prefix):].strip()
+                break
+    return label or plan.name
+
+
 def _assigned_columns(snapshot_class, plans):
     compatible_plans = [
         plan
@@ -113,22 +125,39 @@ def _assigned_columns(snapshot_class, plans):
         snapshot_class,
         compatible_plans,
     )
+    option_plan_ids = class_plan_option_ids(
+        snapshot_class,
+        compatible_plans,
+    )
+    visible_plan_ids = whole_class_plan_ids | option_plan_ids
+    split_profile_columns = (
+        snapshot_class.grade_snapshot in {10, 11}
+        and len(option_plan_ids) > 1
+    )
     enrollment_ids = {item.id for item in snapshot_class.enrollments}
     assigned_ids = set()
     columns = []
     plans_by_id = {item.id: item for item in compatible_plans}
     for plan_id, member_ids in allocations.items():
         member_ids = set(member_ids) & enrollment_ids
-        if not member_ids and plan_id not in whole_class_plan_ids:
+        if not member_ids and plan_id not in visible_plan_ids:
             continue
         assigned_ids.update(member_ids)
         plan = plans_by_id.get(plan_id)
         if plan is None:
             continue
+        profile_label = _plan_profile_label(plan)
         columns.append({
             "key": f"class-{snapshot_class.id}-plan-{plan.id}",
             "snapshot_class": snapshot_class,
             "plan": plan,
+            "profile_label": profile_label,
+            "class_display_name": (
+                f"{snapshot_class.name_snapshot} {profile_label}"
+                if split_profile_columns
+                else snapshot_class.name_snapshot
+            ),
+            "is_profile_column": split_profile_columns,
             "student_count": len(member_ids),
             "member_ids": frozenset(member_ids),
             "is_unassigned": False,
@@ -137,12 +166,15 @@ def _assigned_columns(snapshot_class, plans):
 
     unassigned_count = len(enrollment_ids - assigned_ids)
     if unassigned_count or (
-        not enrollment_ids and not whole_class_plan_ids
+        not enrollment_ids and not visible_plan_ids
     ):
         columns.append({
             "key": f"class-{snapshot_class.id}-unassigned",
             "snapshot_class": snapshot_class,
             "plan": None,
+            "profile_label": "",
+            "class_display_name": snapshot_class.name_snapshot,
+            "is_profile_column": False,
             "student_count": unassigned_count,
             "member_ids": frozenset(),
             "is_unassigned": True,
@@ -211,6 +243,10 @@ def build_class_plan_matrix(
         class_groups.append({
             "snapshot_class": snapshot_class,
             "columns": class_columns,
+            "split_profile_columns": any(
+                column["is_profile_column"]
+                for column in class_columns
+            ),
         })
         columns.extend(class_columns)
 

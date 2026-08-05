@@ -61,14 +61,26 @@ def build_class_plan_matrix_xlsx(matrix, academic_year_name):
         group_width = len(group["columns"])
         group_start = column_index
         group_end = column_index + group_width - 1
-        if group_width > 1:
+        if group_width > 1 and not group["split_profile_columns"]:
             sheet.merge_cells(
                 start_row=4,
                 start_column=group_start,
                 end_row=4,
                 end_column=group_end,
             )
-        sheet.cell(4, group_start, group["snapshot_class"].name_snapshot)
+        if group["split_profile_columns"]:
+            for offset, column in enumerate(group["columns"]):
+                sheet.cell(
+                    4,
+                    group_start + offset,
+                    column["class_display_name"],
+                )
+        else:
+            sheet.cell(
+                4,
+                group_start,
+                group["snapshot_class"].name_snapshot,
+            )
         fill = "EAF3FF" if not alternate else "F3F6FA"
         for current in range(group_start, group_end + 1):
             sheet.cell(4, current).fill = PatternFill(
@@ -261,7 +273,7 @@ def _pdf_table(matrix, columns, styles, colors, fonts, page_width):
         *[
             _paragraph(
                 (
-                    f"{column['snapshot_class'].name_snapshot}\n"
+                    f"{column['class_display_name']}\n"
                     f"{_column_label(column)}"
                 ),
                 styles["Header"],
@@ -517,7 +529,7 @@ def build_class_plan_matrix_pdf(matrix, academic_year_name):
         )
         class_names = []
         for column in columns:
-            name = column["snapshot_class"].name_snapshot
+            name = column["class_display_name"]
             if name not in class_names:
                 class_names.append(name)
         range_label = (
