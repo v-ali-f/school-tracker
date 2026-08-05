@@ -2,7 +2,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260805_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_plan_bindings.css') }}?v=20260805_2">
 {% endblock %}
 
 {% block workspace_content %}
@@ -178,7 +178,11 @@
               <details class="plan-binding-plan-set__details">
                 <summary>
                   {% if row.selected_plan_ids %}
-                  Выбрано УП: {{ row.selected_plan_ids|length }}
+                  <span class="plan-binding-plan-set__summary-label">
+                    {% for plan in row.plans if plan.id in row.selected_plan_ids %}
+                    {{ plan.name }}{% if not loop.last %}; {% endif %}
+                    {% endfor %}
+                  </span>
                   {% else %}
                   Выбрать учебные планы
                   {% endif %}
@@ -208,13 +212,7 @@
                   {% endif %}
                 </div>
               </details>
-              {% if row.selected_plan_ids %}
-              <div class="plan-binding-plan-set__selected">
-                {% for plan in row.plans if plan.id in row.selected_plan_ids %}
-                <span>{{ plan.name }}</span>
-                {% endfor %}
-              </div>
-              {% else %}
+              {% if not row.selected_plan_ids %}
               <span class="plan-binding-plan-set__empty">УП для класса ещё не выбраны</span>
               {% endif %}
             </form>

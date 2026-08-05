@@ -384,7 +384,7 @@
             <td class="num text-muted">{{ r.class.max_students }}</td>
             <td class="fit-text-cell">
               {% if r.profile_names %}
-                {{ r.profile_names|join(", ") }}
+                {{ r.profile_names|join(" / ") }}
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}
