@@ -50,6 +50,10 @@
 <div class="page-head">
   <div>
     <h1 class="page-title">Список учеников</h1>
+    <div class="text-muted mt-1">
+      Учебный год:
+      <strong class="text-body">{{ academic_year.name if academic_year else "не выбран" }}</strong>
+    </div>
   </div>
   <div class="page-actions">
     {% if can("children_import") %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.children_import') }}"><i class="bi bi-upload me-1"></i>Импорт детей</a>{% endif %}

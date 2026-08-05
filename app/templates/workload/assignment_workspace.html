@@ -616,27 +616,16 @@
     });
     const holderTotal = document.querySelector(`[data-holder-total="${payload.holder_key}"]`);
     if (holderTotal) holderTotal.textContent = formatHours(payload.holder_total);
+    const subjectTotal = document.querySelector(
+      `[data-subject-total="${payload.holder_key}:${payload.activity_id}:${payload.plan_kind}"]`
+    );
+    if (subjectTotal) {
+      subjectTotal.textContent = formatHours(payload.subject_total);
+    }
     const allocated = document.querySelector("[data-workload-total-allocated]");
     const remaining = document.querySelector("[data-workload-total-remaining]");
     if (allocated) allocated.textContent = formatHours(payload.allocated);
     if (remaining) remaining.textContent = formatHours(payload.remaining);
-  };
-
-  const recalculateSubjectTotals = () => {
-    document.querySelectorAll("[data-subject-total]").forEach((total) => {
-      const rowKey = total.dataset.subjectTotal;
-      const needs = new Map();
-      document.querySelectorAll(`[data-workload-cell-form][data-row-key="${rowKey}"]`).forEach((form) => {
-        if (!form.classList.contains("is-assigned")) return;
-        const value = Number((form.dataset.planned || "").replace(",", "."));
-        if (Number.isFinite(value) && value > 0) {
-          needs.set(form.dataset.needId, value);
-        }
-      });
-      total.textContent = formatHours(
-        Array.from(needs.values()).reduce((sum, value) => sum + value, 0)
-      );
-    });
   };
 
   document.querySelectorAll("[data-workload-cell-form]").forEach((form) => {
@@ -661,7 +650,6 @@
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.message || "Не удалось сохранить часы.");
         updateNeedControls(payload);
-        recalculateSubjectTotals();
       } catch (error) {
         window.alert(error.message);
       } finally {
@@ -684,7 +672,6 @@
       event.currentTarget.submit();
     },
   );
-  recalculateSubjectTotals();
 })();
 </script>
 {% endblock %}

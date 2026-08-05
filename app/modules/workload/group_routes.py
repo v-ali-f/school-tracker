@@ -40,6 +40,7 @@ from app.services.teaching_group_service import (
     build_population_snapshot,
     change_group_status,
     current_population_snapshot,
+    ensure_population_snapshot,
     group_coverage,
     normalize_group_code,
     replace_group_composition,
@@ -219,11 +220,11 @@ def _snapshot_data(snapshot):
 def _group_form_payload(plan_line, snapshot, *, exclude_group_id=None):
     if snapshot is None:
         raise GroupValidationError(
-            "Сначала сформируйте снимок контингента для этой версии."
+            "Данные контингента для этой версии ещё не синхронизированы."
         )
     if snapshot.tariff_version_id != plan_line.education_plan.tariff_version_id:
         raise GroupValidationError(
-            "Снимок контингента относится к другой версии."
+            "Данные контингента относятся к другой рабочей версии."
         )
 
     group_type = (request.form.get("group_type") or "").strip().upper()
@@ -446,7 +447,10 @@ def _group_matrix_context(
     versions = _available_group_matrix_versions()
     version = _selected_group_matrix_version(versions, version_id)
     snapshot = (
-        current_population_snapshot(version.id)
+        ensure_population_snapshot(
+            version,
+            user_id=current_user.id,
+        )[0]
         if version else None
     )
     plans = _group_matrix_plans(version)
@@ -954,7 +958,7 @@ def register_group_routes(workload_bp):
             flash(str(exc), "danger")
         else:
             flash(
-                f"Снимок контингента № {snapshot.revision_no} сформирован.",
+                "Состав классов синхронизирован со сводным контингентом.",
                 "success",
             )
         return redirect(url_for("workload.groups"))

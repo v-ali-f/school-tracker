@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -80,6 +81,12 @@ from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
     change_workload_approval_status,
     require_workload_editable,
+)
+from app.services.workload_assignment_matrix_service import (
+    build_workload_assignment_matrix,
+)
+from app.modules.workload.assignment_routes import (
+    _workspace_matrix_levels,
 )
 
 
@@ -199,6 +206,157 @@ def _assignment(need, employee_id, weekly, annual=None, kind="MAIN"):
         annual_hours=annual,
         status="DRAFT",
     )
+
+
+def test_workspace_grade_filter_infers_education_level():
+    assert _workspace_matrix_levels(None, 3) == ["NOO"]
+    assert _workspace_matrix_levels("", 9) == ["OOO"]
+    assert _workspace_matrix_levels(None, 10) == ["SOO"]
+    assert _workspace_matrix_levels(None, None) == [
+        "NOO",
+        "OOO",
+        "SOO",
+    ]
+
+
+def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
+    building = SimpleNamespace(
+        id=1,
+        name="Главное здание",
+        short_name="ГЗ",
+        matrix_tone=0,
+    )
+    snapshot_class = SimpleNamespace(
+        id=101,
+        name_snapshot="9А",
+        grade_snapshot=9,
+        building_id=building.id,
+        building_name_snapshot=building.name,
+        building=building,
+    )
+    activity = SimpleNamespace(
+        id=201,
+        name="Разговоры о важном",
+        department_links=[],
+    )
+    root_plan_a = SimpleNamespace(
+        id=301,
+        name="5–9 ООО",
+        education_level="OOO",
+        plan_kind="CURRICULUM",
+        root_plan=None,
+    )
+    root_plan_b = SimpleNamespace(
+        id=302,
+        name="5–9 ООО",
+        education_level="OOO",
+        plan_kind="CURRICULUM",
+        root_plan=None,
+    )
+    extra_plan_a = SimpleNamespace(
+        id=303,
+        name="5–9 ООО · Внеурочная деятельность",
+        plan_kind="EXTRACURRICULAR",
+        root_plan=root_plan_a,
+    )
+    line = SimpleNamespace(education_plan=extra_plan_a)
+    class_link = SimpleNamespace(
+        population_snapshot_class=snapshot_class,
+        population_snapshot_class_id=snapshot_class.id,
+    )
+    group = SimpleNamespace(
+        id=401,
+        name="9А · внеурочная деятельность",
+        group_type="EXTRACURRICULAR_GROUP",
+        source_plan_line=line,
+        source_classes=[class_link],
+        metagroup_sources=[],
+        metagroup_membership=None,
+        building=building,
+        building_id=building.id,
+    )
+    need = SimpleNamespace(
+        id=501,
+        education_activity_id=activity.id,
+        education_activity=activity,
+        teaching_group=group,
+        teaching_group_id=group.id,
+        weekly_hours=Decimal("1"),
+        allocated_weekly_hours=Decimal("1"),
+        remaining_weekly_hours=Decimal("0"),
+    )
+    other_group = SimpleNamespace(
+        **{
+            **group.__dict__,
+            "id": 402,
+            "name": "8А · внеурочная деятельность",
+        }
+    )
+    other_need = SimpleNamespace(
+        **{
+            **need.__dict__,
+            "id": 502,
+            "teaching_group": other_group,
+            "teaching_group_id": other_group.id,
+        }
+    )
+    teacher = SimpleNamespace(id=601, fio="Учитель Тестовый")
+
+    def assignment(assignment_id, target_need, hours):
+        return SimpleNamespace(
+            id=assignment_id,
+            status="DRAFT",
+            assignment_kind="MAIN",
+            position_code="TEACHER",
+            employee_user_id=teacher.id,
+            employee=teacher,
+            workload_need_id=target_need.id,
+            workload_need=target_need,
+            weekly_hours=Decimal(hours),
+        )
+
+    source_columns = [
+        {
+            "key": f"class-{snapshot_class.id}-plan-{plan.id}",
+            "is_unassigned": False,
+            "is_profile_column": False,
+            "plan": plan,
+            "class_display_name": snapshot_class.name_snapshot,
+        }
+        for plan in (root_plan_a, root_plan_b)
+    ]
+    plan_matrix = {
+        "class_groups": [{
+            "snapshot_class": snapshot_class,
+            "columns": source_columns,
+        }],
+        "sections": [{
+            "rows": [{
+                "activity": activity,
+                "plan_kind": "EXTRACURRICULAR",
+                "cells": {
+                    source_columns[0]["key"]: {"groups": [group]},
+                    source_columns[1]["key"]: {"groups": [group]},
+                },
+            }],
+        }],
+    }
+    visible_assignment = assignment(701, need, "1")
+    matrix = build_workload_assignment_matrix(
+        [need],
+        [visible_assignment],
+        plan_matrices=[plan_matrix],
+        total_assignments=[
+            visible_assignment,
+            assignment(702, other_need, "2"),
+        ],
+    )
+
+    assert len(matrix["columns"]) == 1
+    assert len(matrix["class_groups"]) == 1
+    assert len(matrix["class_groups"][0]["columns"]) == 1
+    assert matrix["blocks"][0]["total"] == Decimal("3")
+    assert matrix["blocks"][0]["rows"][0]["total"] == Decimal("3")
 
 
 def test_workload_save_submit_approve_and_return_cycle(

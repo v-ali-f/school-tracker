@@ -94,7 +94,7 @@
   {% if registry_status.is_stale %}
   <div class="class-plan-notice class-plan-notice--warning" role="status">
     <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-    <span>Сводный контингент изменён. Обновите его перед настройкой групп.</span>
+    <span>Сводный контингент изменён. Подтвердите синхронизацию: уже распределённый состав групп защищён от автоматического сброса.</span>
     <a href="{{ url_for('workload.plan_bindings', version_id=selected_version.id if selected_version else none) }}">Перейти</a>
   </div>
   {% endif %}

@@ -184,10 +184,14 @@ def index():
     archived_count = 0
     if current_year_id:
         pending_count = _active_enrollment_query(current_year_id).count()
-        promoted_count = ChildTransferHistory.query.filter(ChildTransferHistory.from_academic_year_id == current_year_id).count()
+        promoted_count = ChildTransferHistory.query.filter(
+            ChildTransferHistory.from_academic_year_id == current_year_id,
+            ChildTransferHistory.reversed_at.is_(None),
+        ).count()
         archived_count = ChildTransferHistory.query.filter(
             ChildTransferHistory.from_academic_year_id == current_year_id,
             ChildTransferHistory.transfer_type.in_(["EXPELLED", "ARCHIVED", "TRANSFERRED_OUT"]),
+            ChildTransferHistory.reversed_at.is_(None),
         ).count()
 
     return render_template(
@@ -460,5 +464,11 @@ def archive():
         db.session.commit()
         flash("Статус ученика обновлён", "success")
         return redirect(url_for("transfers.archive"))
-    history = ChildTransferHistory.query.order_by(ChildTransferHistory.created_at.desc()).limit(50).all()
+    history = (
+        ChildTransferHistory.query
+        .filter(ChildTransferHistory.reversed_at.is_(None))
+        .order_by(ChildTransferHistory.created_at.desc())
+        .limit(50)
+        .all()
+    )
     return render_template("transfers/archive.html", children=children, history=history)

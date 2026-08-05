@@ -46,6 +46,7 @@ from app.services.teaching_group_service import (
     GroupValidationError,
     build_population_snapshot,
     current_population_snapshot,
+    ensure_population_snapshot,
     population_registry_status,
 )
 
@@ -287,7 +288,10 @@ def _matrix_context(
     versions = _available_versions()
     version = _selected_version(versions, version_id)
     snapshot = (
-        current_population_snapshot(version.id)
+        ensure_population_snapshot(
+            version,
+            user_id=current_user.id,
+        )[0]
         if version else None
     )
     registry_status = (
@@ -615,7 +619,7 @@ def register_plan_binding_routes(workload_bp):
             flash(str(exc), "danger")
         else:
             flash(
-                f"Контингент обновлён, снимок № {snapshot.revision_no}.",
+                "Состав классов синхронизирован со сводным контингентом.",
                 "success",
             )
         return redirect(url_for(

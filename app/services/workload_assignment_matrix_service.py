@@ -153,8 +153,13 @@ def _column_for_need(need, plan_context):
         snapshot_class = source_classes[0]
         root_plan = plan_context["root_plan"]
         plan_id = root_plan.id if root_plan is not None else 0
+        split_profile_column = snapshot_class.grade_snapshot in {10, 11}
         return {
-            "key": f"class-{snapshot_class.id}-plan-{plan_id}",
+            "key": (
+                f"class-{snapshot_class.id}-plan-{plan_id}"
+                if split_profile_column
+                else f"class-{snapshot_class.id}"
+            ),
             "label": snapshot_class.name_snapshot,
             "detail": "",
             "plan_name": root_plan.name if root_plan is not None else "",
@@ -351,6 +356,7 @@ def build_workload_assignment_matrix(
     draft_rows=(),
     draft_vacancy_rows=(),
     teacher_metadata=None,
+    total_assignments=None,
 ):
     needs = list(needs)
     assignments = list(assignments)
@@ -359,6 +365,7 @@ def build_workload_assignment_matrix(
         for need in needs
     }
     columns_by_key = {}
+    display_key_by_source_key = {}
     plan_cells = {}
     for plan_matrix in plan_matrices:
         for class_group in plan_matrix.get("class_groups", []):
@@ -367,8 +374,14 @@ def build_workload_assignment_matrix(
                 if source_column["is_unassigned"] or source_column["plan"] is None:
                     continue
                 root_plan = source_column["plan"]
-                columns_by_key[source_column["key"]] = {
-                    "key": source_column["key"],
+                display_key = (
+                    source_column["key"]
+                    if source_column.get("is_profile_column")
+                    else f"class-{snapshot_class.id}"
+                )
+                display_key_by_source_key[source_column["key"]] = display_key
+                column = columns_by_key.setdefault(display_key, {
+                    "key": display_key,
                     "label": source_column["class_display_name"],
                     "detail": "",
                     "plan_name": root_plan.name,
@@ -385,25 +398,38 @@ def build_workload_assignment_matrix(
                     ),
                     "snapshot_class_id": snapshot_class.id,
                     "plan_id": root_plan.id,
+                    "plan_names": [],
                     "sort_key": (
                         snapshot_class.grade_snapshot or 99,
                         _class_sort_key(snapshot_class.name_snapshot)[1],
                         0,
                         root_plan.name.casefold(),
                     ),
-                }
+                })
+                if root_plan.name not in column["plan_names"]:
+                    column["plan_names"].append(root_plan.name)
+                column["plan_name"] = " / ".join(column["plan_names"])
         for section in plan_matrix.get("sections", []):
             for source_row in section["rows"]:
                 for column_key, cell in source_row["cells"].items():
-                    if column_key not in columns_by_key:
+                    display_key = display_key_by_source_key.get(column_key)
+                    if display_key is None:
                         continue
-                    plan_cells[
-                        (
-                            source_row["activity"].id,
-                            source_row["plan_kind"],
-                            column_key,
-                        )
-                    ] = cell
+                    cell_key = (
+                        source_row["activity"].id,
+                        source_row["plan_kind"],
+                        display_key,
+                    )
+                    merged_cell = plan_cells.setdefault(cell_key, {
+                        "groups": [],
+                    })
+                    known_group_ids = {
+                        item.id for item in merged_cell["groups"]
+                    }
+                    for group in cell.get("groups", ()):
+                        if group.id not in known_group_ids:
+                            merged_cell["groups"].append(group)
+                            known_group_ids.add(group.id)
 
     need_column_keys = {}
     for need in needs:
@@ -429,8 +455,9 @@ def build_workload_assignment_matrix(
                     f"class-{link.population_snapshot_class_id}-"
                     f"plan-{root_plan.id if root_plan is not None else 0}"
                 )
-                if key in columns_by_key:
-                    source_keys.append(key)
+                display_key = display_key_by_source_key.get(key)
+                if display_key in columns_by_key:
+                    source_keys.append(display_key)
         if source_keys:
             need_column_keys[need.id] = tuple(dict.fromkeys(source_keys))
         else:
@@ -456,6 +483,30 @@ def build_workload_assignment_matrix(
         if assignment.status == "CANCELLED":
             continue
         assignments_by_need[assignment.workload_need_id].append(assignment)
+
+    total_assignments = (
+        assignments if total_assignments is None else list(total_assignments)
+    )
+    global_holder_totals = defaultdict(Decimal)
+    global_subject_totals = defaultdict(Decimal)
+    for assignment in total_assignments:
+        if assignment.status == "CANCELLED":
+            continue
+        holder_key = (
+            ("vacancy", assignment.position_code)
+            if assignment.assignment_kind == "VACANCY"
+            else ("teacher", assignment.employee_user_id)
+        )
+        assignment_context = _need_plan_context(
+            assignment.workload_need
+        )
+        hours = Decimal(assignment.weekly_hours or ZERO)
+        global_holder_totals[holder_key] += hours
+        global_subject_totals[(
+            holder_key,
+            assignment.workload_need.education_activity_id,
+            assignment_context["plan_kind"],
+        )] += hours
 
     blocks_by_teacher = {}
     for need in needs:
@@ -487,8 +538,6 @@ def build_workload_assignment_matrix(
                 )
             row = _row_for(block, need, context)
             hours = Decimal(assignment.weekly_hours or ZERO)
-            row["total"] += hours
-            block["total"] += hours
             for column_key in column_keys:
                 row["cells"][column_key].append(
                     _segment(need, hours, unassigned=False)
@@ -605,6 +654,16 @@ def build_workload_assignment_matrix(
             ),
         )
         for row in block["rows"]:
+            holder_key = (
+                ("vacancy", block["vacancy_key"])
+                if block["is_vacancy"]
+                else ("teacher", block["teacher_id"])
+            )
+            row["total"] = global_subject_totals[(
+                holder_key,
+                row["activity"].id,
+                row["plan_kind"],
+            )]
             row["cells"] = dict(row["cells"])
             row["available_cells"] = {}
             row["matrix_cells"] = {}
@@ -677,6 +736,12 @@ def build_workload_assignment_matrix(
             (teacher_metadata or {}).get(block["teacher_id"], {})
             if not block["is_vacancy"] else {}
         )
+        holder_key = (
+            ("vacancy", block["vacancy_key"])
+            if block["is_vacancy"]
+            else ("teacher", block["teacher_id"])
+        )
+        block["total"] = global_holder_totals[holder_key]
 
     total_weekly = sum(
         (Decimal(need.weekly_hours or ZERO) for need in needs),
