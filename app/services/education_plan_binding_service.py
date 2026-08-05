@@ -39,6 +39,8 @@ def effective_binding_member_ids(binding, enrollment_ids=None):
             item.id
             for item in binding.population_snapshot_class.enrollments
         }
+    if binding.binding_mode == "PLAN_SET":
+        return {item.snapshot_enrollment_id for item in binding.members}
     return {item.snapshot_enrollment_id for item in binding.members}
 
 
@@ -211,6 +213,21 @@ def replace_class_plan_assignments(
     bindings_by_plan_id = {
         item.education_plan_id: item for item in bindings
     }
+    plan_set_mode = snapshot_class.grade_snapshot in {10, 11}
+    selected_plan_ids = (
+        {
+            item.education_plan_id
+            for item in bindings
+            if item.binding_mode == "PLAN_SET"
+        }
+        if plan_set_mode else set()
+    )
+    if plan_set_mode and selected_plan_ids:
+        unavailable_plan_ids = set(assignments.values()) - selected_plan_ids
+        if unavailable_plan_ids:
+            raise PlanBindingValidationError(
+                "Сначала добавьте учебный план в набор класса."
+            )
     allocations = {
         plan_id: {
             enrollment_id
@@ -223,7 +240,9 @@ def replace_class_plan_assignments(
     for plan_id in set(bindings_by_plan_id) | set(allocations):
         member_ids = allocations.get(plan_id, set())
         binding = bindings_by_plan_id.get(plan_id)
-        if not member_ids:
+        if not member_ids and not (
+            plan_set_mode and plan_id in selected_plan_ids
+        ):
             if binding is not None:
                 db.session.delete(binding)
             continue
@@ -239,13 +258,28 @@ def replace_class_plan_assignments(
             )
             db.session.add(binding)
             db.session.flush()
-        _replace_binding_rows(
-            binding,
-            member_ids,
-            all_enrollment_ids,
-            user_id=user_id,
-            bump_revision=not is_new,
-        )
+        if plan_set_mode and plan_id in selected_plan_ids:
+            binding.binding_mode = "PLAN_SET"
+            binding.updated_by_user_id = user_id
+            if not is_new:
+                binding.revision += 1
+            EducationPlanBindingMember.query.filter_by(
+                education_plan_binding_id=binding.id
+            ).delete(synchronize_session=False)
+            for enrollment_id in sorted(member_ids):
+                db.session.add(EducationPlanBindingMember(
+                    education_plan_binding_id=binding.id,
+                    snapshot_enrollment_id=enrollment_id,
+                    created_by_user_id=user_id,
+                ))
+        else:
+            _replace_binding_rows(
+                binding,
+                member_ids,
+                all_enrollment_ids,
+                user_id=user_id,
+                bump_revision=not is_new,
+            )
         bindings_by_plan_id[plan_id] = binding
 
     return bindings_by_plan_id
@@ -311,6 +345,115 @@ def class_level_plan_ids(snapshot_class, plans):
             .all()
         )
     }
+
+
+def class_plan_option_ids(snapshot_class, plans):
+    """Return plans selected for a 10–11 class before pupil allocation."""
+    plan_ids = [item.id for item in plans]
+    if not plan_ids:
+        return set()
+    return {
+        plan_id
+        for plan_id, in (
+            db.session.query(EducationPlanBinding.education_plan_id)
+            .filter(
+                EducationPlanBinding.population_snapshot_class_id
+                == snapshot_class.id,
+                EducationPlanBinding.education_plan_id.in_(plan_ids),
+            )
+            .all()
+        )
+    }
+
+
+def replace_class_plan_options(
+    snapshot_class,
+    plans,
+    selected_plan_ids,
+    *,
+    user_id,
+):
+    """Save the admissible curriculum set for a 10th or 11th class."""
+    if snapshot_class.grade_snapshot not in {10, 11}:
+        raise PlanBindingValidationError(
+            "Несколько учебных планов можно назначить только 10–11 классам."
+        )
+    plans = list(plans)
+    plans_by_id = {item.id: item for item in plans}
+    selected_plan_ids = {int(item) for item in selected_plan_ids}
+    if selected_plan_ids - set(plans_by_id):
+        raise PlanBindingValidationError(
+            "Выбран недоступный учебный план."
+        )
+    if plans and plans[0].tariff_version.status != "DRAFT":
+        raise PlanBindingValidationError(
+            "Привязки можно изменять только в рабочей версии."
+        )
+    if plans and (
+        snapshot_class.population_snapshot.tariff_version_id
+        != plans[0].tariff_version_id
+    ):
+        raise PlanBindingValidationError(
+            "Учебные планы и класс относятся к разным версиям."
+        )
+    if any(
+        item.plan_kind != "CURRICULUM"
+        or not plan_matches_snapshot_class(item, snapshot_class)
+        for item in plans
+    ):
+        raise PlanBindingValidationError(
+            "Один из планов не соответствует уровню или зданию класса."
+        )
+
+    bindings = (
+        EducationPlanBinding.query
+        .filter(
+            EducationPlanBinding.population_snapshot_class_id
+            == snapshot_class.id,
+            EducationPlanBinding.education_plan_id.in_(list(plans_by_id)),
+        )
+        .all()
+        if plans_by_id else []
+    )
+    bindings_by_plan_id = {
+        item.education_plan_id: item for item in bindings
+    }
+    enrollment_ids = {
+        item.id for item in snapshot_class.enrollments
+    }
+
+    for plan_id, binding in list(bindings_by_plan_id.items()):
+        member_ids = effective_binding_member_ids(binding, enrollment_ids)
+        if plan_id not in selected_plan_ids:
+            if member_ids:
+                raise PlanBindingValidationError(
+                    "Нельзя убрать учебный план, пока по нему распределены "
+                    "ученики."
+                )
+            db.session.delete(binding)
+            continue
+        binding.binding_mode = "PLAN_SET"
+        binding.updated_by_user_id = user_id
+        binding.revision += 1
+        EducationPlanBindingMember.query.filter_by(
+            education_plan_binding_id=binding.id
+        ).delete(synchronize_session=False)
+        for enrollment_id in sorted(member_ids):
+            db.session.add(EducationPlanBindingMember(
+                education_plan_binding_id=binding.id,
+                snapshot_enrollment_id=enrollment_id,
+                created_by_user_id=user_id,
+            ))
+
+    for plan_id in selected_plan_ids - set(bindings_by_plan_id):
+        db.session.add(EducationPlanBinding(
+            education_plan_id=plan_id,
+            population_snapshot_class_id=snapshot_class.id,
+            binding_mode="PLAN_SET",
+            revision=1,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        ))
 
 
 def class_plan_allocations(snapshot_class, plans):
@@ -386,25 +529,40 @@ def carry_forward_plan_bindings(previous_snapshot, new_snapshot, *, user_id):
                 or enrollment.source_child_id in old_child_ids
             )
         }
-        if not new_member_ids and old_binding.binding_mode != "CLASS":
+        if (
+            not new_member_ids
+            and old_binding.binding_mode not in {"CLASS", "PLAN_SET"}
+        ):
             continue
         binding = EducationPlanBinding(
             education_plan_id=old_binding.education_plan_id,
             population_snapshot_class_id=new_class.id,
-            binding_mode="STUDENTS",
+            binding_mode=(
+                "PLAN_SET"
+                if old_binding.binding_mode == "PLAN_SET"
+                else "STUDENTS"
+            ),
             revision=1,
             created_by_user_id=user_id,
             updated_by_user_id=user_id,
         )
         db.session.add(binding)
         db.session.flush()
-        _replace_binding_rows(
-            binding,
-            new_member_ids,
-            {item.id for item in new_class.enrollments},
-            user_id=user_id,
-            bump_revision=False,
-        )
+        if old_binding.binding_mode == "PLAN_SET":
+            for enrollment_id in sorted(new_member_ids):
+                db.session.add(EducationPlanBindingMember(
+                    education_plan_binding_id=binding.id,
+                    snapshot_enrollment_id=enrollment_id,
+                    created_by_user_id=user_id,
+                ))
+        else:
+            _replace_binding_rows(
+                binding,
+                new_member_ids,
+                {item.id for item in new_class.enrollments},
+                user_id=user_id,
+                bump_revision=False,
+            )
 
 
 __all__ = [
@@ -413,9 +571,11 @@ __all__ = [
     "assign_class_plan",
     "carry_forward_plan_bindings",
     "class_level_plan_ids",
+    "class_plan_option_ids",
     "class_plan_allocations",
     "effective_binding_member_ids",
     "plan_matches_snapshot_class",
     "replace_class_plan_assignments",
+    "replace_class_plan_options",
     "replace_plan_binding_members",
 ]

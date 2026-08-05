@@ -632,6 +632,140 @@ def test_plan_bindings_page_filters_classes_by_level_and_grade(
     assert "5А" not in other_html
 
 
+def test_senior_class_can_select_two_plans_before_students_are_added(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        source_class = SchoolClass.query.filter_by(name="5А").one()
+        ChildEnrollment.query.filter_by(
+            school_class_id=source_class.id,
+        ).delete(synchronize_session=False)
+        source_class.name = "10А"
+        source_class.grade = 10
+        source_class.letter = "А"
+
+        first_plan = db.session.get(
+            EducationPlan,
+            db.session.get(
+                EducationPlanLine,
+                context["plan_line_id"],
+            ).education_plan_id,
+        )
+        first_plan.education_level = "SOO"
+        first_plan.scope_code = "SOO_MAIN"
+        second_plan = EducationPlan(
+            tariff_version_id=context["version_id"],
+            plan_kind="CURRICULUM",
+            name="Технологический профиль",
+            education_level="SOO",
+            building_id=context["building_id"],
+            scope_code="SOO_TECH",
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(second_plan)
+        db.session.commit()
+
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="10А",
+            )
+            .one()
+        )
+        class_id = snapshot_class.id
+        first_plan_id = first_plan.id
+        second_plan_id = second_plan.id
+        version_id = context["version_id"]
+
+    login(user_id)
+    response = client.post(
+        "/workload/plan-bindings/class-plans",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+            "plan_ids": [first_plan_id, second_plan_id],
+            "level": "SOO",
+            "grade": "10",
+        },
+    )
+    assert response.status_code == 302
+
+    with app.app_context():
+        bindings = (
+            EducationPlanBinding.query
+            .filter_by(population_snapshot_class_id=class_id)
+            .order_by(EducationPlanBinding.education_plan_id)
+            .all()
+        )
+        assert len(bindings) == 2
+        assert {item.binding_mode for item in bindings} == {"PLAN_SET"}
+        assert all(not item.members for item in bindings)
+
+        child = Child.query.order_by(Child.id.asc()).first()
+        enrollment = PopulationSnapshotEnrollment(
+            population_snapshot_class_id=class_id,
+            source_child_id=child.id,
+            fio_snapshot="Иванов Иван",
+            status_snapshot="ACTIVE",
+        )
+        db.session.add(enrollment)
+        db.session.get(
+            PopulationSnapshotClass,
+            class_id,
+        ).student_count = 1
+        db.session.commit()
+        enrollment_id = enrollment.id
+
+    page = client.get(response.headers["Location"])
+    assert page.status_code == 200
+    assert "Выбрано УП: 2".encode() in page.data
+    assert "Основной учебный план".encode() in page.data
+    assert "Технологический профиль".encode() in page.data
+
+    assigned = client.post(
+        "/workload/plan-bindings/student",
+        data={
+            "version_id": version_id,
+            "class_id": class_id,
+            "enrollment_id": enrollment_id,
+            "plan_id": second_plan_id,
+            "level": "SOO",
+            "grade": "10",
+        },
+    )
+    assert assigned.status_code == 302
+
+    with app.app_context():
+        bindings = (
+            EducationPlanBinding.query
+            .filter_by(population_snapshot_class_id=class_id)
+            .all()
+        )
+        assert len(bindings) == 2
+        assert {item.binding_mode for item in bindings} == {"PLAN_SET"}
+        allocations, student_plan_ids = class_plan_allocations(
+            db.session.get(PopulationSnapshotClass, class_id),
+            [
+                db.session.get(EducationPlan, first_plan_id),
+                db.session.get(EducationPlan, second_plan_id),
+            ],
+        )
+        assert allocations[first_plan_id] == set()
+        assert allocations[second_plan_id] == {enrollment_id}
+        assert student_plan_ids[enrollment_id] == second_plan_id
+
+
 def test_class_plan_matrix_uses_assigned_plan_hours(
     app,
     client,

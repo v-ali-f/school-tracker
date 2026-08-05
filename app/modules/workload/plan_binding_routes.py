@@ -25,9 +25,11 @@ from app.services.education_plan_binding_service import (
     PlanBindingValidationError,
     assign_class_plan,
     class_level_plan_ids,
+    class_plan_option_ids,
     class_plan_allocations,
     plan_matches_snapshot_class,
     replace_class_plan_assignments,
+    replace_class_plan_options,
     replace_plan_binding_members,
 )
 from app.services.class_plan_matrix_service import (
@@ -220,6 +222,11 @@ def _class_binding_rows(classes, version):
             snapshot_class,
             plans,
         )
+        selected_plan_ids = class_plan_option_ids(
+            snapshot_class,
+            plans,
+        )
+        is_multi_plan_class = snapshot_class.grade_snapshot in {10, 11}
         _, student_plan_ids = class_plan_allocations(
             snapshot_class,
             plans,
@@ -251,6 +258,15 @@ def _class_binding_rows(classes, version):
         rows.append({
             "snapshot_class": snapshot_class,
             "plans": plans,
+            "student_plans": (
+                [
+                    item for item in plans
+                    if item.id in selected_plan_ids
+                ]
+                if is_multi_plan_class else plans
+            ),
+            "selected_plan_ids": selected_plan_ids,
+            "is_multi_plan_class": is_multi_plan_class,
             "student_plan_ids": student_plan_ids,
             "assigned_count": assigned_count,
             "unassigned_count": unassigned_count,
@@ -667,6 +683,46 @@ def register_plan_binding_routes(workload_bp):
             grade=request.form.get("grade", type=int),
         ))
 
+    @workload_bp.post("/plan-bindings/class-plans")
+    @login_required
+    def plan_bindings_assign_class_plans():
+        _require_bindings_update()
+        version_id = request.form.get("version_id", type=int)
+        class_id = request.form.get("class_id", type=int)
+        version = db.session.get(TariffVersion, version_id)
+        snapshot_class = db.session.get(PopulationSnapshotClass, class_id)
+        if version is None or snapshot_class is None:
+            abort(404)
+        _validate_binding_target(version, snapshot_class)
+        plans = _compatible_plans(version, snapshot_class)
+        selected_plan_ids = set(
+            request.form.getlist("plan_ids", type=int)
+        )
+        try:
+            replace_class_plan_options(
+                snapshot_class,
+                plans,
+                selected_plan_ids,
+                user_id=current_user.id,
+            )
+            db.session.commit()
+        except PlanBindingValidationError as exc:
+            db.session.rollback()
+            flash(str(exc), "danger")
+        else:
+            flash(
+                f"Набор учебных планов для "
+                f"{snapshot_class.name_snapshot} сохранён.",
+                "success",
+            )
+        return redirect(url_for(
+            "workload.plan_bindings",
+            version_id=version.id,
+            level=request.form.get("level") or None,
+            grade=request.form.get("grade", type=int),
+            class_id=snapshot_class.id,
+        ))
+
     @workload_bp.post("/plan-bindings/student")
     @login_required
     def plan_bindings_assign_student():
@@ -702,6 +758,15 @@ def register_plan_binding_routes(workload_bp):
             abort(404)
         _validate_binding_target(version, snapshot_class)
         plans = _compatible_plans(version, snapshot_class)
+        if snapshot_class.grade_snapshot in {10, 11}:
+            selected_plan_ids = class_plan_option_ids(
+                snapshot_class,
+                plans,
+            )
+            plans = [
+                item for item in plans
+                if item.id in selected_plan_ids
+            ]
         if plan_id is not None and plan_id not in {item.id for item in plans}:
             abort(400)
         _, assignments = class_plan_allocations(snapshot_class, plans)

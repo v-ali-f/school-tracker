@@ -221,6 +221,115 @@
   font-size: 11px;
 }
 
+.plan-binding-plan-set {
+  position: relative;
+  margin: 0;
+}
+
+.plan-binding-plan-set__details {
+  position: relative;
+}
+
+.plan-binding-plan-set__details > summary {
+  min-height: 28px;
+  padding: 4px 30px 4px 9px;
+  color: #173b72;
+  background: #f7faff;
+  border: 1px solid var(--workload-border-strong);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.plan-binding-plan-set__details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-binding-plan-set__details > summary::after {
+  position: absolute;
+  top: 6px;
+  right: 9px;
+  content: "⌄";
+  color: #526078;
+}
+
+.plan-binding-plan-set__details[open] > summary::after {
+  content: "⌃";
+}
+
+.plan-binding-plan-set__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  width: min(420px, 70vw);
+  padding: 10px;
+  color: var(--workload-text);
+  background: #fff;
+  border: 1px solid #bfcde0;
+  border-radius: 6px;
+  box-shadow: 0 12px 30px rgba(31, 54, 91, .18);
+}
+
+.plan-binding-plan-set__menu > strong,
+.plan-binding-plan-set__menu > span {
+  display: block;
+}
+
+.plan-binding-plan-set__menu > span {
+  margin: 2px 0 8px;
+  color: var(--workload-muted);
+  font-size: 10px;
+}
+
+.plan-binding-plan-set__options {
+  max-height: 220px;
+  margin-bottom: 8px;
+  overflow-y: auto;
+  border-top: 1px solid #e2e8f1;
+}
+
+.plan-binding-plan-set__options label {
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 3px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid #e8edf4;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.plan-binding-plan-set__selected {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.plan-binding-plan-set__selected span {
+  max-width: 100%;
+  padding: 2px 5px;
+  overflow: hidden;
+  color: #145a3c;
+  background: #eaf7f0;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-binding-plan-set__empty {
+  display: block;
+  margin-top: 3px;
+  color: #9a5d00;
+  font-size: 9px;
+}
+
 .plan-binding-students-row > td {
   height: auto !important;
   padding: 0 12px 12px 42px !important;
