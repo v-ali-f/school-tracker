@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 
 from app.core.extensions import db
 from app.models_legacy import AcademicYear, Building, User
+from app.roles import require_roles
 from .models import PreschoolAttendanceRecord, PreschoolAttendanceUpload, PreschoolChild, PreschoolChildMovement, PreschoolChildrenImport, PreschoolGroup, PreschoolRepresentative
 
 
@@ -442,6 +443,7 @@ def buildings_redirect():
 
 
 @bp.route("/groups", methods=["GET", "POST"])
+@require_roles("ADMIN")
 def groups():
     year_id = request.args.get("academic_year_id", type=int)
     year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
@@ -513,6 +515,7 @@ def groups():
     )
 
 @bp.route("/groups/<int:group_id>/edit", methods=["GET", "POST"])
+@require_roles("ADMIN")
 def edit_group(group_id):
     group = PreschoolGroup.query.get_or_404(group_id)
 
@@ -563,6 +566,7 @@ def edit_group(group_id):
 
 
 @bp.route("/groups/<int:group_id>/delete", methods=["POST"])
+@require_roles("ADMIN")
 def delete_group(group_id):
     group = PreschoolGroup.query.get_or_404(group_id)
     academic_year_id = group.academic_year_id
@@ -2304,4 +2308,3 @@ def delete_child(child_id):
 
     flash("Воспитанник удалён из тестового контингента ДОУ.", "success")
     return redirect(url_for("preschool.children_registry", academic_year_id=year_id))
-
