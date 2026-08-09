@@ -258,27 +258,55 @@ def _ensure_default_departments():
         db.session.commit()
 
 
-def _department_allowed(dep: Department) -> bool:
-    if is_admin(current_user):
-        return True
-    if has_role(METHODIST):
+def _can_view_all_departments() -> bool:
+    return (
+        is_admin(current_user)
+        or has_role("DIRECTOR")
+        or has_role("DEPUTY_DIRECTOR")
+        or has_role(METHODIST)
+    )
+
+
+def _department_allowed(
+    dep: Department,
+    *,
+    academic_year_id: int | None = None,
+) -> bool:
+    if _can_view_all_departments():
         return True
     if has_role(DEPARTMENT_HEAD):
         return DepartmentLeader.query.filter_by(department_id=dep.id, user_id=current_user.id).first() is not None
     if has_role(TEACHER) or has_role(CLASS_TEACHER):
-        return True
+        current_year = AcademicYear.query.filter_by(is_current=True).first()
+        year_id = academic_year_id or (current_year.id if current_year else None)
+        return bool(
+            year_id
+            and current_user.id in department_teacher_ids(year_id, dep.id)
+        )
     return False
 
 
-def _load_departments_for_user():
+def _load_departments_for_user(academic_year_id: int | None = None):
     _ensure_default_departments()
     deps = Department.query.order_by(Department.name.asc()).all()
-    if is_admin(current_user) or has_role(METHODIST):
+    if _can_view_all_departments():
         return deps
     if has_role(DEPARTMENT_HEAD):
         dep_ids = [x.department_id for x in DepartmentLeader.query.filter_by(user_id=current_user.id).all()]
         return [d for d in deps if d.id in dep_ids]
-    return deps
+    if has_role(TEACHER) or has_role(CLASS_TEACHER):
+        current_year = AcademicYear.query.filter_by(is_current=True).first()
+        year_id = academic_year_id or (current_year.id if current_year else None)
+        return [
+            department
+            for department in deps
+            if year_id
+            and current_user.id in department_teacher_ids(
+                year_id,
+                department.id,
+            )
+        ]
+    return []
 
 
 def _managed_department_ids(user=None) -> set[int]:
@@ -289,18 +317,34 @@ def _managed_department_ids(user=None) -> set[int]:
     }
 
 
-def _can_manage_teacher_professional(
+def _can_manage_professional_registry() -> bool:
+    role_codes = {
+        str(code).upper()
+        for code in getattr(current_user, "role_codes", [])
+    }
+    return bool(role_codes.intersection({"ADMIN", "DEPUTY_DIRECTOR"}))
+
+
+def _can_self_report_professional(teacher_id: int) -> bool:
+    if teacher_id != current_user.id:
+        return False
+    role_codes = {
+        str(code).upper()
+        for code in getattr(current_user, "role_codes", [])
+    }
+    return bool(
+        role_codes.intersection({"TEACHER", "CLASS_TEACHER", "DEPARTMENT_HEAD"})
+    )
+
+
+def _can_view_teacher_profile(
     teacher_id: int,
     *,
     academic_year_id: int | None = None,
 ) -> bool:
     if teacher_id == current_user.id:
         return True
-    if (
-        is_admin(current_user)
-        or current_user.has_role("DEPUTY_DIRECTOR")
-        or has_role(METHODIST)
-    ):
+    if _can_view_all_departments():
         return True
     if not has_role(DEPARTMENT_HEAD):
         return False
@@ -314,8 +358,28 @@ def _can_manage_teacher_professional(
     )
 
 
+def _can_manage_teacher_professional(teacher_id: int) -> bool:
+    return bool(
+        _can_self_report_professional(teacher_id)
+        or _can_manage_professional_registry()
+    )
+
+
+def _can_manage_all_teacher_professional() -> bool:
+    return _can_manage_professional_registry()
+
+
+def _can_archive_mcko_record(record: TeacherMckoResult) -> bool:
+    if _can_manage_all_teacher_professional():
+        return True
+    return bool(
+        record.teacher_id == current_user.id
+        and record.created_by_user_id == current_user.id
+    )
+
+
 def _can_manage_teacher_attestation() -> bool:
-    return is_admin(current_user) or current_user.has_role("DEPUTY_DIRECTOR")
+    return _can_manage_professional_registry()
 
 
 def _professional_target_from_form() -> User | None:
@@ -924,8 +988,7 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
 def _teacher_scope_user_id():
     teacher_id = request.args.get("teacher_id", type=int)
     if (
-        is_admin(current_user)
-        or has_role(METHODIST)
+        _can_view_all_departments()
         or has_role(DEPARTMENT_HEAD)
     ):
         return teacher_id
@@ -1182,7 +1245,10 @@ def archived_load_delete(load_id):
     ).first_or_404()
     if load.department_id is not None:
         department = db.session.get(Department, load.department_id)
-        if department is not None and not _department_allowed(department):
+        if department is not None and not _department_allowed(
+            department,
+            academic_year_id=load.academic_year_id,
+        ):
             abort(403)
     elif not (is_admin(current_user) or has_role(METHODIST)):
         abort(403)
@@ -1364,31 +1430,24 @@ def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_ye
 @departments_bp.route("/summary")
 @login_required
 def summary():
-    deps = _load_departments_for_user()
-    can_manage_department = (
-        is_admin(current_user)
-        or has_role(METHODIST)
-        or has_role(DEPARTMENT_HEAD)
-    )
     selected_dep_id = request.args.get("department_id", type=int)
     selected_teacher_id = _teacher_scope_user_id()
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
-    if not can_manage_department and (
-        has_role(TEACHER) or has_role(CLASS_TEACHER)
-    ):
-        deps = [
-            department for department in deps
-            if current_user.id in department_teacher_ids(
-                academic_year_id,
-                department.id,
-            )
-        ]
+    deps = _load_departments_for_user(academic_year_id)
+    can_view_department_team = bool(
+        _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
+    )
+    can_manage_legacy_loads = bool(
+        is_admin(current_user)
+        or has_role(METHODIST)
+        or has_role(DEPARTMENT_HEAD)
+    )
     dep = None
     if selected_dep_id:
         dep = Department.query.get_or_404(selected_dep_id)
-        if not _department_allowed(dep):
+        if not _department_allowed(dep, academic_year_id=academic_year_id):
             abort(403)
     elif deps:
         dep = deps[0]
@@ -1411,7 +1470,7 @@ def summary():
     building_id = request.args.get("building_id", type=int)
 
     if dep:
-        if can_manage_department:
+        if can_manage_legacy_loads:
             legacy_load_query = TeacherLoad.query.filter(
                 TeacherLoad.department_id == dep.id,
             )
@@ -1446,7 +1505,7 @@ def summary():
             for row in department_load_rows
             if row.teacher is not None
         })
-        if not can_manage_department and (
+        if not can_view_department_team and (
             has_role(TEACHER) or has_role(CLASS_TEACHER)
         ):
             teacher_ids = [x for x in teacher_ids if x == current_user.id]
@@ -1454,6 +1513,8 @@ def summary():
                 row for row in department_load_rows
                 if row.teacher and row.teacher.id == current_user.id
             ]
+        if selected_teacher_id and selected_teacher_id not in teacher_ids:
+            abort(403)
         teacher_rows = User.query.filter(User.id.in_(teacher_ids)).order_by(User.last_name.asc(), User.first_name.asc()).all() if teacher_ids else []
         for teacher in teacher_rows:
             teacher_loads = [
@@ -1534,7 +1595,7 @@ def summary():
         can_manage_attestation=_can_manage_teacher_attestation(),
         can_manage_professional=bool(
             dep
-            and can_manage_department
+            and _can_manage_professional_registry()
         ),
     )
 
@@ -1570,9 +1631,6 @@ def teacher_registry():
 @departments_bp.get("/teachers/<int:teacher_id>")
 @login_required
 def teacher_profile(teacher_id):
-    if not _can_manage_teacher_professional(teacher_id):
-        abort(403)
-    teacher = User.query.get_or_404(teacher_id)
     years = AcademicYear.query.order_by(
         AcademicYear.start_date.desc().nullslast(),
         AcademicYear.name.desc(),
@@ -1581,6 +1639,12 @@ def teacher_profile(teacher_id):
     academic_year_id = request.args.get("academic_year_id", type=int) or (
         current_year.id if current_year else None
     )
+    if not _can_view_teacher_profile(
+        teacher_id,
+        academic_year_id=academic_year_id,
+    ):
+        abort(403)
+    teacher = User.query.get_or_404(teacher_id)
     load_rows, workload_version = (
         current_department_load_rows(
             academic_year_id,
@@ -1670,10 +1734,8 @@ def teacher_profile(teacher_id):
         debt_rows=debt_rows,
         incident_rows=incident_rows,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
-        can_edit_professional=_can_manage_teacher_professional(
-            teacher.id,
-            academic_year_id=academic_year_id,
-        ),
+        can_edit_professional=_can_manage_teacher_professional(teacher.id),
+        can_manage_all_professional=_can_manage_all_teacher_professional(),
         can_manage_attestation=_can_manage_teacher_attestation(),
         is_self_profile=teacher.id == current_user.id,
         can_add_incident=(
@@ -1867,8 +1929,11 @@ def _archive_professional_record(record, *, label: str):
 @departments_bp.post("/teacher/mcko/<int:record_id>/archive")
 @login_required
 def archive_mcko(record_id):
+    record = TeacherMckoResult.query.get_or_404(record_id)
+    if not _can_archive_mcko_record(record):
+        abort(403)
     return _archive_professional_record(
-        TeacherMckoResult.query.get_or_404(record_id),
+        record,
         label="Результат МЦКО",
     )
 

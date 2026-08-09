@@ -1,9 +1,9 @@
 {% extends "layout.html" %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260804_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260810_3">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_profile_compact.css') }}?v=20260809_2">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
 {% endblock %}
 {% block content %}
 <div class="teacher-profile-page">
@@ -87,10 +87,11 @@
     {% if mcko_overview %}<span class="professional-status-badge professional-status-{{ mcko_overview.status }}">{{ mcko_overview.status_label }}</span>{% endif %}
   </div>
   {% if mcko_rows %}
-  <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
+  <div class="registry-mobile-scroll-hint mt-3"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card mt-3"><div class="registry-table-scroll" tabindex="0" aria-label="Результаты МЦКО педагога"><table class="registry-matrix registry-matrix-wide">
     <thead><tr><th>Предмет</th><th>Уровень</th><th>Сертификат</th><th>Дата диагностики</th><th>Действует до</th><th>Статус</th><th>Источник</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td><span class="professional-level-badge professional-level-{{ row.level_code }}">{{ row.level_label }}</span></td><td>{{ row.certificate_number or '—' }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span></td><td>{{ row.source_label }}</td><td>{{ row.result_text or '—' }}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_mcko', record_id=row.record.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
-  </table></div>
+    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td class="registry-cell-center"><span class="professional-level-badge professional-level-{{ row.level_code }}">{{ row.level_label }}</span></td><td class="registry-cell-center">{{ row.certificate_number or '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span></td><td>{{ row.source_label }}</td><td>{{ row.result_text or '—' }}</td>{% if can_edit_professional %}<td class="registry-cell-center">{% if can_manage_all_professional or row.record.created_by_user_id == current_user.id %}<form method="post" action="{{ url_for('departments.archive_mcko', record_id=row.record.id) }}"><button class="btn btn-outline-danger registry-row-action" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form>{% else %}<span class="text-muted">—</span>{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody>
+  </table></div></div>
   {% endif %}
   {% if can_edit_professional %}
   <details class="mt-3">
@@ -114,10 +115,11 @@
 <div class="card mb-4"><div class="card-body">
   <h2 class="section-title">Курсы повышения квалификации</h2>
   {% if course_rows %}
-  <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
+  <div class="registry-mobile-scroll-hint mt-3"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card mt-3"><div class="registry-table-scroll" tabindex="0" aria-label="Курсы повышения квалификации"><table class="registry-matrix registry-matrix-medium">
     <thead><tr><th>Курс</th><th>Организация</th><th class="text-end">Часы</th><th>Период</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="text-end">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}{% if row.end_date %} — {{ row.end_date.strftime('%d.%m.%Y') }}{% endif %}</td><td>{{ row.notes or '—' }}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_course', record_id=row.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
-  </table></div>
+    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="registry-cell-center">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}{% if row.end_date %} — {{ row.end_date.strftime('%d.%m.%Y') }}{% endif %}</td><td>{{ row.notes or '—' }}</td>{% if can_edit_professional %}<td class="registry-cell-center"><form method="post" action="{{ url_for('departments.archive_course', record_id=row.id) }}"><button class="btn btn-outline-danger registry-row-action" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
+  </table></div></div>
   {% endif %}
   {% if can_edit_professional %}
   <details class="mt-3">
@@ -154,10 +156,11 @@
   </div>
   <div class="small text-muted">Основание расчёта: {{ attestation_overview.basis_label }}.</div>
   {% if attestation_rows %}
-  <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
+  <div class="registry-mobile-scroll-hint mt-3"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card mt-3"><div class="registry-table-scroll" tabindex="0" aria-label="История аттестации педагога"><table class="registry-matrix registry-matrix-wide">
     <thead><tr><th>Вид</th><th>Должность</th><th>Дата решения</th><th>Действует до</th><th>Документ</th><th>Статус</th><th>Источник</th><th>Комментарий</th>{% if can_manage_attestation %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in attestation_rows %}<tr><td>{{ row.category_label }}</td><td>{{ row.record.position_title or '—' }}</td><td>{{ row.record.decision_date.strftime('%d.%m.%Y') if row.record.decision_date else '—' }}</td><td>{% if row.status == 'INDEFINITE' %}Бессрочно{% else %}{{ row.effective_valid_until.strftime('%d.%m.%Y') if row.effective_valid_until else '—' }}{% endif %}</td><td>{{ row.record.order_number or '—' }}</td><td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span></td><td>{{ row.source_label }}{% if row.record.created_by_user %}<span class="d-block small text-muted">{{ row.record.created_by_user.fio or row.record.created_by_user.username }}</span>{% endif %}</td><td>{{ row.record.notes or '—' }}</td>{% if can_manage_attestation %}<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('professional_registry.attestation_edit', record_id=row.record.id) }}" title="Редактировать"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</tbody>
-  </table></div>
+    <tbody>{% for row in attestation_rows %}<tr><td>{{ row.category_label }}</td><td>{{ row.record.position_title or '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{{ row.record.decision_date.strftime('%d.%m.%Y') if row.record.decision_date else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{% if row.status == 'INDEFINITE' %}Бессрочно{% else %}{{ row.effective_valid_until.strftime('%d.%m.%Y') if row.effective_valid_until else '—' }}{% endif %}</td><td class="registry-cell-center">{{ row.record.order_number or '—' }}</td><td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span></td><td>{{ row.source_label }}{% if row.record.created_by_user %}<span class="professional-record-source">{{ row.record.created_by_user.fio or row.record.created_by_user.username }}</span>{% endif %}</td><td>{{ row.record.notes or '—' }}</td>{% if can_manage_attestation %}<td class="registry-cell-center"><a class="btn btn-outline-primary registry-row-action" href="{{ url_for('professional_registry.attestation_edit', record_id=row.record.id) }}" title="Редактировать"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</tbody>
+  </table></div></div>
   {% endif %}
   {% if can_manage_attestation %}
   <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="{% if attestation_overview.record %}{{ url_for('professional_registry.attestation_edit', record_id=attestation_overview.record.id) }}{% else %}{{ url_for('professional_registry.attestation_new', teacher_id=teacher.id) }}{% endif %}"><i class="bi {{ 'bi-pencil' if attestation_overview.record else 'bi-plus-lg' }}"></i> {{ 'Редактировать аттестацию' if attestation_overview.record else 'Добавить аттестацию' }}</a></div>

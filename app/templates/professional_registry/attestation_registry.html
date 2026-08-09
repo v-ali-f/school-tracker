@@ -1,70 +1,63 @@
 {% extends "layout.html" %}
 {% block title %}Аттестация педагогов{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_3">
-<style>
-  .attestation-summary-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
-  .attestation-summary-item { padding:9px 11px; border:1px solid #d6dfeb; border-radius:7px; background:#fff; }
-  .attestation-summary-item span { display:block; color:#69758a; font-size:11px; }
-  .attestation-summary-item strong { color:#1d2a44; font-size:20px; }
-  .attestation-source { display:block; color:#69758a; font-size:10px; margin-top:2px; }
-  @media (max-width:991.98px) { .attestation-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
 {% endblock %}
 {% block content %}
-<div class="dashboard-shell zone-page zone-slate">
+<div class="dashboard-shell zone-page zone-slate professional-registry-page">
   <div class="classic-page-header mb-3 zone-header zone-slate">
     <div>
       <div class="section-overline">Основные реестры</div>
       <h1 class="dashboard-title mb-1">Аттестация педагогов</h1>
       <div class="text-muted classic-hero-note">Категории, сроки действия и контроль аттестации на соответствие должности.</div>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 professional-registry-actions">
       <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('hub.registries') }}"><i class="bi bi-arrow-left"></i> К реестрам</a>
       {% if can_manage %}<a class="btn zone-btn zone-blue" href="{{ url_for('professional_registry.attestation_new') }}"><i class="bi bi-plus-lg"></i> Добавить аттестацию</a>{% endif %}
     </div>
   </div>
 
-  <div class="attestation-summary-grid mb-3">
-    <div class="attestation-summary-item"><span>Педагогов в выборке</span><strong>{{ summary.TOTAL }}</strong></div>
-    <div class="attestation-summary-item"><span>В норме / бессрочно</span><strong class="text-success">{{ summary.VALID }}</strong></div>
-    <div class="attestation-summary-item"><span>Менее 6 месяцев</span><strong style="color:#9a6700">{{ summary.EXPIRING_SOON }}</strong></div>
-    <div class="attestation-summary-item"><span>Просрочено / требуется</span><strong class="text-danger">{{ summary.EXPIRED }}</strong></div>
-    <div class="attestation-summary-item"><span>Нет даты приёма</span><strong class="text-secondary">{{ summary.INCOMPLETE }}</strong></div>
+  <div class="professional-summary-grid mb-3">
+    <div class="professional-summary-item"><span>Педагогов в выборке</span><strong>{{ summary.TOTAL }}</strong></div>
+    <div class="professional-summary-item is-active"><span>В норме / бессрочно</span><strong>{{ summary.VALID }}</strong></div>
+    <div class="professional-summary-item is-warning"><span>Менее 6 месяцев</span><strong>{{ summary.EXPIRING_SOON }}</strong></div>
+    <div class="professional-summary-item is-danger"><span>Просрочено / требуется</span><strong>{{ summary.EXPIRED }}</strong></div>
+    <div class="professional-summary-item is-muted"><span>Нет даты приёма</span><strong>{{ summary.INCOMPLETE }}</strong></div>
   </div>
 
   <form class="registry-filter-panel" method="get" id="attestationFilters">
     <div class="row g-2 align-items-end">
-      <div class="col-12 col-lg-3"><label class="form-label">Педагог</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="ФИО или логин"></div>
-      <div class="col-6 col-lg-2"><label class="form-label">Кафедра</label><select class="form-select attestation-auto-filter" name="department_id"><option value="">Все кафедры</option>{% for item in departments %}<option value="{{ item.id }}" {% if request.args.get('department_id')|int == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
-      <div class="col-6 col-lg-2"><label class="form-label">Вид</label><select class="form-select attestation-auto-filter" name="category"><option value="">Все виды</option>{% for value,label in categories.items() %}<option value="{{ value }}" {% if request.args.get('category') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-      <div class="col-6 col-lg-2"><label class="form-label">Статус</label><select class="form-select attestation-auto-filter" name="status"><option value="">Все статусы</option>{% for value,label in [('ACTIVE','В норме'),('INDEFINITE','Бессрочно'),('EXPIRING_SOON','Менее 6 месяцев'),('EXPIRED','Просрочено / требуется'),('INCOMPLETE','Неполные данные')] %}<option value="{{ value }}" {% if request.args.get('status') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-      <div class="col-6 col-lg-2"><label class="form-label">Срок</label><select class="form-select attestation-auto-filter" name="expiry"><option value="">Любой срок</option><option value="VALID" {% if request.args.get('expiry') == 'VALID' %}selected{% endif %}>Действует</option><option value="SIX_MONTHS" {% if request.args.get('expiry') == 'SIX_MONTHS' %}selected{% endif %}>Менее 6 месяцев</option><option value="EXPIRED" {% if request.args.get('expiry') == 'EXPIRED' %}selected{% endif %}>Просрочен</option></select></div>
-      <div class="col-12 col-lg-1 d-flex gap-1"><button class="btn btn-primary flex-grow-1" title="Найти"><i class="bi bi-search"></i></button><a class="btn btn-outline-secondary" href="{{ url_for('professional_registry.attestation_registry') }}" title="Сбросить"><i class="bi bi-x-lg"></i></a></div>
+      <div class="col-12 col-lg-3"><label class="form-label">Педагог</label><input class="form-control" name="q" value="{{ request.args.get('q','') }}" placeholder="ФИО или логин" data-professional-search></div>
+      <div class="col-6 col-lg-2"><label class="form-label">Кафедра</label><select class="form-select" name="department_id" data-professional-filter><option value="">Все кафедры</option>{% for item in departments %}<option value="{{ item.id }}" {% if request.args.get('department_id')|int == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-lg-2"><label class="form-label">Вид</label><select class="form-select" name="category" data-professional-filter><option value="">Все виды</option>{% for value,label in categories.items() %}<option value="{{ value }}" {% if request.args.get('category') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-lg-2"><label class="form-label">Статус</label><select class="form-select" name="status" data-professional-filter><option value="">Все статусы</option>{% for value,label in [('ACTIVE','В норме'),('INDEFINITE','Бессрочно'),('EXPIRING_SOON','Менее 6 месяцев'),('EXPIRED','Просрочено / требуется'),('INCOMPLETE','Неполные данные')] %}<option value="{{ value }}" {% if request.args.get('status') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-lg-2"><label class="form-label">Срок</label><select class="form-select" name="expiry" data-professional-filter><option value="">Любой срок</option><option value="VALID" {% if request.args.get('expiry') == 'VALID' %}selected{% endif %}>Действует</option><option value="SIX_MONTHS" {% if request.args.get('expiry') == 'SIX_MONTHS' %}selected{% endif %}>Менее 6 месяцев</option><option value="EXPIRED" {% if request.args.get('expiry') == 'EXPIRED' %}selected{% endif %}>Просрочен</option></select></div>
+      <div class="col-12 col-lg-1 d-flex gap-1"><button class="btn btn-primary flex-grow-1" title="Найти" aria-label="Найти"><i class="bi bi-search"></i></button><a class="btn btn-outline-secondary" href="{{ url_for('professional_registry.attestation_registry') }}" title="Сбросить" aria-label="Сбросить фильтры"><i class="bi bi-x-lg"></i></a></div>
     </div>
   </form>
 
-  <div class="registry-matrix-card table-responsive">
+  <div class="registry-mobile-scroll-hint"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card"><div class="registry-table-scroll" tabindex="0" aria-label="Реестр аттестации педагогов">
     <table class="registry-matrix registry-matrix-wide">
-      <colgroup><col style="width:15%"><col style="width:11%"><col style="width:9%"><col style="width:15%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:17%"><col style="width:7%"></colgroup>
-      <thead><tr><th>Педагог</th><th>Кафедра</th><th>Дата приёма</th><th>Аттестация</th><th>Дата решения</th><th>Действует / срок</th><th>Осталось</th><th>Статус / основание</th><th>Действия</th></tr></thead>
+      <colgroup><col style="width:15%"><col style="width:11%"><col style="width:9%"><col style="width:15%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:17%">{% if can_manage %}<col style="width:7%">{% endif %}</colgroup>
+      <thead><tr><th>Педагог</th><th>Кафедра</th><th>Дата приёма</th><th>Аттестация</th><th>Дата решения</th><th>Действует / срок</th><th>Осталось</th><th>Статус / основание</th>{% if can_manage %}<th>Действия</th>{% endif %}</tr></thead>
       <tbody>
       {% for row in rows %}{% set overview = row.overview %}{% set record = overview.record %}
         <tr>
-          <td class="registry-cell-clip" title="{{ row.teacher.fio or row.teacher.username }}"><strong>{{ row.teacher.fio or row.teacher.username }}</strong></td>
+          <td class="registry-cell-clip" title="{{ row.teacher.fio or row.teacher.username }}"><a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id) }}">{{ row.teacher.fio or row.teacher.username }}</a></td>
           <td class="registry-cell-clip" title="{{ row.department_names }}">{{ row.department_names }}</td>
           <td class="registry-cell-center registry-cell-nowrap {% if not row.teacher.employment_start_date %}text-danger{% endif %}">{{ row.teacher.employment_start_date.strftime('%d.%m.%Y') if row.teacher.employment_start_date else 'Не указана' }}</td>
-          <td>{{ overview.category_label }}{% if record and record.position_title %}<span class="attestation-source">{{ record.position_title }}</span>{% endif %}</td>
+          <td>{{ overview.category_label }}{% if record and record.position_title %}<span class="professional-record-source">{{ record.position_title }}</span>{% endif %}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ record.decision_date.strftime('%d.%m.%Y') if record and record.decision_date else '—' }}</td>
           <td class="registry-cell-center registry-cell-nowrap">{% if overview.status == 'INDEFINITE' %}Бессрочно{% else %}{{ overview.effective_valid_until.strftime('%d.%m.%Y') if overview.effective_valid_until else '—' }}{% endif %}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ remaining_period_label(overview) }}</td>
-          <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span><span class="attestation-source">{{ overview.basis_label }}{% if record %} · {{ record.entry_source and overview.current.source_label }} · {{ row.entered_by }}{% endif %}</span></td>
-          <td>{% if can_manage %}<div class="registry-row-actions">{% if record %}<a class="btn btn-outline-primary registry-row-action" href="{{ url_for('professional_registry.attestation_edit', record_id=record.id) }}" title="Редактировать"><i class="bi bi-pencil"></i></a><form method="post" action="{{ url_for('professional_registry.attestation_archive', record_id=record.id) }}" onsubmit="return confirm('Перенести запись в архив?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger registry-row-action" title="В архив"><i class="bi bi-archive"></i></button></form>{% else %}<a class="btn btn-outline-primary registry-row-action" href="{{ url_for('professional_registry.attestation_new', teacher_id=row.teacher.id) }}" title="Добавить"><i class="bi bi-plus-lg"></i></a>{% endif %}</div>{% else %}<div class="registry-cell-center text-muted">—</div>{% endif %}</td>
+          <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span><span class="professional-record-source">{{ overview.basis_label }}{% if record %} · {{ record.entry_source and overview.current.source_label }} · {{ row.entered_by }}{% endif %}</span></td>
+          {% if can_manage %}<td><div class="registry-row-actions">{% if record %}<a class="btn btn-outline-primary registry-row-action" href="{{ url_for('professional_registry.attestation_edit', record_id=record.id) }}" title="Редактировать"><i class="bi bi-pencil"></i></a><form method="post" action="{{ url_for('professional_registry.attestation_archive', record_id=record.id) }}" onsubmit="return confirm('Перенести запись в архив?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger registry-row-action" title="В архив"><i class="bi bi-archive"></i></button></form>{% else %}<a class="btn btn-outline-primary registry-row-action" href="{{ url_for('professional_registry.attestation_new', teacher_id=row.teacher.id) }}" title="Добавить"><i class="bi bi-plus-lg"></i></a>{% endif %}</div></td>{% endif %}
         </tr>
-      {% else %}<tr><td class="registry-empty-row" colspan="9">По выбранным условиям записей нет.</td></tr>{% endfor %}
+      {% else %}<tr><td class="registry-empty-row" colspan="{{ 9 if can_manage else 8 }}">По выбранным условиям записей нет.</td></tr>{% endfor %}
       </tbody>
     </table>
-  </div>
+  </div></div>
 </div>
 {% endblock %}
-{% block scripts %}<script>document.querySelectorAll('.attestation-auto-filter').forEach((item)=>item.addEventListener('change',()=>item.form.submit()));</script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/professional_registry.js') }}?v=20260810_1"></script>{% endblock %}

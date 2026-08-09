@@ -53,6 +53,8 @@ def test_admin_registry_lists_teacher_without_diagnostic_and_hub_link(
     assert "Кафедра математики" in html
     assert "Диагностика отсутствует" in html
     assert "professional-status-MISSING" in html
+    assert "registry-table-scroll" in html
+    assert "professional_registry.js" in html
     assert "Добавить результат" in html
 
 
@@ -146,6 +148,35 @@ def test_viewer_cannot_manage_registry(app, client, make_user, login):
 
     assert client.get("/professional-registers/mcko").status_code == 200
     assert client.get("/professional-registers/mcko/new").status_code == 403
+
+
+def test_methodist_can_view_teacher_profile_but_cannot_change_other_mcko(
+    app,
+    client,
+    make_user,
+    login,
+):
+    methodist_id = make_user("METHODIST")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        activity_id = _activity().id
+
+    login(methodist_id)
+
+    profile = client.get(f"/departments/teachers/{teacher_id}")
+    created = client.post(
+        "/departments/teacher/mcko/add",
+        data={
+            "teacher_id": teacher_id,
+            "subject_id": activity_id,
+            "passed_at": "2026-05-20",
+            "level": "HIGH",
+        },
+    )
+
+    assert profile.status_code == 200
+    assert 'name="certificate_number"' not in profile.get_data(as_text=True)
+    assert created.status_code == 403
 
 
 def test_department_head_sees_only_own_department_teachers(
