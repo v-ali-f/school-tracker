@@ -387,6 +387,62 @@ def test_department_hub_exposes_only_personal_teacher_profile(
     assert "/departments/summary" in registry_page.headers["Location"]
 
 
+def test_teacher_cannot_archive_mcko_entered_by_administration(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        subject_id = _subject().id
+
+    login(admin_id)
+    created = client.post(
+        "/departments/teacher/mcko/add",
+        data={
+            "teacher_id": teacher_id,
+            "subject_id": subject_id,
+            "passed_at": "2026-05-26",
+            "level": "HIGH",
+        },
+    )
+    assert created.status_code == 302
+
+    with app.app_context():
+        record_id = TeacherMckoResult.query.one().id
+
+    login(teacher_id)
+    profile = client.get(f"/departments/teachers/{teacher_id}")
+    archived = client.post(f"/departments/teacher/mcko/{record_id}/archive")
+
+    assert profile.status_code == 200
+    assert f"/departments/teacher/mcko/{record_id}/archive" not in profile.get_data(as_text=True)
+    assert archived.status_code == 403
+    with app.app_context():
+        assert db.session.get(TeacherMckoResult, record_id).is_archived is False
+
+
+def test_director_can_view_any_teacher_profile_but_teacher_cannot(
+    app,
+    client,
+    make_user,
+    login,
+):
+    director_id = make_user("DIRECTOR")
+    teacher_id = make_user("TEACHER")
+    other_teacher_id = make_user("TEACHER")
+
+    login(director_id)
+    director_view = client.get(f"/departments/teachers/{teacher_id}")
+    assert director_view.status_code == 200
+    assert 'name="certificate_number"' not in director_view.get_data(as_text=True)
+
+    login(other_teacher_id)
+    assert client.get(f"/departments/teachers/{teacher_id}").status_code == 403
+
+
 def test_teacher_profile_shows_authored_debts_and_incidents(
     app,
     client,

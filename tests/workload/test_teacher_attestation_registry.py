@@ -2,7 +2,10 @@ from datetime import date
 
 from app.core.extensions import db
 from app.models import (
+    Department,
+    DepartmentLeader,
     TeacherAttestation,
+    TeacherLoad,
     TeacherProfessionalRecordChange,
     User,
 )
@@ -26,6 +29,8 @@ def test_admin_registry_lists_teacher_without_hire_date_and_hub_link(
     assert registry.status_code == 200
     html = registry.get_data(as_text=True)
     assert "Не указана дата приёма" in html
+    assert "registry-table-scroll" in html
+    assert "professional_registry.js" in html
     assert "Добавить аттестацию" in html
 
 
@@ -107,4 +112,49 @@ def test_methodist_can_view_but_cannot_manage_attestations(
     login(methodist_id)
 
     assert client.get("/professional-registers/attestations").status_code == 200
+    assert client.get("/professional-registers/attestations/new").status_code == 403
+
+
+def test_department_head_sees_attestation_only_for_own_department(
+    app,
+    client,
+    make_user,
+    login,
+):
+    head_id = make_user("DEPARTMENT_HEAD")
+    own_teacher_id = make_user("TEACHER")
+    other_teacher_id = make_user("TEACHER")
+    with app.app_context():
+        db.session.get(User, own_teacher_id).last_name = "Свой"
+        db.session.get(User, other_teacher_id).last_name = "Чужой"
+        own_department = Department(name="Своя кафедра")
+        other_department = Department(name="Другая кафедра")
+        db.session.add_all([own_department, other_department])
+        db.session.flush()
+        db.session.add_all([
+            DepartmentLeader(department_id=own_department.id, user_id=head_id),
+            TeacherLoad(
+                teacher_id=own_teacher_id,
+                department_id=own_department.id,
+                subject_name="Математика",
+                hours=4,
+            ),
+            TeacherLoad(
+                teacher_id=other_teacher_id,
+                department_id=other_department.id,
+                subject_name="Физика",
+                hours=4,
+            ),
+        ])
+        db.session.commit()
+
+    login(head_id)
+    response = client.get("/professional-registers/attestations")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Свой Пользователь" in html
+    assert "Чужой Пользователь" not in html
+    assert "Своя кафедра" in html
+    assert "Другая кафедра" not in html
     assert client.get("/professional-registers/attestations/new").status_code == 403

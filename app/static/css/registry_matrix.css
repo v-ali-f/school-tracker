@@ -38,6 +38,28 @@
   background: #fff;
 }
 
+.registry-matrix-card.table-responsive,
+.registry-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.registry-table-scroll:focus-visible {
+  outline: 2px solid #78a9e6;
+  outline-offset: 2px;
+}
+
+.registry-mobile-scroll-hint {
+  display: none;
+  margin: 0 0 5px;
+  color: #69758a;
+  font-size: 11px;
+  text-align: right;
+}
+
 table.registry-matrix {
   width: 100%;
   margin: 0;
@@ -151,5 +173,20 @@ table.registry-matrix .registry-empty-row {
 @media (max-width: 767.98px) {
   .registry-filter-panel {
     padding: 7px;
+  }
+
+  .registry-mobile-scroll-hint {
+    display: block;
+  }
+
+  table.registry-matrix thead th {
+    height: 27px;
+    padding: 3px 5px;
+  }
+
+  table.registry-matrix tbody td,
+  table.registry-matrix tbody th {
+    height: 24px;
+    padding: 2px 5px;
   }
 }
