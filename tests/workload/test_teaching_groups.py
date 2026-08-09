@@ -745,10 +745,12 @@ def test_senior_class_can_select_two_plans_before_students_are_added(
             [],
             plan_matrices=[matrix],
         )
+        assert len(workload_matrix["class_groups"]) == 1
+        assert workload_matrix["class_groups"][0]["label"] == "10А"
         assert {
-            item["label"]
-            for item in workload_matrix["class_groups"]
-        } == {"10А Инженерный", "10А Предпринимательский"}
+            item["subheader_label"]
+            for item in workload_matrix["class_groups"][0]["columns"]
+        } == {"Инженерный", "Предпринимательский"}
 
         child = Child.query.order_by(Child.id.asc()).first()
         enrollment = PopulationSnapshotEnrollment(

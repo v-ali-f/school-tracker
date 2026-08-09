@@ -1,35 +1,23 @@
 {% extends "layout.html" %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/child_card.css') }}?v=20260809_1">
+{% endblock %}
 {% block breadcrumb %}
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('children.list_children') }}">Список учеников</a></li>
+    {% if return_class and return_class_url %}
+      {% if return_contingent_url %}<li class="breadcrumb-item"><a href="{{ return_contingent_url }}">Сводный контингент</a></li>{% endif %}
+      <li class="breadcrumb-item"><a href="{{ return_class_url }}">Класс {{ return_class.name }}</a></li>
+    {% else %}
+      <li class="breadcrumb-item"><a href="{{ url_for('children.list_children') }}">Список учеников</a></li>
+    {% endif %}
     <li class="breadcrumb-item active">{{ child.last_name }} {{ child.first_name }}</li>
   </ol>
 </nav>
 {% endblock %}
 {% block content %}
-
-{% macro render_doc_item(doc) -%}
-  <div class="d-flex flex-wrap align-items-center gap-2 small mb-2 border rounded px-2 py-2">
-    <span class="fw-semibold">{{ doc.original_name }}</span>
-    <a href="/documents/{{ doc.id }}/download" class="btn btn-sm btn-outline-secondary">Скачать</a>
-    <button type="button"
-            class="btn btn-sm btn-outline-primary"
-            data-bs-toggle="modal"
-            data-bs-target="#documentPreviewModal"
-            data-preview-url="/documents/{{ doc.id }}/preview"
-            data-preview-title="{{ doc.original_name|e }}">
-      Просмотр
-    </button>
-    {% if can_upload_documents or is_admin %}
-      <form method="post" action="/documents/{{ doc.id }}/delete" class="d-inline" onsubmit="return confirm('Удалить документ?');">
-        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-      </form>
-    {% endif %}
-  </div>
-{%- endmacro %}
-
+<div class="child-profile-page">
 
 {% macro doc_icon(doc) -%}
   {% set ext = ((doc.original_name or '').split('.')[-1] if '.' in (doc.original_name or '') else '')|lower %}
@@ -114,11 +102,6 @@
                               data-preview-url="/documents/{{ doc.id }}/preview"
                               data-preview-title="{{ doc.original_name|e }}">Просмотр</button>
                       <a href="/documents/{{ doc.id }}/download" class="btn btn-sm btn-outline-secondary">Скачать</a>
-                      {% if can_upload_documents or is_admin %}
-                        <form method="post" action="/documents/{{ doc.id }}/delete" class="d-inline" onsubmit="return confirm('Удалить документ?');">
-                          <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                        </form>
-                      {% endif %}
                     </div>
                   </td>
                 </tr>
@@ -140,8 +123,6 @@
   else None
 %}
 
-{% set can_edit_flags = can_edit_low or can_edit_debts %}
-
 {# ===== Индикаторы наличия данных ===== #}
 {% set has_ovz = child.is_ovz or (documents_ovz and documents_ovz|length > 0) %}
 {% set has_disabled = child.is_disabled
@@ -154,8 +135,31 @@
 {% set has_az = ((open_debts and open_debts|length > 0)
   or (closed_debts and closed_debts|length > 0)
   or (documents_az and documents_az|length > 0)) %}
+{% set has_low_status = child.is_low or child.low_subjects or child.low_notes %}
+{% set has_family_flags = social and (
+  social.has_large_family or social.has_low_income_family or social.has_guardianship
+  or social.has_orphan_status or social.has_refugee_status
+  or social.has_disability_parents or social.is_socially_dangerous
+  or social.is_hard_life or social.is_single_mother or social.is_single_father
+  or social.is_repeat_year or social.is_svo_family
+) %}
+{% set has_family_info = mother or father or (
+  social and (social.family_status or social.living_conditions or social.social_risk or has_family_flags)
+) %}
+{% set has_ovz_info = child.is_ovz or child.ovz_level or child.ovz_nosology
+  or child.ovz_variant or child.ovz_doc_number or child.ovz_doc_date
+  or (social and social.aoop_variant_text) %}
+{% set has_disabled_info = child.is_disabled or child.disability_mse
+  or child.disability_from or child.disability_to or child.disability_ipra %}
+{% set has_vshu_info = child.is_vshu or (social and (
+  social.vshu_since or social.vshu_reason or social.vshu_removed_at or social.vshu_remove_reason
+)) %}
+{% set has_kdn_info = social and (social.kdn_since or social.kdn_reason) %}
+{% set has_pdn_info = social and (social.pdn_since or social.pdn_reason) %}
+{% set has_social_info = has_family_info or has_ovz_info or has_disabled_info
+  or has_vshu_info or has_kdn_info or has_pdn_info or (social and social.notes) %}
 
-<div class="page-head mb-3">
+<div class="page-head mb-3 child-profile-hero">
   <div>
     <div class="page-title">{{ child.fio }}</div>
     <div class="page-sub">Личная карточка · Класс: {{ child.current_class_name or "—" }}</div>
@@ -169,18 +173,17 @@
       {% if has_az %}<span class="badge text-bg-dark">АЗ</span>{% endif %}
     </div>
   </div>
-  {% if can_upload_documents %}
   <div class="page-actions">
-    <button type="button" class="btn btn-sm btn-outline-secondary"
-            data-bs-toggle="modal" data-bs-target="#uploadDocModal">
-      <i class="bi bi-upload me-1"></i>Загрузить документ
-    </button>
+    {% if return_class and return_class_url %}
+    <a href="{{ return_class_url }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Назад в класс {{ return_class.name }}
+    </a>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 
 {# ===== ФИЛЬТР УЧЕБНОГО ГОДА (наверху — влияет на документы/историю/результаты ниже) ===== #}
-<div class="card mb-3"><div class="card-body py-3">
+<div class="card mb-3 child-profile-year"><div class="card-body py-3">
   <form method="get" class="row g-2 align-items-end">
     <div class="col-md-4">
       <label class="form-label mb-1">Учебный год</label>
@@ -189,7 +192,7 @@
       </select>
     </div>
     <div class="col-md-8">
-      <div class="small text-muted">Документы, история и результаты ниже показываются с учётом выбранного учебного года. Документы без года также остаются видны. Кубок школы показывается накопительно.</div>
+      <div class="small text-muted">Фильтр применяется к документам и результатам. Документы без указанного года остаются видны.</div>
     </div>
   </form>
 </div></div>
@@ -343,16 +346,13 @@
 </div>
 {% endif %}
 
-<div class="card mb-3">
+{% if can_view_service_assignments and child_service_assignments and child_service_assignments|length > 0 %}
+<div class="card mb-3 child-profile-section">
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
     <b>Специалисты сопровождения</b>
-    {% if can_view_service_assignments and child_service_assignments and child_service_assignments|length > 0 %}
-      <span class="badge text-bg-light border text-dark">{{ child_service_assignments|length }}</span>
-    {% endif %}
+    <span class="badge text-bg-light border text-dark">{{ child_service_assignments|length }}</span>
   </div>
   <div class="card-body">
-    {% if can_view_service_assignments %}
-      {% if child_service_assignments and child_service_assignments|length > 0 %}
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <thead><tr><th>Специалист</th><th>Должность / функционал</th><th>Здание</th><th>Период</th><th>Статус</th><th>Комментарий</th></tr></thead>
@@ -370,19 +370,14 @@
           </tbody>
         </table>
       </div>
-      {% else %}
-      <div class="text-muted">Назначенные специалисты пока не указаны.</div>
-      {% endif %}
-    {% else %}
-      <div class="text-muted">Нет прав на просмотр блока сопровождения.</div>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 
-{# ===== ЛИЧНЫЕ ДАННЫЕ ===== #}
-<div class="card mb-3">
+{# ===== ОСНОВНАЯ ИНФОРМАЦИЯ ===== #}
+<div class="card mb-3 child-profile-main-card">
   <div class="card-header d-flex justify-content-between align-items-center">
-    <b>Личные данные</b>
+    <b><i class="bi bi-person-vcard me-2"></i>Основная информация</b>
 
     {% if can_edit_profile %}
       <a href="#edit-profile" class="small text-decoration-none" data-bs-toggle="collapse">
@@ -392,43 +387,47 @@
   </div>
 
   <div class="card-body">
-    <div class="row g-2">
-      <div class="col-md-6">
-        <div><b>ФИО:</b> {{ child.fio }}</div>
-        <div class="text-muted mt-1"><b>Класс:</b> {{ child.current_class_name or "—" }}</div>
-        <div class="text-muted mt-1">
-          <b>Дата рождения:</b>
-          {% if child.birth_date %}
-            {{ child.birth_date.strftime("%d.%m.%Y") }}
-          {% else %}
-            —
-          {% endif %}
-        </div>
-        <div class="text-muted mt-1"><b>Пол:</b> {{ child.gender or "—" }}</div>  
+    <div class="child-profile-summary-grid">
+      <div class="child-profile-summary-item">
+        <span>Класс</span>
+        <strong>{{ child.current_class_name or "—" }}</strong>
       </div>
-
-    <div class="col-md-6">
-
-  <div><b>Форма обучения:</b> {{ child.education_form or "—" }}</div>
-
-  <div class="mt-1">
-    <b>Регистрация по месту жительства:</b> {{ child.reg_address or "—" }}
-  </div>
-
-  <div class="mt-1">
-    <b>Регистрация по месту пребывания:</b> {{ child.temporary_address or "—" }}
-  </div>
-
-  <div class="mt-1">
-    <b>Фактический адрес:</b> {{ child.actual_address or "—" }}
-  </div>
-
-  <div class="mt-2">
-    <b>Примечание:</b> {{ child.notes or "—" }}
-  </div>
-
-</div>
-      
+      <div class="child-profile-summary-item">
+        <span>Дата рождения</span>
+        <strong>{{ child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "—" }}</strong>
+      </div>
+      <div class="child-profile-summary-item">
+        <span>Пол</span>
+        <strong>{{ child.gender or "—" }}</strong>
+      </div>
+      <div class="child-profile-summary-item">
+        <span>Форма обучения</span>
+        <strong>{{ child.education_form or "—" }}</strong>
+      </div>
+      {% if child.reg_address %}
+      <div class="child-profile-summary-item child-profile-summary-item--wide">
+        <span>Регистрация по месту жительства</span>
+        <strong>{{ child.reg_address }}</strong>
+      </div>
+      {% endif %}
+      {% if child.temporary_address %}
+      <div class="child-profile-summary-item child-profile-summary-item--wide">
+        <span>Регистрация по месту пребывания</span>
+        <strong>{{ child.temporary_address }}</strong>
+      </div>
+      {% endif %}
+      {% if child.actual_address %}
+      <div class="child-profile-summary-item child-profile-summary-item--wide">
+        <span>Фактический адрес</span>
+        <strong>{{ child.actual_address }}</strong>
+      </div>
+      {% endif %}
+      {% if child.notes %}
+      <div class="child-profile-summary-item child-profile-summary-item--wide">
+        <span>Примечание</span>
+        <strong>{{ child.notes }}</strong>
+      </div>
+      {% endif %}
     </div>
 
     {% if can_edit_profile %}
@@ -507,8 +506,8 @@
 </div>
 
 {# ===== СОЦИАЛЬНЫЙ ПАСПОРТ ===== #}
-{% if can_view_social %}
-<div class="card mb-3">
+{% if can_view_social and has_social_info %}
+<div class="card mb-3 child-profile-section">
   <div class="card-header d-flex justify-content-between align-items-center">
     <b>Социальный паспорт</b>
 
@@ -530,13 +529,18 @@
     {% if social and social.is_socially_dangerous %}{% set _ = family_badges.append("Социально опасное положение") %}{% endif %}
     {% if social and social.is_hard_life %}{% set _ = family_badges.append("Трудная жизненная ситуация") %}{% endif %}
 
-    {% set has_family_block = mother or father or child.reg_address or social.family_status or social.living_conditions or social.social_risk or family_badges %}
-    {% set has_ovz_block = child.is_ovz or ovz_level_label or ovz_nosology_label or child.ovz_variant or child.ovz_doc_number or child.ovz_doc_date or social.aoop_variant_text %}
-    {% set has_disabled_block = child.is_disabled or child.disability_mse or child.disability_from or child.disability_to or child.disability_ipra %}
-    {% set has_vshu_block = child.is_vshu or social.vshu_since or social.vshu_reason or social.vshu_removed_at or social.vshu_remove_reason %}
+    {% if social and social.is_single_mother %}{% set _ = family_badges.append("Мать-одиночка") %}{% endif %}
+    {% if social and social.is_single_father %}{% set _ = family_badges.append("Отец-одиночка") %}{% endif %}
+    {% if social and social.is_repeat_year %}{% set _ = family_badges.append("Повторный курс обучения") %}{% endif %}
+    {% if social and social.is_svo_family %}{% set _ = family_badges.append("Семья участника СВО") %}{% endif %}
 
-    {% if has_family_block or has_ovz_block or has_disabled_block or has_vshu_block %}
-    <div class="row g-3">
+    {% set has_family_block = has_family_info %}
+    {% set has_ovz_block = has_ovz_info %}
+    {% set has_disabled_block = has_disabled_info %}
+    {% set has_vshu_block = has_vshu_info %}
+
+    {% if has_family_block or has_ovz_block or has_disabled_block or has_vshu_block or has_kdn_info or has_pdn_info or social.notes %}
+    <div class="row g-3 child-profile-topic-grid">
       {% if has_family_block %}
       <div class="col-lg-6">
         <div class="compact-passport-block">
@@ -549,7 +553,6 @@
             <div class="compact-passport-row {% if mother %}mt-2{% endif %}"><b>Отец:</b> {{ father.fio }}</div>
             {% if father.phone %}<div class="compact-passport-row text-muted"><b>Телефон отца:</b> {{ father.phone }}</div>{% endif %}
           {% endif %}
-          {% if child.reg_address %}<div class="compact-passport-row mt-2"><b>Адрес регистрации:</b> {{ child.reg_address }}</div>{% endif %}
           {% if social.family_status %}<div class="compact-passport-row"><b>Статус семьи:</b> {{ social.family_status }}</div>{% endif %}
           {% if social.living_conditions %}<div class="compact-passport-row"><b>Условия проживания:</b> {{ social.living_conditions }}</div>{% endif %}
           {% if social.social_risk %}<div class="compact-passport-row"><b>Социальный риск:</b> {{ social.social_risk }}</div>{% endif %}
@@ -608,9 +611,36 @@
         </div>
       </div>
       {% endif %}
+
+      {% if has_kdn_info %}
+      <div class="col-lg-6">
+        <div class="compact-passport-block">
+          <h6>КДН</h6>
+          {% if social.kdn_since %}<div class="compact-passport-row"><b>На учёте с:</b> {{ social.kdn_since.strftime("%d.%m.%Y") }}</div>{% endif %}
+          {% if social.kdn_reason %}<div class="compact-passport-row"><b>Основание:</b> {{ social.kdn_reason }}</div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if has_pdn_info %}
+      <div class="col-lg-6">
+        <div class="compact-passport-block">
+          <h6>ПДН</h6>
+          {% if social.pdn_since %}<div class="compact-passport-row"><b>На учёте с:</b> {{ social.pdn_since.strftime("%d.%m.%Y") }}</div>{% endif %}
+          {% if social.pdn_reason %}<div class="compact-passport-row"><b>Основание:</b> {{ social.pdn_reason }}</div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if social.notes %}
+      <div class="col-12">
+        <div class="compact-passport-block">
+          <h6>ПРИМЕЧАНИЕ</h6>
+          <div class="compact-passport-row">{{ social.notes }}</div>
+        </div>
+      </div>
+      {% endif %}
     </div>
-    {% else %}
-      <div class="text-muted">Данные социального паспорта не заполнены.</div>
     {% endif %}
 
     {% if can_edit_social %}
@@ -843,6 +873,7 @@
 {% endif %}
 
 {# ===== СОПРОВОЖДЕНИЕ И ДОКУМЕНТЫ ===== #}
+{% if has_low_status %}
 <form id="flags-form" method="post" action="/children/{{ child.id }}/flags" class="mb-3">
   <input type="hidden" name="is_ovz" value="{{ 1 if child.is_ovz else 0 }}">
   <input type="hidden" name="is_disabled" value="{{ 1 if child.is_disabled else 0 }}">
@@ -858,12 +889,8 @@
           <tr id="sec-low">
             <td style="width:220px;"><b>Низкие результаты</b></td>
             <td>
-              {% if child.is_low or child.low_subjects or child.low_notes %}
-                <div><b>Предметы:</b> {{ child.low_subjects or "—" }}</div>
-                <div class="text-muted"><b>Комментарий:</b> {{ child.low_notes or "—" }}</div>
-              {% else %}
-                <span class="text-muted">(данных нет)</span>
-              {% endif %}
+              <div><b>Предметы:</b> {{ child.low_subjects or "—" }}</div>
+              <div class="text-muted"><b>Комментарий:</b> {{ child.low_notes or "—" }}</div>
             </td>
             <td class="text-end">
               {% if can_edit_low %}<a class="small text-decoration-none" data-bs-toggle="collapse" href="#edit-low">изменить</a>{% endif %}
@@ -898,44 +925,21 @@
     </div>
   </div>
 </form>
+{% endif %}
 
-{{ render_doc_table('docs-ovz', 'Документы по ОВЗ', documents_ovz) }}
-{{ render_doc_table('docs-vshu', 'Документы по ВШУ', documents_vshu) }}
+{% if documents_ovz %}{{ render_doc_table('docs-ovz', 'Документы по ОВЗ', documents_ovz) }}{% endif %}
+{% if documents_vshu %}{{ render_doc_table('docs-vshu', 'Документы по ВШУ', documents_vshu) }}{% endif %}
 {% set disabled_docs_all = (documents_mse or []) + (documents_ipra or []) + (documents_disabled or []) %}
-{{ render_doc_table('docs-disabled', 'Документы по инвалидности', disabled_docs_all) }}
-{{ render_doc_table('docs-low', 'Документы по низким результатам', documents_low) }}
-{{ render_doc_table('docs-general', 'Прочие документы', documents_general) }}
+{% if disabled_docs_all %}{{ render_doc_table('docs-disabled', 'Документы по инвалидности', disabled_docs_all) }}{% endif %}
+{% if documents_low %}{{ render_doc_table('docs-low', 'Документы по низким результатам', documents_low) }}{% endif %}
+{% if documents_general %}{{ render_doc_table('docs-general', 'Прочие документы', documents_general) }}{% endif %}
 
 {# ===== АЗ ===== #}
+{% if has_az %}
 <div class="card mb-3" id="sec-az">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <div>
-      <b>Академическая задолженность</b>
-      {% if not has_az %}
-        <span class="text-muted">(данных нет)</span>
-      {% endif %}
-    </div>
-
-    {% if can_edit_debts %}
-      <a class="small text-decoration-none" data-bs-toggle="collapse" href="#edit-az">изменить</a>
-    {% endif %}
-  </div>
-<div class="card mb-3">
   <div class="card-header">
-    <b>Прочие документы</b>
+    <b>Академическая задолженность</b>
   </div>
-  <div class="card-body">
-    {% if documents_general and documents_general|length > 0 %}
-      {% for doc in documents_general %}
-        <div class="small mb-1">
-          <span class="d-block">{{ render_doc_item(doc) }}</span>
-        </div>
-      {% endfor %}
-    {% else %}
-      <div class="text-muted">Нет документов</div>
-    {% endif %}
-  </div>
-</div>
   <div class="card-body">
     {% if open_debts and open_debts|length > 0 %}
       <div class="mb-3">
@@ -948,7 +952,6 @@
                 <th>Дата выявления</th>
                 <th>Срок</th>
                 <th>Создана</th>
-                <th class="text-end">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -958,15 +961,6 @@
                   <td>{% if d.detected_date %}{{ d.detected_date.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
                   <td>{% if d.due_date %}{{ d.due_date.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
                   <td>{% if d.created_at %}{{ d.created_at.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
-                  <td class="text-end">
-                    {% if can_edit_debts %}
-                    <button class="btn btn-sm btn-outline-success"
-                            type="submit"
-                            form="close-debt-{{ d.id }}">
-                      Закрыть
-                    </button>
-                    {% endif %}
-                  </td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -984,7 +978,6 @@
               <tr>
                 <th>Предмет</th>
                 <th>Ликвидирована</th>
-                <th class="text-end">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -992,15 +985,6 @@
                 <tr>
                   <td>{{ d.subject_name }}</td>
                   <td>{% if d.closed_at %}{{ d.closed_at.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td>
-                  <td class="text-end">
-                    {% if can_edit_debts %}
-                    <button class="btn btn-sm btn-outline-secondary"
-                            type="submit"
-                            form="reopen-debt-{{ d.id }}">
-                      Вернуть
-                    </button>
-                    {% endif %}
-                  </td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -1012,49 +996,15 @@
     {% if documents_az and documents_az|length > 0 %}
       {{ render_doc_table('docs-az', 'Документы АЗ', documents_az) }}
     {% endif %}
-
-    {% if not has_az %}
-      <div class="text-muted">Нет данных</div>
-    {% endif %}
-
-    {% if can_edit_debts %}
-      <div class="collapse mt-3" id="edit-az">
-        <form method="post" action="/children/{{ child.id }}/debts/add">
-          <div class="row g-2">
-            <div class="col-md-4">
-              <label class="form-label">Предмет</label>
-              <select class="form-select" name="subject_id" required>
-                <option value="">Выберите предмет</option>
-                {% for s in subjects %}
-                  <option value="{{ s.id }}">{{ s.name }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Дата выявления</label>
-              <input type="date" class="form-control" name="detected_date" value="{{ today.strftime('%Y-%m-%d') }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Срок ликвидации</label>
-              <input type="date" class="form-control" name="due_date">
-            </div>
-          </div>
-
-          <div class="mt-3 d-flex gap-2">
-            <button class="btn btn-primary btn-sm" type="submit">Добавить задолженность</button>
-            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="hideCollapseById('edit-az')">Отмена</button>
-          </div>
-        </form>
-      </div>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 
 {# ===== ИСТОРИЯ ===== #}
+{% if events and events|length > 0 %}
 <div class="card mb-3">
   <div class="card-header"><b>История (переводы)</b></div>
   <div class="card-body">
-    {% if events and events|length > 0 %}
       <ul class="list-group">
         {% for e in events %}
           <li class="list-group-item">
@@ -1089,14 +1039,12 @@
           </li>
         {% endfor %}
       </ul>
-    {% else %}
-      <div class="text-muted">Пока нет событий</div>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 
 {# ===== КОММЕНТАРИИ ===== #}
-<div class="card mb-3">
+<div class="card mb-3 child-profile-comments">
   <div class="card-header"><b>Комментарии</b></div>
   <div class="card-body">
     {% if can_add_comment %}
@@ -1142,13 +1090,13 @@
 </div>
 
 {# ===== ИНЦИДЕНТЫ ===== #}
+{% if incidents and incidents|length > 0 %}
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center">
     <div class="fw-bold">Инциденты</div>
     {% if can_add_incident %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('children.incident_new') }}">Добавить</a>{% endif %}
   </div>
   <div class="card-body">
-    {% if incidents and incidents|length > 0 %}
       <div class="list-group">
         {% for inc in incidents %}
           <div class="list-group-item">
@@ -1171,14 +1119,12 @@
           </div>
         {% endfor %}
       </div>
-    {% else %}
-      <div class="text-muted">Пока нет инцидентов</div>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 
 {% if is_admin %}
-  <div class="card mb-3">
+  <div class="card mb-3 child-profile-actions">
     <div class="card-body d-flex gap-2">
       {% if can_manage_active_enrollment %}
       <button type="button"
@@ -1208,14 +1154,6 @@
     <a href="/children" class="btn btn-outline-secondary">Назад</a>
   </div>
 {% endif %}
-
-{% for d in (open_debts or []) %}
-  <form id="close-debt-{{ d.id }}" method="post" action="/debts/{{ d.id }}/close"></form>
-{% endfor %}
-{% for d in (closed_debts or []) %}
-  <form id="reopen-debt-{{ d.id }}" method="post" action="/debts/{{ d.id }}/reopen"></form>
-{% endfor %}
-
 
 <style>
   .doc-table tbody tr[hidden] { display:none !important; }
@@ -1307,61 +1245,6 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="modal-body p-0" style="min-height:75vh;">
         <iframe id="documentPreviewFrame" src="about:blank" style="width:100%; min-height:75vh; border:0;"></iframe>
       </div>
-    </div>
-  </div>
-</div>
-
-<div class="modal fade" id="uploadDocModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form method="post"
-            action="/children/{{ child.id }}/documents/upload"
-            enctype="multipart/form-data">
-        <div class="modal-header">
-          <h5 class="modal-title">Загрузка документа</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-        </div>
-
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Раздел</label>
-            <select class="form-select" name="doc_type" id="doc_type" required>
-              <option value="" selected disabled>Выберите раздел</option>
-              <option value="OVZ">ОВЗ</option>
-              <option value="MSE">МСЭ (справка)</option>
-              <option value="IPRA">ИПРА</option>
-              <option value="VSHU">ВШУ</option>
-              <option value="LOW">Низкие результаты</option>
-              <option value="AZ">Академическая задолженность (АЗ)</option>
-              <option value="GENERAL">Прочий документ</option>
-              <option value="DISABLED">Инвалидность (прочее)</option>
-            </select>
-          </div>
-
-          <div class="mb-3 d-none" id="debt_wrap">
-            <label class="form-label">Привязать к задолженности</label>
-            <select class="form-select" name="debt_id">
-              <option value="">— без привязки —</option>
-              {% for d in (open_debts or []) %}
-                <option value="{{ d.id }}">
-                  {{ d.subject_name }}
-                  {% if d.due_date %}(до {{ d.due_date.strftime("%d.%m.%Y") }}){% endif %}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Файл</label>
-            <input class="form-control" type="file" name="file" required>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-primary">Загрузить</button>
-        </div>
-      </form>
     </div>
   </div>
 </div>
@@ -1484,23 +1367,13 @@ document.addEventListener("DOMContentLoaded", function(){
 
 document.addEventListener("change", function(e){
   if (e.target && e.target.id === "is_ovz") toggleOVZ();
-
-  if (e.target && e.target.id === "doc_type") {
-    const wrap = document.getElementById("debt_wrap");
-    if (!wrap) return;
-    if ((e.target.value || "").toUpperCase() === "AZ") {
-      wrap.classList.remove("d-none");
-    } else {
-      wrap.classList.add("d-none");
-    }
-  }
 });
 </script>
 
 
 
-<div class="card mt-4 border-0 shadow-sm">
-  <div class="card-header"><b>Обучение по учебным годам</b></div>
+<div class="card mt-4 border-0 shadow-sm child-profile-education">
+  <div class="card-header"><b><i class="bi bi-mortarboard me-2"></i>Обучение по учебным годам</b></div>
   <div class="card-body">
     <div class="row g-3 mb-3">
       <div class="col-md-4"><div class="small text-muted">Текущий статус</div><div class="fw-semibold">{{ child.status or 'ACTIVE' }}</div></div>
@@ -1547,25 +1420,36 @@ document.addEventListener("change", function(e){
       </form>
     </div>
     {% endif %}
+    {% if enrollment_history or transfer_history %}
     <div class="row g-4">
-      <div class="col-lg-6">
+      {% if enrollment_history %}
+      <div class="{% if transfer_history %}col-lg-6{% else %}col-12{% endif %}">
         <h6>История обучения</h6>
-        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Класс</th><th>Статус</th><th>Дата</th></tr></thead><tbody>{% for e in enrollment_history %}<tr class="{% if e.status == 'CANCELLED' %}text-muted{% endif %}"><td>{{ e.academic_year.name if e.academic_year else '—' }}</td><td>{{ e.school_class.name if e.school_class else '—' }}</td><td>{% if e.status == 'CANCELLED' %}<span class="badge text-bg-secondary">Отменено</span>{% else %}{{ e.status }}{% endif %}</td><td>{{ e.enrolled_at.strftime('%d.%m.%Y') if e.enrolled_at else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Класс</th><th>Статус</th><th>Дата</th></tr></thead><tbody>{% for e in enrollment_history %}<tr class="{% if e.status == 'CANCELLED' %}text-muted{% endif %}"><td>{{ e.academic_year.name if e.academic_year else '—' }}</td><td>{{ e.school_class.name if e.school_class else '—' }}</td><td>{% if e.status == 'CANCELLED' %}<span class="badge text-bg-secondary">Отменено</span>{% else %}{{ e.status }}{% endif %}</td><td>{{ e.enrolled_at.strftime('%d.%m.%Y') if e.enrolled_at else '—' }}</td></tr>{% endfor %}</tbody></table></div>
       </div>
-      <div class="col-lg-6">
+      {% endif %}
+      {% if transfer_history %}
+      <div class="{% if enrollment_history %}col-lg-6{% else %}col-12{% endif %}">
         <h6>История переводов</h6>
-        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата</th><th>Из класса</th><th>В класс</th><th>Тип</th></tr></thead><tbody>{% for h in transfer_history %}<tr class="{% if h.reversed_at %}text-muted{% endif %}"><td>{{ h.transfer_date.strftime('%d.%m.%Y') if h.transfer_date else '—' }}</td><td>{{ h.from_class.name if h.from_class else '—' }}</td><td>{{ h.to_class.name if h.to_class else '—' }}</td><td>{% if h.reversed_at %}<span class="badge text-bg-secondary" title="{{ h.reversal_reason or '' }}">Отменён</span>{% else %}{{ h.transfer_type }}{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата</th><th>Из класса</th><th>В класс</th><th>Тип</th></tr></thead><tbody>{% for h in transfer_history %}<tr class="{% if h.reversed_at %}text-muted{% endif %}"><td>{{ h.transfer_date.strftime('%d.%m.%Y') if h.transfer_date else '—' }}</td><td>{{ h.from_class.name if h.from_class else '—' }}</td><td>{{ h.to_class.name if h.to_class else '—' }}</td><td>{% if h.reversed_at %}<span class="badge text-bg-secondary" title="{{ h.reversal_reason or '' }}">Отменён</span>{% else %}{{ h.transfer_type }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
       </div>
+      {% endif %}
     </div>
+    {% endif %}
+    {% if olympiad_results %}
     <div class="mt-3">
       <h6>Олимпиады / ВСОШ</h6>
-      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Балл</th><th>Статус</th><th>Причина</th><th>Учитель</th><th>Кафедра</th></tr></thead><tbody>{% for r in olympiad_results %}<tr class="{% if r.is_annulled or r.status_group == 'annulled' %}table-danger{% endif %}"><td>{{ r.academic_year.name if r.academic_year else '—' }}</td><td>{{ r.stage or '—' }}</td><td>{{ r.resolved_subject_name }}</td><td>{{ r.score if r.score is not none else '—' }}</td><td>{% if r.status_group == 'winner' %}<span class="badge text-bg-success">Победитель</span>{% elif r.status_group == 'prize' %}<span class="badge text-bg-primary">Призёр</span>{% elif r.status_group == 'annulled' or r.is_annulled %}<span class="badge text-bg-danger">Аннулировано</span>{% else %}{{ r.status or '—' }}{% endif %}</td><td class="small">{% if r.status_group == 'annulled' %}{{ r.status_original or r.reason or '—' }}{% else %}{{ r.reason or '—' }}{% endif %}</td><td>{{ r.teacher.fio if r.teacher else '—' }}</td><td>{{ r.department.name if r.department else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="text-muted">Олимпиадных результатов пока нет</td></tr>{% endfor %}</tbody></table></div>
+      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Год</th><th>Этап</th><th>Предмет</th><th>Балл</th><th>Статус</th><th>Причина</th><th>Учитель</th><th>Кафедра</th></tr></thead><tbody>{% for r in olympiad_results %}<tr class="{% if r.is_annulled or r.status_group == 'annulled' %}table-danger{% endif %}"><td>{{ r.academic_year.name if r.academic_year else '—' }}</td><td>{{ r.stage or '—' }}</td><td>{{ r.resolved_subject_name }}</td><td>{{ r.score if r.score is not none else '—' }}</td><td>{% if r.status_group == 'winner' %}<span class="badge text-bg-success">Победитель</span>{% elif r.status_group == 'prize' %}<span class="badge text-bg-primary">Призёр</span>{% elif r.status_group == 'annulled' or r.is_annulled %}<span class="badge text-bg-danger">Аннулировано</span>{% else %}{{ r.status or '—' }}{% endif %}</td><td class="small">{% if r.status_group == 'annulled' %}{{ r.status_original or r.reason or '—' }}{% else %}{{ r.reason or '—' }}{% endif %}</td><td>{{ r.teacher.fio if r.teacher else '—' }}</td><td>{{ r.department.name if r.department else '—' }}</td></tr>{% endfor %}</tbody></table></div>
     </div>
+    {% endif %}
+    {% if control_results %}
     <div class="mt-3">
       <h6>Контрольные результаты (последние)</h6>
-      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата внесения</th><th>Класс</th><th>%</th><th>Оценка</th></tr></thead><tbody>{% for r in control_results %}<tr><td>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '—' }}</td><td>{{ r.school_class.name if r.school_class else '—' }}</td><td>{{ ('%.1f'|format(r.percent)) if r.percent is not none else '—' }}</td><td>{{ r.mark if r.mark is not none else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Результатов пока нет</td></tr>{% endfor %}</tbody></table></div>
+      <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Дата внесения</th><th>Класс</th><th>%</th><th>Оценка</th></tr></thead><tbody>{% for r in control_results %}<tr><td>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '—' }}</td><td>{{ r.school_class.name if r.school_class else '—' }}</td><td>{{ ('%.1f'|format(r.percent)) if r.percent is not none else '—' }}</td><td>{{ r.mark if r.mark is not none else '—' }}</td></tr>{% endfor %}</tbody></table></div>
     </div>
+    {% endif %}
   </div>
 </div>
 
+</div>
 {% endblock %}

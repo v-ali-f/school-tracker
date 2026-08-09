@@ -1,12 +1,23 @@
 from collections import defaultdict
 from decimal import Decimal
 
-from app.models import PLAN_COMPONENT_KINDS, PLAN_COMPONENT_LABELS
+from sqlalchemy.orm import joinedload, selectinload
+
+from app.core.extensions import db
+from app.models import (
+    EducationPlan,
+    EducationPlanBinding,
+    EducationPlanLine,
+    PLAN_COMPONENT_KINDS,
+    PLAN_COMPONENT_LABELS,
+    PopulationSnapshotClass,
+)
 from app.services.education_plan_binding_service import (
     EDUCATION_LEVEL_GRADES,
     class_level_plan_ids,
     class_plan_allocations,
     class_plan_option_ids,
+    effective_binding_member_ids,
     plan_matches_snapshot_class,
 )
 from app.services.education_plan_service import (
@@ -111,24 +122,50 @@ def _plan_profile_label(plan):
     return label or plan.name
 
 
-def _assigned_columns(snapshot_class, plans):
+def _assigned_columns(snapshot_class, plans, bindings=None):
     compatible_plans = [
         plan
         for plan in plans
         if plan_matches_snapshot_class(plan, snapshot_class)
     ]
-    allocations, _ = class_plan_allocations(
-        snapshot_class,
-        compatible_plans,
-    )
-    whole_class_plan_ids = class_level_plan_ids(
-        snapshot_class,
-        compatible_plans,
-    )
-    option_plan_ids = class_plan_option_ids(
-        snapshot_class,
-        compatible_plans,
-    )
+    if bindings is None:
+        allocations, _ = class_plan_allocations(
+            snapshot_class,
+            compatible_plans,
+        )
+        whole_class_plan_ids = class_level_plan_ids(
+            snapshot_class,
+            compatible_plans,
+        )
+        option_plan_ids = class_plan_option_ids(
+            snapshot_class,
+            compatible_plans,
+        )
+    else:
+        enrollment_ids = {
+            item.id for item in snapshot_class.enrollments
+        }
+        compatible_plan_ids = {item.id for item in compatible_plans}
+        compatible_bindings = [
+            binding for binding in bindings
+            if binding.education_plan_id in compatible_plan_ids
+        ]
+        allocations = {
+            binding.education_plan_id: effective_binding_member_ids(
+                binding,
+                enrollment_ids,
+            )
+            for binding in compatible_bindings
+        }
+        whole_class_plan_ids = {
+            binding.education_plan_id
+            for binding in compatible_bindings
+            if binding.binding_mode == "CLASS"
+        }
+        option_plan_ids = {
+            binding.education_plan_id
+            for binding in compatible_bindings
+        }
     visible_plan_ids = whole_class_plan_ids | option_plan_ids
     split_profile_columns = (
         snapshot_class.grade_snapshot in {10, 11}
@@ -182,6 +219,42 @@ def _assigned_columns(snapshot_class, plans):
     return columns
 
 
+def _preload_matrix_plans(plans):
+    plan_ids = [plan.id for plan in plans if plan.id is not None]
+    if not plan_ids:
+        return list(plans)
+
+    root_line = selectinload(EducationPlan.lines)
+    companion_line = (
+        selectinload(EducationPlan.companion_plans)
+        .selectinload(EducationPlan.lines)
+    )
+    loaded = (
+        db.session.query(EducationPlan)
+        .options(
+            selectinload(EducationPlan.companion_plans),
+            root_line.selectinload(EducationPlanLine.scopes),
+            selectinload(EducationPlan.lines).selectinload(
+                EducationPlanLine.periods
+            ),
+            selectinload(EducationPlan.lines).joinedload(
+                EducationPlanLine.education_activity
+            ),
+            companion_line.selectinload(EducationPlanLine.scopes),
+            selectinload(EducationPlan.companion_plans)
+            .selectinload(EducationPlan.lines)
+            .selectinload(EducationPlanLine.periods),
+            selectinload(EducationPlan.companion_plans)
+            .selectinload(EducationPlan.lines)
+            .joinedload(EducationPlanLine.education_activity),
+        )
+        .filter(EducationPlan.id.in_(plan_ids))
+        .all()
+    )
+    loaded_by_id = {plan.id: plan for plan in loaded}
+    return [loaded_by_id.get(plan.id, plan) for plan in plans]
+
+
 def build_class_plan_matrix(
     snapshot,
     plans,
@@ -195,7 +268,16 @@ def build_class_plan_matrix(
     snapshot_classes = sorted(
         (
             item
-            for item in (snapshot.classes if snapshot else [])
+            for item in (
+                PopulationSnapshotClass.query
+                .options(
+                    joinedload(PopulationSnapshotClass.building),
+                    selectinload(PopulationSnapshotClass.enrollments),
+                )
+                .filter_by(population_snapshot_id=snapshot.id)
+                .all()
+                if snapshot else []
+            )
             if (
                 item.grade_snapshot in grades
                 and (
@@ -221,6 +303,7 @@ def build_class_plan_matrix(
             item.name_snapshot.casefold(),
         ),
     )
+    plans = _preload_matrix_plans(plans)
     root_plans = [
         item
         for item in plans
@@ -231,10 +314,34 @@ def build_class_plan_matrix(
         )
     ]
 
+    bindings_by_class = defaultdict(list)
+    snapshot_class_ids = [item.id for item in snapshot_classes]
+    root_plan_ids = [item.id for item in root_plans]
+    if snapshot_class_ids and root_plan_ids:
+        bindings = (
+            EducationPlanBinding.query
+            .options(selectinload(EducationPlanBinding.members))
+            .filter(
+                EducationPlanBinding.population_snapshot_class_id.in_(
+                    snapshot_class_ids
+                ),
+                EducationPlanBinding.education_plan_id.in_(root_plan_ids),
+            )
+            .all()
+        )
+        for binding in bindings:
+            bindings_by_class[
+                binding.population_snapshot_class_id
+            ].append(binding)
+
     class_groups = []
     columns = []
     for snapshot_class in snapshot_classes:
-        class_columns = _assigned_columns(snapshot_class, root_plans)
+        class_columns = _assigned_columns(
+            snapshot_class,
+            root_plans,
+            bindings=bindings_by_class[snapshot_class.id],
+        )
         for column in class_columns:
             column["period_label"] = class_period_label(
                 education_level,

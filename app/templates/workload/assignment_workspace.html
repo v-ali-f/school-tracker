@@ -111,63 +111,96 @@
 {% endif %}
 
 <form class="workload-matrix-filterbar" method="get" data-workload-filterbar>
-  <div class="workload-filter-field workload-filter-field--year">
-    <label for="workspace-version">Учебный год</label>
-    <select class="form-select form-select-sm" id="workspace-version" name="version_id">
-      {% for item in versions %}
-      <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>
-        {{ item.tariff_cycle.academic_year.name }}
-      </option>
-      {% endfor %}
-    </select>
+  <input type="hidden" name="view" value="{{ view_mode }}">
+  {% if view_mode != 'department' %}
+  <input type="hidden" name="department_id" value="">
+  {% endif %}
+  <input type="hidden" name="education_level" value="{{ selected_education_level or '' }}">
+  <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
+
+  <div class="workload-filterbar__primary">
+    <div class="workload-filter-field workload-filter-field--year">
+      <label for="workspace-version">Учебный год</label>
+      <select class="form-select form-select-sm" id="workspace-version" name="version_id" data-workload-filter-auto>
+        {% for item in versions %}
+        <option value="{{ item.id }}" {% if item.id == selected_version_id %}selected{% endif %}>
+          {{ item.tariff_cycle.academic_year.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="workload-filter-field workload-filter-field--levels">
+      <span class="workload-filter-label">Уровень образования</span>
+      <nav class="class-plan-levels" aria-label="Уровень образования">
+        <a
+          class="{% if not selected_education_level %}is-active{% endif %}"
+          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '') }}"
+        >
+          <span>Все</span>
+          <small>{{ level_counts.values()|sum }} кл.</small>
+        </a>
+        {% for level, label in level_labels.items() %}
+        <a
+          class="{% if selected_education_level == level %}is-active{% endif %}"
+          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=level) }}"
+        >
+          <span>{{ level|education_level_label }}</span>
+          <small>{{ level_counts[level] }} кл.</small>
+        </a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    <div class="workload-filter-field workload-filter-field--grades">
+      <span class="workload-filter-label">Параллель</span>
+      <nav class="class-plan-grades" aria-label="Параллель">
+        <a
+          class="{% if not selected_grade %}is-active{% endif %}"
+          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_level or '') }}"
+        >Все</a>
+        {% for number in level_grades %}
+        <a
+          class="{% if number == selected_grade %}is-active{% endif %}"
+          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=number) }}"
+          title="{{ number }}-я параллель"
+        >{{ number }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    <div class="workload-filter-field workload-filter-field--building">
+      <label for="workspace-building">Здание</label>
+      <select class="form-select form-select-sm" id="workspace-building" name="building_id" data-workload-filter-auto>
+        <option value="">Все здания</option>
+        {% for item in buildings %}
+        <option value="{{ item.id }}" {% if item.id == selected_building_id %}selected{% endif %}>{{ item.short_name or item.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
-  <div class="workload-filter-field">
-    <label for="workspace-view">Вид</label>
-    <select class="form-select form-select-sm" id="workspace-view" name="view" data-workload-view>
-      <option value="all" {% if view_mode == 'all' %}selected{% endif %}>Вся нагрузка</option>
-      <option value="department" {% if view_mode == 'department' %}selected{% endif %}>По кафедре</option>
-      <option value="vacancies" {% if view_mode == 'vacancies' %}selected{% endif %}>Вакансии</option>
-    </select>
+
+  <div class="workload-filterbar__secondary">
+    <div class="workload-filter-field workload-filter-field--view">
+      <span class="workload-filter-label">Вид нагрузки</span>
+      <nav class="workload-view-tabs" aria-label="Вид нагрузки">
+        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=selected_grade or '') }}">Вся нагрузка</a>
+        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=selected_grade or '') }}">По кафедре</a>
+        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=selected_grade or '') }}">Вакансии</a>
+      </nav>
+    </div>
+    {% if view_mode == 'department' %}
+    <div class="workload-filter-field workload-filter-field--department">
+      <label for="workspace-department">Кафедра</label>
+      <select class="form-select form-select-sm" id="workspace-department" name="department_id" data-workload-department data-workload-filter-auto>
+        <option value="">Выберите кафедру</option>
+        {% for item in departments %}
+        <option value="{{ item.id }}" {% if item.id == selected_department_id %}selected{% endif %}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
   </div>
-  <div class="workload-filter-field workload-filter-field--department">
-    <label for="workspace-department">Кафедра</label>
-    <select class="form-select form-select-sm" id="workspace-department" name="department_id" data-workload-department>
-      <option value="">Выберите кафедру</option>
-      {% for item in departments %}
-      <option value="{{ item.id }}" {% if item.id == selected_department_id %}selected{% endif %}>{{ item.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="workload-filter-field">
-    <label for="workspace-building">Здание</label>
-    <select class="form-select form-select-sm" id="workspace-building" name="building_id">
-      <option value="">Все здания</option>
-      {% for item in buildings %}
-      <option value="{{ item.id }}" {% if item.id == selected_building_id %}selected{% endif %}>{{ item.short_name or item.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="workload-filter-field">
-    <label for="workspace-level">Уровень</label>
-    <select class="form-select form-select-sm" id="workspace-level" name="education_level">
-      <option value="">Все уровни</option>
-      <option value="NOO" {% if selected_education_level == 'NOO' %}selected{% endif %}>НОО</option>
-      <option value="OOO" {% if selected_education_level == 'OOO' %}selected{% endif %}>ООО</option>
-      <option value="SOO" {% if selected_education_level == 'SOO' %}selected{% endif %}>СОО</option>
-    </select>
-  </div>
-  <div class="workload-filter-field workload-filter-field--grade">
-    <label for="workspace-grade">Параллель</label>
-    <select class="form-select form-select-sm" id="workspace-grade" name="grade">
-      <option value="">Все</option>
-      {% for number in range(1, 12) %}
-      <option value="{{ number }}" {% if number == selected_grade %}selected{% endif %}>{{ number }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button class="btn btn-primary btn-sm workload-filter-submit" type="submit">
-    <i class="bi bi-funnel me-1" aria-hidden="true"></i>Показать
-  </button>
 </form>
 
 <div class="workload-matrix-toolbar">
@@ -177,9 +210,65 @@
     <span class="{% if matrix.total_remaining > 0 %}has-remaining{% endif %}">
       Осталось <strong data-workload-total-remaining>{{ matrix.total_remaining|compact_decimal }}</strong>
     </span>
+    {% if matrix.unassigned_items %}
+    <button
+      class="workload-unassigned-link"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#workload-unassigned-hours"
+      aria-expanded="false"
+      aria-controls="workload-unassigned-hours"
+    >
+      <i class="bi bi-list-check" aria-hidden="true"></i>
+      Какие часы не назначены
+    </button>
+    {% endif %}
   </div>
   <span class="workload-matrix-toolbar__hint">Все значения — часов в неделю</span>
 </div>
+
+{% if matrix.unassigned_items %}
+<div class="collapse workload-unassigned-panel" id="workload-unassigned-hours">
+  <div class="workload-unassigned-panel__head">
+    <div>
+      <strong>Неназначенные часы</strong>
+      <small>Список учитывает выбранные выше фильтры</small>
+    </div>
+    <span>{{ matrix.unassigned_items|length }} поз.</span>
+  </div>
+  <div class="workload-unassigned-panel__table">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Класс</th>
+          <th>Предмет или курс</th>
+          <th>Вид</th>
+          <th>Группа</th>
+          <th class="text-end">План</th>
+          <th class="text-end">Назначено</th>
+          <th class="text-end">Осталось</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in matrix.unassigned_items %}
+        <tr>
+          <td>
+            <strong>{{ item.class_label }}</strong>
+            {% if item.plan_name %}<small>{{ item.plan_name }}</small>{% endif %}
+          </td>
+          <td>{{ item.activity.name }}</td>
+          <td>{{ item.plan_kind_label }}</td>
+          <td>{{ item.group_label }}</td>
+          <td class="text-end">{{ item.planned|compact_decimal }}</td>
+          <td class="text-end">{{ item.allocated|compact_decimal }}</td>
+          <td class="text-end"><strong class="has-remaining">{{ item.remaining|compact_decimal }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="workload-matrix-legend" aria-label="Обозначения матрицы">
   <span><i class="is-available"></i>Можно назначить</span>
@@ -188,34 +277,46 @@
 
 {% if matrix.columns %}
 <div class="workload-assignment-matrix-wrap" data-workload-matrix>
-  <table class="workload-assignment-matrix" style="--matrix-column-count: {{ matrix.columns|length }}">
+  {% set has_secondary_headers = matrix.columns|selectattr('subheader_label')|list|length > 0 %}
+  <table
+    class="workload-assignment-matrix"
+    style="--matrix-column-count: {{ matrix.columns|length }}"
+    data-workload-secondary-headers="{{ 1 if has_secondary_headers else 0 }}"
+  >
     <thead>
       <tr>
-        <th class="workload-assignment-matrix__teacher" rowspan="2">
+        <th class="workload-assignment-matrix__teacher" rowspan="{{ 2 if has_secondary_headers else 1 }}">
           <span>ФИО преподавателя</span>
         </th>
-        <th class="workload-assignment-matrix__subject" rowspan="2" data-matrix-subject-column>Предмет</th>
-        <th class="workload-assignment-matrix__teacher-total" rowspan="2" data-matrix-total-column>Всего</th>
-        <th class="workload-assignment-matrix__subject-total" rowspan="2">По предмету</th>
+        <th class="workload-assignment-matrix__subject" rowspan="{{ 2 if has_secondary_headers else 1 }}" data-matrix-subject-column>Предмет</th>
+        <th class="workload-assignment-matrix__teacher-total" rowspan="{{ 2 if has_secondary_headers else 1 }}" data-matrix-total-column>Всего</th>
+        <th class="workload-assignment-matrix__subject-total" rowspan="{{ 2 if has_secondary_headers else 1 }}">По предмету</th>
         {% for class_group in matrix.class_groups %}
+        {% set group_has_secondary_headers = class_group.columns|selectattr('subheader_label')|list|length > 0 %}
         <th
           class="workload-assignment-matrix__class-group {% if class_group.is_alt %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ class_group.building_tone }}{% endif %}"
           colspan="{{ class_group.columns|length }}"
+          {% if has_secondary_headers and not group_has_secondary_headers %}rowspan="2"{% endif %}
           data-matrix-class-column
         >
           {{ class_group.label }}
         </th>
         {% endfor %}
       </tr>
+      {% if has_secondary_headers %}
       <tr>
         {% for class_group in matrix.class_groups %}
-          {% for column in class_group.columns %}
-          <th class="workload-assignment-matrix__class-plan {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
-            <span title="{{ column.subheader_label }}">{{ column.subheader_label }}</span>
+          {% set group_has_secondary_headers = class_group.columns|selectattr('subheader_label')|list|length > 0 %}
+          {% if group_has_secondary_headers %}
+            {% for column in class_group.columns %}
+          <th class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
+            <span title="{{ column.plan_name }}">{{ column.subheader_label }}</span>
           </th>
-          {% endfor %}
+            {% endfor %}
+          {% endif %}
         {% endfor %}
       </tr>
+      {% endif %}
     </thead>
     <tbody>
       {% for block in matrix.blocks %}
@@ -499,15 +600,13 @@
 <script>
 (() => {
   const pendingCellSaves = new Set();
-  const view = document.querySelector("[data-workload-view]");
-  const department = document.querySelector("[data-workload-department]");
-  const syncView = () => {
-    if (!view || !department) return;
-    department.disabled = view.value !== "department";
-    department.required = view.value === "department";
-  };
-  view?.addEventListener("change", syncView);
-  syncView();
+
+  const filterbar = document.querySelector("[data-workload-filterbar]");
+  filterbar?.querySelectorAll("[data-workload-filter-auto]").forEach((field) => {
+    field.addEventListener("change", () => {
+      filterbar.requestSubmit();
+    });
+  });
 
   document.querySelectorAll("[data-activity-plan-kind]").forEach((select) => {
     const form = select.closest("form");

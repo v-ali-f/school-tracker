@@ -86,6 +86,7 @@ from app.services.workload_assignment_matrix_service import (
     build_workload_assignment_matrix,
 )
 from app.modules.workload.assignment_routes import (
+    _filter_workspace_needs,
     _workspace_matrix_levels,
 )
 
@@ -217,6 +218,33 @@ def test_workspace_grade_filter_infers_education_level():
         "OOO",
         "SOO",
     ]
+
+
+def test_workspace_uses_only_needs_from_current_population_snapshot():
+    def need(need_id, snapshot_id):
+        snapshot_class = SimpleNamespace(
+            population_snapshot_id=snapshot_id,
+        )
+        source_link = SimpleNamespace(
+            population_snapshot_class=snapshot_class,
+        )
+        group = SimpleNamespace(
+            group_type="CLASS",
+            source_classes=[source_link],
+        )
+        return SimpleNamespace(
+            id=need_id,
+            teaching_group=group,
+            building_id=None,
+        )
+
+    current_need = need(1, 20)
+    stale_need = need(2, 19)
+
+    assert _filter_workspace_needs(
+        [stale_need, current_need],
+        population_snapshot_id=20,
+    ) == [current_need]
 
 
 def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
@@ -355,6 +383,8 @@ def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
     assert len(matrix["columns"]) == 1
     assert len(matrix["class_groups"]) == 1
     assert len(matrix["class_groups"][0]["columns"]) == 1
+    assert matrix["total_allocated"] == Decimal("1")
+    assert matrix["total_remaining"] == Decimal("0")
     assert matrix["blocks"][0]["total"] == Decimal("3")
     assert matrix["blocks"][0]["rows"][0]["total"] == Decimal("3")
 
@@ -780,7 +810,7 @@ def test_admin_creates_assignment_through_route(
     assert "data-matrix-class-column" in workspace_html
     assert "ФИО преподавателя" in workspace_html
     assert "По предмету" in workspace_html
-    assert "workload-assignment-matrix__class-plan" in workspace_html
+    assert "data-workload-secondary-headers=" in workspace_html
     assert "building-tone-1" in workspace_html
     assert workspace_html.index(
         "data-matrix-subject-column"
@@ -792,6 +822,13 @@ def test_admin_creates_assignment_through_route(
     assert "data-need-context" not in workspace_html
     assert "Назначено" in workspace_html
     assert 'name="version_id"' in workspace_html
+    assert "data-workload-filter-auto" in workspace_html
+    assert "workload-filterbar__primary" in workspace_html
+    assert 'aria-label="Вид нагрузки"' in workspace_html
+    assert "class-plan-levels" in workspace_html
+    assert "class-plan-grades" in workspace_html
+    assert 'id="workspace-view"' not in workspace_html
+    assert ">Показать<" not in workspace_html
     assert "2026/2027" in workspace_html
     assert "версия 1" not in workspace_html.lower()
     assert 'data-active-mode="workload"' in workspace_html
@@ -830,6 +867,10 @@ def test_assignment_workspace_hides_unassigned_pseudo_teacher(
     assert "workload-add-teacher-row" in html
     assert "Добавить преподавателя" in html
     assert "workload-matrix-head-add" not in html
+    assert "Какие часы не назначены" in html
+    assert "Неназначенные часы" in html
+    assert "Математика" in html
+    assert "Учебный план" in html
 
 
 def test_generate_from_workspace_returns_to_matrix(

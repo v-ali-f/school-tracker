@@ -791,6 +791,17 @@ def _active_expel_exists(child_id):
         .exists()
     )
 
+
+def _active_class_enrollment_filters(academic_year_id):
+    """Canonical filters for pupils who belong to the live contingent."""
+    return (
+        ChildEnrollment.academic_year_id == academic_year_id,
+        ChildEnrollment.status == "ACTIVE",
+        ChildEnrollment.ended_at.is_(None),
+        Child.status == "ACTIVE",
+        ~_active_expel_exists(Child.id),
+    )
+
 def parse_aoop_variant(raw_value: str):
     text = (raw_value or "").strip().upper()
     if not text:
@@ -1093,7 +1104,61 @@ def child_card(child_id: int):
     if not can_view_child_basic(child):
         abort(403)
 
-    subjects = list_subject_activities()
+    requested_return_class_id = request.args.get("return_class_id", type=int)
+    return_class = None
+    if requested_return_class_id:
+        return_enrollment = (
+            ChildEnrollment.query
+            .filter(
+                ChildEnrollment.child_id == child.id,
+                ChildEnrollment.school_class_id == requested_return_class_id,
+                ChildEnrollment.status == "ACTIVE",
+                ChildEnrollment.ended_at.is_(None),
+            )
+            .first()
+        )
+        if return_enrollment is not None:
+            return_class = return_enrollment.school_class
+    if return_class is None:
+        return_class = child.current_class
+
+    can_return_to_class = (
+        return_class is not None
+        and has_permission("children_registry_view")
+        and (
+            not should_limit_children_to_own_class()
+            or return_class.teacher_user_id == current_user.id
+        )
+    )
+    return_class_url = None
+    return_contingent_url = None
+    if can_return_to_class:
+        contingent_year_id = (
+            request.args.get("contingent_year_id", type=int)
+            or return_class.academic_year_id
+        )
+        contingent_building_id = request.args.get(
+            "contingent_building_id",
+            type=int,
+        )
+        return_class_args = {
+            "class_id": return_class.id,
+            "contingent_year_id": contingent_year_id,
+        }
+        contingent_args = {"year_id": contingent_year_id}
+        if contingent_building_id is not None:
+            return_class_args["contingent_building_id"] = (
+                contingent_building_id
+            )
+            contingent_args["building_id"] = contingent_building_id
+        return_class_url = url_for(
+            "children.class_detail",
+            **return_class_args,
+        )
+        return_contingent_url = url_for(
+            "children.contingent",
+            **contingent_args,
+        )
 
     social = child.social or _get_or_create_social(child)
     db.session.flush()
@@ -1259,6 +1324,9 @@ def child_card(child_id: int):
     return render_template(
         "child_card.html",
         child=child,
+        return_class=return_class if can_return_to_class else None,
+        return_class_url=return_class_url,
+        return_contingent_url=return_contingent_url,
         social=social,
         mother=mother,
         father=father,
@@ -1274,7 +1342,6 @@ def child_card(child_id: int):
         documents_ipra=documents_ipra,
         documents_general=documents_general,
         documents_disabled=documents_disabled,
-        subjects=subjects,
         ovz_levels=OVZ_LEVELS,
         ovz_nozologies=OVZ_NOZOLOGIES,
         ovz_allowed=ovz_allowed,
@@ -2336,9 +2403,9 @@ def contingent():
             ChildEnrollment.school_class_id,
             db.func.count(ChildEnrollment.id)
         )
+        .join(Child, Child.id == ChildEnrollment.child_id)
         .filter(
-            ChildEnrollment.academic_year_id == year_id,
-            ChildEnrollment.ended_at.is_(None)
+            *_active_class_enrollment_filters(year_id),
         )
         .group_by(ChildEnrollment.school_class_id)
         .all()
@@ -2484,8 +2551,7 @@ def contingent():
             )
             .join(Child, Child.id == ChildEnrollment.child_id)
             .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.ended_at.is_(None),
+                *_active_class_enrollment_filters(year_id),
                 ChildEnrollment.school_class_id.in_(class_ids),
             )
             .group_by(ChildEnrollment.school_class_id)
@@ -2509,8 +2575,7 @@ def contingent():
             .join(Child, Child.id == ChildEnrollment.child_id)
             .outerjoin(ChildSocial, ChildSocial.child_id == Child.id)
             .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.ended_at.is_(None),
+                *_active_class_enrollment_filters(year_id),
                 ChildEnrollment.school_class_id.in_(class_ids),
                 db.or_(
                     Child.is_vshu.is_(True),
@@ -2532,8 +2597,7 @@ def contingent():
             .join(Child, Child.id == ChildEnrollment.child_id)
             .join(ChildSocial, ChildSocial.child_id == Child.id)
             .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.ended_at.is_(None),
+                *_active_class_enrollment_filters(year_id),
                 ChildEnrollment.school_class_id.in_(class_ids),
                 ChildSocial.kdn_since.isnot(None),
             )
@@ -2546,8 +2610,7 @@ def contingent():
             db.session.query(Child.education_form, db.func.count(ChildEnrollment.id))
             .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
             .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.ended_at.is_(None),
+                *_active_class_enrollment_filters(year_id),
                 ChildEnrollment.school_class_id.in_(class_ids),
             )
             .group_by(Child.education_form)
@@ -2564,9 +2627,9 @@ def contingent():
                 db.func.count(ChildTransferHistory.id),
             )
             .join(ChildTransferHistory, ChildTransferHistory.child_id == ChildEnrollment.child_id)
+            .join(Child, Child.id == ChildEnrollment.child_id)
             .filter(
-                ChildEnrollment.academic_year_id == year_id,
-                ChildEnrollment.ended_at.is_(None),
+                *_active_class_enrollment_filters(year_id),
                 ChildEnrollment.school_class_id.in_(class_ids),
                 ChildTransferHistory.from_academic_year_id == year_id,
                 ChildTransferHistory.reversed_at.is_(None),
@@ -3319,11 +3382,35 @@ def class_detail(class_id):
 
     teacher = User.query.get(sc.teacher_user_id) if sc.teacher_user_id else None
 
+    contingent_year_id = (
+        request.args.get("contingent_year_id", type=int)
+        or sc.academic_year_id
+    )
+    contingent_building_id = request.args.get(
+        "contingent_building_id",
+        type=int,
+    )
+    contingent_args = {"year_id": contingent_year_id}
+    student_return_args = {
+        "return_class_id": sc.id,
+        "contingent_year_id": contingent_year_id,
+    }
+    if contingent_building_id is not None:
+        contingent_args["building_id"] = contingent_building_id
+        student_return_args["contingent_building_id"] = (
+            contingent_building_id
+        )
+
     return render_template(
         "class_detail.html",
         school_class=sc,
         students=students,
         teacher=teacher,
+        contingent_url=url_for(
+            "children.contingent",
+            **contingent_args,
+        ),
+        student_return_args=student_return_args,
     )
 
 

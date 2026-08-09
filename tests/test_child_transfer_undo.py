@@ -8,6 +8,7 @@ from app.models import (
     ChildEvent,
     ChildMovement,
     ChildTransferHistory,
+    Document,
     SchoolClass,
 )
 
@@ -426,12 +427,16 @@ def test_legacy_expel_event_hides_active_enrollment_until_undo(
         child_id = child.id
         class_id = school_class.id
         enrollment_id = enrollment.id
+        year_id = year.id
     login(admin_id)
 
     hidden_page = client.get(f"/classes/{class_id}")
     assert "Старая Запись".encode() not in hidden_page.data
     registry = client.get("/registry/expelled")
     assert "Старая Запись".encode() in registry.data
+    contingent = client.get(f"/contingent?year_id={year_id}")
+    assert contingent.status_code == 200
+    assert b'<div class="kpi-value">0</div>' in contingent.data
 
     response = client.post(f"/children/{child_id}/expel/undo")
     assert response.status_code == 302
@@ -446,6 +451,8 @@ def test_legacy_expel_event_hides_active_enrollment_until_undo(
 
     visible_page = client.get(f"/classes/{class_id}")
     assert "Старая Запись".encode() in visible_page.data
+    contingent = client.get(f"/contingent?year_id={year_id}")
+    assert b'<div class="kpi-value">1</div>' in contingent.data
 
 
 def test_children_registry_shows_current_academic_year(
@@ -466,3 +473,114 @@ def test_children_registry_shows_current_academic_year(
     page = response.get_data(as_text=True)
     assert "Учебный год:" in page
     assert "2025/2026" in page
+
+
+def test_contingent_class_child_navigation_preserves_return_path(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        year = AcademicYear(
+            name="2026/2027",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 8, 31),
+            is_current=True,
+        )
+        school_class = SchoolClass(
+            academic_year=year,
+            name="4А",
+            grade=4,
+            letter="А",
+        )
+        child = Child(last_name="Навигация", first_name="Проверка")
+        db.session.add_all([year, school_class, child])
+        db.session.flush()
+        db.session.add(ChildEnrollment(
+            child_id=child.id,
+            academic_year_id=year.id,
+            school_class_id=school_class.id,
+            status="ACTIVE",
+        ))
+        db.session.commit()
+        year_id = year.id
+        class_id = school_class.id
+        child_id = child.id
+    login(admin_id)
+
+    contingent = client.get(f"/contingent?year_id={year_id}")
+    assert contingent.status_code == 200
+    assert (
+        f"/classes/{class_id}?contingent_year_id={year_id}" in
+        contingent.get_data(as_text=True)
+    )
+
+    class_page = client.get(
+        f"/classes/{class_id}?contingent_year_id={year_id}"
+    )
+    class_html = class_page.get_data(as_text=True)
+    assert class_page.status_code == 200
+    assert "К сводному контингенту" in class_html
+    assert f"/contingent?year_id={year_id}" in class_html
+    assert (
+        f"/children/{child_id}?return_class_id={class_id}"
+        f"&amp;contingent_year_id={year_id}" in class_html
+    )
+
+    child_page = client.get(
+        f"/children/{child_id}?return_class_id={class_id}"
+        f"&contingent_year_id={year_id}"
+    )
+    child_html = child_page.get_data(as_text=True)
+    assert child_page.status_code == 200
+    assert "Назад в класс 4А" in child_html
+    assert (
+        f"/classes/{class_id}?contingent_year_id={year_id}" in child_html
+    )
+    assert f"/contingent?year_id={year_id}" in child_html
+    assert "Основная информация" in child_html
+    assert "Комментарии" in child_html
+    assert "Обучение по учебным годам" in child_html
+    assert "Специалисты сопровождения" not in child_html
+    assert "Сопровождение и документы" not in child_html
+    assert "Академическая задолженность" not in child_html
+    assert "История (переводы)" not in child_html
+    assert '<div class="fw-bold">Инциденты</div>' not in child_html
+    assert "Олимпиады / ВСОШ" not in child_html
+    assert "Контрольные результаты (последние)" not in child_html
+    assert "Загрузить документ" not in child_html
+    assert "Добавить задолженность" not in child_html
+
+    with app.app_context():
+        db.session.add_all([
+            Document(
+                child_id=child_id,
+                doc_type="GENERAL",
+                original_name="Характеристика.pdf",
+                stored_path="tests/characteristic.pdf",
+            ),
+            Document(
+                child_id=child_id,
+                doc_type="AZ",
+                original_name="Справка АЗ.pdf",
+                stored_path="tests/academic-debt.pdf",
+            ),
+        ])
+        db.session.commit()
+
+    filled_page = client.get(
+        f"/children/{child_id}?return_class_id={class_id}"
+        f"&contingent_year_id={year_id}"
+    )
+    filled_html = filled_page.get_data(as_text=True)
+    assert filled_page.status_code == 200
+    assert "Прочие документы" in filled_html
+    assert "Характеристика.pdf" in filled_html
+    assert "Академическая задолженность" in filled_html
+    assert "Документы АЗ" in filled_html
+    assert "Справка АЗ.pdf" in filled_html
+    assert "Загрузить документ" not in filled_html
+    assert "/documents/" in filled_html
+    assert "/delete" not in filled_html

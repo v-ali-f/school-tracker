@@ -67,6 +67,23 @@ def need_grades(need):
     }
 
 
+def need_population_snapshot_ids(need):
+    group = need.teaching_group
+    if group is None:
+        return set()
+    source_groups = (
+        [link.source_group for link in group.metagroup_sources]
+        if group.group_type == "METAGROUP"
+        else [group]
+    )
+    return {
+        link.population_snapshot_class.population_snapshot_id
+        for source_group in source_groups
+        for link in source_group.source_classes
+        if link.population_snapshot_class is not None
+    }
+
+
 def need_matches_department(need, department_id):
     if not department_id:
         return True
@@ -154,15 +171,25 @@ def _column_for_need(need, plan_context):
         root_plan = plan_context["root_plan"]
         plan_id = root_plan.id if root_plan is not None else 0
         split_profile_column = snapshot_class.grade_snapshot in {10, 11}
+        source_school_class_id = (
+            getattr(snapshot_class, "source_school_class_id", None)
+            or snapshot_class.id
+        )
         return {
             "key": (
-                f"class-{snapshot_class.id}-plan-{plan_id}"
+                f"school-class-{source_school_class_id}-plan-{plan_id}"
                 if split_profile_column
-                else f"class-{snapshot_class.id}"
+                else f"school-class-{source_school_class_id}"
             ),
             "label": snapshot_class.name_snapshot,
             "detail": "",
             "plan_name": root_plan.name if root_plan is not None else "",
+            "profile_label": (
+                (root_plan.profile_name or root_plan.name)
+                if root_plan is not None and split_profile_column
+                else ""
+            ),
+            "is_profile_column": split_profile_column,
             "is_metagroup": False,
             "is_orphan": False,
             "grade": snapshot_class.grade_snapshot or 99,
@@ -174,6 +201,9 @@ def _column_for_need(need, plan_context):
             "building_tone": building_matrix_tone(
                 snapshot_class.building
             ),
+            "snapshot_class_id": snapshot_class.id,
+            "source_school_class_id": source_school_class_id,
+            "plan_id": plan_id,
             "sort_key": (
                 snapshot_class.grade_snapshot or 99,
                 _class_sort_key(snapshot_class.name_snapshot)[1],
@@ -271,19 +301,20 @@ def _row_for(block, need, plan_context):
     return row
 
 
-def _segment(need, hours, *, unassigned):
+def _segment(need, hours, *, unassigned, allocated=ZERO):
     group = need.teaching_group
+    remaining = Decimal(need.weekly_hours or ZERO) - Decimal(allocated)
     return {
         "need": need,
         "hours": Decimal(hours or ZERO),
         "planned": Decimal(need.weekly_hours or ZERO),
-        "remaining": Decimal(need.remaining_weekly_hours or ZERO),
+        "remaining": remaining,
         "label": _group_label(group),
         "group_type": group.group_type if group else None,
         "unassigned": unassigned,
         "partial": (
             not unassigned
-            and Decimal(need.remaining_weekly_hours or ZERO) > ZERO
+            and remaining > ZERO
         ),
     }
 
@@ -374,10 +405,21 @@ def build_workload_assignment_matrix(
                 if source_column["is_unassigned"] or source_column["plan"] is None:
                     continue
                 root_plan = source_column["plan"]
+                source_school_class_id = (
+                    getattr(
+                        snapshot_class,
+                        "source_school_class_id",
+                        None,
+                    )
+                    or snapshot_class.id
+                )
                 display_key = (
-                    source_column["key"]
+                    (
+                        f"school-class-{source_school_class_id}-"
+                        f"plan-{root_plan.id}"
+                    )
                     if source_column.get("is_profile_column")
-                    else f"class-{snapshot_class.id}"
+                    else f"school-class-{source_school_class_id}"
                 )
                 display_key_by_source_key[source_column["key"]] = display_key
                 column = columns_by_key.setdefault(display_key, {
@@ -385,10 +427,16 @@ def build_workload_assignment_matrix(
                     "label": source_column["class_display_name"],
                     "detail": "",
                     "plan_name": root_plan.name,
+                    "profile_label": (
+                        source_column.get("profile_label") or ""
+                    ),
+                    "is_profile_column": bool(
+                        source_column.get("is_profile_column")
+                    ),
                     "is_metagroup": False,
                     "is_orphan": False,
                     "grade": snapshot_class.grade_snapshot or 99,
-                    "class_name": source_column["class_display_name"],
+                    "class_name": snapshot_class.name_snapshot,
                     "building_id": snapshot_class.building_id,
                     "building_name": (
                         snapshot_class.building_name_snapshot or ""
@@ -397,6 +445,7 @@ def build_workload_assignment_matrix(
                         snapshot_class.building
                     ),
                     "snapshot_class_id": snapshot_class.id,
+                    "source_school_class_id": source_school_class_id,
                     "plan_id": root_plan.id,
                     "plan_names": [],
                     "sort_key": (
@@ -479,10 +528,15 @@ def build_workload_assignment_matrix(
         column["remaining"] = ZERO
 
     assignments_by_need = defaultdict(list)
+    allocated_by_need = defaultdict(Decimal)
     for assignment in assignments:
         if assignment.status == "CANCELLED":
             continue
         assignments_by_need[assignment.workload_need_id].append(assignment)
+        if assignment.assignment_kind != "VACANCY":
+            allocated_by_need[assignment.workload_need_id] += Decimal(
+                assignment.weekly_hours or ZERO
+            )
 
     total_assignments = (
         assignments if total_assignments is None else list(total_assignments)
@@ -515,8 +569,11 @@ def build_workload_assignment_matrix(
         for column_key in column_keys:
             column = columns_by_key[column_key]
             column["planned"] += Decimal(need.weekly_hours or ZERO)
-            column["allocated"] += Decimal(need.allocated_weekly_hours or ZERO)
-            column["remaining"] += Decimal(need.remaining_weekly_hours or ZERO)
+            allocated = allocated_by_need[need.id]
+            column["allocated"] += allocated
+            column["remaining"] += (
+                Decimal(need.weekly_hours or ZERO) - allocated
+            )
 
         for assignment in assignments_by_need.get(need.id, []):
             if assignment.assignment_kind == "VACANCY":
@@ -540,7 +597,12 @@ def build_workload_assignment_matrix(
             hours = Decimal(assignment.weekly_hours or ZERO)
             for column_key in column_keys:
                 row["cells"][column_key].append(
-                    _segment(need, hours, unassigned=False)
+                    _segment(
+                        need,
+                        hours,
+                        unassigned=False,
+                        allocated=allocated_by_need[need.id],
+                    )
                 )
 
     for teacher in extra_teachers:
@@ -615,7 +677,11 @@ def build_workload_assignment_matrix(
         if column["is_metagroup"] or column["is_orphan"]:
             group_key = column["key"]
         else:
-            group_key = f"class-{column['class_name']}"
+            group_key = (
+                f"school-class-{column['source_school_class_id']}"
+                if column.get("source_school_class_id") is not None
+                else f"class-{column['class_name']}"
+            )
         class_group = class_groups_by_key.get(group_key)
         if class_group is None:
             class_group = {
@@ -641,7 +707,9 @@ def build_workload_assignment_matrix(
                 column["subheader_label"] = column["detail"]
             else:
                 column["subheader_label"] = (
-                    column["plan_name"] or "Учебный план"
+                    column.get("profile_label") or ""
+                    if column.get("is_profile_column")
+                    else ""
                 )
     blocks = list(blocks_by_teacher.values())
     blocks.sort(key=lambda item: item["label"].casefold())
@@ -748,9 +816,54 @@ def build_workload_assignment_matrix(
         ZERO,
     )
     total_allocated = sum(
-        (Decimal(need.allocated_weekly_hours or ZERO) for need in needs),
+        (allocated_by_need[need.id] for need in needs),
         ZERO,
     )
+    unassigned_items = []
+    for need in needs:
+        planned = Decimal(need.weekly_hours or ZERO)
+        allocated = allocated_by_need[need.id]
+        remaining = planned - allocated
+        if remaining <= ZERO:
+            continue
+        context = contexts[need.id]
+        column_keys = need_column_keys[need.id]
+        class_names = list(dict.fromkeys(
+            columns_by_key[key]["class_name"]
+            for key in column_keys
+            if key in columns_by_key
+        ))
+        sort_column = next(
+            (
+                columns_by_key[key]
+                for key in column_keys
+                if key in columns_by_key
+            ),
+            None,
+        )
+        root_plan = context["root_plan"]
+        unassigned_items.append({
+            "need": need,
+            "class_label": " + ".join(class_names) or "Без класса",
+            "activity": need.education_activity,
+            "plan_kind": context["plan_kind"],
+            "plan_kind_label": PLAN_KIND_LABELS.get(
+                context["plan_kind"],
+                context["plan_kind"],
+            ),
+            "plan_name": root_plan.name if root_plan is not None else "",
+            "group_label": _group_label(need.teaching_group),
+            "planned": planned,
+            "allocated": allocated,
+            "remaining": remaining,
+            "sort_key": (
+                sort_column["sort_key"] if sort_column else (99, "яя"),
+                PLAN_KIND_ORDER.get(context["plan_kind"], 99),
+                need.education_activity.name.casefold(),
+                need.id,
+            ),
+        })
+    unassigned_items.sort(key=lambda item: item["sort_key"])
     return {
         "columns": columns,
         "class_groups": class_groups,
@@ -760,6 +873,7 @@ def build_workload_assignment_matrix(
         "total_weekly": total_weekly,
         "total_allocated": total_allocated,
         "total_remaining": total_weekly - total_allocated,
+        "unassigned_items": unassigned_items,
     }
 
 
@@ -768,5 +882,6 @@ __all__ = [
     "need_education_level",
     "need_grades",
     "need_matches_department",
+    "need_population_snapshot_ids",
     "need_plan_kind",
 ]

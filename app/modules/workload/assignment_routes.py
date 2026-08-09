@@ -19,6 +19,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.cache import cache, make_key
 from app.core.extensions import db
@@ -37,6 +38,7 @@ from app.models import (
     TariffVersion,
     TeacherLoad,
     TeachingGroup,
+    TeachingGroupClass,
     TeachingMetagroupSource,
     User,
     WORKLOAD_ASSIGNMENT_KINDS,
@@ -61,6 +63,10 @@ from app.services.workload_distribution_service import (
     teacher_totals,
     validate_assignment,
 )
+from app.services.class_plan_matrix_service import (
+    EDUCATION_LEVEL_GRADES,
+    EDUCATION_LEVEL_LABELS,
+)
 from app.services.workload_assignment_matrix_service import (
     PLAN_KIND_LABELS,
     PLAN_KIND_ORDER,
@@ -68,13 +74,17 @@ from app.services.workload_assignment_matrix_service import (
     need_education_level,
     need_grades,
     need_matches_department,
+    need_population_snapshot_ids,
     need_plan_kind,
 )
 from app.services.teaching_group_matrix_service import (
     build_teaching_group_matrix,
     materialize_default_teaching_groups,
 )
-from app.services.teaching_group_service import ensure_population_snapshot
+from app.services.teaching_group_service import (
+    current_population_snapshot,
+    ensure_population_snapshot,
+)
 from app.services.teacher_mcko_service import current_mcko_by_teacher
 from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
@@ -164,7 +174,29 @@ def _draft_versions_query():
 
 
 def _scoped_need_query():
-    query = WorkloadNeed.query
+    query = WorkloadNeed.query.options(
+        joinedload(WorkloadNeed.education_activity).selectinload(
+            EducationActivity.department_links
+        ),
+        joinedload(WorkloadNeed.teaching_group)
+        .selectinload(TeachingGroup.source_classes)
+        .joinedload(TeachingGroupClass.population_snapshot_class),
+        joinedload(WorkloadNeed.teaching_group)
+        .joinedload(TeachingGroup.source_plan_line)
+        .joinedload(EducationPlanLine.education_plan)
+        .joinedload(EducationPlan.root_plan),
+        joinedload(WorkloadNeed.teaching_group)
+        .selectinload(TeachingGroup.metagroup_sources)
+        .joinedload(TeachingMetagroupSource.source_group)
+        .selectinload(TeachingGroup.source_classes)
+        .joinedload(TeachingGroupClass.population_snapshot_class),
+        joinedload(WorkloadNeed.teaching_group)
+        .selectinload(TeachingGroup.metagroup_sources)
+        .joinedload(TeachingMetagroupSource.source_group)
+        .joinedload(TeachingGroup.source_plan_line)
+        .joinedload(EducationPlanLine.education_plan)
+        .joinedload(EducationPlan.root_plan),
+    )
     organization_id = _current_organization_id()
     if organization_id is None:
         query = query.filter(WorkloadNeed.organization_id.is_(None))
@@ -298,9 +330,17 @@ def _filter_workspace_needs(
     building_id=None,
     education_level=None,
     grade=None,
+    population_snapshot_id=None,
 ):
     result = []
     for need in needs:
+        snapshot_ids = need_population_snapshot_ids(need)
+        if (
+            population_snapshot_id is not None
+            and snapshot_ids
+            and snapshot_ids != {population_snapshot_id}
+        ):
+            continue
         if building_id and need.building_id != building_id:
             continue
         if education_level and need_education_level(need) != education_level:
@@ -335,12 +375,14 @@ def _workspace_form_needs(version):
         )
         .all()
     )
+    snapshot = current_population_snapshot(version.id)
     return _filter_workspace_needs(
         needs,
         department_id=department_id,
         building_id=request.form.get("building_id", type=int),
         education_level=education_level,
         grade=grade,
+        population_snapshot_id=(snapshot.id if snapshot else None),
     )
 
 
@@ -1104,12 +1146,17 @@ def register_assignment_routes(workload_bp):
             WorkloadNeed.status.asc(),
             WorkloadNeed.education_activity_id.asc(),
         ).all()
+        all_needs = _filter_workspace_needs(
+            all_needs,
+            population_snapshot_id=(snapshot.id if snapshot else None),
+        )
         needs = _filter_workspace_needs(
             all_needs,
             department_id=department_id,
             building_id=building_id,
             education_level=education_level or None,
             grade=grade,
+            population_snapshot_id=(snapshot.id if snapshot else None),
         )
         all_need_ids = [item.id for item in all_needs]
         all_assignments = (
@@ -1228,15 +1275,36 @@ def register_assignment_routes(workload_bp):
                 if block["is_vacancy"]
             ]
         departments, buildings = _scope_options()
+        filter_classes = list(snapshot.classes) if snapshot else []
+        workspace_scope = resolve_workload_scope(current_user)
+        if not workspace_scope.unrestricted:
+            allowed_building_ids = set(workspace_scope.building_ids)
+            filter_classes = [
+                item for item in filter_classes
+                if item.building_id in allowed_building_ids
+            ]
+        if building_id is not None:
+            filter_classes = [
+                item for item in filter_classes
+                if item.building_id == building_id
+            ]
+        level_counts = {
+            level: sum(
+                1
+                for item in filter_classes
+                if item.grade_snapshot in grades
+            )
+            for level, grades in EDUCATION_LEVEL_GRADES.items()
+        }
+        level_grades = sorted(
+            EDUCATION_LEVEL_GRADES.get(
+                education_level,
+                set(range(1, 12)),
+            )
+        )
         totals = {
-            "weekly": sum(
-                (Decimal(item.weekly_hours or ZERO) for item in needs),
-                ZERO,
-            ),
-            "allocated": sum(
-                (item.allocated_weekly_hours for item in needs),
-                ZERO,
-            ),
+            "weekly": matrix["total_weekly"],
+            "allocated": matrix["total_allocated"],
         }
         totals["remaining"] = totals["weekly"] - totals["allocated"]
         return render_template(
@@ -1254,6 +1322,9 @@ def register_assignment_routes(workload_bp):
             selected_building_id=building_id,
             selected_education_level=education_level,
             selected_grade=grade,
+            level_counts=level_counts,
+            level_labels=EDUCATION_LEVEL_LABELS,
+            level_grades=level_grades,
             teacher_choices=_workspace_teacher_choices(
                 employees,
                 selected_version,
@@ -1875,6 +1946,9 @@ def register_assignment_routes(workload_bp):
             WorkloadNeed.status != "CANCELLED",
         ).all()
         view_mode = (request.form.get("view") or "all").strip().lower()
+        current_snapshot = current_population_snapshot(
+            need.tariff_version_id
+        )
         version_needs = _filter_workspace_needs(
             version_needs,
             department_id=(
@@ -1887,6 +1961,9 @@ def register_assignment_routes(workload_bp):
                 request.form.get("education_level") or ""
             ).strip().upper() or None,
             grade=request.form.get("grade", type=int),
+            population_snapshot_id=(
+                current_snapshot.id if current_snapshot else None
+            ),
         )
         allocated = sum(
             (item.allocated_weekly_hours for item in version_needs),
@@ -2166,7 +2243,7 @@ def register_assignment_routes(workload_bp):
         ).strip().upper()
         grade = request.args.get("grade", type=int)
         building_id = request.args.get("building_id", type=int)
-        _, _, plan_matrices = _workspace_plan_context(
+        snapshot, _, plan_matrices = _workspace_plan_context(
             version,
             education_level=education_level or None,
             grade=grade,
@@ -2181,6 +2258,7 @@ def register_assignment_routes(workload_bp):
             building_id=building_id,
             education_level=education_level or None,
             grade=grade,
+            population_snapshot_id=(snapshot.id if snapshot else None),
         )
         need_ids = [item.id for item in needs]
         assignments = (

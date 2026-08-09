@@ -3,7 +3,7 @@
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('children.classes_registry') }}">Классы</a></li>
+    <li class="breadcrumb-item"><a href="{{ contingent_url }}">Сводный контингент</a></li>
     <li class="breadcrumb-item active">Класс {{ school_class.name }}</li>
   </ol>
 </nav>
@@ -19,6 +19,9 @@
     </div>
   </div>
   <div class="page-actions">
+    <a href="{{ contingent_url }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>К сводному контингенту
+    </a>
     <a href="{{ url_for('children.list_children', class_id=school_class.id) }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-funnel me-1"></i>В реестре учеников
     </a>
@@ -89,11 +92,11 @@
         {% set child_fio = ((ch.last_name or '') ~ ' ' ~ (ch.first_name or '') ~ ' ' ~ (ch.middle_name or ''))|trim %}
         <tr>
           <td class="registry-cell-center text-muted">{{ loop.index }}</td>
-          <td class="registry-cell-clip"><a href="{{ url_for('children.child_card', child_id=ch.id) }}" title="{{ child_fio }}">{{ child_fio }}</a></td>
+          <td class="registry-cell-clip"><a href="{{ url_for('children.child_card', child_id=ch.id, **student_return_args) }}" title="{{ child_fio }}">{{ child_fio }}</a></td>
           <td class="registry-cell-center registry-cell-nowrap">{{ ch.birth_date.strftime('%d.%m.%Y') if ch.birth_date else '—' }}</td>
           <td>
             <div class="registry-row-actions">
-              <a class="btn btn-outline-primary registry-row-action" href="{{ url_for('children.child_card', child_id=ch.id) }}" title="Открыть карточку" aria-label="Открыть карточку {{ child_fio }}"><i class="bi bi-box-arrow-up-right"></i></a>
+              <a class="btn btn-outline-primary registry-row-action" href="{{ url_for('children.child_card', child_id=ch.id, **student_return_args) }}" title="Открыть карточку" aria-label="Открыть карточку {{ child_fio }}"><i class="bi bi-box-arrow-up-right"></i></a>
             </div>
           </td>
         </tr>

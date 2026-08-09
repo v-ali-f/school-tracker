@@ -354,7 +354,12 @@
 
           <tr class="{% if not building_id %}building-tone-{{ r.building_tone }}{% endif %}">
             <td>
-              <a href="{{ url_for('children.class_detail', class_id=r.class.id) }}" class="class-link">
+              <a href="{{ url_for(
+                'children.class_detail',
+                class_id=r.class.id,
+                contingent_year_id=year_id,
+                contingent_building_id=building_id
+              ) }}" class="class-link">
                 {{ r.class.name }}
               </a>
             </td>
