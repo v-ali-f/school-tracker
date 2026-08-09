@@ -2,6 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from math import ceil
 
+from sqlalchemy.orm import selectinload
+
 from app.core.extensions import db
 from app.models import (
     EducationPlan,
@@ -99,6 +101,11 @@ def build_teaching_group_matrix(
     if line_ids and class_ids:
         groups = (
             TeachingGroup.query
+            .options(
+                selectinload(TeachingGroup.source_classes).joinedload(
+                    TeachingGroupClass.population_snapshot_class
+                )
+            )
             .filter(
                 TeachingGroup.tariff_version_id == version_id,
                 TeachingGroup.source_plan_line_id.in_(line_ids),

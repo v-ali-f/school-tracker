@@ -1,0 +1,197 @@
+.child-profile-page {
+  --child-card-border: #dfe7f2;
+  --child-card-soft: #f6f9fd;
+  --child-card-ink: #17233b;
+  --child-card-muted: #68758c;
+}
+
+.child-profile-page .child-profile-hero {
+  align-items: center;
+  padding: 22px 24px;
+  border: 1px solid var(--child-card-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(37, 99, 235, .08), transparent 32%),
+    #fff;
+  box-shadow: 0 10px 28px rgba(35, 55, 90, .06);
+}
+
+.child-profile-page .child-profile-hero .page-title {
+  color: var(--child-card-ink);
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  letter-spacing: -.02em;
+}
+
+.child-profile-page .child-profile-hero .page-sub {
+  margin-top: 4px;
+  color: var(--child-card-muted);
+}
+
+.child-profile-page > .card {
+  overflow: hidden;
+  border: 1px solid var(--child-card-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgba(35, 55, 90, .045) !important;
+}
+
+.child-profile-page > .card > .card-header,
+.child-profile-page .child-profile-section > .card-header {
+  min-height: 50px;
+  padding: 13px 18px;
+  border-bottom: 1px solid #edf1f7;
+  background: #fff;
+  color: var(--child-card-ink);
+}
+
+.child-profile-page > .card > .card-body,
+.child-profile-page .child-profile-section > .card-body {
+  padding: 18px;
+}
+
+.child-profile-year .card-body {
+  background: var(--child-card-soft);
+}
+
+.child-profile-year form {
+  display: grid;
+  grid-template-columns: minmax(220px, 330px) 1fr;
+  gap: 18px;
+  align-items: end;
+}
+
+.child-profile-year form > [class*="col-"] {
+  width: auto;
+  padding: 0;
+}
+
+.child-profile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.child-profile-summary-item {
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid #e5ebf4;
+  border-radius: 12px;
+  background: var(--child-card-soft);
+}
+
+.child-profile-summary-item > span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--child-card-muted);
+  font-size: .76rem;
+  font-weight: 600;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.child-profile-summary-item > strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--child-card-ink);
+  font-size: .94rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.child-profile-summary-item--wide {
+  grid-column: span 2;
+}
+
+.child-profile-topic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.child-profile-topic-grid > [class*="col-"] {
+  width: auto;
+  padding: 0;
+}
+
+.child-profile-page .compact-passport-block {
+  height: 100%;
+  padding: 15px;
+  border: 1px solid #e5ebf4;
+  border-radius: 12px;
+  background: var(--child-card-soft);
+}
+
+.child-profile-page .compact-passport-block h6 {
+  margin-bottom: 10px;
+  color: #35527e;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+}
+
+.child-profile-comments textarea {
+  min-height: 84px;
+  border-color: #dfe6f1;
+  border-radius: 12px;
+  resize: vertical;
+}
+
+.child-profile-actions .card-body {
+  align-items: center;
+  min-height: 64px;
+  background: #fbfcfe;
+}
+
+.child-profile-education .row.g-3.mb-3 > [class*="col-"] {
+  padding: 12px 14px;
+  border: 1px solid #e5ebf4;
+  border-radius: 12px;
+  background: var(--child-card-soft);
+}
+
+.child-profile-page table {
+  margin-bottom: 0;
+}
+
+.child-profile-page table thead th {
+  color: var(--child-card-muted);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 991.98px) {
+  .child-profile-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .child-profile-page .child-profile-hero {
+    padding: 18px;
+  }
+
+  .child-profile-year form,
+  .child-profile-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .child-profile-summary-item--wide {
+    grid-column: auto;
+  }
+
+  .child-profile-topic-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .child-profile-actions .card-body {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .child-profile-actions .btn,
+  .child-profile-actions .ms-auto {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+}

@@ -488,7 +488,6 @@ class WorkloadEditorAccess(db.Model):
         db.Integer,
         db.ForeignKey("user.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,
         index=True,
     )
     is_active = db.Column(
@@ -517,6 +516,13 @@ class WorkloadEditorAccess(db.Model):
 
     user = db.relationship("User", foreign_keys=[user_id])
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id",
+            name="uq_workload_editor_access_user",
+        ),
+    )
 
 
 class WorkloadAssignmentChange(db.Model):
