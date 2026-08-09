@@ -101,6 +101,10 @@ def test_active_category_suppresses_employment_compliance_warning(
         assert overviews[teacher_id].category_code == "FIRST"
         assert overviews[teacher_id].basis_label == "Действующая квалификационная категория"
         assert overviews[warning_teacher_id].status == "EXPIRING_SOON"
+        assert overviews[warning_teacher_id].category_code == "MISSING"
+        assert overviews[warning_teacher_id].category_label == "—"
         assert overviews[warning_teacher_id].effective_valid_until == date(2026, 10, 1)
         assert overviews[missing_date_teacher_id].status == "INCOMPLETE"
         assert overviews[missing_date_teacher_id].status_label == "Не указана дата приёма"
+        assert overviews[missing_date_teacher_id].category_code == "MISSING"
+        assert overviews[missing_date_teacher_id].category_label == "—"

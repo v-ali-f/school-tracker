@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block title %}Результаты МЦКО педагогов{% endblock %}
 {% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_3">
 <style>
   .mcko-summary-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
   .mcko-summary-item { padding:9px 11px; border:1px solid #d6dfeb; border-radius:7px; background:#fff; }
@@ -54,7 +54,7 @@
           <td class="registry-cell-clip" title="{{ row.teacher.fio or row.teacher.username }}"><strong>{{ row.teacher.fio or row.teacher.username }}</strong></td>
           <td class="registry-cell-clip" title="{{ row.department_names }}">{{ row.department_names }}</td>
           <td class="registry-cell-clip" title="{{ row.result.activity_name if row.result else '' }}">{{ row.result.activity_name if row.result else '—' }}</td>
-          <td class="registry-cell-center">{{ row.result.level_label if row.result else '—' }}</td>
+          <td class="registry-cell-center">{% if row.result %}<span class="professional-level-badge professional-level-{{ row.result.level_code }}">{{ row.result.level_label }}</span>{% else %}—{% endif %}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ row.result.passed_at.strftime('%d.%m.%Y') if row.result and row.result.passed_at else '—' }}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ row.result.expires_at.strftime('%d.%m.%Y') if row.result and row.result.expires_at else '—' }}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ remaining_period_label(row.result) }}</td>

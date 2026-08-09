@@ -52,6 +52,7 @@ def test_admin_registry_lists_teacher_without_diagnostic_and_hub_link(
     html = registry.get_data(as_text=True)
     assert "Кафедра математики" in html
     assert "Диагностика отсутствует" in html
+    assert "professional-status-MISSING" in html
     assert "Добавить результат" in html
 
 
@@ -136,6 +137,7 @@ def test_registry_shows_self_reported_source_and_filters_status(
     assert registry.status_code == 200
     assert "Внесено педагогом" in html
     assert "Тестов Пользователь" in html
+    assert "professional-level-HIGH" in html
 
 
 def test_viewer_cannot_manage_registry(app, client, make_user, login):
