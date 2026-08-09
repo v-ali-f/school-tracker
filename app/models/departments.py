@@ -12,6 +12,7 @@ from app.models_legacy import (
     TeacherCourse,
     TeacherLoad,
     TeacherMckoResult,
+    TeacherProfessionalRecordChange,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "TeacherCourse",
     "TeacherLoad",
     "TeacherMckoResult",
+    "TeacherProfessionalRecordChange",
 ]

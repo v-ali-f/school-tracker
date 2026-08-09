@@ -83,6 +83,7 @@ class User(db.Model, UserMixin):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     employment_status = db.Column(db.String(30), nullable=False, default="ACTIVE")
+    employment_start_date = db.Column(db.Date, nullable=True)
     dismissal_date = db.Column(db.Date, nullable=True)
     archived_at = db.Column(db.DateTime, nullable=True)
     last_login_at = db.Column(db.DateTime, nullable=True)
@@ -747,12 +748,39 @@ class TeacherMckoResult(db.Model):
     passed_at = db.Column(db.Date, nullable=True)
     expires_at = db.Column(db.Date, nullable=True)
     level = db.Column(db.String(120), nullable=True)
+    certificate_number = db.Column(db.String(120), nullable=True)
     result_text = db.Column(db.String(255), nullable=True)
+    entry_source = db.Column(
+        db.String(24),
+        nullable=False,
+        default="LEGACY",
+        server_default="LEGACY",
+    )
+    created_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
+    updated_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
     retention_until = db.Column(db.Date, nullable=True)
     is_archived = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
 
     teacher = db.relationship("User", foreign_keys=[teacher_id])
+    created_by_user = db.relationship("User", foreign_keys=[created_by_user_id])
+    updated_by_user = db.relationship("User", foreign_keys=[updated_by_user_id])
     subject = db.relationship("Subject", foreign_keys=[subject_id])
     education_activity = db.relationship(
         "EducationActivity",
@@ -799,12 +827,70 @@ class TeacherAttestation(db.Model):
     position_title = db.Column(db.String(255), nullable=True)
     decision_date = db.Column(db.Date, nullable=False)
     valid_until = db.Column(db.Date, nullable=True)
+    is_indefinite = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
     order_number = db.Column(db.String(120), nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    entry_source = db.Column(
+        db.String(24),
+        nullable=False,
+        default="LEGACY",
+        server_default="LEGACY",
+    )
+    created_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
+    updated_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
     is_archived = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
 
     teacher = db.relationship("User", foreign_keys=[teacher_id])
+    created_by_user = db.relationship("User", foreign_keys=[created_by_user_id])
+    updated_by_user = db.relationship("User", foreign_keys=[updated_by_user_id])
+
+
+class TeacherProfessionalRecordChange(db.Model):
+    __tablename__ = "teacher_professional_record_change"
+
+    id = db.Column(db.Integer, primary_key=True)
+    record_type = db.Column(db.String(24), nullable=False, index=True)
+    record_id = db.Column(db.Integer, nullable=False, index=True)
+    teacher_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    change_kind = db.Column(db.String(24), nullable=False, index=True)
+    changed_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
+    snapshot = db.Column(db.JSON, nullable=True)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    teacher = db.relationship("User", foreign_keys=[teacher_id])
+    changed_by_user = db.relationship("User", foreign_keys=[changed_by_user_id])
 
 # =========================
 # DEBT

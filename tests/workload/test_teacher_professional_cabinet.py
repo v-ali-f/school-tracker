@@ -14,6 +14,7 @@ from app.models import (
     TeacherCourse,
     TeacherLoad,
     TeacherMckoResult,
+    TeacherProfessionalRecordChange,
     User,
 )
 from app.services.teacher_mcko_service import mcko_results_for_teachers
@@ -58,6 +59,84 @@ def test_mcko_requires_explicit_teacher(
     assert "Сначала выберите преподавателя." in response.get_data(as_text=True)
     with app.app_context():
         assert TeacherMckoResult.query.count() == 0
+
+
+def test_admin_authorship_and_indefinite_attestation_are_recorded(
+    app,
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        subject_id = _subject().id
+        teacher = db.session.get(User, teacher_id)
+        teacher.employment_start_date = date(2025, 8, 20)
+        db.session.commit()
+
+    login(admin_id)
+    mcko_response = client.post(
+        "/departments/teacher/mcko/add",
+        data={
+            "teacher_id": teacher_id,
+            "subject_id": subject_id,
+            "passed_at": "2026-05-26",
+            "level": "EXPERT",
+            "certificate_number": "МК-ADMIN-1",
+        },
+    )
+    attestation_response = client.post(
+        "/departments/teacher/attestation/add",
+        data={
+            "teacher_id": teacher_id,
+            "category": "HIGHEST",
+            "decision_date": "2026-04-15",
+            "is_indefinite": "1",
+        },
+    )
+
+    assert mcko_response.status_code == 302
+    assert attestation_response.status_code == 302
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        mcko_record = TeacherMckoResult.query.one()
+        attestation_record = TeacherAttestation.query.one()
+
+        assert teacher.employment_start_date == date(2025, 8, 20)
+        assert mcko_record.entry_source == "ADMINISTRATION"
+        assert mcko_record.created_by_user_id == admin_id
+        assert mcko_record.certificate_number == "МК-ADMIN-1"
+        assert attestation_record.entry_source == "ADMINISTRATION"
+        assert attestation_record.created_by_user_id == admin_id
+        assert attestation_record.is_indefinite is True
+        assert attestation_record.valid_until is None
+        changes = TeacherProfessionalRecordChange.query.order_by(
+            TeacherProfessionalRecordChange.id,
+        ).all()
+        assert [item.record_type for item in changes] == [
+            "MCKO",
+            "ATTESTATION",
+        ]
+        assert all(item.change_kind == "CREATED" for item in changes)
+        assert all(item.changed_by_user_id == admin_id for item in changes)
+        assert changes[0].snapshot["certificate_number"] == "МК-ADMIN-1"
+        mcko_id = mcko_record.id
+
+    archive_response = client.post(
+        f"/departments/teacher/mcko/{mcko_id}/archive",
+    )
+    assert archive_response.status_code == 302
+    with app.app_context():
+        changes = TeacherProfessionalRecordChange.query.order_by(
+            TeacherProfessionalRecordChange.id,
+        ).all()
+        assert [item.change_kind for item in changes] == [
+            "CREATED",
+            "CREATED",
+            "ARCHIVED",
+        ]
+        assert changes[-1].snapshot["is_archived"] is True
 
 
 def test_admin_can_delete_one_archived_department_load(
@@ -195,6 +274,7 @@ def test_teacher_manages_own_professional_records_only(
             "subject_id": subject_id,
             "passed_at": "2026-05-26",
             "level": "HIGH",
+            "certificate_number": "МК-2026-001",
         },
     )
     course = client.post(
@@ -229,11 +309,20 @@ def test_teacher_manages_own_professional_records_only(
     assert attestation.status_code == 302
     assert forbidden.status_code == 403
     with app.app_context():
-        assert TeacherMckoResult.query.filter_by(teacher_id=teacher_id).count() == 1
+        mcko_record = TeacherMckoResult.query.filter_by(
+            teacher_id=teacher_id,
+        ).one()
+        assert mcko_record.certificate_number == "МК-2026-001"
+        assert mcko_record.entry_source == "SELF_REPORTED"
+        assert mcko_record.created_by_user_id == teacher_id
+        assert mcko_record.updated_by_user_id == teacher_id
         assert TeacherCourse.query.filter_by(teacher_id=teacher_id).count() == 1
         record = TeacherAttestation.query.filter_by(teacher_id=teacher_id).one()
         assert record.category == "HIGHEST"
         assert record.valid_until == date(2031, 4, 15)
+        assert record.is_indefinite is False
+        assert record.entry_source == "SELF_REPORTED"
+        assert record.created_by_user_id == teacher_id
         assert TeacherCourse.query.filter_by(teacher_id=other_teacher_id).count() == 0
 
     profile = client.get(f"/departments/teachers/{teacher_id}")
@@ -244,6 +333,8 @@ def test_teacher_manages_own_professional_records_only(
     assert "Высшая квалификационная категория" in html
     assert "Высокий" in html
     assert "+7 (999) 123-45-67" in html
+    assert 'name="certificate_number"' in html
+    assert 'name="is_indefinite"' in html
 
 
 def test_department_hub_exposes_only_personal_teacher_profile(

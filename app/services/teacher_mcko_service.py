@@ -3,6 +3,11 @@ from datetime import date
 
 from app.core.extensions import db
 from app.models import TeacherMckoResult
+from app.services.teacher_professional_service import (
+    add_calendar_months,
+    add_calendar_years,
+    entry_source_label,
+)
 
 
 MCKO_LEVEL_LABELS = {
@@ -11,6 +16,8 @@ MCKO_LEVEL_LABELS = {
     "HIGH": "Высокий",
     "EXPERT": "Экспертный",
 }
+
+MCKO_WARNING_MONTHS = 6
 
 _MCKO_LEVEL_ALIASES = {
     "below_basic": "BELOW_BASIC",
@@ -42,12 +49,7 @@ def mcko_level_label(value):
 
 
 def mcko_expires_at(passed_at):
-    if passed_at is None:
-        return None
-    try:
-        return passed_at.replace(year=passed_at.year + 3)
-    except ValueError:
-        return passed_at.replace(year=passed_at.year + 3, day=28)
+    return add_calendar_years(passed_at, 3)
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,8 @@ class MckoResultView:
     expires_at: date | None
     status: str
     status_label: str
+    source_label: str
+    remaining_days: int | None
 
     @property
     def teacher(self):
@@ -72,6 +76,9 @@ class MckoResultView:
     def result_text(self):
         return self.record.result_text
 
+    @property
+    def certificate_number(self):
+        return self.record.certificate_number
 
 def mcko_result_view(record, *, as_of=None):
     as_of = as_of or date.today()
@@ -86,6 +93,9 @@ def mcko_result_view(record, *, as_of=None):
     elif expires_at < as_of:
         status = "EXPIRED"
         status_label = "Срок истёк"
+    elif expires_at <= add_calendar_months(as_of, MCKO_WARNING_MONTHS):
+        status = "EXPIRING_SOON"
+        status_label = "Истекает менее чем через 6 месяцев"
     else:
         status = "ACTIVE"
         status_label = "Действует"
@@ -100,6 +110,8 @@ def mcko_result_view(record, *, as_of=None):
         expires_at=expires_at,
         status=status,
         status_label=status_label,
+        source_label=entry_source_label(record.entry_source),
+        remaining_days=(expires_at - as_of).days if expires_at else None,
     )
 
 
@@ -139,7 +151,7 @@ def current_mcko_by_teacher(teacher_ids, *, as_of=None):
     result = {}
     seen_activities = set()
     for view in views:
-        if view.status != "ACTIVE":
+        if view.status not in {"ACTIVE", "EXPIRING_SOON"}:
             continue
         activity_id = view.record.education_activity_id or view.record.subject_id
         key = (view.record.teacher_id, activity_id)

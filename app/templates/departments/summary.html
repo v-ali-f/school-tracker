@@ -184,7 +184,8 @@
       <div class="col-md-3"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><select class="form-select" name="level" required><option value="">Уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><input class="form-control" type="date" name="passed_at" required></div>
-      <div class="col-md-12"><input class="form-control" name="result_text" placeholder="Примечание или номер сертификата"></div>
+      <div class="col-md-6"><input class="form-control" name="certificate_number" maxlength="120" placeholder="Номер сертификата"></div>
+      <div class="col-md-6"><input class="form-control" name="result_text" maxlength="255" placeholder="Примечание"></div>
       <div class="col-md-12 d-grid"><button class="btn btn-outline-primary">Добавить результат МЦКО</button></div>
     </form>
     {% endif %}
@@ -217,8 +218,9 @@
     <div class="col-md-2"><input class="form-control" name="position_title" placeholder="Должность"></div>
     <div class="col-md-2"><input class="form-control" type="date" name="decision_date" required title="Дата решения"></div>
     <div class="col-md-2"><input class="form-control" type="date" name="valid_until" title="Действует до"></div>
+    <div class="col-md-3 d-flex align-items-center"><label class="form-check mb-0"><input class="form-check-input" type="checkbox" name="is_indefinite" value="1"><span class="form-check-label">Бессрочная категория</span></label></div>
     <div class="col-md-4"><input class="form-control" name="order_number" placeholder="Номер приказа/документа"></div>
-    <div class="col-md-6"><input class="form-control" name="notes" placeholder="Примечание"></div>
+    <div class="col-md-3"><input class="form-control" name="notes" placeholder="Примечание"></div>
     <div class="col-md-2 d-grid"><button class="btn btn-outline-primary">Добавить аттестацию</button></div>
   </form>
   {% endif %}

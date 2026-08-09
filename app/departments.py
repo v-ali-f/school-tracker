@@ -29,6 +29,16 @@ from app.services.teacher_mcko_service import (
     mcko_results_for_teachers,
     normalize_mcko_level,
 )
+from app.services.teacher_attestation_service import (
+    ATTESTATION_CATEGORY_LABELS,
+    position_compliance_due_at,
+)
+from app.services.teacher_professional_service import professional_entry_source
+from app.services.teacher_professional_audit_service import (
+    CHANGE_ARCHIVED,
+    CHANGE_CREATED,
+    record_professional_change,
+)
 from .models import (
     ACTIVITY_KIND_LABELS,
     Building,
@@ -69,13 +79,6 @@ departments_bp = Blueprint("departments", __name__, url_prefix="/departments")
 
 
 VALID_MARK_VALUES = {"2", "3", "4", "5"}
-
-ATTESTATION_CATEGORY_LABELS = {
-    "POSITION_COMPLIANCE": "Соответствие занимаемой должности",
-    "FIRST": "Первая квалификационная категория",
-    "HIGHEST": "Высшая квалификационная категория",
-}
-
 
 def _safe_float(value):
     try:
@@ -1663,6 +1666,9 @@ def add_mcko():
     passed_at = datetime.strptime(passed_at_raw, "%Y-%m-%d").date() if passed_at_raw else None
     subject_id = request.form.get("subject_id", type=int)
     level = normalize_mcko_level(request.form.get("level"))
+    certificate_number = (
+        request.form.get("certificate_number") or ""
+    ).strip() or None
     result_text = (request.form.get("result_text") or "").strip() or None
     if not subject_id or not passed_at or not level:
         flash("Укажите предмет, дату диагностики и уровень МЦКО.", "danger")
@@ -1689,11 +1695,23 @@ def add_mcko():
         passed_at=passed_at,
         expires_at=mcko_expires_at(passed_at),
         level=level,
+        certificate_number=certificate_number,
         result_text=result_text,
+        entry_source=professional_entry_source(
+            teacher_id=teacher.id,
+            actor_id=current_user.id,
+        ),
+        created_by_user_id=current_user.id,
+        updated_by_user_id=current_user.id,
         retention_until=retention_until,
     )
     assign_subject_activity(result, activity)
     db.session.add(result)
+    record_professional_change(
+        result,
+        change_kind=CHANGE_CREATED,
+        actor_id=current_user.id,
+    )
     db.session.commit()
     flash("Результат МЦКО сохранён.", "success")
     return _professional_redirect(teacher.id)
@@ -1743,27 +1761,55 @@ def add_attestation():
     category = (request.form.get("category") or "").strip().upper()
     decision_date_raw = (request.form.get("decision_date") or "").strip()
     valid_until_raw = (request.form.get("valid_until") or "").strip()
+    is_indefinite = (
+        request.form.get("is_indefinite") or ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
     if category not in ATTESTATION_CATEGORY_LABELS or not decision_date_raw:
         flash("Укажите вид аттестации и дату решения.", "danger")
         return _professional_redirect(teacher.id)
     decision_date = datetime.strptime(decision_date_raw, "%Y-%m-%d").date()
+    if category == "POSITION_COMPLIANCE":
+        is_indefinite = False
     valid_until = (
         datetime.strptime(valid_until_raw, "%Y-%m-%d").date()
         if valid_until_raw
         else None
     )
+    if is_indefinite:
+        valid_until = None
+    elif category == "POSITION_COMPLIANCE" and valid_until is None:
+        valid_until = position_compliance_due_at(
+            None,
+            last_decision_date=decision_date,
+        )
+    elif category in {"FIRST", "HIGHEST"} and valid_until is None:
+        flash("Для срочной категории укажите срок или отметьте её бессрочной.", "danger")
+        return _professional_redirect(teacher.id)
     if valid_until and valid_until < decision_date:
         flash("Срок действия не может завершаться раньше даты решения.", "danger")
         return _professional_redirect(teacher.id)
-    db.session.add(TeacherAttestation(
+    record = TeacherAttestation(
         teacher_id=teacher.id,
         category=category,
         position_title=(request.form.get("position_title") or "").strip() or None,
         decision_date=decision_date,
         valid_until=valid_until,
+        is_indefinite=is_indefinite,
         order_number=(request.form.get("order_number") or "").strip() or None,
         notes=(request.form.get("notes") or "").strip() or None,
-    ))
+        entry_source=professional_entry_source(
+            teacher_id=teacher.id,
+            actor_id=current_user.id,
+        ),
+        created_by_user_id=current_user.id,
+        updated_by_user_id=current_user.id,
+    )
+    db.session.add(record)
+    record_professional_change(
+        record,
+        change_kind=CHANGE_CREATED,
+        actor_id=current_user.id,
+    )
     db.session.commit()
     flash("Сведения об аттестации сохранены.", "success")
     return _professional_redirect(teacher.id)
@@ -1773,6 +1819,16 @@ def _archive_professional_record(record, *, label: str):
     if not _can_manage_teacher_professional(record.teacher_id):
         abort(403)
     record.is_archived = True
+    if hasattr(record, "updated_by_user_id"):
+        record.updated_by_user_id = current_user.id
+    if hasattr(record, "updated_at"):
+        record.updated_at = datetime.utcnow()
+    if isinstance(record, (TeacherMckoResult, TeacherAttestation)):
+        record_professional_change(
+            record,
+            change_kind=CHANGE_ARCHIVED,
+            actor_id=current_user.id,
+        )
     db.session.commit()
     flash(f"{label} удалён из действующих сведений.", "success")
     return _professional_redirect(record.teacher_id)
