@@ -99,7 +99,8 @@
       <div class="col-md-4"><label class="form-label">Предмет</label><select class="form-select" name="subject_id" required><option value="">Выберите предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><label class="form-label">Уровень</label><select class="form-select" name="level" required><option value="">Выберите уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><label class="form-label">Дата диагностики</label><input class="form-control" type="date" name="passed_at" required></div>
-      <div class="col-md-8"><label class="form-label">Примечание или номер сертификата</label><input class="form-control" name="result_text"></div>
+      <div class="col-md-4"><label class="form-label">Номер сертификата</label><input class="form-control" name="certificate_number" maxlength="120"></div>
+      <div class="col-md-4"><label class="form-label">Примечание</label><input class="form-control" name="result_text" maxlength="255"></div>
       <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
     </form>
   </details>
@@ -152,8 +153,9 @@
       <div class="col-md-4"><label class="form-label">Должность</label><input class="form-control" name="position_title"></div>
       <div class="col-md-2"><label class="form-label">Дата решения</label><input class="form-control" type="date" name="decision_date" required></div>
       <div class="col-md-2"><label class="form-label">Действует до</label><input class="form-control" type="date" name="valid_until"></div>
+      <div class="col-md-3 d-flex align-items-end"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_indefinite" value="1"><span class="form-check-label">Бессрочная категория</span></label></div>
       <div class="col-md-4"><label class="form-label">Номер приказа/документа</label><input class="form-control" name="order_number"></div>
-      <div class="col-md-6"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
+      <div class="col-md-3"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
       <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
     </form>
   </details>
