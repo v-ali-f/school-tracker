@@ -32,6 +32,8 @@ from app.services.teacher_mcko_service import (
 )
 from app.services.teacher_attestation_service import (
     ATTESTATION_CATEGORY_LABELS,
+    attestation_overviews_for_teachers,
+    attestation_view,
     position_compliance_due_at,
 )
 from app.services.teacher_professional_service import professional_entry_source
@@ -294,7 +296,11 @@ def _can_manage_teacher_professional(
 ) -> bool:
     if teacher_id == current_user.id:
         return True
-    if is_admin(current_user) or has_role(METHODIST):
+    if (
+        is_admin(current_user)
+        or current_user.has_role("DEPUTY_DIRECTOR")
+        or has_role(METHODIST)
+    ):
         return True
     if not has_role(DEPARTMENT_HEAD):
         return False
@@ -306,6 +312,10 @@ def _can_manage_teacher_professional(
         teacher_id in department_teacher_ids(year_id, department_id)
         for department_id in _managed_department_ids()
     )
+
+
+def _can_manage_teacher_attestation() -> bool:
+    return is_admin(current_user) or current_user.has_role("DEPUTY_DIRECTOR")
 
 
 def _professional_target_from_form() -> User | None:
@@ -1391,6 +1401,7 @@ def summary():
     diagnostics_stats = {"total_results": 0, "avg_percent": None, "below_basic_count": 0, "below_basic_percent": 0, "levels": {}, "by_subject": [], "by_teacher": []}
     teacher_ids = []
     mcko_overviews = []
+    attestation_overviews = []
     course_rows = []
     department_load_rows = []
     teacher_load_summaries = []
@@ -1475,23 +1486,26 @@ def summary():
         if selected_teacher_id:
             course_q = course_q.filter_by(teacher_id=selected_teacher_id)
         course_rows = course_q.order_by(TeacherCourse.start_date.desc().nullslast(), TeacherCourse.created_at.desc()).all()
-        attestation_q = TeacherAttestation.query.filter(
-            TeacherAttestation.teacher_id.in_(teacher_ids),
-            TeacherAttestation.is_archived.is_(False),
-        ) if teacher_ids else TeacherAttestation.query.filter(db.text("0=1"))
-        if selected_teacher_id:
-            attestation_q = attestation_q.filter_by(
-                teacher_id=selected_teacher_id,
-            )
-        attestation_rows = attestation_q.order_by(
-            TeacherAttestation.decision_date.desc(),
-            TeacherAttestation.created_at.desc(),
-        ).all()
+        attestation_teacher_ids = (
+            [selected_teacher_id]
+            if selected_teacher_id
+            else teacher_ids
+        )
+        attestation_overview_map = attestation_overviews_for_teachers(
+            attestation_teacher_ids
+        )
+        attestation_overviews = sorted(
+            (
+                attestation_overview_map[teacher_id]
+                for teacher_id in attestation_teacher_ids
+                if teacher_id in attestation_overview_map
+            ),
+            key=lambda item: (
+                item.teacher.fio or item.teacher.username
+            ).casefold(),
+        )
         olympiad_stats = olympiad_department_stats(academic_year_id=academic_year_id, department_id=dep.id)
         diagnostics_stats = _diagnostics_department_stats(dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id, selected_teacher_id=selected_teacher_id)
-    else:
-        attestation_rows = []
-
     return render_template(
         "departments/summary.html",
         departments=deps,
@@ -1515,8 +1529,9 @@ def summary():
         legacy_load_total=legacy_load_total,
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
-        attestation_rows=attestation_rows,
+        attestation_overviews=attestation_overviews,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
+        can_manage_attestation=_can_manage_teacher_attestation(),
         can_manage_professional=bool(
             dep
             and can_manage_department
@@ -1602,6 +1617,10 @@ def teacher_profile(teacher_id):
         )
         .all()
     )
+    attestation_history = [attestation_view(row) for row in attestation_rows]
+    attestation_overview = attestation_overviews_for_teachers(
+        [teacher.id]
+    ).get(teacher.id)
     debt_rows = (
         Debt.query
         .filter_by(created_by_user_id=teacher.id)
@@ -1646,7 +1665,8 @@ def teacher_profile(teacher_id):
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
         course_rows=course_rows,
-        attestation_rows=attestation_rows,
+        attestation_rows=attestation_history,
+        attestation_overview=attestation_overview,
         debt_rows=debt_rows,
         incident_rows=incident_rows,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
@@ -1654,6 +1674,7 @@ def teacher_profile(teacher_id):
             teacher.id,
             academic_year_id=academic_year_id,
         ),
+        can_manage_attestation=_can_manage_teacher_attestation(),
         is_self_profile=teacher.id == current_user.id,
         can_add_incident=(
             teacher.id == current_user.id
@@ -1762,6 +1783,8 @@ def add_course():
 @departments_bp.post("/teacher/attestation/add")
 @login_required
 def add_attestation():
+    if not _can_manage_teacher_attestation():
+        abort(403)
     teacher = _professional_target_from_form()
     if teacher is None:
         return _professional_redirect()
@@ -1862,6 +1885,8 @@ def archive_course(record_id):
 @departments_bp.post("/teacher/attestation/<int:record_id>/archive")
 @login_required
 def archive_attestation(record_id):
+    if not _can_manage_teacher_attestation():
+        abort(403)
     return _archive_professional_record(
         TeacherAttestation.query.get_or_404(record_id),
         label="Запись об аттестации",

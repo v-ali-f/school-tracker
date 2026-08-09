@@ -27,6 +27,7 @@ from app.models import (
     TariffRateNorm,
     TeachingGroup,
     TeacherLoad,
+    TeacherAttestation,
     TeacherMckoResult,
     User,
     WorkloadAssignment,
@@ -1371,6 +1372,16 @@ def test_department_and_workspace_read_current_load_and_mcko(
             expires_at=date(2029, 5, 26),
             level="HIGH",
         ))
+        teacher = db.session.get(User, teacher_id)
+        teacher.employment_start_date = date(2020, 9, 1)
+        db.session.add(TeacherAttestation(
+            teacher_id=teacher_id,
+            category="HIGHEST",
+            decision_date=date(2026, 4, 15),
+            is_indefinite=True,
+            entry_source="ADMINISTRATION",
+            created_by_user_id=admin_id,
+        ))
         db.session.commit()
         year_id = context["year_id"]
 
@@ -1400,6 +1411,9 @@ def test_department_and_workspace_read_current_load_and_mcko(
     assert "Профиль преподавателя" in profile_html
     assert "5 ч/нед." in profile_html
     assert "Высокий" in profile_html
+    assert "Высшая квалификационная категория" in profile_html
+    assert "Бессрочно" in profile_html
+    assert "Действующая квалификационная категория" in profile_html
 
     summary = client.get(
         "/departments/summary",
@@ -1412,6 +1426,8 @@ def test_department_and_workspace_read_current_load_and_mcko(
     assert summary.status_code == 200
     assert f"/departments/teachers/{teacher_id}" in summary_html
     assert "Диагностика действует" in summary_html
+    assert "Высшая квалификационная категория" in summary_html
+    assert "Бессрочно" in summary_html
     assert "5" in summary_html
 
 
@@ -1447,6 +1463,7 @@ def test_workspace_and_department_summary_highlight_missing_mcko(
 
     assert "МЦКО: Диагностика отсутствует" in workspace
     assert "Диагностика отсутствует" in summary
+    assert "Не указана дата приёма" in summary
 
 
 def test_teacher_can_view_only_own_workload(

@@ -2,8 +2,8 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260804_2">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_profile_compact.css') }}?v=20260804_1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_profile_compact.css') }}?v=20260809_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_2">
 {% endblock %}
 {% block content %}
 <div class="teacher-profile-page">
@@ -137,30 +137,30 @@
 </div></div>
 {% endif %}
 
-{% if attestation_rows or can_edit_professional %}
+{% if attestation_overview %}
 <div class="card mb-4"><div class="card-body">
-  <h2 class="section-title">Аттестация</h2>
+  <div class="d-flex justify-content-between align-items-start gap-3">
+    <div>
+      <h2 class="section-title mb-1">Аттестация</h2>
+      <div class="small text-muted">Срок соответствия должности рассчитывается от даты приёма или последней аттестации.</div>
+    </div>
+    <span class="professional-status-badge professional-status-{{ attestation_overview.status }}">{{ attestation_overview.status_label }}</span>
+  </div>
+  <div class="teacher-load-summary teacher-attestation-summary mt-3 mb-2">
+    <div><span>Дата приёма</span><strong>{{ teacher.employment_start_date.strftime('%d.%m.%Y') if teacher.employment_start_date else 'Не указана' }}</strong></div>
+    <div><span>Текущая аттестация</span><strong>{{ attestation_overview.category_label }}</strong></div>
+    <div><span>Дата решения</span><strong>{{ attestation_overview.record.decision_date.strftime('%d.%m.%Y') if attestation_overview.record and attestation_overview.record.decision_date else '—' }}</strong></div>
+    <div><span>Действует / срок</span><strong>{% if attestation_overview.status == 'INDEFINITE' %}Бессрочно{% else %}{{ attestation_overview.effective_valid_until.strftime('%d.%m.%Y') if attestation_overview.effective_valid_until else '—' }}{% endif %}</strong></div>
+  </div>
+  <div class="small text-muted">Основание расчёта: {{ attestation_overview.basis_label }}.</div>
   {% if attestation_rows %}
   <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
-    <thead><tr><th>Результат</th><th>Должность</th><th>Дата решения</th><th>Действует до</th><th>Документ</th><th>Статус</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in attestation_rows %}<tr><td>{{ attestation_category_labels.get(row.category, row.category) }}</td><td>{{ row.position_title or '—' }}</td><td>{{ row.decision_date.strftime('%d.%m.%Y') }}</td><td>{{ row.valid_until.strftime('%d.%m.%Y') if row.valid_until else 'Без ограничения' }}</td><td>{{ row.order_number or '—' }}</td><td>{% if row.valid_until and row.valid_until < today %}<span class="badge text-bg-danger">Истёк</span>{% else %}<span class="badge text-bg-success">Действует</span>{% endif %}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_attestation', record_id=row.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
+    <thead><tr><th>Вид</th><th>Должность</th><th>Дата решения</th><th>Действует до</th><th>Документ</th><th>Статус</th><th>Источник</th><th>Комментарий</th>{% if can_manage_attestation %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for row in attestation_rows %}<tr><td>{{ row.category_label }}</td><td>{{ row.record.position_title or '—' }}</td><td>{{ row.record.decision_date.strftime('%d.%m.%Y') if row.record.decision_date else '—' }}</td><td>{% if row.status == 'INDEFINITE' %}Бессрочно{% else %}{{ row.effective_valid_until.strftime('%d.%m.%Y') if row.effective_valid_until else '—' }}{% endif %}</td><td>{{ row.record.order_number or '—' }}</td><td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span></td><td>{{ row.source_label }}{% if row.record.created_by_user %}<span class="d-block small text-muted">{{ row.record.created_by_user.fio or row.record.created_by_user.username }}</span>{% endif %}</td><td>{{ row.record.notes or '—' }}</td>{% if can_manage_attestation %}<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('professional_registry.attestation_edit', record_id=row.record.id) }}" title="Редактировать"><i class="bi bi-pencil"></i></a></td>{% endif %}</tr>{% endfor %}</tbody>
   </table></div>
   {% endif %}
-  {% if can_edit_professional %}
-  <details class="mt-3">
-    <summary class="btn btn-outline-primary btn-sm">Добавить аттестацию</summary>
-    <form method="post" action="{{ url_for('departments.add_attestation') }}" class="row g-2 mt-1">
-      <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
-      <div class="col-md-4"><label class="form-label">Результат</label><select class="form-select" name="category" required><option value="">Выберите результат</option>{% for code, label in attestation_category_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
-      <div class="col-md-4"><label class="form-label">Должность</label><input class="form-control" name="position_title"></div>
-      <div class="col-md-2"><label class="form-label">Дата решения</label><input class="form-control" type="date" name="decision_date" required></div>
-      <div class="col-md-2"><label class="form-label">Действует до</label><input class="form-control" type="date" name="valid_until"></div>
-      <div class="col-md-3 d-flex align-items-end"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_indefinite" value="1"><span class="form-check-label">Бессрочная категория</span></label></div>
-      <div class="col-md-4"><label class="form-label">Номер приказа/документа</label><input class="form-control" name="order_number"></div>
-      <div class="col-md-3"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
-      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
-    </form>
-  </details>
+  {% if can_manage_attestation %}
+  <div class="mt-3"><a class="btn btn-outline-primary btn-sm" href="{% if attestation_overview.record %}{{ url_for('professional_registry.attestation_edit', record_id=attestation_overview.record.id) }}{% else %}{{ url_for('professional_registry.attestation_new', teacher_id=teacher.id) }}{% endif %}"><i class="bi {{ 'bi-pencil' if attestation_overview.record else 'bi-plus-lg' }}"></i> {{ 'Редактировать аттестацию' if attestation_overview.record else 'Добавить аттестацию' }}</a></div>
   {% endif %}
 </div></div>
 {% endif %}
