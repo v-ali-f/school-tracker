@@ -311,6 +311,7 @@
       </div>
     </div>
 
+    {% if current_user.is_authenticated and current_user.has_role('ADMIN') %}
     <div class="dou-card" data-url="{{ url_for('preschool.groups') }}" role="link" tabindex="0">
       <div class="dou-card-icon purple"><i class="bi bi-diagram-3"></i></div>
       <div class="dou-card-title">Группы ДОУ</div>
@@ -319,6 +320,7 @@
         <a class="dou-open-btn" href="{{ url_for('preschool.groups') }}">Открыть <i class="bi bi-chevron-right"></i></a>
       </div>
     </div>
+    {% endif %}
 
     <div class="dou-card" data-url="{{ url_for('preschool.import_children') }}" role="link" tabindex="0">
       <div class="dou-card-icon orange"><i class="bi bi-cloud-upload"></i></div>

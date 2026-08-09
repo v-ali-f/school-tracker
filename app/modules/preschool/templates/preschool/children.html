@@ -292,7 +292,7 @@
 
     <div class="pc-actions">
       <a class="pc-btn" href="{{ url_for('preschool.index') }}">Дошкольное отделение</a>
-      <a class="pc-btn" href="{{ url_for('preschool.groups') }}">Группы ДОУ</a>
+      {% if current_user.is_authenticated and current_user.has_role('ADMIN') %}<a class="pc-btn" href="{{ url_for('preschool.groups') }}">Группы ДОУ</a>{% endif %}
       <a class="pc-btn pc-btn-primary" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Реестр ДОУ</a>
     </div>
   </div>
