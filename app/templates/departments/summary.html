@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_3">
 {% endblock %}
 {% block content %}
 <div class="page-head mb-3">
@@ -186,7 +186,7 @@
       <thead><tr><th>Педагог</th><th>Диагностики</th><th>Ближайший срок</th><th>Статус</th></tr></thead>
       <tbody>{% for overview in mcko_overviews %}<tr>
         <td><a href="{{ url_for('departments.teacher_profile', teacher_id=overview.teacher.id, academic_year_id=academic_year_id) }}">{{ overview.teacher.fio or overview.teacher.username }}</a></td>
-        <td><div class="professional-result-list">{% for row in overview.latest_results %}<small>{{ row.activity_name }} · {{ row.level_label }} · до {{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else 'дата не указана' }}</small>{% else %}<span class="text-muted">—</span>{% endfor %}</div></td>
+        <td><div class="professional-result-list">{% for row in overview.latest_results %}<small class="professional-result-level professional-level-{{ row.level_code }}">{{ row.activity_name }} · {{ row.level_label }} · до {{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else 'дата не указана' }}</small>{% else %}<span class="text-muted">—</span>{% endfor %}</div></td>
         <td class="registry-cell-center">{{ overview.nearest_expiration.strftime('%d.%m.%Y') if overview.nearest_expiration else '—' }}</td>
         <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span></td>
       </tr>{% else %}<tr><td colspan="4" class="registry-empty-row">В выбранной кафедре нет педагогов.</td></tr>{% endfor %}</tbody>

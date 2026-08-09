@@ -1392,6 +1392,7 @@ def test_department_and_workspace_read_current_load_and_mcko(
     ).get_data(as_text=True)
     assert f"/departments/teachers/{teacher_id}" in workspace
     assert "МЦКО: Математика — Высокий" in workspace
+    assert "workload-teacher-mcko is-active" in workspace
     assert "до 26.05.2029" in workspace
 
     load_page = client.get(
@@ -1411,6 +1412,7 @@ def test_department_and_workspace_read_current_load_and_mcko(
     assert "Профиль преподавателя" in profile_html
     assert "5 ч/нед." in profile_html
     assert "Высокий" in profile_html
+    assert "professional-level-HIGH" in profile_html
     assert "Высшая квалификационная категория" in profile_html
     assert "Бессрочно" in profile_html
     assert "Действующая квалификационная категория" in profile_html
@@ -1426,6 +1428,7 @@ def test_department_and_workspace_read_current_load_and_mcko(
     assert summary.status_code == 200
     assert f"/departments/teachers/{teacher_id}" in summary_html
     assert "Диагностика действует" in summary_html
+    assert "professional-level-HIGH" in summary_html
     assert "Высшая квалификационная категория" in summary_html
     assert "Бессрочно" in summary_html
     assert "5" in summary_html
@@ -1462,7 +1465,9 @@ def test_workspace_and_department_summary_highlight_missing_mcko(
     ).get_data(as_text=True)
 
     assert "МЦКО: Диагностика отсутствует" in workspace
+    assert "workload-teacher-mcko is-danger" in workspace
     assert "Диагностика отсутствует" in summary
+    assert "professional-status-MISSING" in summary
     assert "Не указана дата приёма" in summary
 
 

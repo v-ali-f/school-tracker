@@ -112,8 +112,8 @@ def _employment_requirement(teacher, *, as_of):
             current=None,
             status="INCOMPLETE",
             status_label="Не указана дата приёма",
-            category_code="POSITION_COMPLIANCE",
-            category_label=ATTESTATION_CATEGORY_LABELS["POSITION_COMPLIANCE"],
+            category_code="MISSING",
+            category_label="—",
             effective_valid_until=None,
             basis_label="Дата приёма не указана",
         )
@@ -131,8 +131,8 @@ def _employment_requirement(teacher, *, as_of):
         current=None,
         status=status,
         status_label=status_label,
-        category_code="POSITION_COMPLIANCE",
-        category_label=ATTESTATION_CATEGORY_LABELS["POSITION_COMPLIANCE"],
+        category_code="MISSING",
+        category_label="—",
         effective_valid_until=due_at,
         basis_label="От даты приёма",
     )
