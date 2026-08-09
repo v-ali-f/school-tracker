@@ -1411,7 +1411,42 @@ def test_department_and_workspace_read_current_load_and_mcko(
     summary_html = summary.get_data(as_text=True)
     assert summary.status_code == 200
     assert f"/departments/teachers/{teacher_id}" in summary_html
+    assert "Диагностика действует" in summary_html
     assert "5" in summary_html
+
+
+def test_workspace_and_department_summary_highlight_missing_mcko(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        db.session.add(_assignment(need, teacher_id, "5"))
+        db.session.commit()
+
+    login(admin_id)
+    workspace = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    ).get_data(as_text=True)
+    summary = client.get(
+        "/departments/summary",
+        query_string={
+            "academic_year_id": context["year_id"],
+            "department_id": context["department_id"],
+        },
+    ).get_data(as_text=True)
+
+    assert "МЦКО: Диагностика отсутствует" in workspace
+    assert "Диагностика отсутствует" in summary
 
 
 def test_teacher_can_view_only_own_workload(

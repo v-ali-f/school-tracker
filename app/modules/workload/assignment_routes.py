@@ -85,7 +85,7 @@ from app.services.teaching_group_service import (
     current_population_snapshot,
     ensure_population_snapshot,
 )
-from app.services.teacher_mcko_service import current_mcko_by_teacher
+from app.services.teacher_mcko_service import mcko_overviews_for_teachers
 from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
     change_workload_approval_status,
@@ -418,11 +418,13 @@ def _workspace_teacher_metadata(teachers, selected_version):
         .all()
     ):
         class_names[item.teacher_user_id].append(item.name)
-    mcko_by_teacher = current_mcko_by_teacher(teacher_ids)
+    mcko_by_teacher = mcko_overviews_for_teachers(teacher_ids)
     return {
         teacher_id: {
             "class_teacher": ", ".join(class_names.get(teacher_id, [])) or "—",
-            "mcko_items": mcko_by_teacher.get(teacher_id, []),
+            "mcko_overview": mcko_by_teacher.get(teacher_id),
+            "mcko_items": list(mcko_by_teacher[teacher_id].valid_results)
+            if teacher_id in mcko_by_teacher else [],
         }
         for teacher_id in teacher_ids
     }

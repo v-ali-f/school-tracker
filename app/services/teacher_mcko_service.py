@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.core.extensions import db
-from app.models import TeacherMckoResult
+from app.models import TeacherMckoResult, User
 from app.services.teacher_professional_service import (
     add_calendar_months,
     add_calendar_years,
@@ -80,6 +80,28 @@ class MckoResultView:
     def certificate_number(self):
         return self.record.certificate_number
 
+
+@dataclass(frozen=True)
+class TeacherMckoOverview:
+    teacher: User
+    latest_results: tuple[MckoResultView, ...]
+    valid_results: tuple[MckoResultView, ...]
+    status: str
+    status_label: str
+
+    @property
+    def teacher_id(self):
+        return self.teacher.id
+
+    @property
+    def nearest_expiration(self):
+        dates = [item.expires_at for item in self.valid_results if item.expires_at]
+        if dates:
+            return min(dates)
+        historical_dates = [item.expires_at for item in self.latest_results if item.expires_at]
+        return max(historical_dates) if historical_dates else None
+
+
 def mcko_result_view(record, *, as_of=None):
     as_of = as_of or date.today()
     expires_at = (
@@ -146,17 +168,69 @@ def mcko_results_for_teachers(
     return [mcko_result_view(item, as_of=as_of) for item in records]
 
 
-def current_mcko_by_teacher(teacher_ids, *, as_of=None):
+def mcko_overviews_for_teachers(teacher_ids, *, as_of=None):
+    """Return one MCKO health overview for every requested teacher.
+
+    Only the newest result for each subject participates in the overall
+    status, so an old expired certificate does not override a newer valid one.
+    """
+    teacher_ids = sorted({int(value) for value in (teacher_ids or []) if value})
+    if not teacher_ids:
+        return {}
+    teachers = {
+        item.id: item
+        for item in User.query.filter(User.id.in_(teacher_ids)).all()
+    }
     views = mcko_results_for_teachers(teacher_ids, as_of=as_of)
-    result = {}
-    seen_activities = set()
+    grouped = {}
+    seen_subjects = set()
     for view in views:
-        if view.status not in {"ACTIVE", "EXPIRING_SOON"}:
+        activity_id = view.record.education_activity_id
+        if activity_id is None and view.record.subject is not None:
+            activity_id = view.record.subject.education_activity_id
+        subject_key = activity_id or view.record.subject_id or f"record-{view.record.id}"
+        key = (view.record.teacher_id, subject_key)
+        if key in seen_subjects:
             continue
-        activity_id = view.record.education_activity_id or view.record.subject_id
-        key = (view.record.teacher_id, activity_id)
-        if key in seen_activities:
+        seen_subjects.add(key)
+        grouped.setdefault(view.record.teacher_id, []).append(view)
+
+    result = {}
+    status_priority = ("EXPIRED", "INCOMPLETE", "EXPIRING_SOON", "ACTIVE")
+    status_labels = {
+        "MISSING": "Диагностика отсутствует",
+        "INCOMPLETE": "Данные заполнены не полностью",
+        "EXPIRED": "Есть просроченная диагностика",
+        "EXPIRING_SOON": "Срок истекает менее чем через 6 месяцев",
+        "ACTIVE": "Диагностика действует",
+    }
+    for teacher_id in teacher_ids:
+        teacher = teachers.get(teacher_id)
+        if teacher is None:
             continue
-        seen_activities.add(key)
-        result.setdefault(view.record.teacher_id, []).append(view)
+        latest = tuple(grouped.get(teacher_id, []))
+        valid = tuple(item for item in latest if item.status in {"ACTIVE", "EXPIRING_SOON"})
+        if not latest:
+            status = "MISSING"
+        else:
+            statuses = {item.status for item in latest}
+            status = next(item for item in status_priority if item in statuses)
+        result[teacher_id] = TeacherMckoOverview(
+            teacher=teacher,
+            latest_results=latest,
+            valid_results=valid,
+            status=status,
+            status_label=status_labels[status],
+        )
     return result
+
+
+def current_mcko_by_teacher(teacher_ids, *, as_of=None):
+    return {
+        teacher_id: list(overview.valid_results)
+        for teacher_id, overview in mcko_overviews_for_teachers(
+            teacher_ids,
+            as_of=as_of,
+        ).items()
+        if overview.valid_results
+    }

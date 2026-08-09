@@ -678,6 +678,33 @@
   font-weight: 750;
 }
 
+.workload-assignment-matrix__teacher-cell small.workload-teacher-mcko {
+  margin-top: 3px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  font-weight: 650;
+}
+
+.workload-teacher-mcko.is-active {
+  color: #18794e;
+  background: #eaf7ef;
+}
+
+.workload-teacher-mcko.is-warning {
+  color: #8a6100;
+  background: #fff4ce;
+}
+
+.workload-teacher-mcko.is-danger {
+  color: #b42318;
+  background: #fff0ee;
+}
+
+.workload-teacher-mcko.is-muted {
+  color: #667085;
+  background: #f1f3f5;
+}
+
 .workload-holder-replace-button {
   margin-top: 8px;
   padding: 0;
