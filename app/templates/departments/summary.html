@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_2">
 {% endblock %}
 {% block content %}
 <div class="page-head mb-3">
@@ -223,22 +223,25 @@
 </div>
 
 <div class="card mt-4"><div class="card-body">
-  <h5 class="section-title">Аттестация преподавателей</h5>
-  <div class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>Учитель</th><th>Результат</th><th>Должность</th><th>Дата решения</th><th>Действует до</th><th>Документ</th></tr></thead><tbody>{% for row in attestation_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ attestation_category_labels.get(row.category, row.category) }}</td><td>{{ row.position_title or '—' }}</td><td>{{ row.decision_date.strftime('%d.%m.%Y') }}</td><td>{{ row.valid_until.strftime('%d.%m.%Y') if row.valid_until else 'Без ограничения' }}</td><td>{{ row.order_number or '—' }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
-  {% if can_manage_professional %}
-  <form method="post" action="{{ url_for('departments.add_attestation') }}" class="row g-2">
-    <input type="hidden" name="department_id" value="{{ dep.id }}">
-    <div class="col-md-3"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><select class="form-select" name="category" required><option value="">Результат аттестации</option>{% for code, label in attestation_category_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><input class="form-control" name="position_title" placeholder="Должность"></div>
-    <div class="col-md-2"><input class="form-control" type="date" name="decision_date" required title="Дата решения"></div>
-    <div class="col-md-2"><input class="form-control" type="date" name="valid_until" title="Действует до"></div>
-    <div class="col-md-3 d-flex align-items-center"><label class="form-check mb-0"><input class="form-check-input" type="checkbox" name="is_indefinite" value="1"><span class="form-check-label">Бессрочная категория</span></label></div>
-    <div class="col-md-4"><input class="form-control" name="order_number" placeholder="Номер приказа/документа"></div>
-    <div class="col-md-3"><input class="form-control" name="notes" placeholder="Примечание"></div>
-    <div class="col-md-2 d-grid"><button class="btn btn-outline-primary">Добавить аттестацию</button></div>
-  </form>
-  {% endif %}
+  <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+    <div>
+      <h5 class="section-title mb-1">Аттестация преподавателей</h5>
+      <div class="small text-muted">Показаны все педагоги кафедры, включая сотрудников без даты приёма или действующей аттестации.</div>
+    </div>
+    {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('professional_registry.attestation_registry', department_id=dep.id) }}">Открыть реестр</a>{% endif %}
+  </div>
+  <div class="registry-matrix-card"><div class="table-responsive"><table class="registry-matrix registry-matrix-wide">
+    <thead><tr><th>Педагог</th><th>Дата приёма</th><th>Аттестация</th><th>Дата решения</th><th>Действует / срок</th><th>Статус</th>{% if can_manage_attestation %}<th>Действие</th>{% endif %}</tr></thead>
+    <tbody>{% for overview in attestation_overviews %}{% set record = overview.record %}<tr>
+      <td><a href="{{ url_for('departments.teacher_profile', teacher_id=overview.teacher.id, academic_year_id=academic_year_id) }}">{{ overview.teacher.fio or overview.teacher.username }}</a></td>
+      <td class="registry-cell-center {% if not overview.teacher.employment_start_date %}text-danger{% endif %}">{{ overview.teacher.employment_start_date.strftime('%d.%m.%Y') if overview.teacher.employment_start_date else 'Не указана' }}</td>
+      <td>{{ overview.category_label }}{% if record and record.position_title %}<span class="d-block small text-muted">{{ record.position_title }}</span>{% endif %}</td>
+      <td class="registry-cell-center">{{ record.decision_date.strftime('%d.%m.%Y') if record and record.decision_date else '—' }}</td>
+      <td class="registry-cell-center">{% if overview.status == 'INDEFINITE' %}Бессрочно{% else %}{{ overview.effective_valid_until.strftime('%d.%m.%Y') if overview.effective_valid_until else '—' }}{% endif %}</td>
+      <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span><span class="d-block small text-muted mt-1">{{ overview.basis_label }}</span></td>
+      {% if can_manage_attestation %}<td class="registry-cell-center"><a class="btn btn-outline-primary registry-row-action" href="{% if record %}{{ url_for('professional_registry.attestation_edit', record_id=record.id) }}{% else %}{{ url_for('professional_registry.attestation_new', teacher_id=overview.teacher.id) }}{% endif %}" title="{{ 'Редактировать' if record else 'Добавить' }}"><i class="bi {{ 'bi-pencil' if record else 'bi-plus-lg' }}"></i></a></td>{% endif %}
+    </tr>{% else %}<tr><td class="registry-empty-row" colspan="{{ 7 if can_manage_attestation else 6 }}">В выбранной кафедре нет педагогов.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
 </div></div>
 {% else %}
 <div class="alert alert-info">Для выбранной роли пока нет доступных кафедр или нагрузка ещё не загружена.</div>

@@ -260,11 +260,24 @@ def test_teacher_manages_own_professional_records_only(
 ):
     teacher_id = make_user("TEACHER")
     other_teacher_id = make_user("TEACHER")
+    admin_id = make_user("ADMIN")
     with app.app_context():
         subject_id = _subject().id
         teacher = db.session.get(User, teacher_id)
         teacher.phone = "+7 (999) 123-45-67"
         db.session.commit()
+
+    login(admin_id)
+    attestation = client.post(
+        "/departments/teacher/attestation/add",
+        data={
+            "teacher_id": teacher_id,
+            "category": "HIGHEST",
+            "decision_date": "2026-04-15",
+            "valid_until": "2031-04-15",
+        },
+    )
+    assert attestation.status_code == 302
 
     login(teacher_id)
     mcko = client.post(
@@ -287,7 +300,7 @@ def test_teacher_manages_own_professional_records_only(
             "end_date": "2026-06-01",
         },
     )
-    attestation = client.post(
+    forbidden_attestation = client.post(
         "/departments/teacher/attestation/add",
         data={
             "teacher_id": teacher_id,
@@ -306,7 +319,7 @@ def test_teacher_manages_own_professional_records_only(
 
     assert mcko.status_code == 302
     assert course.status_code == 302
-    assert attestation.status_code == 302
+    assert forbidden_attestation.status_code == 403
     assert forbidden.status_code == 403
     with app.app_context():
         mcko_record = TeacherMckoResult.query.filter_by(
@@ -321,8 +334,8 @@ def test_teacher_manages_own_professional_records_only(
         assert record.category == "HIGHEST"
         assert record.valid_until == date(2031, 4, 15)
         assert record.is_indefinite is False
-        assert record.entry_source == "SELF_REPORTED"
-        assert record.created_by_user_id == teacher_id
+        assert record.entry_source == "ADMINISTRATION"
+        assert record.created_by_user_id == admin_id
         assert TeacherCourse.query.filter_by(teacher_id=other_teacher_id).count() == 0
 
     profile = client.get(f"/departments/teachers/{teacher_id}")
@@ -336,7 +349,7 @@ def test_teacher_manages_own_professional_records_only(
     assert "Внесено педагогом" in html
     assert "+7 (999) 123-45-67" in html
     assert 'name="certificate_number"' in html
-    assert 'name="is_indefinite"' in html
+    assert "Добавить аттестацию" not in html
 
 
 def test_department_hub_exposes_only_personal_teacher_profile(
