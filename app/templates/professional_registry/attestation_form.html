@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Редактирование аттестации' if record and record.id else 'Новая аттестация' }}{% endblock %}
+{% block content %}
+<div class="dashboard-shell zone-page zone-slate">
+  <div class="classic-page-header mb-3 zone-header zone-slate">
+    <div><div class="section-overline">Реестр аттестации педагогов</div><h1 class="dashboard-title mb-1">{{ 'Редактирование аттестации' if record and record.id else 'Новая аттестация' }}</h1><div class="text-muted classic-hero-note">Для соответствия должности срок рассчитывается автоматически: два года от даты решения.</div></div>
+    <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('professional_registry.attestation_registry') }}"><i class="bi bi-arrow-left"></i> Назад</a>
+  </div>
+  <section class="dashboard-section dashboard-section-classic portal-theme-section" style="max-width:980px">
+    <form method="post" class="row g-3" id="attestationForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-6"><label class="form-label">Педагог *</label><select class="form-select" name="teacher_id" required><option value="">Выберите педагога</option>{% for item in teachers %}<option value="{{ item.id }}" {% if (record and record.teacher_id == item.id) or (not record and selected_teacher and selected_teacher.id == item.id) %}selected{% endif %}>{{ item.fio or item.username }}</option>{% endfor %}</select></div>
+      <div class="col-12 col-md-3"><label class="form-label">Дата приёма на работу</label><input class="form-control" type="date" name="employment_start_date" value="{{ selected_teacher.employment_start_date.isoformat() if selected_teacher and selected_teacher.employment_start_date else '' }}"><div class="form-text">Используется для первого двухлетнего срока.</div></div>
+      <div class="col-12 col-md-3"><label class="form-label">Должность</label><input class="form-control" name="position_title" maxlength="255" value="{{ record.position_title or '' if record else '' }}" placeholder="Учитель"></div>
+      <div class="col-12 col-md-6"><label class="form-label">Вид аттестации *</label><select class="form-select" name="category" id="attestationCategory" required><option value="">Выберите вид</option>{% for value,label in categories.items() %}<option value="{{ value }}" {% if record and record.category == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-12 col-md-3"><label class="form-label">Дата решения *</label><input class="form-control" type="date" name="decision_date" value="{{ record.decision_date.isoformat() if record and record.decision_date else '' }}" required></div>
+      <div class="col-12 col-md-3"><label class="form-label">Номер документа</label><input class="form-control" name="order_number" maxlength="120" value="{{ record.order_number or '' if record else '' }}"></div>
+      <div class="col-12 col-md-6" id="termTypeGroup"><label class="form-label d-block">Срок категории *</label><div class="d-flex gap-4 pt-2"><label class="form-check"><input class="form-check-input" type="radio" name="term_type" value="FIXED" {% if not record or not record.is_indefinite %}checked{% endif %}> <span class="form-check-label">Срочная</span></label><label class="form-check"><input class="form-check-input" type="radio" name="term_type" value="INDEFINITE" {% if record and record.is_indefinite %}checked{% endif %}> <span class="form-check-label">Бессрочная</span></label></div></div>
+      <div class="col-12 col-md-6" id="validUntilGroup"><label class="form-label">Действует до</label><input class="form-control" type="date" name="valid_until" id="validUntil" value="{{ record.valid_until.isoformat() if record and record.valid_until else '' }}"><div class="form-text" id="validUntilHint">Обязательно для срочной первой или высшей категории.</div></div>
+      <div class="col-12"><label class="form-label">Комментарий</label><textarea class="form-control" name="notes" rows="3">{{ record.notes or '' if record else '' }}</textarea></div>
+      <div class="col-12 d-flex justify-content-end gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('professional_registry.attestation_registry') }}">Отмена</a><button class="btn btn-primary"><i class="bi bi-check2"></i> Сохранить</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const category = document.getElementById('attestationCategory');
+  const termGroup = document.getElementById('termTypeGroup');
+  const validGroup = document.getElementById('validUntilGroup');
+  const validUntil = document.getElementById('validUntil');
+  const hint = document.getElementById('validUntilHint');
+  const radios = [...document.querySelectorAll('input[name="term_type"]')];
+  const refresh = () => {
+    const compliance = category.value === 'POSITION_COMPLIANCE';
+    const indefinite = radios.some((item) => item.value === 'INDEFINITE' && item.checked);
+    termGroup.hidden = compliance;
+    validGroup.hidden = compliance || indefinite;
+    validUntil.required = !compliance && !indefinite && Boolean(category.value);
+    hint.textContent = compliance ? 'Срок будет рассчитан автоматически.' : 'Обязательно для срочной первой или высшей категории.';
+  };
+  category.addEventListener('change', refresh);
+  radios.forEach((item) => item.addEventListener('change', refresh));
+  refresh();
+})();
+</script>
+{% endblock %}

@@ -707,6 +707,7 @@ def _theme_configs():
             "subtitle": "Все ключевые реестры системы, сгруппированные в одном тематическом разделе.",
             "sections": _materialize([
                 {"title": "Результаты МЦКО педагогов", "description": "Сертификаты, сроки действия и педагоги без актуальной диагностики.", "endpoint": "professional_registry.mcko_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD"]},
+                {"title": "Аттестация педагогов", "description": "Категории, сроки действия и контроль аттестации на соответствие должности.", "endpoint": "professional_registry.attestation_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD"]},
                 {"title": "Ученики", "description": "Основной реестр детей по школе.", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "description": "Карточка зачисления нового ученика.", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
                 {"title": "Движение", "description": "Переводы, переходы и архивирование.", "endpoint": "transfers.index", "roles_any": ["ADMIN"]},
