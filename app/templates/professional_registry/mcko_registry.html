@@ -1,13 +1,8 @@
 {% extends "layout.html" %}
 {% block title %}Результаты МЦКО педагогов{% endblock %}
 {% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_1">
 <style>
-  .mcko-status { display:inline-flex; align-items:center; gap:5px; padding:3px 7px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
-  .mcko-status::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
-  .mcko-status-ACTIVE { color:#18794e; background:#eaf7ef; }
-  .mcko-status-EXPIRING_SOON { color:#9a6700; background:#fff4ce; }
-  .mcko-status-EXPIRED, .mcko-status-MISSING { color:#b42318; background:#fff0ee; }
-  .mcko-status-INCOMPLETE { color:#667085; background:#f1f3f5; }
   .mcko-summary-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
   .mcko-summary-item { padding:9px 11px; border:1px solid #d6dfeb; border-radius:7px; background:#fff; }
   .mcko-summary-item span { display:block; color:#69758a; font-size:11px; }
@@ -63,7 +58,7 @@
           <td class="registry-cell-center registry-cell-nowrap">{{ row.result.passed_at.strftime('%d.%m.%Y') if row.result and row.result.passed_at else '—' }}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ row.result.expires_at.strftime('%d.%m.%Y') if row.result and row.result.expires_at else '—' }}</td>
           <td class="registry-cell-center registry-cell-nowrap">{{ remaining_period_label(row.result) }}</td>
-          <td><span class="mcko-status mcko-status-{{ row.status }}">{{ row.status_label }}</span>{% if row.result %}<span class="mcko-source">{{ row.result.source_label }} · {{ row.entered_by }}</span>{% endif %}</td>
+          <td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span>{% if row.result %}<span class="mcko-source">{{ row.result.source_label }} · {{ row.entered_by }}</span>{% endif %}</td>
           <td>{% if can_manage and row.result %}<div class="registry-row-actions"><a class="btn btn-outline-primary registry-row-action" href="{{ url_for('professional_registry.mcko_edit', record_id=row.result.record.id) }}" title="Редактировать"><i class="bi bi-pencil"></i></a><form method="post" action="{{ url_for('professional_registry.mcko_archive', record_id=row.result.record.id) }}" onsubmit="return confirm('Перенести запись в архив?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger registry-row-action" title="В архив"><i class="bi bi-archive"></i></button></form></div>{% else %}<div class="registry-cell-center text-muted">—</div>{% endif %}</td>
         </tr>
       {% else %}<tr><td class="registry-empty-row" colspan="9">По выбранным условиям записей нет.</td></tr>{% endfor %}

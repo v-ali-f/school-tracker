@@ -331,13 +331,17 @@
             {% else %}
             <a href="{{ url_for('departments.teacher_profile', teacher_id=block.teacher.id, academic_year_id=selected_version.tariff_cycle.academic_year_id) }}">{{ block.label }}</a>
             <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
+            {% set mcko_overview = block.metadata.mcko_overview %}
             {% if block.metadata.mcko_items %}
               {% for item in block.metadata.mcko_items[:2] %}
-              <small>МЦКО: {{ item.activity_name }} — {{ item.level_label }} до {{ item.expires_at.strftime('%d.%m.%Y') }}</small>
+              <small class="workload-teacher-mcko {% if item.status == 'EXPIRING_SOON' %}is-warning{% else %}is-active{% endif %}">МЦКО: {{ item.activity_name }} — {{ item.level_label }} до {{ item.expires_at.strftime('%d.%m.%Y') }}</small>
               {% endfor %}
               {% if block.metadata.mcko_items|length > 2 %}<small>Ещё: {{ block.metadata.mcko_items|length - 2 }}</small>{% endif %}
+              {% if mcko_overview and mcko_overview.status in ['EXPIRED', 'INCOMPLETE'] %}
+              <small class="workload-teacher-mcko is-danger">{{ mcko_overview.status_label }}</small>
+              {% endif %}
             {% else %}
-              <small>МЦКО: —</small>
+              <small class="workload-teacher-mcko {% if mcko_overview and mcko_overview.status == 'INCOMPLETE' %}is-muted{% else %}is-danger{% endif %}">МЦКО: {{ mcko_overview.status_label if mcko_overview else 'Диагностика отсутствует' }}</small>
             {% endif %}
             {% endif %}
             {% if can_update %}

@@ -1,4 +1,8 @@
 {% extends "layout.html" %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_1">
+{% endblock %}
 {% block content %}
 <div class="page-head mb-3">
   <div>
@@ -174,8 +178,19 @@
 <div class="row g-4">
   <div class="col-lg-6"><div class="card h-100"><div class="card-body">
     <h5 class="section-title" id="teacher-mcko">Результаты МЦКО педагогов</h5>
-    <div class="small text-muted mb-2">Сертификат действует три календарных года с даты диагностики.</div>
-    <div class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>Учитель</th><th>Предмет</th><th>Уровень</th><th>Дата</th><th>Действует до</th><th>Статус</th></tr></thead><tbody>{% for row in mcko_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+      <div class="small text-muted">Показаны все педагоги кафедры, включая педагогов без действующей диагностики.</div>
+      {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('professional_registry.mcko_registry', department_id=dep.id) }}">Открыть реестр</a>{% endif %}
+    </div>
+    <div class="registry-matrix-card mb-3"><div class="table-responsive"><table class="registry-matrix registry-matrix-medium">
+      <thead><tr><th>Педагог</th><th>Диагностики</th><th>Ближайший срок</th><th>Статус</th></tr></thead>
+      <tbody>{% for overview in mcko_overviews %}<tr>
+        <td><a href="{{ url_for('departments.teacher_profile', teacher_id=overview.teacher.id, academic_year_id=academic_year_id) }}">{{ overview.teacher.fio or overview.teacher.username }}</a></td>
+        <td><div class="professional-result-list">{% for row in overview.latest_results %}<small>{{ row.activity_name }} · {{ row.level_label }} · до {{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else 'дата не указана' }}</small>{% else %}<span class="text-muted">—</span>{% endfor %}</div></td>
+        <td class="registry-cell-center">{{ overview.nearest_expiration.strftime('%d.%m.%Y') if overview.nearest_expiration else '—' }}</td>
+        <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span></td>
+      </tr>{% else %}<tr><td colspan="4" class="registry-empty-row">В выбранной кафедре нет педагогов.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
     {% if can_manage_professional %}
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2">
       <input type="hidden" name="department_id" value="{{ dep.id }}">

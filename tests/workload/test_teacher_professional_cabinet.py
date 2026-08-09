@@ -332,6 +332,8 @@ def test_teacher_manages_own_professional_records_only(
     assert "Современные методики обучения" in html
     assert "Высшая квалификационная категория" in html
     assert "Высокий" in html
+    assert "МК-2026-001" in html
+    assert "Внесено педагогом" in html
     assert "+7 (999) 123-45-67" in html
     assert 'name="certificate_number"' in html
     assert 'name="is_indefinite"' in html
@@ -468,3 +470,48 @@ def test_mcko_history_can_be_filtered_by_academic_year(
 
         assert [row.level_code for row in first_rows] == ["BASIC"]
         assert [row.level_code for row in second_rows] == ["HIGH"]
+
+
+def test_teacher_profile_keeps_valid_mcko_visible_across_academic_years(
+    app,
+    client,
+    make_user,
+    login,
+):
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        first_year = AcademicYear(
+            name="2025/2026",
+            start_date=date(2025, 9, 1),
+            end_date=date(2026, 8, 31),
+        )
+        second_year = AcademicYear(
+            name="2026/2027",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 8, 31),
+            is_current=True,
+        )
+        subject = _subject()
+        db.session.add_all([first_year, second_year])
+        db.session.flush()
+        db.session.add(TeacherMckoResult(
+            teacher_id=teacher_id,
+            education_activity_id=subject.id,
+            academic_year_id=first_year.id,
+            passed_at=date(2026, 5, 20),
+            level="HIGH",
+            certificate_number="МЦКО-МЕЖГОДОВОЙ",
+        ))
+        db.session.commit()
+        second_year_id = second_year.id
+
+    login(teacher_id)
+    response = client.get(
+        f"/departments/teachers/{teacher_id}",
+        query_string={"academic_year_id": second_year_id},
+    )
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "МЦКО-МЕЖГОДОВОЙ" in html
+    assert "Диагностика действует" in html

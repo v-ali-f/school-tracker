@@ -26,6 +26,7 @@ from app.services.workload_integration_service import (
 from app.services.teacher_mcko_service import (
     MCKO_LEVEL_LABELS,
     mcko_expires_at,
+    mcko_overviews_for_teachers,
     mcko_results_for_teachers,
     normalize_mcko_level,
 )
@@ -1389,7 +1390,7 @@ def summary():
     diagnostics_stats = {"total_results": 0, "sessions_count": 0, "below_basic_count": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
     diagnostics_stats = {"total_results": 0, "avg_percent": None, "below_basic_count": 0, "below_basic_percent": 0, "levels": {}, "by_subject": [], "by_teacher": []}
     teacher_ids = []
-    mcko_rows = []
+    mcko_overviews = []
     course_rows = []
     department_load_rows = []
     teacher_load_summaries = []
@@ -1455,10 +1456,15 @@ def summary():
                 "groups": len({row.group_name for row in teacher_loads if row.group_name}),
             })
         stats = _control_work_stats(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
-        mcko_rows = mcko_results_for_teachers(
-            teacher_ids,
-            teacher_id=selected_teacher_id,
-            academic_year_id=academic_year_id,
+        mcko_teacher_ids = [selected_teacher_id] if selected_teacher_id else teacher_ids
+        mcko_overview_map = mcko_overviews_for_teachers(mcko_teacher_ids)
+        mcko_overviews = sorted(
+            (
+                mcko_overview_map[teacher_id]
+                for teacher_id in mcko_teacher_ids
+                if teacher_id in mcko_overview_map
+            ),
+            key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
         )
         course_q = TeacherCourse.query.filter(
             TeacherCourse.teacher_id.in_(teacher_ids),
@@ -1494,7 +1500,7 @@ def summary():
         all_teachers=User.query.order_by(User.last_name.asc(), User.first_name.asc()).all(),
         selected_teacher_id=selected_teacher_id,
         stats=stats,
-        mcko_rows=mcko_rows,
+        mcko_overviews=mcko_overviews,
         course_rows=course_rows,
         buildings=Building.query.order_by(Building.name.asc()).all(),
         building_id=building_id,
@@ -1575,8 +1581,8 @@ def teacher_profile(teacher_id):
     mcko_rows = mcko_results_for_teachers(
         [teacher.id],
         teacher_id=teacher.id,
-        academic_year_id=academic_year_id,
     )
+    mcko_overview = mcko_overviews_for_teachers([teacher.id]).get(teacher.id)
     course_rows = (
         TeacherCourse.query
         .filter_by(teacher_id=teacher.id, is_archived=False)
@@ -1636,6 +1642,7 @@ def teacher_profile(teacher_id):
         load_rows=load_rows,
         totals=totals,
         mcko_rows=mcko_rows,
+        mcko_overview=mcko_overview,
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
         course_rows=course_rows,

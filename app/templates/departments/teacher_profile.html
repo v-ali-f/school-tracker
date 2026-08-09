@@ -3,6 +3,7 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260804_2">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_profile_compact.css') }}?v=20260804_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260809_1">
 {% endblock %}
 {% block content %}
 <div class="teacher-profile-page">
@@ -76,18 +77,19 @@
 </div></div>
 {% endif %}
 
-{% if mcko_rows or can_edit_professional %}
+{% if mcko_overview or can_edit_professional %}
 <div class="card mb-4"><div class="card-body">
   <div class="d-flex justify-content-between align-items-start gap-3">
     <div>
       <h2 class="section-title mb-1" id="teacher-mcko">Результаты МЦКО</h2>
       <div class="small text-muted">Актуальность определяется по сроку три календарных года с даты диагностики.</div>
     </div>
+    {% if mcko_overview %}<span class="professional-status-badge professional-status-{{ mcko_overview.status }}">{{ mcko_overview.status_label }}</span>{% endif %}
   </div>
   {% if mcko_rows %}
   <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0">
-    <thead><tr><th>Предмет</th><th>Уровень</th><th>Дата диагностики</th><th>Действует до</th><th>Статус</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="badge {% if row.status == 'ACTIVE' %}text-bg-success{% elif row.status == 'EXPIRED' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ row.status_label }}</span></td><td>{{ row.result_text or '—' }}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_mcko', record_id=row.record.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
+    <thead><tr><th>Предмет</th><th>Уровень</th><th>Сертификат</th><th>Дата диагностики</th><th>Действует до</th><th>Статус</th><th>Источник</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for row in mcko_rows %}<tr><td>{{ row.activity_name }}</td><td>{{ row.level_label }}</td><td>{{ row.certificate_number or '—' }}</td><td>{{ row.passed_at.strftime('%d.%m.%Y') if row.passed_at else '—' }}</td><td>{{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else '—' }}</td><td><span class="professional-status-badge professional-status-{{ row.status }}">{{ row.status_label }}</span></td><td>{{ row.source_label }}</td><td>{{ row.result_text or '—' }}</td>{% if can_edit_professional %}<td class="text-end"><form method="post" action="{{ url_for('departments.archive_mcko', record_id=row.record.id) }}"><button class="btn btn-sm btn-outline-danger" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
   </table></div>
   {% endif %}
   {% if can_edit_professional %}
