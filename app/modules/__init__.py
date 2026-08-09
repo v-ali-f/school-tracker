@@ -24,6 +24,7 @@ from .iom import iom_bp
 from .tasks import tasks_bp
 from .school_plan import school_plan_bp
 from .preschool import bp as preschool_bp
+from .professional_registry import professional_registry_bp
 from .workload import workload_bp
 from app.knowledge import knowledge_bp
 from app.datalens import datalens_bp
@@ -71,6 +72,7 @@ BLUEPRINTS = [
     appeals_bp,
     mobile_api_bp,
     preschool_bp,
+    professional_registry_bp,
     workload_bp,
 ]
 
