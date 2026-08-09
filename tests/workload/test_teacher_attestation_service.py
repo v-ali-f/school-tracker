@@ -1,7 +1,10 @@
 from datetime import date
 from types import SimpleNamespace
 
+from app.core.extensions import db
+from app.models import TeacherAttestation, User
 from app.services.teacher_attestation_service import (
+    attestation_overviews_for_teachers,
     attestation_view,
     position_compliance_due_at,
 )
@@ -66,3 +69,38 @@ def test_position_compliance_uses_two_year_term_when_end_date_is_missing():
 
     assert view.effective_valid_until == date(2027, 3, 10)
     assert view.status == "ACTIVE"
+
+
+def test_active_category_suppresses_employment_compliance_warning(
+    app,
+    make_user,
+):
+    teacher_id = make_user("TEACHER")
+    warning_teacher_id = make_user("TEACHER")
+    missing_date_teacher_id = make_user("TEACHER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.employment_start_date = date(2020, 9, 1)
+        warning_teacher = db.session.get(User, warning_teacher_id)
+        warning_teacher.employment_start_date = date(2024, 10, 1)
+        db.session.add(TeacherAttestation(
+            teacher_id=teacher_id,
+            category="FIRST",
+            decision_date=date(2025, 5, 20),
+            valid_until=date(2028, 5, 20),
+            entry_source="ADMINISTRATION",
+        ))
+        db.session.commit()
+
+        overviews = attestation_overviews_for_teachers(
+            [teacher_id, warning_teacher_id, missing_date_teacher_id],
+            as_of=date(2026, 8, 9),
+        )
+
+        assert overviews[teacher_id].status == "ACTIVE"
+        assert overviews[teacher_id].category_code == "FIRST"
+        assert overviews[teacher_id].basis_label == "Действующая квалификационная категория"
+        assert overviews[warning_teacher_id].status == "EXPIRING_SOON"
+        assert overviews[warning_teacher_id].effective_valid_until == date(2026, 10, 1)
+        assert overviews[missing_date_teacher_id].status == "INCOMPLETE"
+        assert overviews[missing_date_teacher_id].status_label == "Не указана дата приёма"

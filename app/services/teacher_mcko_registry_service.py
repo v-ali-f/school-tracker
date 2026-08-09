@@ -3,6 +3,7 @@ from datetime import date
 
 from app.models import (
     Department,
+    TeacherAttestation,
     TeacherLoad,
     TeacherMckoResult,
     User,
@@ -40,7 +41,8 @@ class TeacherMckoRegistryRow:
         return (user.fio or user.username) if user else "Не указано"
 
 
-def _teacher_ids_and_departments():
+def teacher_professional_roster():
+    """Return active teaching staff and their workload-derived departments."""
     teacher_ids = set()
     department_ids_by_teacher = {}
 
@@ -70,6 +72,8 @@ def _teacher_ids_and_departments():
             department_ids_by_teacher.setdefault(item.teacher_id, set()).add(item.department_id)
 
     for teacher_id, in TeacherMckoResult.query.with_entities(TeacherMckoResult.teacher_id).distinct():
+        teacher_ids.add(teacher_id)
+    for teacher_id, in TeacherAttestation.query.with_entities(TeacherAttestation.teacher_id).distinct():
         teacher_ids.add(teacher_id)
 
     active_users = {
@@ -103,7 +107,7 @@ def teacher_mcko_registry_rows(
     as_of=None,
 ):
     as_of = as_of or date.today()
-    users, department_ids_by_teacher, departments = _teacher_ids_and_departments()
+    users, department_ids_by_teacher, departments = teacher_professional_roster()
     allowed_department_ids = (
         {int(value) for value in allowed_department_ids}
         if allowed_department_ids is not None

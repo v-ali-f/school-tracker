@@ -17,7 +17,8 @@
   content: "";
 }
 
-.professional-status-ACTIVE { color: #18794e; background: #eaf7ef; }
+.professional-status-ACTIVE,
+.professional-status-INDEFINITE { color: #18794e; background: #eaf7ef; }
 .professional-status-EXPIRING_SOON { color: #8a6100; background: #fff4ce; }
 .professional-status-EXPIRED,
 .professional-status-MISSING { color: #b42318; background: #fff0ee; }
