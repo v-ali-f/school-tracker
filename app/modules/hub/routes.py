@@ -102,6 +102,7 @@ ICON_MAP = {
     "Реестр ВШУ": ("bi-exclamation-triangle", "accent-orange"),
     "Реестр КДН": ("bi-shield-check", "accent-orange"),
     "Реестр АЗ": ("bi-journal-x", "accent-orange"),
+    "Результаты МЦКО педагогов": ("bi-patch-check", "accent-blue"),
     "Аналитика": ("bi-bar-chart-line", "accent-blue"),
     "Отчеты": ("bi-file-earmark-bar-graph", "accent-blue"),
     "Сводные показатели": ("bi-speedometer", "accent-green"),
@@ -489,9 +490,15 @@ def _main_page_config():
             },
             {
                 "title": "Основные реестры",
-                "description": "Ученики, движение, ОВЗ, ВШУ, КДН, АЗ и другие действующие реестры.",
+                "description": "Контингент, профессиональные сведения педагогов и другие основные реестры.",
                 "endpoint": "hub.registries",
-                "permission_any": ["children_registry_view", "registry_ovz_view", "registry_vshu_view", "registry_kdn_view", "registry_az_view"],
+                "visible_if": lambda: (
+                    has_any_role("ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD")
+                    or any(has_permission(code) for code in (
+                        "children_registry_view", "registry_ovz_view", "registry_vshu_view",
+                        "registry_kdn_view", "registry_az_view",
+                    ))
+                ),
             },
             {
                 "title": "Дошкольное отделение",
@@ -699,6 +706,7 @@ def _theme_configs():
             "title": "Основные реестры",
             "subtitle": "Все ключевые реестры системы, сгруппированные в одном тематическом разделе.",
             "sections": _materialize([
+                {"title": "Результаты МЦКО педагогов", "description": "Сертификаты, сроки действия и педагоги без актуальной диагностики.", "endpoint": "professional_registry.mcko_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD"]},
                 {"title": "Ученики", "description": "Основной реестр детей по школе.", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "description": "Карточка зачисления нового ученика.", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
                 {"title": "Движение", "description": "Переводы, переходы и архивирование.", "endpoint": "transfers.index", "roles_any": ["ADMIN"]},
