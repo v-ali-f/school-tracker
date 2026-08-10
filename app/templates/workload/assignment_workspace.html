@@ -325,42 +325,35 @@
   >
     <thead>
       <tr>
-        <th class="workload-assignment-matrix__teacher" rowspan="{{ 2 if has_secondary_headers else 1 }}">
+        <th class="workload-assignment-matrix__teacher">
           <span>ФИО преподавателя</span>
         </th>
-        <th class="workload-assignment-matrix__subject" rowspan="{{ 2 if has_secondary_headers else 1 }}" data-matrix-subject-column>Предмет</th>
-        <th class="workload-assignment-matrix__teacher-total" rowspan="{{ 2 if has_secondary_headers else 1 }}" data-matrix-total-column>Всего</th>
-        <th class="workload-assignment-matrix__subject-total" rowspan="{{ 2 if has_secondary_headers else 1 }}">По предмету</th>
+        <th class="workload-assignment-matrix__subject" data-matrix-subject-column>Предмет</th>
+        <th class="workload-assignment-matrix__teacher-total" data-matrix-total-column>Всего</th>
+        <th class="workload-assignment-matrix__subject-total">По предмету</th>
+        {% if has_secondary_headers %}
         {% for class_group in matrix.class_groups %}
-        {% set group_has_secondary_headers = class_group.columns|selectattr('subheader_label')|list|length > 0 %}
+          {% for column in class_group.columns %}
+        <th
+          class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
+          data-matrix-column-key="{{ column.key }}"
+          data-matrix-class-column
+        >
+          <span class="workload-matrix-sticky-class">{{ class_group.label }}</span>
+          {% if column.subheader_label %}<span class="workload-matrix-sticky-plan" title="{{ column.plan_name }}">{{ column.subheader_label if column.is_metagroup or column.is_orphan else column.subheader_label[:3] }}</span>{% endif %}
+        </th>
+          {% endfor %}
+        {% endfor %}
+        {% else %}
+        {% for class_group in matrix.class_groups %}
         <th
           class="workload-assignment-matrix__class-group {% if class_group.is_alt %}is-alt{% endif %} {% if not selected_building_id %}building-tone-{{ class_group.building_tone }}{% endif %}"
           colspan="{{ class_group.columns|length }}"
-          {% if has_secondary_headers and not group_has_secondary_headers %}rowspan="2"{% endif %}
           data-matrix-class-column
-        >
-          {{ class_group.label }}
-        </th>
+        >{{ class_group.label }}</th>
         {% endfor %}
+        {% endif %}
       </tr>
-      {% if has_secondary_headers %}
-      <tr>
-        {% for class_group in matrix.class_groups %}
-          {% set group_has_secondary_headers = class_group.columns|selectattr('subheader_label')|list|length > 0 %}
-          {% if group_has_secondary_headers %}
-            {% for column in class_group.columns %}
-          <th
-            class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
-            data-matrix-column-key="{{ column.key }}"
-          >
-            <span class="workload-matrix-sticky-class">{{ class_group.label }}</span>
-            <span class="workload-matrix-sticky-plan" title="{{ column.plan_name }}">{{ column.subheader_label if column.is_metagroup or column.is_orphan else column.subheader_label[:3] }}</span>
-          </th>
-            {% endfor %}
-          {% endif %}
-        {% endfor %}
-      </tr>
-      {% endif %}
     </thead>
     <tbody>
       {% for block in matrix.blocks %}

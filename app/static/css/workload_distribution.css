@@ -612,6 +612,10 @@
   height: 26px;
 }
 
+.workload-assignment-matrix[data-workload-secondary-headers="1"] thead th {
+  height: 30px;
+}
+
 .workload-assignment-matrix thead em {
   margin-top: 3px;
   display: block;
