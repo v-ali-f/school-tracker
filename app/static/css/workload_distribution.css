@@ -153,12 +153,14 @@
   width: 100%;
 }
 
-.workload-filter-field--levels .class-plan-levels a {
+.workload-filter-field--levels .class-plan-levels a,
+.workload-filter-field--levels .class-plan-filter-option {
   min-width: 0;
   flex: 1 1 0;
 }
 
-.workload-filter-field--grades .class-plan-grades a {
+.workload-filter-field--grades .class-plan-grades a,
+.workload-filter-field--grades .class-plan-filter-option {
   flex: 1 0 30px;
 }
 

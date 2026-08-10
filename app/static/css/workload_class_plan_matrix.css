@@ -97,7 +97,8 @@
   background: var(--workload-surface-muted);
 }
 
-.class-plan-levels a {
+.class-plan-levels a,
+.class-plan-levels .class-plan-filter-option {
   min-width: 88px;
   min-height: 34px;
   display: flex;
@@ -110,10 +111,17 @@
   font-size: 12px;
   font-weight: 650;
   text-decoration: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  text-transform: none;
+  cursor: pointer;
 }
 
 .class-plan-levels a:hover,
-.class-plan-levels a.is-active {
+.class-plan-levels a.is-active,
+.class-plan-levels .class-plan-filter-option:hover,
+.class-plan-levels .class-plan-filter-option.is-active {
   color: #084fbd;
   background: #fff;
   box-shadow: 0 1px 3px rgba(17, 33, 64, 0.08);
@@ -140,7 +148,8 @@
   background: #fff;
 }
 
-.class-plan-grades a {
+.class-plan-grades a,
+.class-plan-grades .class-plan-filter-option {
   min-height: 30px;
   display: inline-flex;
   flex: 0 0 auto;
@@ -153,6 +162,11 @@
   font-size: 11px;
   font-weight: 650;
   text-decoration: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  text-transform: none;
+  cursor: pointer;
 }
 
 .class-plan-grades__label {
@@ -163,7 +177,9 @@
 }
 
 .class-plan-grades a:hover,
-.class-plan-grades a.is-active {
+.class-plan-grades a.is-active,
+.class-plan-grades .class-plan-filter-option:hover,
+.class-plan-grades .class-plan-filter-option.is-active {
   color: #084fbd;
   background: #edf4ff;
 }
@@ -472,7 +488,8 @@
     width: 100%;
   }
 
-  .class-plan-levels a {
+  .class-plan-levels a,
+  .class-plan-levels .class-plan-filter-option {
     min-width: 0;
     flex: 1;
   }
