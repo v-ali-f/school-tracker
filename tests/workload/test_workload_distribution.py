@@ -981,6 +981,11 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert f'data-workload-holder-row="teacher:{teacher_id}"' in html
     assert "data-holder-sort-key=" in html
     assert "sortHolderRows(current);" in html
+    assert "workload-matrix-sticky-class" in html
+    assert "workload-matrix-sticky-plan" in html
+    assert "data-matrix-column-key=" in html
+    assert "is-row-hovered" in html
+    assert "is-column-hovered" in html
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html

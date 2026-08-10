@@ -325,8 +325,12 @@
           {% set group_has_secondary_headers = class_group.columns|selectattr('subheader_label')|list|length > 0 %}
           {% if group_has_secondary_headers %}
             {% for column in class_group.columns %}
-          <th class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
-            <span title="{{ column.plan_name }}">{{ column.subheader_label if column.is_metagroup or column.is_orphan else column.subheader_label[:3] }}</span>
+          <th
+            class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
+            data-matrix-column-key="{{ column.key }}"
+          >
+            <span class="workload-matrix-sticky-class">{{ class_group.label }}</span>
+            <span class="workload-matrix-sticky-plan" title="{{ column.plan_name }}">{{ column.subheader_label if column.is_metagroup or column.is_orphan else column.subheader_label[:3] }}</span>
           </th>
             {% endfor %}
           {% endif %}
@@ -459,7 +463,10 @@
           >{{ row.total|compact_decimal }}</td>
           {% for column in matrix.columns %}
           {% set matrix_cell = row.matrix_cells.get(column.key) %}
-          <td class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
+          <td
+            class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
+            data-matrix-column-key="{{ column.key }}"
+          >
             {% if matrix_cell %}
             <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
               {% for slot in matrix_cell.slots %}
@@ -981,6 +988,36 @@
   };
 
   bindCellControls();
+
+  const clearMatrixHover = (matrix) => {
+    matrix.querySelectorAll(".is-row-hovered").forEach(
+      (element) => element.classList.remove("is-row-hovered")
+    );
+    matrix.querySelectorAll(".is-column-hovered").forEach(
+      (element) => element.classList.remove("is-column-hovered")
+    );
+  };
+  document.addEventListener("pointerover", (event) => {
+    const matrix = event.target.closest("[data-workload-matrix]");
+    if (!matrix) return;
+    clearMatrixHover(matrix);
+    const row = event.target.closest("tbody tr[data-workload-holder-row]");
+    row?.classList.add("is-row-hovered");
+    const columnCell = event.target.closest("[data-matrix-column-key]");
+    const columnKey = columnCell?.dataset.matrixColumnKey;
+    if (!columnKey) return;
+    matrix.querySelectorAll("[data-matrix-column-key]").forEach((element) => {
+      if (element.dataset.matrixColumnKey === columnKey) {
+        element.classList.add("is-column-hovered");
+      }
+    });
+  });
+  document.addEventListener("pointerout", (event) => {
+    const matrix = event.target.closest("[data-workload-matrix]");
+    if (matrix && !matrix.contains(event.relatedTarget)) {
+      clearMatrixHover(matrix);
+    }
+  });
 
   document.addEventListener("change", async (event) => {
     const select = event.target.closest("[data-activity-plan-kind]");

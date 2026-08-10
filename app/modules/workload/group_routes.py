@@ -928,7 +928,8 @@ def register_group_routes(workload_bp):
             "ok": True,
             "message": (
                 f"Для {snapshot_class.name_snapshot} сохранено: "
-                f"{len(groups)}."
+                f"{len(groups)}. При наличии прежней нагрузки она очищена "
+                "только для этого предмета и класса."
             ),
             "group_count": len(groups),
             "needs_composition": len(groups) > 1,

@@ -298,14 +298,6 @@ def _editable_existing_groups(version_id, line_id, class_id):
         )
     group_ids = [group.id for group in groups]
     if group_ids and (
-        WorkloadNeed.query
-        .filter(WorkloadNeed.teaching_group_id.in_(group_ids))
-        .first()
-    ):
-        raise GroupValidationError(
-            "По этим группам уже сформирована нагрузка. Сначала отмените её."
-        )
-    if group_ids and (
         TeachingGroup.query
         .filter(TeachingGroup.source_group_id.in_(group_ids))
         .first()
@@ -331,6 +323,16 @@ def _editable_existing_groups(version_id, line_id, class_id):
         raise GroupValidationError(
             "Поимённый состав уже заполнен. Измените количество после очистки состава."
         )
+    needs = (
+        WorkloadNeed.query
+        .filter(WorkloadNeed.teaching_group_id.in_(group_ids))
+        .all()
+        if group_ids else []
+    )
+    for need in needs:
+        db.session.delete(need)
+    if needs:
+        db.session.flush()
     return groups
 
 

@@ -1167,6 +1167,8 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert "Учебный план не назначен классу" in html
     assert "building-tone-1" in html
     assert html.count("data-group-count") == 1
+    assert "Основной учебный план" in html
+    assert 'class="group-matrix__plan-short"' in html
 
     grade_response = client.get(
         f"/workload/groups/"
@@ -1441,6 +1443,109 @@ def test_group_matrix_creates_split_groups_and_restores_whole_class(
         assert group.status == "READY"
         assert group.actual_size == 2
         assert len(group.members) == 2
+
+
+def test_group_count_change_clears_only_target_class_subject_workload(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        line = db.session.get(EducationPlanLine, context["plan_line_id"])
+        classes = {
+            item.name_snapshot: item
+            for item in snapshot.classes
+        }
+        for snapshot_class in classes.values():
+            replace_plan_binding_members(
+                line.education_plan,
+                snapshot_class,
+                {item.id for item in snapshot_class.enrollments},
+                user_id=user_id,
+            )
+        generate_plan_needs(
+            db.session.get(TariffVersion, context["version_id"]),
+            user_id=user_id,
+        )
+        db.session.flush()
+        groups = (
+            TeachingGroup.query
+            .join(TeachingGroupClass)
+            .order_by(TeachingGroup.id.asc())
+            .all()
+        )
+        group_by_class_id = {
+            group.source_classes[0].population_snapshot_class_id: group
+            for group in groups
+        }
+        for need in WorkloadNeed.query.all():
+            db.session.add(WorkloadAssignment(
+                organization_id=need.organization_id,
+                tariff_version_id=need.tariff_version_id,
+                workload_need_id=need.id,
+                employee_user_id=teacher_id,
+                position_code="TEACHER",
+                position_title="Учитель",
+                department_id=need.department_id,
+                building_id=need.building_id,
+                assignment_kind="MAIN",
+                date_from=need.date_from,
+                date_to=need.date_to,
+                weekly_hours=need.weekly_hours,
+                annual_hours=need.annual_hours,
+                status="DRAFT",
+                created_by_user_id=user_id,
+                updated_by_user_id=user_id,
+            ))
+        db.session.commit()
+        target_class = classes["5А"]
+        target_class_id = target_class.id
+        untouched_group_id = group_by_class_id[classes["5Б"].id].id
+        target_group_id = group_by_class_id[target_class_id].id
+        payload = {
+            "version_id": context["version_id"],
+            "plan_line_id": line.id,
+            "snapshot_class_id": target_class_id,
+            "plan_id": line.education_plan_id,
+            "group_count": 2,
+        }
+
+    login(user_id)
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data=payload,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["group_count"] == 2
+    assert "только для этого предмета и класса" in (
+        response.get_json()["message"]
+    )
+    with app.app_context():
+        assert TeachingGroup.query.filter_by(id=target_group_id).first() is None
+        replacement_groups = (
+            TeachingGroup.query
+            .join(TeachingGroupClass)
+            .filter(
+                TeachingGroupClass.population_snapshot_class_id
+                == target_class_id,
+            )
+            .all()
+        )
+        assert len(replacement_groups) == 2
+        remaining_need = WorkloadNeed.query.one()
+        assert remaining_need.teaching_group_id == untouched_group_id
+        remaining_assignment = WorkloadAssignment.query.one()
+        assert remaining_assignment.workload_need_id == remaining_need.id
 
 
 def test_group_composition_assigns_students_to_split_groups(
