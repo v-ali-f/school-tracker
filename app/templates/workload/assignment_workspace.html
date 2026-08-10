@@ -384,7 +384,9 @@
             <div class="workload-subject-row-head">
               <div class="workload-subject-row-copy">
             <span>{{ row.activity.name }}</span>
+            {% if row.plan_kind != 'CURRICULUM' %}
             <small>{{ row.plan_kind_label }}</small>
+            {% endif %}
               </div>
               {% if can_update %}
               <form
