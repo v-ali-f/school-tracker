@@ -930,8 +930,10 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     add_teacher = client.post(
         "/workload/assignments/workspace/teachers",
         data={**filters, "teacher_id": str(teacher_id)},
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    assert add_teacher.status_code == 302
+    assert add_teacher.status_code == 200
+    assert add_teacher.get_json() == {"ok": True}
     after_teacher_add = client.get(
         "/workload/assignments/workspace",
         query_string=filters,
@@ -946,8 +948,10 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
             "teacher_id": str(teacher_id),
             "activity_plan_kind": f"{activity_id}:CURRICULUM",
         },
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    assert add_subject.status_code == 302
+    assert add_subject.status_code == 200
+    assert add_subject.get_json() == {"ok": True}
 
     matrix = client.get(
         "/workload/assignments/workspace",
@@ -959,8 +963,9 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "data-workload-cell-toggle" in html
     assert "workload-cell-entry is-available" in html
     assert "data-workload-cell-value></span>" in html
-    assert 'name="hours"' in html
-    assert 'type="hidden"' in html
+    assert "data-cell-update-url=" in html
+    assert 'data-hours="5"' in html
+    assert 'name="hours"' not in html
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html
@@ -973,8 +978,10 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
             "teacher_id": str(teacher_id),
             "hours": "5",
         },
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    assert assign.status_code == 302
+    assert assign.status_code == 200
+    assert assign.get_json()["allocated_delta"] == 5.0
     assigned_matrix = client.get(
         "/workload/assignments/workspace",
         query_string=filters,
