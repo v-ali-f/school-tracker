@@ -340,7 +340,7 @@
         <!-- workload-holder-start:{{ block.holder_key }} -->
         {% set block_rowspan = block.rows|length + (1 if can_update else 0) %}
         {% for row in block.rows %}
-        <tr data-workload-holder-row="{{ block.holder_key }}">
+        <tr data-workload-holder-row="{{ block.holder_key }}" data-holder-sort-key="{{ block.label|lower }}">
           {% if loop.first %}
           <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
             {% if block.is_vacancy %}
@@ -480,7 +480,7 @@
         </tr>
         {% endfor %}
         {% if can_update %}
-        <tr class="workload-add-subject-row" data-workload-holder-row="{{ block.holder_key }}">
+        <tr class="workload-add-subject-row" data-workload-holder-row="{{ block.holder_key }}" data-holder-sort-key="{{ block.label|lower }}">
           <th class="workload-assignment-matrix__subject-cell workload-add-subject-row__subject">
             <details class="workload-subject-add">
               <summary title="Добавить предмет">
@@ -765,6 +765,32 @@
     return payload;
   };
 
+  const sortHolderRows = (matrix) => {
+    const body = matrix.querySelector("tbody");
+    const addTeacherRow = body?.querySelector(".workload-add-teacher-row");
+    if (!body || !addTeacherRow) return;
+    const groups = new Map();
+    body.querySelectorAll("[data-workload-holder-row]").forEach((row) => {
+      const holderKey = row.dataset.workloadHolderRow;
+      if (!groups.has(holderKey)) {
+        groups.set(holderKey, {
+          sortKey: row.dataset.holderSortKey || "",
+          rows: [],
+        });
+      }
+      groups.get(holderKey).rows.push(row);
+    });
+    Array.from(groups.values())
+      .sort((left, right) => left.sortKey.localeCompare(
+        right.sortKey,
+        "ru",
+        {sensitivity: "base"},
+      ))
+      .forEach((group) => {
+        group.rows.forEach((row) => body.insertBefore(row, addTeacherRow));
+      });
+  };
+
   const refreshMatrix = async (holderKey = "") => {
     const current = document.querySelector("[data-workload-matrix]");
     if (!current) return;
@@ -789,6 +815,7 @@
       if (replacementRows.length && anchor) {
         anchor.before(...replacementRows);
         currentRows.forEach((row) => row.remove());
+        sortHolderRows(current);
         current.removeAttribute("aria-busy");
         current.scrollLeft = scrollLeft;
         current.scrollTop = scrollTop;
