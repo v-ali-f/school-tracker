@@ -30,6 +30,7 @@ from app.models import (
     TeachingMetagroupSource,
     User,
     WorkloadAssignment,
+    WorkloadAssignmentChange,
     WorkloadNeed,
 )
 from app.services.education_plan_service import (
@@ -72,6 +73,9 @@ from app.services.workload_assignment_matrix_service import (
     build_workload_assignment_matrix,
 )
 from app.services.workload_distribution_service import generate_plan_needs
+from app.services.workload_snapshot_service import (
+    relink_assignments_to_population_snapshot,
+)
 from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
     change_groups_editing_status,
@@ -875,6 +879,7 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert "Свод учебных планов по классам".encode() in response.data
     assert 'data-class-name="5А"'.encode() in response.data
     assert 'data-plan-name="Основной учебный план"'.encode() in response.data
+    assert 'class="class-plan-matrix class-plan-summary-matrix"'.encode() in response.data
     assert 'data-activity-name="Математика"'.encode() in response.data
     assert "ч/нед.".encode() in response.data
     assert "Без УП".encode() in response.data
@@ -1514,7 +1519,7 @@ def test_group_matrix_can_plan_split_before_students_are_enrolled(
         assert all(not group.members for group in groups)
 
 
-def test_group_count_change_clears_only_target_class_subject_workload(
+def test_group_count_change_is_blocked_when_target_has_assignment(
     app,
     client,
     make_user,
@@ -1594,11 +1599,84 @@ def test_group_count_change_clears_only_target_class_subject_workload(
         headers={"X-Requested-With": "XMLHttpRequest"},
     )
 
+    assert response.status_code == 422
+    assert "уже назначена нагрузка" in response.get_json()["message"]
+    with app.app_context():
+        assert TeachingGroup.query.filter_by(id=target_group_id).one()
+        assert TeachingGroup.query.filter_by(id=untouched_group_id).one()
+        assert WorkloadNeed.query.count() == 2
+        assert WorkloadAssignment.query.count() == 2
+
+
+def test_group_count_change_removes_only_unassigned_target_need(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        line = db.session.get(EducationPlanLine, context["plan_line_id"])
+        classes = {
+            item.name_snapshot: item
+            for item in snapshot.classes
+        }
+        for snapshot_class in classes.values():
+            replace_plan_binding_members(
+                line.education_plan,
+                snapshot_class,
+                {item.id for item in snapshot_class.enrollments},
+                user_id=user_id,
+            )
+        generate_plan_needs(
+            db.session.get(TariffVersion, context["version_id"]),
+            user_id=user_id,
+        )
+        db.session.commit()
+        target_class = classes["5А"]
+        target_group = (
+            TeachingGroup.query
+            .join(TeachingGroupClass)
+            .filter(
+                TeachingGroupClass.population_snapshot_class_id
+                == target_class.id,
+            )
+            .one()
+        )
+        untouched_class = classes["5Б"]
+        untouched_group = (
+            TeachingGroup.query
+            .join(TeachingGroupClass)
+            .filter(
+                TeachingGroupClass.population_snapshot_class_id
+                == untouched_class.id,
+            )
+            .one()
+        )
+        target_group_id = target_group.id
+        untouched_group_id = untouched_group.id
+        payload = {
+            "version_id": context["version_id"],
+            "plan_line_id": line.id,
+            "snapshot_class_id": target_class.id,
+            "plan_id": line.education_plan_id,
+            "group_count": 2,
+        }
+
+    login(user_id)
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data=payload,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
     assert response.status_code == 200
     assert response.get_json()["group_count"] == 2
-    assert "только для этого предмета и класса" in (
-        response.get_json()["message"]
-    )
     with app.app_context():
         assert TeachingGroup.query.filter_by(id=target_group_id).first() is None
         replacement_groups = (
@@ -1606,15 +1684,97 @@ def test_group_count_change_clears_only_target_class_subject_workload(
             .join(TeachingGroupClass)
             .filter(
                 TeachingGroupClass.population_snapshot_class_id
-                == target_class_id,
+                == target_class.id,
             )
             .all()
         )
         assert len(replacement_groups) == 2
         remaining_need = WorkloadNeed.query.one()
         assert remaining_need.teaching_group_id == untouched_group_id
-        remaining_assignment = WorkloadAssignment.query.one()
-        assert remaining_assignment.workload_need_id == remaining_need.id
+
+
+def test_assignments_are_relinked_after_population_snapshot_refresh(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _group_context(user_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        first_snapshot_id = _snapshot(user_id, version.id)
+        first_snapshot = db.session.get(PopulationSnapshot, first_snapshot_id)
+        line = db.session.get(EducationPlanLine, context["plan_line_id"])
+        for snapshot_class in first_snapshot.classes:
+            replace_plan_binding_members(
+                line.education_plan,
+                snapshot_class,
+                {item.id for item in snapshot_class.enrollments},
+                user_id=user_id,
+            )
+        generate_plan_needs(version, user_id=user_id)
+        need = (
+            WorkloadNeed.query
+            .join(TeachingGroup)
+            .join(TeachingGroupClass)
+            .join(PopulationSnapshotClass)
+            .filter(PopulationSnapshotClass.name_snapshot == "5А")
+            .one()
+        )
+        assignment = WorkloadAssignment(
+            organization_id=need.organization_id,
+            tariff_version_id=version.id,
+            workload_need_id=need.id,
+            employee_user_id=teacher_id,
+            position_code="TEACHER",
+            position_title="Учитель",
+            department_id=need.department_id,
+            building_id=need.building_id,
+            assignment_kind="MAIN",
+            date_from=need.date_from,
+            date_to=need.date_to,
+            weekly_hours=need.weekly_hours,
+            annual_hours=need.annual_hours,
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(assignment)
+        db.session.commit()
+        old_need_id = need.id
+
+        current_snapshot = build_population_snapshot(
+            version,
+            user_id=user_id,
+            snapshot_date=date(2026, 9, 2),
+        )
+        materialize_default_teaching_groups(
+            version=version,
+            snapshot=current_snapshot,
+            plans=[line.education_plan],
+            user_id=user_id,
+        )
+        generate_plan_needs(version, user_id=user_id)
+
+        changed = relink_assignments_to_population_snapshot(
+            version,
+            current_snapshot,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert changed == 1
+        db.session.refresh(assignment)
+        assert assignment.workload_need_id != old_need_id
+        target_class = (
+            assignment.workload_need.teaching_group.source_classes[0]
+            .population_snapshot_class
+        )
+        assert target_class.population_snapshot_id == current_snapshot.id
+        change = WorkloadAssignmentChange.query.one()
+        assert change.change_kind == "TRANSFER"
+        assert change.before_data["workload_need_id"] == old_need_id
+        assert change.after_data["workload_need_id"] == assignment.workload_need_id
 
 
 def test_group_composition_assigns_students_to_split_groups(

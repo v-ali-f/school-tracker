@@ -316,6 +316,7 @@
   data-building-id="{{ selected_building_id or '' }}"
   data-education-levels="{{ selected_education_levels|join(',') }}"
   data-grades="{{ selected_grades|join(',') }}"
+  data-editable="{{ '1' if can_update else '0' }}"
 >
   {% set has_secondary_headers = matrix.columns|selectattr('subheader_label')|list|length > 0 %}
   <table
@@ -336,7 +337,6 @@
           {% for column in class_group.columns %}
         <th
           class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
-          data-matrix-column-key="{{ column.key }}"
           data-matrix-class-column
         >
           <span class="workload-matrix-sticky-class">{{ class_group.label }}</span>
@@ -361,7 +361,14 @@
         <!-- workload-holder-start:{{ block.holder_key }} -->
         {% set block_rowspan = block.rows|length + (1 if can_update else 0) %}
         {% for row in block.rows %}
-        <tr data-workload-holder-row="{{ block.holder_key }}" data-holder-sort-key="{{ block.label|lower }}">
+        <tr
+          data-workload-holder-row="{{ block.holder_key }}"
+          data-holder-sort-key="{{ block.label|lower }}"
+          data-holder-key="{{ block.holder_key }}"
+          data-holder-type="{{ 'vacancy' if block.is_vacancy else 'teacher' }}"
+          data-teacher-id="{{ block.teacher_id or '' }}"
+          data-vacancy-key="{{ block.vacancy_key or '' }}"
+        >
           {% if loop.first %}
           <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
             {% if block.is_vacancy %}
@@ -482,7 +489,6 @@
           {% set matrix_cell = row.matrix_cells.get(column.key) %}
           <td
             class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
-            data-matrix-column-key="{{ column.key }}"
           >
             {% if matrix_cell %}
             <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
@@ -491,19 +497,13 @@
                 class="workload-cell-entry {% if slot.assignment %}is-assigned{% elif slot.assigned_elsewhere %}is-locked{% elif can_update %}is-available{% endif %}"
                 data-workload-cell-form
                 data-need-id="{{ slot.need.id }}"
-                data-holder-key="{{ block.holder_key }}"
-                data-row-key="{{ block.holder_key }}:{{ row.activity.id }}:{{ row.plan_kind }}"
                 data-planned="{{ slot.planned|compact_decimal }}"
-                data-editable="{{ '1' if can_update else '0' }}"
-                data-holder-type="{{ 'vacancy' if block.is_vacancy else 'teacher' }}"
-                data-teacher-id="{{ block.teacher_id or '' }}"
-                data-vacancy-key="{{ block.vacancy_key or '' }}"
                 data-hours="{% if slot.assignment %}0{% else %}{{ slot.planned|compact_decimal }}{% endif %}"
               >
                 <button
                   class="workload-cell-toggle"
                   type="button"
-                  aria-label="Часы: {{ block.label }}, {{ row.activity.name }}, {{ column.label }}{% if slot.label %}, {{ slot.label }}{% endif %}"
+                  aria-label="Изменить часы: {{ column.label }}"
                   title="{% if slot.assignment %}Снять назначение {{ slot.planned|compact_decimal }} ч/нед.{% elif slot.assigned_elsewhere %}Назначено другому преподавателю.{% else %}Назначить полный объём {{ slot.planned|compact_decimal }} ч/нед.{% endif %}"
                   {% if not can_update or slot.assigned_elsewhere %}disabled{% endif %}
                   data-workload-cell-toggle
@@ -841,7 +841,9 @@
       const button = cell.querySelector("[data-workload-cell-toggle]");
       const value = cell.querySelector("[data-workload-cell-value]");
       const label = cell.querySelector("[data-workload-cell-label]");
-      const sameHolder = cell.dataset.holderKey === payload.holder_key;
+      const matrix = cell.closest("[data-workload-matrix]");
+      const holderRow = cell.closest("tr[data-holder-key]");
+      const sameHolder = holderRow?.dataset.holderKey === payload.holder_key;
       const assigned = payload.value !== null && sameHolder;
       const locked = payload.value !== null && !sameHolder;
       const planned = cell.dataset.planned;
@@ -849,12 +851,12 @@
       cell.classList.toggle("is-locked", locked);
       cell.classList.toggle(
         "is-available",
-        !assigned && !locked && cell.dataset.editable === "1"
+        !assigned && !locked && matrix?.dataset.editable === "1"
       );
       cell.dataset.hours = assigned ? "0" : planned;
       if (value) value.textContent = assigned ? formatHours(planned) : "";
       if (label) label.hidden = !assigned;
-      button.disabled = locked || cell.dataset.editable !== "1";
+      button.disabled = locked || matrix?.dataset.editable !== "1";
       button.title = assigned
         ? `Снять назначение ${formatHours(planned)} ч/нед.`
         : locked
@@ -951,16 +953,18 @@
   };
 
   const bindCellControls = (root = document) => {
-    root.querySelectorAll("[data-workload-cell-form]").forEach((cell) => {
-      if (cell.dataset.bound === "1") return;
-      cell.dataset.bound = "1";
-      const button = cell.querySelector("[data-workload-cell-toggle]");
-      if (!button || button.disabled) return;
-      let saving = false;
-      button.addEventListener("click", async () => {
-        if (saving) return;
-        saving = true;
-        const matrix = cell.closest("[data-workload-matrix]");
+    const matrices = root.matches?.("[data-workload-matrix]")
+      ? [root]
+      : Array.from(root.querySelectorAll("[data-workload-matrix]"));
+    matrices.forEach((matrix) => {
+      if (matrix.dataset.cellControlsBound === "1") return;
+      matrix.dataset.cellControlsBound = "1";
+      matrix.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-workload-cell-toggle]");
+        if (!button || button.disabled || !matrix.contains(button)) return;
+        const cell = button.closest("[data-workload-cell-form]");
+        const holderRow = cell?.closest("tr[data-holder-key]");
+        if (!cell || !holderRow || cell.classList.contains("is-saving")) return;
         const formData = new FormData();
         formData.set("csrf_token", matrix.dataset.csrfToken || "");
         formData.set("version_id", matrix.dataset.versionId || "");
@@ -974,9 +978,9 @@
           (value) => formData.append("grade", value)
         );
         formData.set("need_id", cell.dataset.needId || "");
-        formData.set("holder_type", cell.dataset.holderType || "teacher");
-        formData.set("teacher_id", cell.dataset.teacherId || "");
-        formData.set("vacancy_key", cell.dataset.vacancyKey || "");
+        formData.set("holder_type", holderRow.dataset.holderType || "teacher");
+        formData.set("teacher_id", holderRow.dataset.teacherId || "");
+        formData.set("vacancy_key", holderRow.dataset.vacancyKey || "");
         formData.set("hours", cell.dataset.hours || "");
         cell.classList.add("is-saving");
         button.disabled = true;
@@ -994,9 +998,8 @@
           window.alert(error.message);
         } finally {
           if (requestPromise) pendingCellSaves.delete(requestPromise);
-          saving = false;
           cell.classList.remove("is-saving");
-          if (!cell.classList.contains("is-locked") && cell.dataset.editable === "1") {
+          if (!cell.classList.contains("is-locked") && matrix.dataset.editable === "1") {
             button.disabled = false;
           }
         }
@@ -1020,13 +1023,12 @@
     clearMatrixHover(matrix);
     const row = event.target.closest("tbody tr[data-workload-holder-row]");
     row?.classList.add("is-row-hovered");
-    const columnCell = event.target.closest("[data-matrix-column-key]");
-    const columnKey = columnCell?.dataset.matrixColumnKey;
-    if (!columnKey) return;
-    matrix.querySelectorAll("[data-matrix-column-key]").forEach((element) => {
-      if (element.dataset.matrixColumnKey === columnKey) {
-        element.classList.add("is-column-hovered");
-      }
+    const columnCell = event.target.closest("th, td");
+    const columnIndex = columnCell?.cellIndex;
+    if (columnIndex === undefined || columnIndex < 4) return;
+    matrix.querySelectorAll("tr").forEach((matrixRow) => {
+      const element = matrixRow.cells[columnIndex];
+      if (element) element.classList.add("is-column-hovered");
     });
   });
   document.addEventListener("pointerout", (event) => {

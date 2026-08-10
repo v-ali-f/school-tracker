@@ -684,7 +684,7 @@
 
 .workload-assignment-matrix__teacher-cell,
 .workload-assignment-matrix__subject-cell {
-  padding: 3px 6px !important;
+  padding: 1px 5px !important;
   text-align: left !important;
 }
 
@@ -835,8 +835,9 @@
 
 .workload-assignment-matrix__teacher-cell span,
 .workload-assignment-matrix__subject-cell span {
+  font-size: 10px;
   font-weight: 400;
-  line-height: 1.15;
+  line-height: 1.05;
 }
 
 .workload-assignment-matrix__teacher-cell small,
@@ -966,7 +967,7 @@
 }
 
 .workload-assignment-matrix__cell {
-  height: 28px;
+  height: 20px;
   padding: 0 !important;
 }
 
@@ -983,14 +984,14 @@
 }
 
 .workload-cell-slots {
-  min-height: 28px;
+  min-height: 20px;
   display: grid;
-  grid-auto-rows: minmax(28px, auto);
+  grid-auto-rows: minmax(20px, auto);
 }
 
 .workload-cell-entry {
   min-width: 0;
-  min-height: 28px;
+  min-height: 20px;
   position: relative;
   display: grid;
   align-content: center;
@@ -1004,14 +1005,14 @@
 .workload-cell-toggle {
   width: 100%;
   min-width: 0;
-  height: 27px;
-  padding: 1px 2px;
+  height: 19px;
+  padding: 0 2px;
   color: var(--workload-text);
   background: transparent;
   border: 0;
   border-radius: 0;
   outline: 0;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 750;
   text-align: center;
   cursor: pointer;

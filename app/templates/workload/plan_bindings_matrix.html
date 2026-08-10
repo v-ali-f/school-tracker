@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260810_5">
 {% endblock %}
 
 {% block workspace_content %}
@@ -127,7 +127,7 @@
   </div>
 
   <div class="class-plan-matrix-wrap" tabindex="0" aria-label="Таблица учебных планов {{ selected_level }} по классам">
-    <table class="class-plan-matrix">
+    <table class="class-plan-matrix class-plan-summary-matrix">
       <thead>
         <tr>
           <th class="class-plan-matrix__subject" rowspan="2">Предмет или курс</th>
@@ -152,7 +152,7 @@
             {% for column in group.columns %}
             <th class="class-plan-matrix__plan {% if group_alt %}is-alt{% endif %} {% if column.is_unassigned %}is-unassigned{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}" data-plan-name="{{ column.plan.name if column.plan else '' }}">
               <span title="{{ column.plan.name if column.plan else 'Учебный план не назначен' }}">
-                {{ column.plan.name if column.plan else 'Без УП' }}
+                {{ column.plan.name[:3] if column.plan else 'Без УП' }}
               </span>
               <small>{{ column.student_count }} уч. · {{ column.period_label }}</small>
             </th>

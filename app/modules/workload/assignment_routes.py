@@ -63,6 +63,9 @@ from app.services.workload_distribution_service import (
     teacher_totals,
     validate_assignment,
 )
+from app.services.workload_snapshot_service import (
+    relink_assignments_to_population_snapshot,
+)
 from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_GRADES,
     EDUCATION_LEVEL_LABELS,
@@ -1249,11 +1252,28 @@ def register_assignment_routes(workload_bp):
                         grades=grades,
                         building_id=building_id,
                     )
+                relinked_assignments = (
+                    relink_assignments_to_population_snapshot(
+                        selected_version,
+                        snapshot,
+                        user_id=current_user.id,
+                    )
+                    if snapshot is not None else 0
+                )
+                if relinked_assignments:
+                    db.session.commit()
+                    flash(
+                        "Нагрузка сохранена и перепривязана к обновлённому "
+                        f"контингенту: {relinked_assignments} назначений.",
+                        "success",
+                    )
             except WorkloadDistributionError as exc:
                 db.session.rollback()
                 flash(str(exc), "danger")
         query = _scoped_need_query().filter(
-            WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
+            WorkloadNeed.status.in_(
+                ("OPEN", "PARTIAL", "COVERED", "OVERALLOCATED")
+            ),
         )
         if selected_version is not None:
             query = query.filter(
