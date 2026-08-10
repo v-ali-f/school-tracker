@@ -527,7 +527,8 @@
   max-width: 100%;
   max-height: calc(100vh - 82px);
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
   border: 1px solid var(--workload-border-strong);
   border-radius: 6px;
   background: #fff;
@@ -1191,8 +1192,7 @@
   padding: 5px 10px !important;
   position: sticky;
   bottom: 0;
-  left: 0;
-  z-index: 4;
+  z-index: 6;
   text-align: left !important;
   background: #f8fafc;
   box-shadow: 0 -3px 8px rgba(31, 45, 69, 0.08);
@@ -1202,6 +1202,9 @@
 .workload-add-teacher-row__button {
   min-height: 30px;
   padding: 4px 10px;
+  position: sticky;
+  left: 10px;
+  z-index: 7;
   display: inline-flex;
   align-items: center;
   gap: 7px;
