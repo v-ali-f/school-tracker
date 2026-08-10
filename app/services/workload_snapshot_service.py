@@ -40,6 +40,23 @@ def _need_key(need):
     )
 
 
+def _assignment_key(assignment):
+    holder_key = (
+        ("vacancy", assignment.position_code)
+        if assignment.assignment_kind == "VACANCY"
+        else ("teacher", assignment.employee_user_id)
+    )
+    return (*_need_key(assignment.workload_need), holder_key)
+
+
+def _snapshot_revision(assignment):
+    revisions = [
+        link.population_snapshot_class.population_snapshot.revision_no
+        for link in assignment.workload_need.teaching_group.source_classes
+    ]
+    return max(revisions, default=0)
+
+
 def relink_assignments_to_population_snapshot(
     version,
     target_snapshot,
@@ -61,6 +78,7 @@ def relink_assignments_to_population_snapshot(
             .joinedload(WorkloadNeed.teaching_group)
             .selectinload(TeachingGroup.source_classes)
             .joinedload(TeachingGroupClass.population_snapshot_class)
+            .joinedload(PopulationSnapshotClass.population_snapshot)
         )
         .join(WorkloadNeed, WorkloadNeed.id == WorkloadAssignment.workload_need_id)
         .filter(
@@ -69,16 +87,46 @@ def relink_assignments_to_population_snapshot(
         )
         .all()
     )
-    stale_assignments = [
+    current_assignments = [
         assignment
         for assignment in assignments
         if assignment.workload_need.teaching_group is not None
         and _class_key(assignment.workload_need.teaching_group)
-        and any(
+        and all(
             link.population_snapshot_class.population_snapshot_id
-            != target_snapshot.id
+            == target_snapshot.id
             for link in assignment.workload_need.teaching_group.source_classes
         )
+    ]
+    stale_candidates = [
+        assignment
+        for assignment in assignments
+        if assignment not in current_assignments
+        and assignment.workload_need.teaching_group is not None
+        and _class_key(assignment.workload_need.teaching_group)
+    ]
+    current_keys = {
+        _assignment_key(assignment)
+        for assignment in current_assignments
+    }
+    newest_stale_by_key = {}
+    for assignment in stale_candidates:
+        key = _assignment_key(assignment)
+        current = newest_stale_by_key.get(key)
+        if current is None or (
+            _snapshot_revision(assignment),
+            assignment.created_at,
+            assignment.id,
+        ) > (
+            _snapshot_revision(current),
+            current.created_at,
+            current.id,
+        ):
+            newest_stale_by_key[key] = assignment
+    stale_assignments = [
+        assignment
+        for key, assignment in newest_stale_by_key.items()
+        if key not in current_keys
     ]
     if not stale_assignments:
         return 0
@@ -89,6 +137,7 @@ def relink_assignments_to_population_snapshot(
             joinedload(WorkloadNeed.teaching_group)
             .selectinload(TeachingGroup.source_classes)
             .joinedload(TeachingGroupClass.population_snapshot_class)
+            .joinedload(PopulationSnapshotClass.population_snapshot)
         )
         .join(TeachingGroup, TeachingGroup.id == WorkloadNeed.teaching_group_id)
         .join(
@@ -123,23 +172,6 @@ def relink_assignments_to_population_snapshot(
             )
             continue
         target_need = candidates[0]
-        duplicate = next(
-            (
-                item for item in assignments
-                if item.id != assignment.id
-                and item.workload_need_id == target_need.id
-                and item.employee_user_id == assignment.employee_user_id
-                and item.assignment_kind == assignment.assignment_kind
-                and item.position_code == assignment.position_code
-                and item.status != "CANCELLED"
-            ),
-            None,
-        )
-        if duplicate is not None:
-            errors.append(
-                f"назначение №{assignment.id}: текущая цель уже распределена"
-            )
-            continue
         mappings.append((assignment, target_need))
 
     if errors:
