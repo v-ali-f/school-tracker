@@ -105,6 +105,7 @@ WORKSPACE_FILTER_FIELDS = (
     "building_id",
     "education_level",
     "grade",
+    "teacher_query",
 )
 
 
@@ -1183,6 +1184,11 @@ def register_assignment_routes(workload_bp):
         building_id = request.args.get("building_id", type=int)
         education_levels = _workspace_selected_levels(request.args)
         grades = _workspace_selected_grades(request.args)
+        teacher_query = " ".join(
+            (request.args.get("teacher_query") or "").split()
+        )[:160]
+        if view_mode == "vacancies":
+            teacher_query = ""
         fragment_holder_key = (
             request.args.get("fragment_holder_key") or ""
         ).strip()[:80]
@@ -1288,9 +1294,20 @@ def register_assignment_routes(workload_bp):
         state_key, state = _workspace_state(version_id or 0)
         employees = _active_employees()
         employee_by_id = {item.id: item for item in employees}
+        normalized_teacher_query = teacher_query.casefold()
+        matching_teacher_ids = {
+            item.id
+            for item in employees
+            if normalized_teacher_query
+            and normalized_teacher_query in item.fio.casefold()
+        }
+        extra_teacher_ids = list(dict.fromkeys([
+            *state["teacher_ids"],
+            *sorted(matching_teacher_ids),
+        ]))
         extra_teachers = [
             employee_by_id[teacher_id]
-            for teacher_id in state["teacher_ids"]
+            for teacher_id in extra_teacher_ids
             if teacher_id in employee_by_id
         ]
         vacancies_by_key = {
@@ -1397,6 +1414,15 @@ def register_assignment_routes(workload_bp):
                 block for block in matrix["blocks"]
                 if block["is_vacancy"]
             ]
+        elif teacher_query:
+            matrix["blocks"] = [
+                block for block in matrix["blocks"]
+                if (
+                    not block["is_vacancy"]
+                    and block["teacher_id"] in matching_teacher_ids
+                )
+            ]
+            matrix["teacher_count"] = len(matrix["blocks"])
         departments, buildings = _scope_options()
         filter_classes = list(snapshot.classes) if snapshot else []
         workspace_scope = resolve_workload_scope(current_user)
@@ -1446,6 +1472,8 @@ def register_assignment_routes(workload_bp):
             selected_building_id=building_id,
             selected_education_levels=sorted(education_levels),
             selected_grades=sorted(grades),
+            selected_teacher_query=teacher_query,
+            teacher_filter_options=employees,
             level_counts=level_counts,
             level_labels=EDUCATION_LEVEL_LABELS,
             level_grades=level_grades,
@@ -2447,6 +2475,11 @@ def register_assignment_routes(workload_bp):
         education_levels = _workspace_selected_levels(request.args)
         grades = _workspace_selected_grades(request.args)
         building_id = request.args.get("building_id", type=int)
+        teacher_query = " ".join(
+            (request.args.get("teacher_query") or "").split()
+        )[:160]
+        if view_mode == "vacancies":
+            teacher_query = ""
         snapshot, _, plan_matrices = _workspace_plan_context(
             version,
             education_levels=education_levels,
@@ -2483,6 +2516,19 @@ def register_assignment_routes(workload_bp):
             matrix["blocks"] = [
                 block for block in matrix["blocks"]
                 if block["is_vacancy"]
+            ]
+        elif teacher_query:
+            matching_teacher_ids = {
+                item.id
+                for item in _active_employees()
+                if teacher_query.casefold() in item.fio.casefold()
+            }
+            matrix["blocks"] = [
+                block for block in matrix["blocks"]
+                if (
+                    not block["is_vacancy"]
+                    and block["teacher_id"] in matching_teacher_ids
+                )
             ]
         workbook = Workbook()
         sheet = workbook.active

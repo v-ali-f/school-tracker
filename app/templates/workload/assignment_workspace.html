@@ -16,6 +16,9 @@
   {% for grade in selected_grades %}
   <input type="hidden" name="grade" value="{{ grade }}">
   {% endfor %}
+  {% if selected_teacher_query %}
+  <input type="hidden" name="teacher_query" value="{{ selected_teacher_query }}">
+  {% endif %}
 {% endmacro %}
 
 {% block workspace_content %}
@@ -35,7 +38,8 @@
         department_id=selected_department_id or '',
         building_id=selected_building_id or '',
         education_level=selected_education_levels,
-        grade=selected_grades
+        grade=selected_grades,
+        teacher_query=selected_teacher_query
       ) }}"
     >
       <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Скачать Excel
@@ -189,11 +193,30 @@
     <div class="workload-filter-field workload-filter-field--view">
       <span class="workload-filter-label">Вид нагрузки</span>
       <nav class="workload-view-tabs" aria-label="Вид нагрузки">
-        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">Вся нагрузка</a>
-        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">По кафедре</a>
+        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, teacher_query=selected_teacher_query) }}">Вся нагрузка</a>
+        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, teacher_query=selected_teacher_query) }}">По кафедре</a>
         <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">Вакансии</a>
       </nav>
     </div>
+    {% if view_mode != 'vacancies' %}
+    <div class="workload-filter-field workload-filter-field--teacher">
+      <label for="workspace-teacher-query">Педагог</label>
+      <input
+        class="form-control form-control-sm"
+        id="workspace-teacher-query"
+        type="search"
+        name="teacher_query"
+        value="{{ selected_teacher_query }}"
+        list="workspace-teacher-options"
+        placeholder="Введите ФИО"
+        autocomplete="off"
+        data-workload-filter-auto
+      >
+      <datalist id="workspace-teacher-options">
+        {% for item in teacher_filter_options %}<option value="{{ item.fio }}"></option>{% endfor %}
+      </datalist>
+    </div>
+    {% endif %}
     {% if view_mode == 'department' %}
     <div class="workload-filter-field workload-filter-field--department">
       <label for="workspace-department">Кафедра</label>
@@ -229,7 +252,13 @@
     </button>
     {% endif %}
   </div>
-  <span class="workload-matrix-toolbar__hint">Все значения — часов в неделю</span>
+  <div class="workload-matrix-toolbar__guide">
+    <div class="workload-matrix-legend" aria-label="Обозначения матрицы">
+      <span><i class="is-available"></i>Можно назначить</span>
+      <span><i class="is-locked"></i>Назначено другому преподавателю</span>
+    </div>
+    <span class="workload-matrix-toolbar__hint">Часов в неделю</span>
+  </div>
 </div>
 
 {% if matrix.unassigned_items %}
@@ -274,11 +303,6 @@
   </div>
 </div>
 {% endif %}
-
-<div class="workload-matrix-legend" aria-label="Обозначения матрицы">
-  <span><i class="is-available"></i>Можно назначить</span>
-  <span><i class="is-locked"></i>Назначено другому преподавателю</span>
-</div>
 
 {% if matrix.columns %}
 <div
@@ -534,14 +558,14 @@
         <!-- workload-holder-end:{{ block.holder_key }} -->
         {% endif %}
       {% endfor %}
-      {% if not matrix.blocks and not can_update %}
+      {% if not matrix.blocks and (not can_update or selected_teacher_query) %}
       <tr>
         <td class="workload-assignment-matrix__no-teachers" colspan="{{ 4 + matrix.columns|length }}">
-          Нет преподавателей для отображения.
+          {% if selected_teacher_query %}По запросу «{{ selected_teacher_query }}» педагог не найден.{% else %}Нет преподавателей для отображения.{% endif %}
         </td>
       </tr>
       {% endif %}
-      {% if can_update and selected_version %}
+      {% if can_update and selected_version and not selected_teacher_query %}
       <tr class="workload-add-teacher-row">
         <td colspan="{{ 4 + matrix.columns|length }}">
           <button
