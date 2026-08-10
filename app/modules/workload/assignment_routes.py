@@ -327,7 +327,14 @@ def _save_workspace_state(key, state):
     session.modified = True
 
 
-def _next_vacancy(version_id, state):
+def _normalized_vacancy_note(value):
+    note = " ".join((value or "").split())
+    if note.startswith("(") and note.endswith(")"):
+        note = note[1:-1].strip()
+    return note[:100].strip()
+
+
+def _next_vacancy(version_id, state, *, note=None):
     existing_codes = {
         str(item.get("key"))
         for item in state.get("vacancies", [])
@@ -346,9 +353,13 @@ def _next_vacancy(version_id, state):
     number = 1
     while f"VACANCY_{number}" in existing_codes:
         number += 1
+    label = f"Вакансия {number}"
+    normalized_note = _normalized_vacancy_note(note)
+    if normalized_note:
+        label = f"{label} ({normalized_note})"
     return {
         "key": f"VACANCY_{number}",
-        "label": f"Вакансия {number}",
+        "label": label,
     }
 
 
@@ -1544,7 +1555,11 @@ def register_assignment_routes(workload_bp):
         _require_version_workload_editable(version)
         key, state = _workspace_state(version.id)
         if holder_type == "vacancy":
-            vacancy = _next_vacancy(version.id, state)
+            vacancy = _next_vacancy(
+                version.id,
+                state,
+                note=request.form.get("vacancy_note"),
+            )
             state["vacancies"].append(vacancy)
             _save_workspace_state(key, state)
             if is_ajax:
@@ -2193,7 +2208,11 @@ def register_assignment_routes(workload_bp):
                 return _workspace_redirect()
         elif target_value == "vacancy":
             state_key, state = _workspace_state(version.id)
-            target_vacancy = _next_vacancy(version.id, state)
+            target_vacancy = _next_vacancy(
+                version.id,
+                state,
+                note=request.form.get("target_vacancy_note"),
+            )
         else:
             flash("Выберите нового преподавателя или вакансию.", "danger")
             return _workspace_redirect()

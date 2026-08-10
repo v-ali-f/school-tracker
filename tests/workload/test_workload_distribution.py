@@ -1303,7 +1303,11 @@ def test_workspace_vacancy_can_be_filled_by_teacher(
 
     assert client.post(
         "/workload/assignments/workspace/teachers",
-        data={**filters, "holder_type": "vacancy"},
+        data={
+            **filters,
+            "holder_type": "vacancy",
+            "vacancy_note": "  (Русский язык)  ",
+        },
     ).status_code == 302
     assert client.post(
         "/workload/assignments/workspace/subjects",
@@ -1330,12 +1334,13 @@ def test_workspace_vacancy_can_be_filled_by_teacher(
         assert vacancy.assignment_kind == "VACANCY"
         assert vacancy.employee_user_id is None
         assert vacancy.position_code == "VACANCY_1"
+        assert vacancy.position_title == "Вакансия 1 (Русский язык)"
 
     vacancy_view = client.get(
         "/workload/assignments/workspace",
         query_string={**filters, "view": "vacancies"},
     ).get_data(as_text=True)
-    assert "Вакансия 1" in vacancy_view
+    assert "Вакансия 1 (Русский язык)" in vacancy_view
     assert "Преподаватель не назначен" in vacancy_view
 
     replaced = client.post(
