@@ -978,6 +978,8 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert 'data-hours="5"' in html
     assert 'name="hours"' not in html
     assert f'data-workload-holder-row="teacher:{teacher_id}"' in html
+    assert "data-holder-sort-key=" in html
+    assert "sortHolderRows(current);" in html
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html
