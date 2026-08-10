@@ -388,6 +388,7 @@ def build_workload_assignment_matrix(
     draft_vacancy_rows=(),
     teacher_metadata=None,
     total_assignments=None,
+    visible_holder_key=None,
 ):
     needs = list(needs)
     assignments = list(assignments)
@@ -579,6 +580,9 @@ def build_workload_assignment_matrix(
             if assignment.assignment_kind == "VACANCY":
                 vacancy_key = assignment.position_code
                 block_key = ("vacancy", vacancy_key)
+                holder_key = f"vacancy:{vacancy_key}"
+                if visible_holder_key and holder_key != visible_holder_key:
+                    continue
                 block = blocks_by_teacher.setdefault(
                     block_key,
                     _new_block(
@@ -589,6 +593,9 @@ def build_workload_assignment_matrix(
             else:
                 teacher = assignment.employee
                 block_key = ("teacher", teacher.id)
+                holder_key = f"teacher:{teacher.id}"
+                if visible_holder_key and holder_key != visible_holder_key:
+                    continue
                 block = blocks_by_teacher.setdefault(
                     block_key,
                     _new_block(teacher),
@@ -606,11 +613,21 @@ def build_workload_assignment_matrix(
                 )
 
     for teacher in extra_teachers:
+        if (
+            visible_holder_key
+            and f"teacher:{teacher.id}" != visible_holder_key
+        ):
+            continue
         blocks_by_teacher.setdefault(
             ("teacher", teacher.id),
             _new_block(teacher),
         )
     for vacancy in extra_vacancies:
+        if (
+            visible_holder_key
+            and f"vacancy:{vacancy['key']}" != visible_holder_key
+        ):
+            continue
         blocks_by_teacher.setdefault(
             ("vacancy", vacancy["key"]),
             _new_block(
@@ -630,6 +647,11 @@ def build_workload_assignment_matrix(
             )].append(need)
 
     for teacher, activity, plan_kind in draft_rows:
+        if (
+            visible_holder_key
+            and f"teacher:{teacher.id}" != visible_holder_key
+        ):
+            continue
         block = blocks_by_teacher.setdefault(
             ("teacher", teacher.id),
             _new_block(teacher),
@@ -646,6 +668,11 @@ def build_workload_assignment_matrix(
         for item in extra_vacancies
     }
     for vacancy_key, activity, plan_kind in draft_vacancy_rows:
+        if (
+            visible_holder_key
+            and f"vacancy:{vacancy_key}" != visible_holder_key
+        ):
+            continue
         vacancy = vacancies_by_key.get(vacancy_key, {
             "key": vacancy_key,
             "label": "Вакансия",
