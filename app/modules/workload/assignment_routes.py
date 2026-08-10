@@ -1307,6 +1307,17 @@ def register_assignment_routes(workload_bp):
             item.id: item
             for item in extra_teachers
         })
+        if fragment_holder_key:
+            visible_teacher_id = (
+                int(fragment_value)
+                if fragment_type == "teacher" and fragment_value.isdigit()
+                else None
+            )
+            matrix_teachers = {
+                teacher_id: teacher
+                for teacher_id, teacher in matrix_teachers.items()
+                if teacher_id == visible_teacher_id
+            }
         matrix = build_workload_assignment_matrix(
             needs,
             assignments,
@@ -1320,6 +1331,7 @@ def register_assignment_routes(workload_bp):
                 selected_version,
             ),
             total_assignments=all_assignments,
+            visible_holder_key=fragment_holder_key or None,
         )
         if view_mode == "vacancies":
             matrix["blocks"] = [
