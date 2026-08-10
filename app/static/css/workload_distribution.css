@@ -133,6 +133,16 @@
   width: min(420px, 100%);
 }
 
+.workload-filter-field--teacher {
+  width: min(380px, 100%);
+  margin-left: auto;
+}
+
+.workload-filter-field--teacher .form-control {
+  min-height: 32px;
+  font-size: 11px;
+}
+
 .workload-filter-field {
   min-width: 0;
 }
@@ -205,6 +215,14 @@
 .workload-matrix-toolbar__hint {
   color: var(--workload-muted);
   font-size: 10px;
+  white-space: nowrap;
+}
+
+.workload-matrix-toolbar__guide {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
 }
 
 .workload-matrix-totals {
@@ -484,6 +502,11 @@
   gap: 16px;
   color: var(--workload-muted);
   font-size: 11px;
+}
+
+.workload-matrix-toolbar .workload-matrix-legend {
+  min-height: 0;
+  margin: 0;
 }
 
 .workload-matrix-legend span {
@@ -1365,6 +1388,10 @@
   .workload-filterbar__secondary {
     flex-wrap: wrap;
   }
+
+  .workload-filter-field--teacher {
+    margin-left: 0;
+  }
 }
 
 .workload-assignment-segment small,
@@ -1681,6 +1708,13 @@
   .workload-filterbar__secondary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .workload-matrix-toolbar,
+  .workload-matrix-toolbar__guide,
+  .workload-matrix-totals {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .workload-filter-field--levels,

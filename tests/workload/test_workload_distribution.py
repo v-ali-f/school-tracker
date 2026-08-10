@@ -927,6 +927,12 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         need = WorkloadNeed.query.one()
         need_id = need.id
         activity_id = need.education_activity_id
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name = "Иванова"
+        teacher.first_name = "Анна"
+        db.session.get(User, admin_id).last_name = "Администраторов"
+        db.session.commit()
+        teacher_fio = teacher.fio
     login(admin_id)
     filters = {
         "version_id": str(context["version_id"]),
@@ -1064,6 +1070,24 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "is-locked" in locked_matrix
     assert "Назначено другому преподавателю." in locked_matrix
     assert "disabled" in locked_matrix
+
+    filtered_matrix = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            **filters,
+            "teacher_query": teacher_fio,
+        },
+    )
+    filtered_html = filtered_matrix.get_data(as_text=True)
+    assert filtered_matrix.status_code == 200
+    assert f'data-workload-holder-row="teacher:{teacher_id}"' in filtered_html
+    assert f'data-workload-holder-row="teacher:{admin_id}"' not in filtered_html
+    assert 'name="teacher_query"' in filtered_html
+    assert 'placeholder="Введите ФИО"' in filtered_html
+    assert 'class="workload-matrix-toolbar__guide"' in filtered_html
+    assert filtered_html.index("workload-matrix-totals") < (
+        filtered_html.index("workload-matrix-legend")
+    )
 
 
 def test_workspace_preserves_multiple_level_and_grade_filters(
