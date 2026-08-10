@@ -391,10 +391,6 @@ def replace_teaching_group_count(
         plan,
     )
     member_ids = set(column["member_ids"])
-    if not member_ids:
-        raise GroupValidationError(
-            "В выбранной части класса нет учеников, привязанных к учебному плану."
-        )
 
     existing_groups = _editable_existing_groups(
         version.id,

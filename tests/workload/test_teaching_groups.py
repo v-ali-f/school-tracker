@@ -1445,6 +1445,75 @@ def test_group_matrix_creates_split_groups_and_restores_whole_class(
         assert len(group.members) == 2
 
 
+def test_group_matrix_can_plan_split_before_students_are_enrolled(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        empty_class = SchoolClass(
+            academic_year_id=version.tariff_cycle.academic_year_id,
+            building_id=context["building_id"],
+            name="5В",
+            grade=5,
+            letter="В",
+        )
+        db.session.add(empty_class)
+        db.session.commit()
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                source_school_class_id=empty_class.id,
+            )
+            .one()
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        assign_class_plan(
+            snapshot_class,
+            [line.education_plan],
+            line.education_plan_id,
+            user_id=user_id,
+        )
+        db.session.commit()
+        payload = {
+            "version_id": context["version_id"],
+            "plan_line_id": line.id,
+            "snapshot_class_id": snapshot_class.id,
+            "plan_id": line.education_plan_id,
+            "group_count": 2,
+        }
+
+    login(user_id)
+    response = client.post(
+        "/workload/groups/matrix/cell",
+        data=payload,
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["group_count"] == 2
+    assert response.get_json()["needs_composition"] is True
+    with app.app_context():
+        groups = TeachingGroup.query.order_by(TeachingGroup.id.asc()).all()
+        assert len(groups) == 2
+        assert {group.group_type for group in groups} == {"SUBGROUP"}
+        assert {group.status for group in groups} == {"DRAFT"}
+        assert all(group.planned_size == 0 for group in groups)
+        assert all(group.actual_size == 0 for group in groups)
+        assert all(not group.members for group in groups)
+
+
 def test_group_count_change_clears_only_target_class_subject_workload(
     app,
     client,
