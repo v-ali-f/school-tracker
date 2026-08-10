@@ -537,7 +537,7 @@
 }
 
 .workload-assignment-matrix {
-  --matrix-class-column-width: 36px;
+  --matrix-class-column-width: 32px;
   --matrix-fixed-column-width: 462px;
   width: max-content;
   min-width: calc(
@@ -687,7 +687,7 @@
   margin-top: 2px;
   padding: 2px 4px;
   border-radius: 4px;
-  font-weight: 650;
+  font-weight: 400;
 }
 
 .workload-teacher-mcko.is-active {
@@ -720,7 +720,7 @@
   background: transparent;
   border: 0;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -757,7 +757,7 @@
   background: transparent;
   border: 0;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -806,7 +806,7 @@
 
 .workload-assignment-matrix__teacher-cell span,
 .workload-assignment-matrix__subject-cell span {
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.15;
 }
 
@@ -834,6 +834,12 @@
   width: 52px;
   min-width: 52px;
   max-width: 52px;
+}
+
+.workload-assignment-matrix__subject-total {
+  padding: 1px !important;
+  font-size: 8px !important;
+  line-height: 1;
 }
 
 .workload-assignment-matrix__subject-total-cell {
@@ -877,16 +883,16 @@
 }
 
 .workload-assignment-matrix__class-plan.is-profile {
-  height: 74px;
+  height: 26px;
 }
 
 .workload-assignment-matrix__class-plan.is-profile > span {
-  max-height: 64px;
+  max-height: none;
   margin: auto;
   overflow: hidden;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  text-overflow: clip;
+  writing-mode: horizontal-tb;
+  transform: none;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

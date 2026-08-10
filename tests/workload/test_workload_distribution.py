@@ -389,6 +389,7 @@ def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
     assert len(matrix["columns"]) == 1
     assert len(matrix["class_groups"]) == 1
     assert len(matrix["class_groups"][0]["columns"]) == 1
+    assert matrix["columns"][0]["subheader_label"] == "5–9 ООО"
     assert matrix["total_allocated"] == Decimal("1")
     assert matrix["total_remaining"] == Decimal("0")
     assert matrix["blocks"][0]["total"] == Decimal("3")
@@ -983,6 +984,11 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html
+    teacher_dialog_html = html.split('data-teacher-dialog', 1)[1].split(
+        'data-vacancy-dialog',
+        1,
+    )[0]
+    assert 'name="vacancy_note"' not in teacher_dialog_html
 
     holder_fragment = client.get(
         "/workload/assignments/workspace",
@@ -1336,12 +1342,34 @@ def test_workspace_vacancy_can_be_filled_by_teacher(
         assert vacancy.position_code == "VACANCY_1"
         assert vacancy.position_title == "Вакансия 1 (Русский язык)"
 
+    renamed = client.post(
+        "/workload/assignments/workspace/vacancies/label",
+        data={
+            **filters,
+            "vacancy_key": "VACANCY_1",
+            "vacancy_note": "Иванова А.А.",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert renamed.status_code == 200
+    assert renamed.get_json() == {
+        "ok": True,
+        "holder_key": "vacancy:VACANCY_1",
+    }
+    with app.app_context():
+        assert (
+            WorkloadAssignment.query.one().position_title
+            == "Вакансия 1 (Иванова А.А.)"
+        )
+
     vacancy_view = client.get(
         "/workload/assignments/workspace",
         query_string={**filters, "view": "vacancies"},
     ).get_data(as_text=True)
-    assert "Вакансия 1 (Русский язык)" in vacancy_view
+    assert "Вакансия 1 (Иванова А.А.)" in vacancy_view
     assert "Преподаватель не назначен" in vacancy_view
+    assert 'data-open-vacancy-dialog' in vacancy_view
+    assert 'data-vacancy-key="VACANCY_1"' in vacancy_view
 
     replaced = client.post(
         "/workload/assignments/workspace/holder/replace",
