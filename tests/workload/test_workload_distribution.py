@@ -933,7 +933,10 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         headers={"X-Requested-With": "XMLHttpRequest"},
     )
     assert add_teacher.status_code == 200
-    assert add_teacher.get_json() == {"ok": True}
+    assert add_teacher.get_json() == {
+        "ok": True,
+        "holder_key": f"teacher:{teacher_id}",
+    }
     after_teacher_add = client.get(
         "/workload/assignments/workspace",
         query_string=filters,
@@ -951,7 +954,10 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         headers={"X-Requested-With": "XMLHttpRequest"},
     )
     assert add_subject.status_code == 200
-    assert add_subject.get_json() == {"ok": True}
+    assert add_subject.get_json() == {
+        "ok": True,
+        "holder_key": f"teacher:{teacher_id}",
+    }
 
     matrix = client.get(
         "/workload/assignments/workspace",
@@ -966,6 +972,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "data-cell-update-url=" in html
     assert 'data-hours="5"' in html
     assert 'name="hours"' not in html
+    assert f'data-workload-holder-row="teacher:{teacher_id}"' in html
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html

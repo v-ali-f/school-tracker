@@ -1454,10 +1454,14 @@ def register_assignment_routes(workload_bp):
         _require_version_workload_editable(version)
         key, state = _workspace_state(version.id)
         if holder_type == "vacancy":
-            state["vacancies"].append(_next_vacancy(version.id, state))
+            vacancy = _next_vacancy(version.id, state)
+            state["vacancies"].append(vacancy)
             _save_workspace_state(key, state)
             if is_ajax:
-                return jsonify({"ok": True})
+                return jsonify({
+                    "ok": True,
+                    "holder_key": f"vacancy:{vacancy['key']}",
+                })
             return _workspace_redirect()
         teacher = db.session.get(User, teacher_id) if teacher_id else None
         if (
@@ -1470,7 +1474,10 @@ def register_assignment_routes(workload_bp):
             state["teacher_ids"].append(teacher.id)
             _save_workspace_state(key, state)
         if is_ajax:
-            return jsonify({"ok": True})
+            return jsonify({
+                "ok": True,
+                "holder_key": f"teacher:{teacher.id}",
+            })
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/subjects")
@@ -1572,7 +1579,12 @@ def register_assignment_routes(workload_bp):
             state["rows"].append(row)
         _save_workspace_state(key, state)
         if is_ajax:
-            return jsonify({"ok": True})
+            holder_key = (
+                f"vacancy:{vacancy_key}"
+                if holder_type == "vacancy"
+                else f"teacher:{teacher.id}"
+            )
+            return jsonify({"ok": True, "holder_key": holder_key})
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/subjects/delete")

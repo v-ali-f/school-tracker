@@ -333,7 +333,7 @@
       {% for block in matrix.blocks %}
         {% set block_rowspan = block.rows|length + (1 if can_update else 0) %}
         {% for row in block.rows %}
-        <tr>
+        <tr data-workload-holder-row="{{ block.holder_key }}">
           {% if loop.first %}
           <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
             {% if block.is_vacancy %}
@@ -473,7 +473,7 @@
         </tr>
         {% endfor %}
         {% if can_update %}
-        <tr class="workload-add-subject-row">
+        <tr class="workload-add-subject-row" data-workload-holder-row="{{ block.holder_key }}">
           <th class="workload-assignment-matrix__subject-cell workload-add-subject-row__subject">
             <details class="workload-subject-add">
               <summary title="Добавить предмет">
@@ -747,7 +747,7 @@
     return payload;
   };
 
-  const refreshMatrix = async () => {
+  const refreshMatrix = async (holderKey = "") => {
     const current = document.querySelector("[data-workload-matrix]");
     if (!current) return;
     const scrollLeft = current.scrollLeft;
@@ -760,6 +760,21 @@
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
     const replacement = page.querySelector("[data-workload-matrix]");
     if (!replacement) throw new Error("Матрица нагрузки не найдена.");
+    if (holderKey) {
+      const selector = `[data-workload-holder-row="${holderKey}"]`;
+      const currentRows = Array.from(current.querySelectorAll(selector));
+      const replacementRows = Array.from(replacement.querySelectorAll(selector));
+      const anchor = currentRows[0] || current.querySelector(".workload-add-teacher-row");
+      if (replacementRows.length && anchor) {
+        anchor.before(...replacementRows);
+        currentRows.forEach((row) => row.remove());
+        current.removeAttribute("aria-busy");
+        current.scrollLeft = scrollLeft;
+        current.scrollTop = scrollTop;
+        bindCellControls(current);
+        return;
+      }
+    }
     current.replaceWith(replacement);
     replacement.scrollLeft = scrollLeft;
     replacement.scrollTop = scrollTop;
@@ -822,15 +837,16 @@
     const select = event.target.closest("[data-activity-plan-kind]");
     if (!select || !select.value) return;
     const form = select.closest("form");
+    const formData = new FormData(form);
     select.closest("details")?.removeAttribute("open");
     select.disabled = true;
     try {
-      await responsePayload(await fetch(form.action, {
+      const payload = await responsePayload(await fetch(form.action, {
         method: "POST",
-        body: new FormData(form),
+        body: formData,
         headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
       }));
-      await refreshMatrix();
+      await refreshMatrix(payload.holder_key || "");
     } catch (error) {
       window.alert(error.message);
       select.disabled = false;
@@ -848,14 +864,14 @@
       form.setAttribute("aria-busy", "true");
       form.querySelectorAll("button").forEach((button) => button.disabled = true);
       try {
-        await responsePayload(await fetch(form.action, {
+        const payload = await responsePayload(await fetch(form.action, {
           method: "POST",
           body: formData,
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
         }));
         teacherDialog.close();
         form.reset();
-        await refreshMatrix();
+        await refreshMatrix(payload.holder_key || "");
       } catch (error) {
         window.alert(error.message);
       } finally {
