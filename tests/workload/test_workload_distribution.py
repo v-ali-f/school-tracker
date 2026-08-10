@@ -977,6 +977,19 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html
 
+    holder_fragment = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            **filters,
+            "fragment_holder_key": f"teacher:{teacher_id}",
+        },
+    )
+    fragment_html = holder_fragment.get_data(as_text=True)
+    assert holder_fragment.status_code == 200
+    assert "data-workload-holder-fragment" in fragment_html
+    assert "data-workload-matrix" not in fragment_html
+    assert f'data-workload-holder-row="teacher:{teacher_id}"' in fragment_html
+
     assign = client.post(
         "/workload/assignments/workspace/cell",
         data={

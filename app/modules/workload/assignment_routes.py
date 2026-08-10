@@ -1124,6 +1124,19 @@ def register_assignment_routes(workload_bp):
         grade = request.args.get("grade", type=int)
         if grade not in range(1, 12):
             grade = None
+        fragment_holder_key = (
+            request.args.get("fragment_holder_key") or ""
+        ).strip()[:80]
+        fragment_type, separator, fragment_value = (
+            fragment_holder_key.partition(":")
+        )
+        if (
+            separator != ":"
+            or fragment_type not in {"teacher", "vacancy"}
+            or not fragment_value
+            or not fragment_value.replace("_", "").isalnum()
+        ):
+            fragment_holder_key = ""
         versions = _draft_versions_query().all()
         version_id = request.args.get("version_id", type=int)
         if version_id is None and versions:
@@ -1346,7 +1359,7 @@ def register_assignment_routes(workload_bp):
             "allocated": matrix["total_allocated"],
         }
         totals["remaining"] = totals["weekly"] - totals["allocated"]
-        return render_template(
+        rendered = render_template(
             "workload/assignment_workspace.html",
             needs=needs,
             selected_version=selected_version,
@@ -1387,7 +1400,25 @@ def register_assignment_routes(workload_bp):
             workload_approval_status_labels=(
                 WORKLOAD_APPROVAL_STATUS_LABELS
             ),
+            fragment_holder_key=fragment_holder_key,
         )
+        if fragment_holder_key:
+            start_marker = (
+                f"<!-- workload-holder-start:{fragment_holder_key} -->"
+            )
+            end_marker = (
+                f"<!-- workload-holder-end:{fragment_holder_key} -->"
+            )
+            start = rendered.find(start_marker)
+            end = rendered.find(end_marker)
+            if start < 0 or end < start:
+                abort(404)
+            rows = rendered[start + len(start_marker):end]
+            return (
+                "<table><tbody data-workload-holder-fragment>"
+                f"{rows}</tbody></table>"
+            )
+        return rendered
 
     @workload_bp.post("/assignments/workspace/status")
     @login_required

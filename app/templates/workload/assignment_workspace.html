@@ -331,6 +331,8 @@
     </thead>
     <tbody>
       {% for block in matrix.blocks %}
+        {% if not fragment_holder_key or block.holder_key == fragment_holder_key %}
+        <!-- workload-holder-start:{{ block.holder_key }} -->
         {% set block_rowspan = block.rows|length + (1 if can_update else 0) %}
         {% for row in block.rows %}
         <tr data-workload-holder-row="{{ block.holder_key }}">
@@ -500,6 +502,8 @@
           <td class="workload-add-subject-row__empty {% if column.is_alt %}is-alt{% endif %}" aria-hidden="true"></td>
           {% endfor %}
         </tr>
+        {% endif %}
+        <!-- workload-holder-end:{{ block.holder_key }} -->
         {% endif %}
       {% endfor %}
       {% if not matrix.blocks and not can_update %}
@@ -753,17 +757,20 @@
     const scrollLeft = current.scrollLeft;
     const scrollTop = current.scrollTop;
     current.setAttribute("aria-busy", "true");
-    const response = await fetch(window.location.href, {
+    const refreshUrl = new URL(window.location.href);
+    if (holderKey) refreshUrl.searchParams.set("fragment_holder_key", holderKey);
+    const response = await fetch(refreshUrl, {
       headers: {"Accept": "text/html"},
     });
     if (!response.ok) throw new Error("Не удалось обновить матрицу нагрузки.");
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
-    const replacement = page.querySelector("[data-workload-matrix]");
-    if (!replacement) throw new Error("Матрица нагрузки не найдена.");
     if (holderKey) {
       const selector = `[data-workload-holder-row="${holderKey}"]`;
       const currentRows = Array.from(current.querySelectorAll(selector));
-      const replacementRows = Array.from(replacement.querySelectorAll(selector));
+      const fragment = page.querySelector("[data-workload-holder-fragment]");
+      const replacementRows = Array.from(
+        fragment?.querySelectorAll(selector) || []
+      );
       const anchor = currentRows[0] || current.querySelector(".workload-add-teacher-row");
       if (replacementRows.length && anchor) {
         anchor.before(...replacementRows);
@@ -775,6 +782,8 @@
         return;
       }
     }
+    const replacement = page.querySelector("[data-workload-matrix]");
+    if (!replacement) throw new Error("Матрица нагрузки не найдена.");
     current.replaceWith(replacement);
     replacement.scrollLeft = scrollLeft;
     replacement.scrollTop = scrollTop;
