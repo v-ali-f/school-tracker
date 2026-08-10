@@ -401,10 +401,14 @@
             {% if row.activity %}
             <div class="workload-subject-row-head">
               <div class="workload-subject-row-copy">
-            <span>{{ row.activity.name }}</span>
+            <span>
+              {{ row.activity.name }}
             {% if row.plan_kind != 'CURRICULUM' %}
-            <small>{{ row.plan_kind_label }}</small>
+              <small title="{{ row.plan_kind_label }}">
+                · {{ 'ВД' if row.plan_kind == 'EXTRACURRICULAR' else 'ДО' }}
+              </small>
             {% endif %}
+            </span>
               </div>
               {% if can_update %}
               <form
@@ -573,6 +577,11 @@
         {% endfor %}
       </optgroup>
     </select>
+    <div class="workload-vacancy-note">
+      <label for="matrix-vacancy-note">Подпись к вакансии</label>
+      <input class="form-control" id="matrix-vacancy-note" name="vacancy_note" maxlength="100" placeholder="Например: Русский язык или Иванова А.А.">
+      <small>Необязательно. Будет показано в скобках после номера вакансии.</small>
+    </div>
     <div class="workload-teacher-dialog__actions">
       <button class="btn btn-outline-secondary" type="button" data-close-teacher-dialog>Отмена</button>
       <button class="btn btn-outline-primary" type="submit" name="holder_type" value="vacancy" formnovalidate><i class="bi bi-briefcase me-1" aria-hidden="true"></i>Добавить вакансию</button>
@@ -605,6 +614,10 @@
       <option value="teacher:{{ item.id }}" data-teacher-id="{{ item.id }}">{{ item.fio }}</option>
       {% endfor %}
     </select>
+    <div class="workload-vacancy-note" data-target-vacancy-note hidden>
+      <label for="matrix-target-vacancy-note">Подпись к вакансии</label>
+      <input class="form-control" id="matrix-target-vacancy-note" name="target_vacancy_note" maxlength="100" placeholder="Например: Русский язык или Иванова А.А.">
+    </div>
     <div class="workload-teacher-dialog__actions">
       <button class="btn btn-outline-secondary" type="button" data-close-holder-dialog>Отмена</button>
       <button class="btn btn-primary" type="submit">Заменить</button>
@@ -672,6 +685,12 @@
   const holderSourceVacancy = holderDialog?.querySelector("[data-holder-source-vacancy]");
   const holderSourceLabel = holderDialog?.querySelector("[data-holder-source-label]");
   const holderTarget = holderDialog?.querySelector("[data-holder-target]");
+  const targetVacancyNote = holderDialog?.querySelector("[data-target-vacancy-note]");
+  holderTarget?.addEventListener("change", () => {
+    if (targetVacancyNote) {
+      targetVacancyNote.hidden = holderTarget.value !== "vacancy";
+    }
+  });
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-open-holder-dialog]");
     if (button) {
@@ -681,6 +700,11 @@
       holderSourceVacancy.value = button.dataset.sourceVacancyKey || "";
       holderSourceLabel.textContent = `«${button.dataset.sourceLabel || "выбранной строки"}»`;
       holderTarget.value = "";
+      if (targetVacancyNote) {
+        targetVacancyNote.hidden = true;
+        const noteInput = targetVacancyNote.querySelector("input");
+        if (noteInput) noteInput.value = "";
+      }
       holderTarget.querySelectorAll("[data-teacher-id]").forEach((option) => {
         const isCurrent = option.dataset.teacherId === button.dataset.sourceTeacherId;
         option.hidden = isCurrent;
