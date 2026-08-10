@@ -329,6 +329,19 @@ def _editable_existing_groups(version_id, line_id, class_id):
         .all()
         if group_ids else []
     )
+    need_ids = [need.id for need in needs]
+    has_active_assignments = bool(
+        need_ids
+        and WorkloadAssignment.query.filter(
+            WorkloadAssignment.workload_need_id.in_(need_ids),
+            WorkloadAssignment.status != "CANCELLED",
+        ).first()
+    )
+    if has_active_assignments:
+        raise GroupValidationError(
+            "Количество групп не изменено: по этому предмету и классу уже "
+            "назначена нагрузка. Сначала снимите или перенесите только эти часы."
+        )
     for need in needs:
         db.session.delete(need)
     if needs:

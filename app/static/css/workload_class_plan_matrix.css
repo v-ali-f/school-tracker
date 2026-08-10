@@ -458,6 +458,84 @@
   background: #fff1f3 !important;
 }
 
+.class-plan-summary-matrix {
+  font-size: 10px;
+}
+
+.class-plan-summary-matrix th,
+.class-plan-summary-matrix td {
+  height: 22px;
+  padding: 1px 3px;
+  border-color: #ccd6e3;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__subject,
+.class-plan-summary-matrix .class-plan-matrix__row-name,
+.class-plan-summary-matrix .class-plan-matrix__section-label,
+.class-plan-summary-matrix .class-plan-matrix__subtotal th,
+.class-plan-summary-matrix .class-plan-matrix__curriculum-total th,
+.class-plan-summary-matrix tfoot th {
+  width: 190px;
+  min-width: 190px;
+  max-width: 190px;
+  font-weight: 400;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__class,
+.class-plan-summary-matrix .class-plan-matrix__plan,
+.class-plan-summary-matrix tbody td,
+.class-plan-summary-matrix tfoot td {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__class {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__plan > span {
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__plan > small {
+  display: none;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__row-name span,
+.class-plan-summary-matrix .class-plan-matrix__row-name small {
+  font-weight: 400;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__row-name span {
+  line-height: 1.05;
+}
+
+.class-plan-summary-matrix td strong {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__section-label,
+.class-plan-summary-matrix .class-plan-matrix__section-band {
+  height: 20px;
+  font-size: 10px;
+}
+
+.class-plan-summary-matrix .class-plan-matrix__subtotal th,
+.class-plan-summary-matrix .class-plan-matrix__subtotal td,
+.class-plan-summary-matrix .class-plan-matrix__curriculum-total th,
+.class-plan-summary-matrix .class-plan-matrix__curriculum-total td {
+  height: 22px;
+}
+
+.class-plan-summary-matrix tfoot th,
+.class-plan-summary-matrix tfoot td {
+  height: 24px;
+}
+
 @media (max-width: 800px) {
   .class-plan-grades {
     width: 100%;

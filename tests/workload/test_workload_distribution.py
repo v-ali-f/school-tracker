@@ -990,7 +990,8 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "workload-matrix-sticky-class" in html
     assert "workload-matrix-sticky-plan" in html
     assert "workload-assignment-matrix__class-group" not in html
-    assert "data-matrix-column-key=" in html
+    assert "data-matrix-column-key=" not in html
+    assert "columnCell?.cellIndex" in html
     assert "is-row-hovered" in html
     assert "is-column-hovered" in html
     assert html.count('class="workload-subject-add"') == 1
