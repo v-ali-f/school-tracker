@@ -525,7 +525,9 @@
 
 .workload-assignment-matrix-wrap {
   max-width: 100%;
+  max-height: calc(100vh - 82px);
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--workload-border-strong);
   border-radius: 6px;
   background: #fff;
@@ -533,7 +535,7 @@
 
 .workload-assignment-matrix {
   --matrix-class-column-width: 46px;
-  --matrix-fixed-column-width: 528px;
+  --matrix-fixed-column-width: 520px;
   width: max-content;
   min-width: calc(
     var(--matrix-fixed-column-width)
@@ -611,25 +613,25 @@
 .workload-assignment-matrix__teacher,
 .workload-assignment-matrix__teacher-cell {
   left: 0;
-  width: 210px;
-  min-width: 210px;
-  max-width: 210px;
-}
-
-.workload-assignment-matrix__subject,
-.workload-assignment-matrix__subject-cell {
-  left: 210px;
   width: 180px;
   min-width: 180px;
   max-width: 180px;
 }
 
+.workload-assignment-matrix__subject,
+.workload-assignment-matrix__subject-cell {
+  left: 180px;
+  width: 230px;
+  min-width: 230px;
+  max-width: 230px;
+}
+
 .workload-assignment-matrix__teacher-total,
 .workload-assignment-matrix__teacher-total-cell {
-  left: 390px;
-  width: 58px;
-  min-width: 58px;
-  max-width: 58px;
+  left: 410px;
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
 }
 
 .workload-assignment-matrix__teacher,
@@ -817,10 +819,10 @@
 
 .workload-assignment-matrix__subject-total,
 .workload-assignment-matrix__subject-total-cell {
-  left: 448px;
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
+  left: 456px;
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
 }
 
 .workload-assignment-matrix__subject-total-cell {
@@ -1187,8 +1189,13 @@
 .workload-add-teacher-row td {
   height: 42px;
   padding: 5px 10px !important;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
   text-align: left !important;
   background: #f8fafc;
+  box-shadow: 0 -3px 8px rgba(31, 45, 69, 0.08);
   border-top: 2px solid var(--workload-border-strong) !important;
 }
 
@@ -1386,23 +1393,29 @@
   .workload-assignment-matrix__subject,
   .workload-assignment-matrix__subject-cell {
     left: 150px;
-    width: 160px;
-    min-width: 160px;
-    max-width: 160px;
+    width: 190px;
+    min-width: 190px;
+    max-width: 190px;
   }
 
   .workload-assignment-matrix__teacher-total,
   .workload-assignment-matrix__teacher-total-cell {
-    left: 310px;
+    left: 340px;
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
   }
 
   .workload-assignment-matrix__subject-total,
   .workload-assignment-matrix__subject-total-cell {
-    left: 368px;
+    left: 384px;
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
   }
 
   .workload-assignment-matrix {
-    --matrix-fixed-column-width: 448px;
+    --matrix-fixed-column-width: 442px;
   }
 }
 

@@ -17,7 +17,10 @@ from app.models import (
     WorkloadAssignment,
     WorkloadNeed,
 )
-from app.services.class_plan_matrix_service import build_class_plan_matrix
+from app.services.class_plan_matrix_service import (
+    build_class_plan_matrix,
+    preload_class_plan_matrix_data,
+)
 from app.services.teaching_group_service import (
     GroupValidationError,
     add_group_history,
@@ -75,6 +78,7 @@ def build_teaching_group_matrix(
     grade=None,
     building_id=None,
     allowed_building_ids=None,
+    matrix_data=None,
 ):
     matrix = build_class_plan_matrix(
         snapshot,
@@ -83,6 +87,7 @@ def build_teaching_group_matrix(
         grade=grade,
         building_id=building_id,
         allowed_building_ids=allowed_building_ids,
+        matrix_data=matrix_data,
     )
     _keep_active_matrix_cells(matrix)
     line_ids = {
@@ -104,7 +109,10 @@ def build_teaching_group_matrix(
             .options(
                 selectinload(TeachingGroup.source_classes).joinedload(
                     TeachingGroupClass.population_snapshot_class
-                )
+                ),
+                selectinload(TeachingGroup.metagroup_membership).joinedload(
+                    TeachingMetagroupSource.metagroup
+                ),
             )
             .filter(
                 TeachingGroup.tariff_version_id == version_id,
@@ -886,12 +894,17 @@ def materialize_default_teaching_groups(
     snapshot,
     plans,
     user_id,
+    matrices=None,
 ):
     if version.status != "DRAFT" or snapshot is None:
         return 0
     existing_groups_by_key = {}
     for group in (
         TeachingGroup.query
+        .options(
+            selectinload(TeachingGroup.source_classes),
+            selectinload(TeachingGroup.members),
+        )
         .filter(
             TeachingGroup.tariff_version_id == version.id,
             TeachingGroup.status != "CLOSED",
@@ -909,12 +922,23 @@ def materialize_default_teaching_groups(
             ).append(group)
     academic_year = version.tariff_cycle.academic_year
     created = 0
-    for education_level in ("NOO", "OOO", "SOO"):
-        matrix = build_class_plan_matrix(
+    matrix_data = None
+    if matrices is None:
+        matrix_data = preload_class_plan_matrix_data(
             snapshot,
             plans,
-            education_level,
+            compact_enrollments=True,
         )
+        matrices = [
+            build_class_plan_matrix(
+                snapshot,
+                plans,
+                education_level,
+                matrix_data=matrix_data,
+            )
+            for education_level in ("NOO", "OOO", "SOO")
+        ]
+    for matrix in matrices:
         columns_by_key = {
             column["key"]: column
             for column in matrix["columns"]

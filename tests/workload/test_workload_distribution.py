@@ -932,6 +932,12 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         data={**filters, "teacher_id": str(teacher_id)},
     )
     assert add_teacher.status_code == 302
+    after_teacher_add = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert "workload-add-teacher-row" in after_teacher_add
+    assert "Добавить преподавателя" in after_teacher_add
 
     add_subject = client.post(
         "/workload/assignments/workspace/subjects",
@@ -957,6 +963,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert 'type="hidden"' in html
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
+    assert "<small>Учебный план</small>" not in html
 
     assign = client.post(
         "/workload/assignments/workspace/cell",

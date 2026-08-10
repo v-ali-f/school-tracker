@@ -11,6 +11,7 @@ from app.models import (
     PLAN_COMPONENT_KINDS,
     PLAN_COMPONENT_LABELS,
     PopulationSnapshotClass,
+    PopulationSnapshotEnrollment,
 )
 from app.services.education_plan_binding_service import (
     EDUCATION_LEVEL_GRADES,
@@ -255,6 +256,62 @@ def _preload_matrix_plans(plans):
     return [loaded_by_id.get(plan.id, plan) for plan in plans]
 
 
+def preload_class_plan_matrix_data(
+    snapshot,
+    plans,
+    *,
+    compact_enrollments=False,
+):
+    """Load shared matrix inputs once for several education levels."""
+    loaded_plans = _preload_matrix_plans(plans)
+    enrollment_loader = selectinload(
+        PopulationSnapshotClass.enrollments
+    )
+    if compact_enrollments:
+        enrollment_loader = enrollment_loader.load_only(
+            PopulationSnapshotEnrollment.id,
+            PopulationSnapshotEnrollment.population_snapshot_class_id,
+        )
+    snapshot_classes = (
+        PopulationSnapshotClass.query
+        .options(
+            joinedload(PopulationSnapshotClass.building),
+            enrollment_loader,
+        )
+        .filter_by(population_snapshot_id=snapshot.id)
+        .all()
+        if snapshot else []
+    )
+    bindings_by_class = defaultdict(list)
+    snapshot_class_ids = [item.id for item in snapshot_classes]
+    root_plan_ids = [
+        item.id
+        for item in loaded_plans
+        if item.plan_kind == "CURRICULUM" and item.root_plan_id is None
+    ]
+    if snapshot_class_ids and root_plan_ids:
+        bindings = (
+            EducationPlanBinding.query
+            .options(selectinload(EducationPlanBinding.members))
+            .filter(
+                EducationPlanBinding.population_snapshot_class_id.in_(
+                    snapshot_class_ids
+                ),
+                EducationPlanBinding.education_plan_id.in_(root_plan_ids),
+            )
+            .all()
+        )
+        for binding in bindings:
+            bindings_by_class[
+                binding.population_snapshot_class_id
+            ].append(binding)
+    return {
+        "plans": loaded_plans,
+        "snapshot_classes": snapshot_classes,
+        "bindings_by_class": bindings_by_class,
+    }
+
+
 def build_class_plan_matrix(
     snapshot,
     plans,
@@ -262,22 +319,18 @@ def build_class_plan_matrix(
     grade=None,
     building_id=None,
     allowed_building_ids=None,
+    matrix_data=None,
 ):
+    matrix_data = matrix_data or preload_class_plan_matrix_data(
+        snapshot,
+        plans,
+    )
     grades = EDUCATION_LEVEL_GRADES.get(education_level, set())
     selected_grade = grade if grade in grades else None
     snapshot_classes = sorted(
         (
             item
-            for item in (
-                PopulationSnapshotClass.query
-                .options(
-                    joinedload(PopulationSnapshotClass.building),
-                    selectinload(PopulationSnapshotClass.enrollments),
-                )
-                .filter_by(population_snapshot_id=snapshot.id)
-                .all()
-                if snapshot else []
-            )
+            for item in matrix_data["snapshot_classes"]
             if (
                 item.grade_snapshot in grades
                 and (
@@ -303,7 +356,7 @@ def build_class_plan_matrix(
             item.name_snapshot.casefold(),
         ),
     )
-    plans = _preload_matrix_plans(plans)
+    plans = matrix_data["plans"]
     root_plans = [
         item
         for item in plans
@@ -314,25 +367,7 @@ def build_class_plan_matrix(
         )
     ]
 
-    bindings_by_class = defaultdict(list)
-    snapshot_class_ids = [item.id for item in snapshot_classes]
-    root_plan_ids = [item.id for item in root_plans]
-    if snapshot_class_ids and root_plan_ids:
-        bindings = (
-            EducationPlanBinding.query
-            .options(selectinload(EducationPlanBinding.members))
-            .filter(
-                EducationPlanBinding.population_snapshot_class_id.in_(
-                    snapshot_class_ids
-                ),
-                EducationPlanBinding.education_plan_id.in_(root_plan_ids),
-            )
-            .all()
-        )
-        for binding in bindings:
-            bindings_by_class[
-                binding.population_snapshot_class_id
-            ].append(binding)
+    bindings_by_class = matrix_data["bindings_by_class"]
 
     class_groups = []
     columns = []
@@ -487,5 +522,6 @@ __all__ = [
     "build_class_plan_matrix",
     "class_period_label",
     "effective_line_weekly_hours",
+    "preload_class_plan_matrix_data",
     "snapshot_building_options",
 ]

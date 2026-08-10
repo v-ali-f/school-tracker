@@ -66,6 +66,7 @@ from app.services.workload_distribution_service import (
 from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_GRADES,
     EDUCATION_LEVEL_LABELS,
+    preload_class_plan_matrix_data,
 )
 from app.services.workload_assignment_matrix_service import (
     PLAN_KIND_LABELS,
@@ -562,6 +563,14 @@ def _workspace_plan_context(
         None if scope.unrestricted else set(scope.building_ids)
     )
     levels = _workspace_matrix_levels(education_level, grade)
+    matrix_data = (
+        preload_class_plan_matrix_data(
+            snapshot,
+            plans,
+            compact_enrollments=True,
+        )
+        if snapshot is not None else None
+    )
     matrices = [
         build_teaching_group_matrix(
             snapshot,
@@ -571,6 +580,7 @@ def _workspace_plan_context(
             grade=grade,
             building_id=building_id,
             allowed_building_ids=allowed_building_ids,
+            matrix_data=matrix_data,
         )
         for level in levels
     ] if snapshot is not None else []
@@ -593,7 +603,12 @@ def _workspace_matrix_levels(education_level, grade):
     )
 
 
-def _ensure_workspace_plan_needs(version, snapshot, plans):
+def _ensure_workspace_plan_needs(
+    version,
+    snapshot,
+    plans,
+    plan_matrices=None,
+):
     if version is None or snapshot is None or version.status != "DRAFT":
         return False
     plan_state = (
@@ -649,6 +664,7 @@ def _ensure_workspace_plan_needs(version, snapshot, plans):
         snapshot=snapshot,
         plans=plans,
         user_id=current_user.id,
+        matrices=plan_matrices,
     )
     db.session.flush()
     merged_source_ids = {
@@ -669,6 +685,15 @@ def _ensure_workspace_plan_needs(version, snapshot, plans):
     expected_group_ids = set()
     for group in (
         TeachingGroup.query
+        .options(
+            joinedload(TeachingGroup.source_plan_line).selectinload(
+                EducationPlanLine.periods
+            ),
+            selectinload(TeachingGroup.metagroup_sources)
+            .joinedload(TeachingMetagroupSource.source_group)
+            .joinedload(TeachingGroup.source_plan_line)
+            .selectinload(EducationPlanLine.periods),
+        )
         .filter(
             TeachingGroup.tariff_version_id == version.id,
             TeachingGroup.status != "CLOSED",
@@ -1123,10 +1148,21 @@ def register_assignment_routes(workload_bp):
         )
         if can_update and selected_version is not None:
             try:
+                reusable_plan_matrices = (
+                    plan_matrices
+                    if (
+                        not education_level
+                        and grade is None
+                        and building_id is None
+                        and resolve_workload_scope(current_user).unrestricted
+                    )
+                    else None
+                )
                 if _ensure_workspace_plan_needs(
                     selected_version,
                     snapshot,
                     plans,
+                    reusable_plan_matrices,
                 ):
                     _, _, plan_matrices = _workspace_plan_context(
                         selected_version,
