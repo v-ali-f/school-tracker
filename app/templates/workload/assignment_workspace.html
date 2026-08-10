@@ -2,7 +2,7 @@
 {% block title %}Распределение нагрузки{% endblock %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260810_5">
 {% endblock %}
 
 {% macro workspace_fields() %}
@@ -10,8 +10,12 @@
   <input type="hidden" name="view" value="{{ view_mode }}">
   <input type="hidden" name="department_id" value="{{ selected_department_id or '' }}">
   <input type="hidden" name="building_id" value="{{ selected_building_id or '' }}">
-  <input type="hidden" name="education_level" value="{{ selected_education_level or '' }}">
-  <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
+  {% for level in selected_education_levels %}
+  <input type="hidden" name="education_level" value="{{ level }}">
+  {% endfor %}
+  {% for grade in selected_grades %}
+  <input type="hidden" name="grade" value="{{ grade }}">
+  {% endfor %}
 {% endmacro %}
 
 {% block workspace_content %}
@@ -30,8 +34,8 @@
         view=view_mode,
         department_id=selected_department_id or '',
         building_id=selected_building_id or '',
-        education_level=selected_education_level or '',
-        grade=selected_grade or ''
+        education_level=selected_education_levels,
+        grade=selected_grades
       ) }}"
     >
       <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Скачать Excel
@@ -115,9 +119,6 @@
   {% if view_mode != 'department' %}
   <input type="hidden" name="department_id" value="">
   {% endif %}
-  <input type="hidden" name="education_level" value="{{ selected_education_level or '' }}">
-  <input type="hidden" name="grade" value="{{ selected_grade or '' }}">
-
   <div class="workload-filterbar__primary">
     <div class="workload-filter-field workload-filter-field--year">
       <label for="workspace-version">Учебный год</label>
@@ -133,21 +134,22 @@
     <div class="workload-filter-field workload-filter-field--levels">
       <span class="workload-filter-label">Уровень образования</span>
       <nav class="class-plan-levels" aria-label="Уровень образования">
-        <a
-          class="{% if not selected_education_level %}is-active{% endif %}"
-          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '') }}"
+        <button
+          class="class-plan-filter-option {% if not selected_education_levels %}is-active{% endif %}"
+          type="button"
+          data-workload-filter-clear="education_level"
         >
           <span>Все</span>
           <small>{{ level_counts.values()|sum }} кл.</small>
-        </a>
+        </button>
         {% for level, label in level_labels.items() %}
-        <a
-          class="{% if selected_education_level == level %}is-active{% endif %}"
-          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=level) }}"
+        <label
+          class="class-plan-filter-option {% if level in selected_education_levels %}is-active{% endif %}"
         >
+          <input class="visually-hidden" type="checkbox" name="education_level" value="{{ level }}" data-workload-filter-auto {% if level in selected_education_levels %}checked{% endif %}>
           <span>{{ level|education_level_label }}</span>
           <small>{{ level_counts[level] }} кл.</small>
-        </a>
+        </label>
         {% endfor %}
       </nav>
     </div>
@@ -155,16 +157,19 @@
     <div class="workload-filter-field workload-filter-field--grades">
       <span class="workload-filter-label">Параллель</span>
       <nav class="class-plan-grades" aria-label="Параллель">
-        <a
-          class="{% if not selected_grade %}is-active{% endif %}"
-          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_level or '') }}"
-        >Все</a>
+        <button
+          class="class-plan-filter-option {% if not selected_grades %}is-active{% endif %}"
+          type="button"
+          data-workload-filter-clear="grade"
+        >Все</button>
         {% for number in level_grades %}
-        <a
-          class="{% if number == selected_grade %}is-active{% endif %}"
-          href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=number) }}"
+        <label
+          class="class-plan-filter-option {% if number in selected_grades %}is-active{% endif %}"
           title="{{ number }}-я параллель"
-        >{{ number }}</a>
+        >
+          <input class="visually-hidden" type="checkbox" name="grade" value="{{ number }}" data-workload-filter-auto {% if number in selected_grades %}checked{% endif %}>
+          {{ number }}
+        </label>
         {% endfor %}
       </nav>
     </div>
@@ -184,9 +189,9 @@
     <div class="workload-filter-field workload-filter-field--view">
       <span class="workload-filter-label">Вид нагрузки</span>
       <nav class="workload-view-tabs" aria-label="Вид нагрузки">
-        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=selected_grade or '') }}">Вся нагрузка</a>
-        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=selected_grade or '') }}">По кафедре</a>
-        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_level or '', grade=selected_grade or '') }}">Вакансии</a>
+        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">Вся нагрузка</a>
+        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">По кафедре</a>
+        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">Вакансии</a>
       </nav>
     </div>
     {% if view_mode == 'department' %}
@@ -285,8 +290,8 @@
   data-view="{{ view_mode }}"
   data-department-id="{{ selected_department_id or '' }}"
   data-building-id="{{ selected_building_id or '' }}"
-  data-education-level="{{ selected_education_level or '' }}"
-  data-grade="{{ selected_grade or '' }}"
+  data-education-levels="{{ selected_education_levels|join(',') }}"
+  data-grades="{{ selected_grades|join(',') }}"
 >
   {% set has_secondary_headers = matrix.columns|selectattr('subheader_label')|list|length > 0 %}
   <table
@@ -618,6 +623,15 @@
       filterbar.requestSubmit();
     });
   });
+  filterbar?.querySelectorAll("[data-workload-filter-clear]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const fieldName = button.dataset.workloadFilterClear;
+      filterbar.querySelectorAll(`input[name="${fieldName}"]`).forEach((field) => {
+        field.checked = false;
+      });
+      filterbar.requestSubmit();
+    });
+  });
 
   document.addEventListener("click", (event) => {
     const summary = event.target.closest(".workload-subject-add summary");
@@ -807,8 +821,12 @@
         formData.set("view", matrix.dataset.view || "all");
         formData.set("department_id", matrix.dataset.departmentId || "");
         formData.set("building_id", matrix.dataset.buildingId || "");
-        formData.set("education_level", matrix.dataset.educationLevel || "");
-        formData.set("grade", matrix.dataset.grade || "");
+        (matrix.dataset.educationLevels || "").split(",").filter(Boolean).forEach(
+          (value) => formData.append("education_level", value)
+        );
+        (matrix.dataset.grades || "").split(",").filter(Boolean).forEach(
+          (value) => formData.append("grade", value)
+        );
         formData.set("need_id", cell.dataset.needId || "");
         formData.set("holder_type", cell.dataset.holderType || "teacher");
         formData.set("teacher_id", cell.dataset.teacherId || "");

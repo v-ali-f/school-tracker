@@ -277,10 +277,38 @@ def _scope_options():
 def _workspace_redirect():
     values = {}
     for field in WORKSPACE_FILTER_FIELDS:
-        value = (request.form.get(field) or "").strip()
-        if value:
-            values[field] = value
+        field_values = [
+            value.strip()
+            for value in request.form.getlist(field)
+            if value and value.strip()
+        ]
+        if field_values:
+            values[field] = (
+                field_values
+                if field in {"education_level", "grade"}
+                else field_values[-1]
+            )
     return redirect(url_for("workload.assignment_workspace", **values))
+
+
+def _workspace_selected_levels(source):
+    return {
+        value.strip().upper()
+        for value in source.getlist("education_level")
+        if value and value.strip().upper() in {"NOO", "OOO", "SOO"}
+    }
+
+
+def _workspace_selected_grades(source):
+    result = set()
+    for value in source.getlist("grade"):
+        try:
+            grade = int(value)
+        except (TypeError, ValueError):
+            continue
+        if grade in range(1, 12):
+            result.add(grade)
+    return result
 
 
 def _workspace_state(version_id):
@@ -331,8 +359,16 @@ def _filter_workspace_needs(
     building_id=None,
     education_level=None,
     grade=None,
+    education_levels=None,
+    grades=None,
     population_snapshot_id=None,
 ):
+    selected_levels = set(education_levels or ())
+    selected_grades = set(grades or ())
+    if education_level:
+        selected_levels.add(education_level)
+    if grade:
+        selected_grades.add(grade)
     result = []
     for need in needs:
         snapshot_ids = need_population_snapshot_ids(need)
@@ -344,9 +380,14 @@ def _filter_workspace_needs(
             continue
         if building_id and need.building_id != building_id:
             continue
-        if education_level and need_education_level(need) != education_level:
+        if (
+            selected_levels
+            and need_education_level(need) not in selected_levels
+        ):
             continue
-        if grade and grade not in need_grades(need):
+        if selected_grades and not selected_grades.intersection(
+            need_grades(need)
+        ):
             continue
         if not need_matches_department(need, department_id):
             continue
@@ -360,14 +401,8 @@ def _workspace_form_needs(version, *, activity_id=None):
         request.form.get("department_id", type=int)
         if view_mode == "department" else None
     )
-    education_level = (
-        request.form.get("education_level") or ""
-    ).strip().upper()
-    if education_level not in {"NOO", "OOO", "SOO"}:
-        education_level = None
-    grade = request.form.get("grade", type=int)
-    if grade not in range(1, 12):
-        grade = None
+    education_levels = _workspace_selected_levels(request.form)
+    grades = _workspace_selected_grades(request.form)
     query = _scoped_need_query().filter(
         WorkloadNeed.tariff_version_id == version.id,
         WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
@@ -382,8 +417,8 @@ def _workspace_form_needs(version, *, activity_id=None):
         needs,
         department_id=department_id,
         building_id=request.form.get("building_id", type=int),
-        education_level=education_level,
-        grade=grade,
+        education_levels=education_levels,
+        grades=grades,
         population_snapshot_id=(snapshot.id if snapshot else None),
     )
 
@@ -538,6 +573,8 @@ def _workspace_plan_context(
     *,
     education_level=None,
     grade=None,
+    education_levels=None,
+    grades=None,
     building_id=None,
 ):
     if version is None:
@@ -563,7 +600,16 @@ def _workspace_plan_context(
     allowed_building_ids = (
         None if scope.unrestricted else set(scope.building_ids)
     )
-    levels = _workspace_matrix_levels(education_level, grade)
+    selected_levels = set(education_levels or ())
+    selected_grades = set(grades or ())
+    if education_level:
+        selected_levels.add(education_level)
+    if grade:
+        selected_grades.add(grade)
+    matrix_specs = _workspace_matrix_specs(
+        selected_levels,
+        selected_grades,
+    )
     matrix_data = (
         preload_class_plan_matrix_data(
             snapshot,
@@ -578,30 +624,36 @@ def _workspace_plan_context(
             plans,
             level,
             version.id,
-            grade=grade,
+            grade=matrix_grade,
             building_id=building_id,
             allowed_building_ids=allowed_building_ids,
             matrix_data=matrix_data,
         )
-        for level in levels
+        for level, matrix_grade in matrix_specs
     ] if snapshot is not None else []
     return snapshot, plans, matrices
 
 
-def _workspace_matrix_levels(education_level, grade):
-    grade_level = (
-        "NOO" if grade in range(1, 5)
-        else "OOO" if grade in range(5, 10)
-        else "SOO" if grade in range(10, 12)
-        else None
-    )
-    return (
-        [education_level]
-        if education_level in {"NOO", "OOO", "SOO"}
-        else [grade_level]
-        if grade_level is not None
-        else ["NOO", "OOO", "SOO"]
-    )
+def _workspace_matrix_specs(education_levels, grades):
+    selected_levels = set(education_levels or ())
+    selected_grades = set(grades or ())
+    if selected_grades:
+        specs = []
+        for grade in sorted(selected_grades):
+            level = (
+                "NOO" if grade in range(1, 5)
+                else "OOO" if grade in range(5, 10)
+                else "SOO"
+            )
+            if not selected_levels or level in selected_levels:
+                specs.append((level, grade))
+        return specs
+    levels = selected_levels or {"NOO", "OOO", "SOO"}
+    return [
+        (level, None)
+        for level in ("NOO", "OOO", "SOO")
+        if level in levels
+    ]
 
 
 def _ensure_workspace_plan_needs(
@@ -1116,14 +1168,8 @@ def register_assignment_routes(workload_bp):
             else None
         )
         building_id = request.args.get("building_id", type=int)
-        education_level = (
-            request.args.get("education_level") or ""
-        ).strip().upper()
-        if education_level not in {"NOO", "OOO", "SOO"}:
-            education_level = ""
-        grade = request.args.get("grade", type=int)
-        if grade not in range(1, 12):
-            grade = None
+        education_levels = _workspace_selected_levels(request.args)
+        grades = _workspace_selected_grades(request.args)
         fragment_holder_key = (
             request.args.get("fragment_holder_key") or ""
         ).strip()[:80]
@@ -1156,8 +1202,8 @@ def register_assignment_routes(workload_bp):
         )
         snapshot, plans, plan_matrices = _workspace_plan_context(
             selected_version,
-            education_level=education_level or None,
-            grade=grade,
+            education_levels=education_levels,
+            grades=grades,
             building_id=building_id,
         )
         if can_update and selected_version is not None:
@@ -1165,8 +1211,8 @@ def register_assignment_routes(workload_bp):
                 reusable_plan_matrices = (
                     plan_matrices
                     if (
-                        not education_level
-                        and grade is None
+                        not education_levels
+                        and not grades
                         and building_id is None
                         and resolve_workload_scope(current_user).unrestricted
                     )
@@ -1180,8 +1226,8 @@ def register_assignment_routes(workload_bp):
                 ):
                     _, _, plan_matrices = _workspace_plan_context(
                         selected_version,
-                        education_level=education_level or None,
-                        grade=grade,
+                        education_levels=education_levels,
+                        grades=grades,
                         building_id=building_id,
                     )
             except WorkloadDistributionError as exc:
@@ -1206,8 +1252,8 @@ def register_assignment_routes(workload_bp):
             all_needs,
             department_id=department_id,
             building_id=building_id,
-            education_level=education_level or None,
-            grade=grade,
+            education_levels=education_levels,
+            grades=grades,
             population_snapshot_id=(snapshot.id if snapshot else None),
         )
         all_need_ids = [item.id for item in all_needs]
@@ -1361,10 +1407,11 @@ def register_assignment_routes(workload_bp):
             for level, grades in EDUCATION_LEVEL_GRADES.items()
         }
         level_grades = sorted(
-            EDUCATION_LEVEL_GRADES.get(
-                education_level,
-                set(range(1, 12)),
-            )
+            set().union(*(
+                EDUCATION_LEVEL_GRADES[level]
+                for level in education_levels
+            ))
+            if education_levels else set(range(1, 12))
         )
         totals = {
             "weekly": matrix["total_weekly"],
@@ -1384,8 +1431,8 @@ def register_assignment_routes(workload_bp):
             view_mode=view_mode,
             selected_department_id=department_id,
             selected_building_id=building_id,
-            selected_education_level=education_level,
-            selected_grade=grade,
+            selected_education_levels=sorted(education_levels),
+            selected_grades=sorted(grades),
             level_counts=level_counts,
             level_labels=EDUCATION_LEVEL_LABELS,
             level_grades=level_grades,
@@ -2298,15 +2345,13 @@ def register_assignment_routes(workload_bp):
             if view_mode == "department"
             else None
         )
-        education_level = (
-            request.args.get("education_level") or ""
-        ).strip().upper()
-        grade = request.args.get("grade", type=int)
+        education_levels = _workspace_selected_levels(request.args)
+        grades = _workspace_selected_grades(request.args)
         building_id = request.args.get("building_id", type=int)
         snapshot, _, plan_matrices = _workspace_plan_context(
             version,
-            education_level=education_level or None,
-            grade=grade,
+            education_levels=education_levels,
+            grades=grades,
             building_id=building_id,
         )
         needs = _filter_workspace_needs(
@@ -2316,8 +2361,8 @@ def register_assignment_routes(workload_bp):
             ).all(),
             department_id=department_id,
             building_id=building_id,
-            education_level=education_level or None,
-            grade=grade,
+            education_levels=education_levels,
+            grades=grades,
             population_snapshot_id=(snapshot.id if snapshot else None),
         )
         need_ids = [item.id for item in needs]

@@ -3,6 +3,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from werkzeug.datastructures import MultiDict
 
 from app.core.extensions import db
 from app.models import (
@@ -88,7 +89,7 @@ from app.services.workload_assignment_matrix_service import (
 )
 from app.modules.workload.assignment_routes import (
     _filter_workspace_needs,
-    _workspace_matrix_levels,
+    _workspace_matrix_specs,
 )
 
 
@@ -210,14 +211,18 @@ def _assignment(need, employee_id, weekly, annual=None, kind="MAIN"):
     )
 
 
-def test_workspace_grade_filter_infers_education_level():
-    assert _workspace_matrix_levels(None, 3) == ["NOO"]
-    assert _workspace_matrix_levels("", 9) == ["OOO"]
-    assert _workspace_matrix_levels(None, 10) == ["SOO"]
-    assert _workspace_matrix_levels(None, None) == [
-        "NOO",
-        "OOO",
-        "SOO",
+def test_workspace_filter_builds_matrices_for_multiple_levels_and_grades():
+    assert _workspace_matrix_specs(set(), {3, 9, 10}) == [
+        ("NOO", 3),
+        ("OOO", 9),
+        ("SOO", 10),
+    ]
+    assert _workspace_matrix_specs({"OOO", "SOO"}, set()) == [
+        ("OOO", None),
+        ("SOO", None),
+    ]
+    assert _workspace_matrix_specs({"OOO"}, {3, 9, 10}) == [
+        ("OOO", 9),
     ]
 
 
@@ -1046,6 +1051,52 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "is-locked" in locked_matrix
     assert "Назначено другому преподавателю." in locked_matrix
     assert "disabled" in locked_matrix
+
+
+def test_workspace_preserves_multiple_level_and_grade_filters(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+    login(admin_id)
+
+    response = client.get(
+        "/workload/assignments/workspace",
+        query_string=MultiDict([
+            ("version_id", str(context["version_id"])),
+            ("education_level", "OOO"),
+            ("education_level", "SOO"),
+            ("grade", "5"),
+            ("grade", "10"),
+        ]),
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert (
+        'name="education_level" value="OOO" '
+        'data-workload-filter-auto checked'
+    ) in html
+    assert (
+        'name="education_level" value="SOO" '
+        'data-workload-filter-auto checked'
+    ) in html
+    assert (
+        'name="grade" value="5" data-workload-filter-auto checked'
+    ) in html
+    assert (
+        'name="grade" value="10" data-workload-filter-auto checked'
+    ) in html
+    assert 'data-workload-filter-clear="education_level"' in html
+    assert 'data-workload-filter-clear="grade"' in html
+    assert "education_level=OOO&amp;education_level=SOO" in html
+    assert "grade=5&amp;grade=10" in html
 
 
 def test_workspace_can_delete_teacher_subject_row(
