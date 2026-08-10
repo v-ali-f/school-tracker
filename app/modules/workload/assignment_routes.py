@@ -354,7 +354,7 @@ def _filter_workspace_needs(
     return result
 
 
-def _workspace_form_needs(version):
+def _workspace_form_needs(version, *, activity_id=None):
     view_mode = (request.form.get("view") or "all").strip().lower()
     department_id = (
         request.form.get("department_id", type=int)
@@ -368,14 +368,15 @@ def _workspace_form_needs(version):
     grade = request.form.get("grade", type=int)
     if grade not in range(1, 12):
         grade = None
-    needs = (
-        _scoped_need_query()
-        .filter(
-            WorkloadNeed.tariff_version_id == version.id,
-            WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
-        )
-        .all()
+    query = _scoped_need_query().filter(
+        WorkloadNeed.tariff_version_id == version.id,
+        WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
     )
+    if activity_id is not None:
+        query = query.filter(
+            WorkloadNeed.education_activity_id == activity_id
+        )
+    needs = query.all()
     snapshot = current_population_snapshot(version.id)
     return _filter_workspace_needs(
         needs,
@@ -1436,6 +1437,14 @@ def register_assignment_routes(workload_bp):
     @login_required
     def assignment_workspace_teacher_add():
         _require_assignments_update()
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if is_ajax:
+                return jsonify({"ok": False, "message": message}), 422
+            flash(message, "danger")
+            return _workspace_redirect()
+
         version_id = request.form.get("version_id", type=int)
         holder_type = (request.form.get("holder_type") or "teacher").strip()
         teacher_id = request.form.get("teacher_id", type=int)
@@ -1447,6 +1456,8 @@ def register_assignment_routes(workload_bp):
         if holder_type == "vacancy":
             state["vacancies"].append(_next_vacancy(version.id, state))
             _save_workspace_state(key, state)
+            if is_ajax:
+                return jsonify({"ok": True})
             return _workspace_redirect()
         teacher = db.session.get(User, teacher_id) if teacher_id else None
         if (
@@ -1454,17 +1465,26 @@ def register_assignment_routes(workload_bp):
             or not teacher.is_active_user
             or teacher.employment_status != "ACTIVE"
         ):
-            flash("Выберите работающего преподавателя.", "danger")
-            return _workspace_redirect()
+            return fail("Выберите работающего преподавателя.")
         if teacher.id not in state["teacher_ids"]:
             state["teacher_ids"].append(teacher.id)
             _save_workspace_state(key, state)
+        if is_ajax:
+            return jsonify({"ok": True})
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/subjects")
     @login_required
     def assignment_workspace_subject_add():
         _require_assignments_update()
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if is_ajax:
+                return jsonify({"ok": False, "message": message}), 422
+            flash(message, "danger")
+            return _workspace_redirect()
+
         version_id = request.form.get("version_id", type=int)
         holder_type = (request.form.get("holder_type") or "teacher").strip()
         teacher_id = request.form.get("teacher_id", type=int)
@@ -1519,14 +1539,15 @@ def register_assignment_routes(workload_bp):
         ) or (
             holder_type != "vacancy" and teacher is None
         ):
-            flash("Выберите строку нагрузки и предмет.", "danger")
-            return _workspace_redirect()
+            return fail("Выберите строку нагрузки и предмет.")
         if plan_kind not in PLAN_KIND_LABELS:
-            flash("Выберите допустимую часть учебного плана.", "danger")
-            return _workspace_redirect()
+            return fail("Выберите допустимую часть учебного плана.")
         matching_needs = [
             need
-            for need in _workspace_form_needs(version)
+            for need in _workspace_form_needs(
+                version,
+                activity_id=activity.id,
+            )
             if (
                 need.education_activity_id == activity.id
                 and need_plan_kind(need) == plan_kind
@@ -1537,8 +1558,7 @@ def register_assignment_routes(workload_bp):
             None,
         )
         if has_need is None:
-            flash("В выбранной версии нет часов по этому предмету.", "danger")
-            return _workspace_redirect()
+            return fail("В выбранной версии нет часов по этому предмету.")
         if teacher is not None and teacher.id not in state["teacher_ids"]:
             state["teacher_ids"].append(teacher.id)
         row = {
@@ -1551,6 +1571,8 @@ def register_assignment_routes(workload_bp):
         if row not in state["rows"]:
             state["rows"].append(row)
         _save_workspace_state(key, state)
+        if is_ajax:
+            return jsonify({"ok": True})
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/subjects/delete")
@@ -1588,7 +1610,10 @@ def register_assignment_routes(workload_bp):
 
         needs = [
             need
-            for need in _workspace_form_needs(version)
+            for need in _workspace_form_needs(
+                version,
+                activity_id=activity.id,
+            )
             if (
                 need.education_activity_id == activity.id
                 and need_plan_kind(need) == plan_kind
@@ -1895,6 +1920,13 @@ def register_assignment_routes(workload_bp):
             item for item in active_assignments
             if item not in own_assignments
         ]
+        previous_value = sum(
+            (
+                Decimal(item.weekly_hours or ZERO)
+                for item in own_assignments
+            ),
+            ZERO,
+        )
         try:
             if not raw_hours or raw_hours.replace(",", ".") in {"0", "0.0"}:
                 for assignment in own_assignments:
@@ -1979,77 +2011,14 @@ def register_assignment_routes(workload_bp):
                 else "Не удалось сохранить нагрузку."
             )
 
-        version_needs = WorkloadNeed.query.filter(
-            WorkloadNeed.tariff_version_id == need.tariff_version_id,
-            WorkloadNeed.status != "CANCELLED",
-        ).all()
-        view_mode = (request.form.get("view") or "all").strip().lower()
-        current_snapshot = current_population_snapshot(
-            need.tariff_version_id
-        )
-        version_needs = _filter_workspace_needs(
-            version_needs,
-            department_id=(
-                request.form.get("department_id", type=int)
-                if view_mode == "department"
-                else None
-            ),
-            building_id=request.form.get("building_id", type=int),
-            education_level=(
-                request.form.get("education_level") or ""
-            ).strip().upper() or None,
-            grade=request.form.get("grade", type=int),
-            population_snapshot_id=(
-                current_snapshot.id if current_snapshot else None
-            ),
-        )
-        allocated = sum(
-            (item.allocated_weekly_hours for item in version_needs),
-            ZERO,
-        )
-        planned_total = sum(
-            (Decimal(item.weekly_hours or ZERO) for item in version_needs),
-            ZERO,
-        )
-        holder_assignments = (
-            WorkloadAssignment.query
-            .filter(
-                WorkloadAssignment.tariff_version_id == need.tariff_version_id,
-                WorkloadAssignment.status != "CANCELLED",
-            )
-        )
         if holder_type == "vacancy":
-            holder_assignments = holder_assignments.filter(
-                WorkloadAssignment.assignment_kind == "VACANCY",
-                WorkloadAssignment.position_code == vacancy_key,
-            )
             holder_key = f"vacancy:{vacancy_key}"
         else:
-            holder_assignments = holder_assignments.filter(
-                WorkloadAssignment.assignment_kind != "VACANCY",
-                WorkloadAssignment.employee_user_id == teacher.id,
-            )
             holder_key = f"teacher:{teacher.id}"
-        holder_assignment_items = holder_assignments.all()
-        holder_total = sum(
-            (
-                Decimal(item.weekly_hours or ZERO)
-                for item in holder_assignment_items
-            ),
-            ZERO,
-        )
         plan_kind = need_plan_kind(need)
-        subject_total = sum(
-            (
-                Decimal(item.weekly_hours or ZERO)
-                for item in holder_assignment_items
-                if (
-                    item.workload_need.education_activity_id
-                    == need.education_activity_id
-                    and need_plan_kind(item.workload_need) == plan_kind
-                )
-            ),
-            ZERO,
+        holder_delta = Decimal(value or ZERO) - previous_value
+        allocated_delta = (
+            ZERO if holder_type == "vacancy" else holder_delta
         )
         if is_ajax:
             return jsonify({
@@ -2057,12 +2026,10 @@ def register_assignment_routes(workload_bp):
                 "need_id": need.id,
                 "holder_key": holder_key,
                 "value": float(value) if value is not None else None,
-                "holder_total": float(holder_total),
                 "activity_id": need.education_activity_id,
                 "plan_kind": plan_kind,
-                "subject_total": float(subject_total),
-                "allocated": float(allocated),
-                "remaining": float(planned_total - allocated),
+                "holder_delta": float(holder_delta),
+                "allocated_delta": float(allocated_delta),
             })
         flash("Нагрузка сохранена.", "success")
         return _workspace_redirect()

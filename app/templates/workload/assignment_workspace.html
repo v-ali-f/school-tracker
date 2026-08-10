@@ -276,7 +276,18 @@
 </div>
 
 {% if matrix.columns %}
-<div class="workload-assignment-matrix-wrap" data-workload-matrix>
+<div
+  class="workload-assignment-matrix-wrap"
+  data-workload-matrix
+  data-cell-update-url="{{ url_for('workload.assignment_workspace_cell_update') }}"
+  data-csrf-token="{{ csrf_token() }}"
+  data-version-id="{{ selected_version_id or '' }}"
+  data-view="{{ view_mode }}"
+  data-department-id="{{ selected_department_id or '' }}"
+  data-building-id="{{ selected_building_id or '' }}"
+  data-education-level="{{ selected_education_level or '' }}"
+  data-grade="{{ selected_grade or '' }}"
+>
   {% set has_secondary_headers = matrix.columns|selectattr('subheader_label')|list|length > 0 %}
   <table
     class="workload-assignment-matrix"
@@ -429,29 +440,19 @@
             {% if matrix_cell %}
             <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
               {% for slot in matrix_cell.slots %}
-              <form
+              <div
                 class="workload-cell-entry {% if slot.assignment %}is-assigned{% elif slot.assigned_elsewhere %}is-locked{% elif can_update %}is-available{% endif %}"
-                method="post"
-                action="{{ url_for('workload.assignment_workspace_cell_update') }}"
                 data-workload-cell-form
                 data-need-id="{{ slot.need.id }}"
                 data-holder-key="{{ block.holder_key }}"
                 data-row-key="{{ block.holder_key }}:{{ row.activity.id }}:{{ row.plan_kind }}"
                 data-planned="{{ slot.planned|compact_decimal }}"
                 data-editable="{{ '1' if can_update else '0' }}"
+                data-holder-type="{{ 'vacancy' if block.is_vacancy else 'teacher' }}"
+                data-teacher-id="{{ block.teacher_id or '' }}"
+                data-vacancy-key="{{ block.vacancy_key or '' }}"
+                data-hours="{% if slot.assignment %}0{% else %}{{ slot.planned|compact_decimal }}{% endif %}"
               >
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {{ workspace_fields() }}
-                <input type="hidden" name="need_id" value="{{ slot.need.id }}">
-                <input type="hidden" name="holder_type" value="{{ 'vacancy' if block.is_vacancy else 'teacher' }}">
-                <input type="hidden" name="teacher_id" value="{{ block.teacher_id or '' }}">
-                <input type="hidden" name="vacancy_key" value="{{ block.vacancy_key or '' }}">
-                <input
-                  type="hidden"
-                  name="hours"
-                  value="{% if slot.assignment %}0{% else %}{{ slot.planned|compact_decimal }}{% endif %}"
-                  data-workload-cell-hours
-                >
                 <button
                   class="workload-cell-toggle"
                   type="button"
@@ -463,7 +464,7 @@
                 {% if slot.label %}
                 <small title="{{ slot.label }}" data-workload-cell-label {% if not slot.assignment %}hidden{% endif %}>{{ slot.label }}</small>
                 {% endif %}
-              </form>
+              </div>
               {% endfor %}
             </div>
             {% endif %}
@@ -479,7 +480,7 @@
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
                 <span>Добавить предмет</span>
               </summary>
-              <form method="post" action="{{ url_for('workload.assignment_workspace_subject_add') }}">
+              <form method="post" action="{{ url_for('workload.assignment_workspace_subject_add') }}" data-workload-async-add>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ workspace_fields() }}
                 <input type="hidden" name="holder_type" value="{{ 'vacancy' if block.is_vacancy else 'teacher' }}">
@@ -535,7 +536,7 @@
 
 {% if can_update and selected_version %}
 <dialog class="workload-teacher-dialog" data-teacher-dialog>
-  <form method="post" action="{{ url_for('workload.assignment_workspace_teacher_add') }}">
+  <form method="post" action="{{ url_for('workload.assignment_workspace_teacher_add') }}" data-workload-async-add>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {{ workspace_fields() }}
     <div class="workload-teacher-dialog__head">
@@ -614,27 +615,14 @@
     });
   });
 
-  document.querySelectorAll("[data-activity-plan-kind]").forEach((select) => {
-    const form = select.closest("form");
-    select.addEventListener("change", () => {
-      if (!form || !select.value) return;
-      select.closest("details")?.removeAttribute("open");
-      form.requestSubmit();
-    });
-  });
-
-  const subjectPickers = Array.from(
-    document.querySelectorAll(".workload-subject-add")
-  );
-  subjectPickers.forEach((details) => {
-    details.querySelector("summary")?.addEventListener("click", () => {
-      subjectPickers.forEach((other) => {
-        if (other !== details) other.removeAttribute("open");
-      });
-    });
-  });
   document.addEventListener("click", (event) => {
-    subjectPickers.forEach((details) => {
+    const summary = event.target.closest(".workload-subject-add summary");
+    if (summary) {
+      document.querySelectorAll(".workload-subject-add").forEach((details) => {
+        if (details !== summary.closest("details")) details.removeAttribute("open");
+      });
+    }
+    document.querySelectorAll(".workload-subject-add").forEach((details) => {
       if (details.open && !details.contains(event.target)) {
         details.removeAttribute("open");
       }
@@ -642,15 +630,19 @@
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    subjectPickers.forEach((details) => details.removeAttribute("open"));
+    document.querySelectorAll(".workload-subject-add").forEach(
+      (details) => details.removeAttribute("open")
+    );
   });
 
   const teacherDialog = document.querySelector("[data-teacher-dialog]");
-  document.querySelector("[data-open-teacher-dialog]")?.addEventListener("click", () => {
-    teacherDialog?.showModal();
-  });
-  document.querySelectorAll("[data-close-teacher-dialog]").forEach((button) => {
-    button.addEventListener("click", () => teacherDialog?.close());
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-open-teacher-dialog]")) {
+      teacherDialog?.showModal();
+    }
+    if (event.target.closest("[data-close-teacher-dialog]")) {
+      teacherDialog?.close();
+    }
   });
   teacherDialog?.addEventListener("click", (event) => {
     if (event.target === teacherDialog) teacherDialog.close();
@@ -662,8 +654,9 @@
   const holderSourceVacancy = holderDialog?.querySelector("[data-holder-source-vacancy]");
   const holderSourceLabel = holderDialog?.querySelector("[data-holder-source-label]");
   const holderTarget = holderDialog?.querySelector("[data-holder-target]");
-  document.querySelectorAll("[data-open-holder-dialog]").forEach((button) => {
-    button.addEventListener("click", () => {
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-open-holder-dialog]");
+    if (button) {
       if (!holderDialog || !holderTarget) return;
       holderSourceType.value = button.dataset.sourceType || "teacher";
       holderSourceTeacher.value = button.dataset.sourceTeacherId || "";
@@ -677,7 +670,7 @@
       });
       holderDialog.showModal();
       holderTarget.focus();
-    });
+    }
   });
   document.querySelectorAll("[data-close-holder-dialog]").forEach((button) => {
     button.addEventListener("click", () => holderDialog?.close());
@@ -693,81 +686,184 @@
     return Number.isInteger(number) ? String(number) : String(number).replace(".", ",");
   };
 
+  const numberFromText = (element) => {
+    const value = (element?.textContent || "0")
+      .replace(/\s/g, "")
+      .replace(",", ".");
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  };
+
+  const adjustTotal = (selector, delta) => {
+    const element = document.querySelector(selector);
+    if (element) element.textContent = formatHours(numberFromText(element) + delta);
+  };
+
   const updateNeedControls = (payload) => {
-    document.querySelectorAll(`[data-workload-cell-form][data-need-id="${payload.need_id}"]`).forEach((form) => {
-      const button = form.querySelector("[data-workload-cell-toggle]");
-      const hours = form.querySelector("[data-workload-cell-hours]");
-      const value = form.querySelector("[data-workload-cell-value]");
-      const label = form.querySelector("[data-workload-cell-label]");
-      const sameHolder = form.dataset.holderKey === payload.holder_key;
+    document.querySelectorAll(`[data-workload-cell-form][data-need-id="${payload.need_id}"]`).forEach((cell) => {
+      const button = cell.querySelector("[data-workload-cell-toggle]");
+      const value = cell.querySelector("[data-workload-cell-value]");
+      const label = cell.querySelector("[data-workload-cell-label]");
+      const sameHolder = cell.dataset.holderKey === payload.holder_key;
       const assigned = payload.value !== null && sameHolder;
       const locked = payload.value !== null && !sameHolder;
-      const planned = form.dataset.planned;
-      form.classList.toggle("is-assigned", assigned);
-      form.classList.toggle("is-locked", locked);
-      form.classList.toggle(
+      const planned = cell.dataset.planned;
+      cell.classList.toggle("is-assigned", assigned);
+      cell.classList.toggle("is-locked", locked);
+      cell.classList.toggle(
         "is-available",
-        !assigned && !locked && form.dataset.editable === "1"
+        !assigned && !locked && cell.dataset.editable === "1"
       );
-      hours.value = assigned ? "0" : planned;
+      cell.dataset.hours = assigned ? "0" : planned;
       if (value) value.textContent = assigned ? formatHours(planned) : "";
       if (label) label.hidden = !assigned;
-      button.disabled = locked || form.dataset.editable !== "1";
+      button.disabled = locked || cell.dataset.editable !== "1";
       button.title = assigned
         ? `Снять назначение ${formatHours(planned)} ч/нед.`
         : locked
           ? "Назначено другому преподавателю."
           : `Назначить полный объём ${formatHours(planned)} ч/нед.`;
     });
-    const holderTotal = document.querySelector(`[data-holder-total="${payload.holder_key}"]`);
-    if (holderTotal) holderTotal.textContent = formatHours(payload.holder_total);
-    const subjectTotal = document.querySelector(
-      `[data-subject-total="${payload.holder_key}:${payload.activity_id}:${payload.plan_kind}"]`
+    const holderDelta = Number(payload.holder_delta || 0);
+    const allocatedDelta = Number(payload.allocated_delta || 0);
+    adjustTotal(`[data-holder-total="${payload.holder_key}"]`, holderDelta);
+    adjustTotal(
+      `[data-subject-total="${payload.holder_key}:${payload.activity_id}:${payload.plan_kind}"]`,
+      holderDelta,
     );
-    if (subjectTotal) {
-      subjectTotal.textContent = formatHours(payload.subject_total);
-    }
-    const allocated = document.querySelector("[data-workload-total-allocated]");
-    const remaining = document.querySelector("[data-workload-total-remaining]");
-    if (allocated) allocated.textContent = formatHours(payload.allocated);
-    if (remaining) remaining.textContent = formatHours(payload.remaining);
+    adjustTotal("[data-workload-total-allocated]", allocatedDelta);
+    adjustTotal("[data-workload-total-remaining]", -allocatedDelta);
   };
 
-  document.querySelectorAll("[data-workload-cell-form]").forEach((form) => {
-    const button = form.querySelector("[data-workload-cell-toggle]");
-    if (!button || button.disabled) return;
-    let saving = false;
-    const save = async () => {
-      if (saving) return;
-      saving = true;
+  const responsePayload = async (response) => {
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Сеанс завершён. Обновите страницу и повторите действие.");
+    }
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.message || "Не удалось сохранить изменения.");
+    }
+    return payload;
+  };
+
+  const refreshMatrix = async () => {
+    const current = document.querySelector("[data-workload-matrix]");
+    if (!current) return;
+    const scrollLeft = current.scrollLeft;
+    const scrollTop = current.scrollTop;
+    current.setAttribute("aria-busy", "true");
+    const response = await fetch(window.location.href, {
+      headers: {"Accept": "text/html"},
+    });
+    if (!response.ok) throw new Error("Не удалось обновить матрицу нагрузки.");
+    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const replacement = page.querySelector("[data-workload-matrix]");
+    if (!replacement) throw new Error("Матрица нагрузки не найдена.");
+    current.replaceWith(replacement);
+    replacement.scrollLeft = scrollLeft;
+    replacement.scrollTop = scrollTop;
+    bindCellControls(replacement);
+  };
+
+  const bindCellControls = (root = document) => {
+    root.querySelectorAll("[data-workload-cell-form]").forEach((cell) => {
+      if (cell.dataset.bound === "1") return;
+      cell.dataset.bound = "1";
+      const button = cell.querySelector("[data-workload-cell-toggle]");
+      if (!button || button.disabled) return;
+      let saving = false;
+      button.addEventListener("click", async () => {
+        if (saving) return;
+        saving = true;
+        const matrix = cell.closest("[data-workload-matrix]");
+        const formData = new FormData();
+        formData.set("csrf_token", matrix.dataset.csrfToken || "");
+        formData.set("version_id", matrix.dataset.versionId || "");
+        formData.set("view", matrix.dataset.view || "all");
+        formData.set("department_id", matrix.dataset.departmentId || "");
+        formData.set("building_id", matrix.dataset.buildingId || "");
+        formData.set("education_level", matrix.dataset.educationLevel || "");
+        formData.set("grade", matrix.dataset.grade || "");
+        formData.set("need_id", cell.dataset.needId || "");
+        formData.set("holder_type", cell.dataset.holderType || "teacher");
+        formData.set("teacher_id", cell.dataset.teacherId || "");
+        formData.set("vacancy_key", cell.dataset.vacancyKey || "");
+        formData.set("hours", cell.dataset.hours || "");
+        cell.classList.add("is-saving");
+        button.disabled = true;
+        let requestPromise = null;
+        try {
+          requestPromise = fetch(matrix.dataset.cellUpdateUrl, {
+            method: "POST",
+            body: formData,
+            headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+          });
+          pendingCellSaves.add(requestPromise);
+          const payload = await responsePayload(await requestPromise);
+          updateNeedControls(payload);
+        } catch (error) {
+          window.alert(error.message);
+        } finally {
+          if (requestPromise) pendingCellSaves.delete(requestPromise);
+          saving = false;
+          cell.classList.remove("is-saving");
+          if (!cell.classList.contains("is-locked") && cell.dataset.editable === "1") {
+            button.disabled = false;
+          }
+        }
+      });
+    });
+  };
+
+  bindCellControls();
+
+  document.addEventListener("change", async (event) => {
+    const select = event.target.closest("[data-activity-plan-kind]");
+    if (!select || !select.value) return;
+    const form = select.closest("form");
+    select.closest("details")?.removeAttribute("open");
+    select.disabled = true;
+    try {
+      await responsePayload(await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+      }));
+      await refreshMatrix();
+    } catch (error) {
+      window.alert(error.message);
+      select.disabled = false;
+    }
+  });
+
+  teacherDialog?.querySelector("[data-workload-async-add]")?.addEventListener(
+    "submit",
+    async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const submitter = event.submitter;
       const formData = new FormData(form);
-      form.classList.add("is-saving");
-      button.disabled = true;
-      let requestPromise = null;
+      if (submitter?.name) formData.set(submitter.name, submitter.value);
+      form.setAttribute("aria-busy", "true");
+      form.querySelectorAll("button").forEach((button) => button.disabled = true);
       try {
-        requestPromise = fetch(form.action, {
+        await responsePayload(await fetch(form.action, {
           method: "POST",
           body: formData,
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
-        });
-        pendingCellSaves.add(requestPromise);
-        const response = await requestPromise;
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) throw new Error(payload.message || "Не удалось сохранить часы.");
-        updateNeedControls(payload);
+        }));
+        teacherDialog.close();
+        form.reset();
+        await refreshMatrix();
       } catch (error) {
         window.alert(error.message);
       } finally {
-        if (requestPromise) pendingCellSaves.delete(requestPromise);
-        saving = false;
-        form.classList.remove("is-saving");
-        if (!form.classList.contains("is-locked") && form.dataset.editable === "1") {
-          button.disabled = false;
-        }
+        form.removeAttribute("aria-busy");
+        form.querySelectorAll("button").forEach((button) => button.disabled = false);
       }
-    };
-    button.addEventListener("click", save);
-  });
+    },
+  );
   document.querySelector("[data-workload-status-form]")?.addEventListener(
     "submit",
     async (event) => {
