@@ -334,6 +334,12 @@ def _normalized_vacancy_note(value):
     return note[:100].strip()
 
 
+def _vacancy_label(number, note=None):
+    label = f"Вакансия {number}"
+    normalized_note = _normalized_vacancy_note(note)
+    return f"{label} ({normalized_note})" if normalized_note else label
+
+
 def _next_vacancy(version_id, state, *, note=None):
     existing_codes = {
         str(item.get("key"))
@@ -353,13 +359,9 @@ def _next_vacancy(version_id, state, *, note=None):
     number = 1
     while f"VACANCY_{number}" in existing_codes:
         number += 1
-    label = f"Вакансия {number}"
-    normalized_note = _normalized_vacancy_note(note)
-    if normalized_note:
-        label = f"{label} ({normalized_note})"
     return {
         "key": f"VACANCY_{number}",
-        "label": label,
+        "label": _vacancy_label(number, note),
     }
 
 
@@ -1583,6 +1585,84 @@ def register_assignment_routes(workload_bp):
                 "ok": True,
                 "holder_key": f"teacher:{teacher.id}",
             })
+        return _workspace_redirect()
+
+    @workload_bp.post("/assignments/workspace/vacancies/label")
+    @login_required
+    def assignment_workspace_vacancy_label():
+        _require_assignments_update()
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if is_ajax:
+                return jsonify({"ok": False, "message": message}), 422
+            flash(message, "danger")
+            return _workspace_redirect()
+
+        version_id = request.form.get("version_id", type=int)
+        vacancy_key = (request.form.get("vacancy_key") or "").strip()
+        prefix = "VACANCY_"
+        number_text = (
+            vacancy_key[len(prefix):]
+            if vacancy_key.startswith(prefix) else ""
+        )
+        if not number_text.isdigit():
+            return fail("Вакансия не найдена.")
+        version = _draft_versions_query().filter(
+            TariffVersion.id == version_id
+        ).first_or_404()
+        _require_version_workload_editable(version)
+        key, state = _workspace_state(version.id)
+        state_vacancy = next(
+            (
+                item for item in state["vacancies"]
+                if item.get("key") == vacancy_key
+            ),
+            None,
+        )
+        assignments = WorkloadAssignment.query.filter(
+            WorkloadAssignment.tariff_version_id == version.id,
+            WorkloadAssignment.assignment_kind == "VACANCY",
+            WorkloadAssignment.position_code == vacancy_key,
+            WorkloadAssignment.status != "CANCELLED",
+        ).all()
+        if state_vacancy is None and not assignments:
+            return fail("Вакансия не найдена.")
+        label = _vacancy_label(
+            int(number_text),
+            request.form.get("vacancy_note"),
+        )
+        try:
+            for assignment in assignments:
+                before = assignment_snapshot(assignment)
+                assignment.position_title = label
+                assignment.updated_by_user_id = current_user.id
+                assignment.revision += 1
+                add_assignment_change(
+                    assignment,
+                    "UPDATE",
+                    user_id=current_user.id,
+                    before_data=before,
+                    reason="Изменена подпись вакансии",
+                )
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return fail("Не удалось сохранить подпись вакансии.")
+        if state_vacancy is None:
+            state["vacancies"].append({
+                "key": vacancy_key,
+                "label": label,
+            })
+        else:
+            state_vacancy["label"] = label
+        _save_workspace_state(key, state)
+        if is_ajax:
+            return jsonify({
+                "ok": True,
+                "holder_key": f"vacancy:{vacancy_key}",
+            })
+        flash("Подпись вакансии сохранена.", "success")
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/subjects")

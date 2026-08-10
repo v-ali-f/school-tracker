@@ -326,7 +326,7 @@
           {% if group_has_secondary_headers %}
             {% for column in class_group.columns %}
           <th class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}">
-            <span title="{{ column.plan_name }}">{{ column.subheader_label }}</span>
+            <span title="{{ column.plan_name }}">{{ column.subheader_label if column.is_metagroup or column.is_orphan else column.subheader_label[:3] }}</span>
           </th>
             {% endfor %}
           {% endif %}
@@ -364,6 +364,18 @@
             {% endif %}
             {% if can_update %}
             <div class="workload-holder-row-actions">
+            {% if block.is_vacancy %}
+            <button
+              class="workload-holder-replace-button"
+              type="button"
+              data-open-vacancy-dialog
+              data-vacancy-key="{{ block.vacancy_key }}"
+              data-vacancy-label="{{ block.label }}"
+            >
+              <i class="bi bi-chat-square-text" aria-hidden="true"></i>
+              <span>Подпись</span>
+            </button>
+            {% endif %}
             <button
               class="workload-holder-replace-button"
               type="button"
@@ -577,15 +589,40 @@
         {% endfor %}
       </optgroup>
     </select>
-    <div class="workload-vacancy-note">
-      <label for="matrix-vacancy-note">Подпись к вакансии</label>
-      <input class="form-control" id="matrix-vacancy-note" name="vacancy_note" maxlength="100" placeholder="Например: Русский язык или Иванова А.А.">
-      <small>Необязательно. Будет показано в скобках после номера вакансии.</small>
-    </div>
     <div class="workload-teacher-dialog__actions">
       <button class="btn btn-outline-secondary" type="button" data-close-teacher-dialog>Отмена</button>
-      <button class="btn btn-outline-primary" type="submit" name="holder_type" value="vacancy" formnovalidate><i class="bi bi-briefcase me-1" aria-hidden="true"></i>Добавить вакансию</button>
+      <button class="btn btn-outline-primary" type="button" data-open-vacancy-dialog><i class="bi bi-briefcase me-1" aria-hidden="true"></i>Добавить вакансию</button>
       <button class="btn btn-primary" type="submit" name="holder_type" value="teacher">Добавить преподавателя</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="workload-teacher-dialog" data-vacancy-dialog>
+  <form
+    method="post"
+    action="{{ url_for('workload.assignment_workspace_teacher_add') }}"
+    data-vacancy-form
+    data-create-url="{{ url_for('workload.assignment_workspace_teacher_add') }}"
+    data-edit-url="{{ url_for('workload.assignment_workspace_vacancy_label') }}"
+  >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ workspace_fields() }}
+    <input type="hidden" name="holder_type" value="vacancy">
+    <input type="hidden" name="vacancy_key" value="" data-vacancy-key>
+    <div class="workload-teacher-dialog__head">
+      <div>
+        <strong data-vacancy-dialog-title>Добавить вакансию</strong>
+        <small>Подпись будет показана в скобках после номера.</small>
+      </div>
+      <button type="button" title="Закрыть" aria-label="Закрыть" data-close-vacancy-dialog>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <label for="matrix-vacancy-note">Подпись к вакансии</label>
+    <input class="form-control" id="matrix-vacancy-note" name="vacancy_note" maxlength="100" placeholder="Например: Русский язык или Иванова А.А." data-vacancy-note>
+    <div class="workload-teacher-dialog__actions">
+      <button class="btn btn-outline-secondary" type="button" data-close-vacancy-dialog>Отмена</button>
+      <button class="btn btn-primary" type="submit" data-vacancy-submit>Добавить вакансию</button>
     </div>
   </form>
 </dialog>
@@ -677,6 +714,40 @@
   });
   teacherDialog?.addEventListener("click", (event) => {
     if (event.target === teacherDialog) teacherDialog.close();
+  });
+
+  const vacancyDialog = document.querySelector("[data-vacancy-dialog]");
+  const vacancyForm = vacancyDialog?.querySelector("[data-vacancy-form]");
+  const vacancyKey = vacancyDialog?.querySelector("[data-vacancy-key]");
+  const vacancyNote = vacancyDialog?.querySelector("[data-vacancy-note]");
+  const vacancyTitle = vacancyDialog?.querySelector("[data-vacancy-dialog-title]");
+  const vacancySubmit = vacancyDialog?.querySelector("[data-vacancy-submit]");
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-open-vacancy-dialog]");
+    if (!button || !vacancyDialog || !vacancyForm) return;
+    const editing = Boolean(button.dataset.vacancyKey);
+    const label = button.dataset.vacancyLabel || "";
+    const noteMatch = label.match(/\((.*)\)\s*$/);
+    vacancyForm.action = editing
+      ? vacancyForm.dataset.editUrl
+      : vacancyForm.dataset.createUrl;
+    vacancyKey.value = editing ? button.dataset.vacancyKey : "";
+    vacancyNote.value = editing && noteMatch ? noteMatch[1] : "";
+    vacancyTitle.textContent = editing
+      ? "Изменить подпись вакансии"
+      : "Добавить вакансию";
+    vacancySubmit.textContent = editing
+      ? "Сохранить подпись"
+      : "Добавить вакансию";
+    teacherDialog?.close();
+    vacancyDialog.showModal();
+    vacancyNote.focus();
+  });
+  document.querySelectorAll("[data-close-vacancy-dialog]").forEach((button) => {
+    button.addEventListener("click", () => vacancyDialog?.close());
+  });
+  vacancyDialog?.addEventListener("click", (event) => {
+    if (event.target === vacancyDialog) vacancyDialog.close();
   });
 
   const holderDialog = document.querySelector("[data-holder-dialog]");
@@ -958,6 +1029,27 @@
       }
     },
   );
+  vacancyForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    form.setAttribute("aria-busy", "true");
+    form.querySelectorAll("button").forEach((button) => button.disabled = true);
+    try {
+      const payload = await responsePayload(await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+      }));
+      vacancyDialog.close();
+      form.reset();
+      await refreshMatrix(payload.holder_key || "");
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      form.removeAttribute("aria-busy");
+      form.querySelectorAll("button").forEach((button) => button.disabled = false);
+    }
+  });
   document.querySelector("[data-workload-status-form]")?.addEventListener(
     "submit",
     async (event) => {

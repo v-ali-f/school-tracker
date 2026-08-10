@@ -734,9 +734,9 @@ def build_workload_assignment_matrix(
                 column["subheader_label"] = column["detail"]
             else:
                 column["subheader_label"] = (
-                    column.get("profile_label") or ""
-                    if column.get("is_profile_column")
-                    else ""
+                    column.get("profile_label")
+                    or column.get("plan_name")
+                    or ""
                 )
     blocks = list(blocks_by_teacher.values())
     blocks.sort(key=lambda item: item["label"].casefold())
