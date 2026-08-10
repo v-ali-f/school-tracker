@@ -989,6 +989,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "sortHolderRows(current);" in html
     assert "workload-matrix-sticky-class" in html
     assert "workload-matrix-sticky-plan" in html
+    assert "workload-assignment-matrix__class-group" not in html
     assert "data-matrix-column-key=" in html
     assert "is-row-hovered" in html
     assert "is-column-hovered" in html
