@@ -537,6 +537,8 @@
 }
 
 .workload-assignment-matrix {
+  --workload-border: #cbd5e1;
+  --workload-border-strong: #acb9ca;
   --matrix-class-column-width: 32px;
   --matrix-fixed-column-width: 462px;
   width: max-content;
@@ -882,6 +884,21 @@
   white-space: nowrap;
 }
 
+.workload-assignment-matrix__class-plan > .workload-matrix-sticky-class {
+  color: #25334d;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.workload-assignment-matrix__class-plan > .workload-matrix-sticky-plan {
+  margin-top: 2px;
+  color: #68758c;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1;
+}
+
 .workload-assignment-matrix__class-plan.is-profile {
   height: 26px;
 }
@@ -1017,6 +1034,24 @@
 
 .workload-cell-entry.is-saving {
   opacity: 0.55;
+}
+
+.workload-assignment-matrix tbody tr.is-row-hovered > th,
+.workload-assignment-matrix tbody tr.is-row-hovered > td,
+.workload-assignment-matrix tbody tr.is-row-hovered .workload-cell-entry {
+  box-shadow: inset 0 0 0 9999px rgba(34, 91, 161, 0.055);
+}
+
+.workload-assignment-matrix .is-column-hovered,
+.workload-assignment-matrix .is-column-hovered .workload-cell-entry {
+  box-shadow: inset 0 0 0 9999px rgba(34, 91, 161, 0.075);
+}
+
+.workload-assignment-matrix tbody tr.is-row-hovered > .is-column-hovered,
+.workload-assignment-matrix tbody tr.is-row-hovered
+  > .is-column-hovered
+  .workload-cell-entry {
+  box-shadow: inset 0 0 0 9999px rgba(34, 91, 161, 0.14);
 }
 
 .workload-assignment-matrix__no-teachers {

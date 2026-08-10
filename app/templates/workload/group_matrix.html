@@ -5,7 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260804_4">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260804_4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_matrix.css') }}?v=20260810_5">
 {% endblock %}
 
 {% block workspace_content %}
@@ -136,8 +136,8 @@
             {% set group_alt = loop.index is even %}
             {% for column in group.columns %}
             <th class="class-plan-matrix__plan {% if group_alt %}is-alt{% endif %} {% if column.is_unassigned %}is-unassigned{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">
-              <span title="{{ column.plan.name if column.plan else 'Учебный план не назначен' }}">
-                {{ column.plan.name if column.plan else 'Без УП' }}
+              <span class="group-matrix__plan-short" title="{{ column.plan.name if column.plan else 'Учебный план не назначен' }}">
+                {{ column.plan.name[:3] if column.plan else 'Без УП' }}
               </span>
               <small>{{ column.student_count }} уч.</small>
             </th>
@@ -208,5 +208,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_group_matrix.js') }}?v=20260801_2"></script>
+<script src="{{ url_for('static', filename='js/workload_group_matrix.js') }}?v=20260810_3"></script>
 {% endblock %}
