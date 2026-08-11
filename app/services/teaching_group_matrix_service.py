@@ -110,7 +110,6 @@ def build_teaching_group_matrix(
                 selectinload(TeachingGroup.source_classes).joinedload(
                     TeachingGroupClass.population_snapshot_class
                 ),
-                selectinload(TeachingGroup.members),
                 selectinload(TeachingGroup.metagroup_membership).joinedload(
                     TeachingMetagroupSource.metagroup
                 ),
