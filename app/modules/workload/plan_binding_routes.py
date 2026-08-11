@@ -9,12 +9,14 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from sqlalchemy.orm import selectinload
 
 from app.core.extensions import db
 from app.core.feature_flags import WORKLOAD_WRITE, is_feature_enabled
 from app.models import (
     AcademicYear,
     EducationPlan,
+    EducationPlanBinding,
     OrganizationSettings,
     PopulationSnapshotClass,
     PopulationSnapshotEnrollment,
@@ -27,6 +29,7 @@ from app.services.education_plan_binding_service import (
     class_level_plan_ids,
     class_plan_option_ids,
     class_plan_allocations,
+    effective_binding_member_ids,
     plan_matches_snapshot_class,
     replace_class_plan_assignments,
     replace_class_plan_options,
@@ -136,8 +139,10 @@ def _selected_version(versions, version_id):
 def _snapshot_classes(snapshot):
     if snapshot is None:
         return []
-    query = PopulationSnapshotClass.query.filter_by(
-        population_snapshot_id=snapshot.id
+    query = (
+        PopulationSnapshotClass.query
+        .options(selectinload(PopulationSnapshotClass.enrollments))
+        .filter_by(population_snapshot_id=snapshot.id)
     )
     scope = resolve_workload_scope(current_user)
     if not scope.unrestricted:
@@ -215,26 +220,57 @@ def _validate_binding_target(version, snapshot_class):
 
 def _class_binding_rows(classes, version):
     all_plans = _curriculum_plans(version)
+    class_ids = [item.id for item in classes]
+    plan_ids = [item.id for item in all_plans]
+    bindings_by_class = {}
+    if class_ids and plan_ids:
+        bindings = (
+            EducationPlanBinding.query
+            .options(selectinload(EducationPlanBinding.members))
+            .filter(
+                EducationPlanBinding.population_snapshot_class_id.in_(
+                    class_ids
+                ),
+                EducationPlanBinding.education_plan_id.in_(plan_ids),
+            )
+            .all()
+        )
+        for binding in bindings:
+            bindings_by_class.setdefault(
+                binding.population_snapshot_class_id,
+                [],
+            ).append(binding)
     rows = []
     unassigned_total = 0
     for snapshot_class in classes:
         plans = _compatible_plans(version, snapshot_class, all_plans)
-        whole_class_plan_ids = class_level_plan_ids(
-            snapshot_class,
-            plans,
-        )
-        selected_plan_ids = class_plan_option_ids(
-            snapshot_class,
-            plans,
-        )
+        compatible_plan_ids = {item.id for item in plans}
+        class_bindings = [
+            item
+            for item in bindings_by_class.get(snapshot_class.id, ())
+            if item.education_plan_id in compatible_plan_ids
+        ]
+        whole_class_plan_ids = {
+            item.education_plan_id
+            for item in class_bindings
+            if item.binding_mode == "CLASS"
+        }
+        selected_plan_ids = {
+            item.education_plan_id for item in class_bindings
+        }
         is_multi_plan_class = snapshot_class.grade_snapshot in {10, 11}
-        _, student_plan_ids = class_plan_allocations(
-            snapshot_class,
-            plans,
-        )
         enrollment_ids = {
             item.id for item in snapshot_class.enrollments
         }
+        student_plan_ids = {}
+        for binding in class_bindings:
+            for enrollment_id in effective_binding_member_ids(
+                binding,
+                enrollment_ids,
+            ):
+                student_plan_ids[enrollment_id] = (
+                    binding.education_plan_id
+                )
         assigned_count = sum(
             1 for item in enrollment_ids if item in student_plan_ids
         )
