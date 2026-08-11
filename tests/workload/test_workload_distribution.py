@@ -256,6 +256,37 @@ def test_workspace_uses_only_needs_from_current_population_snapshot():
     ) == [current_need]
 
 
+def test_workspace_hides_needs_from_plan_no_longer_bound_to_class():
+    snapshot_class = SimpleNamespace(population_snapshot_id=20)
+    source_link = SimpleNamespace(
+        population_snapshot_class_id=101,
+        population_snapshot_class=snapshot_class,
+    )
+    plan = SimpleNamespace(id=301, root_plan_id=None)
+    line = SimpleNamespace(education_plan=plan)
+    group = SimpleNamespace(
+        group_type="CLASS",
+        source_plan_line=line,
+        source_classes=[source_link],
+    )
+    need = SimpleNamespace(
+        id=1,
+        teaching_group=group,
+        building_id=None,
+    )
+
+    assert _filter_workspace_needs(
+        [need],
+        population_snapshot_id=20,
+        bound_plan_ids_by_class={101: {301}},
+    ) == [need]
+    assert _filter_workspace_needs(
+        [need],
+        population_snapshot_id=20,
+        bound_plan_ids_by_class={101: {302}},
+    ) == []
+
+
 def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
     building = SimpleNamespace(
         id=1,
