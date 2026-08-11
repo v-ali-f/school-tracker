@@ -807,6 +807,7 @@ def _ensure_workspace_plan_needs(
         db.session.query(
             db.func.count(WorkloadNeed.id),
             db.func.max(WorkloadNeed.id),
+            db.func.max(WorkloadNeed.updated_at),
         )
         .filter(
             WorkloadNeed.tariff_version_id == version.id,
@@ -823,6 +824,23 @@ def _ensure_workspace_plan_needs(
         *need_state,
     )
     if cache.get(sync_key):
+        return False
+    latest_need_update = need_state[2]
+    source_updates = tuple(filter(None, (
+        snapshot.created_at,
+        plan_state[1],
+        plan_state[3],
+        group_state[1],
+    )))
+    if (
+        need_state[0]
+        and latest_need_update is not None
+        and all(
+            updated_at < latest_need_update
+            for updated_at in source_updates
+        )
+    ):
+        cache.set(sync_key, True, timeout=3600)
         return False
     created_groups = materialize_default_teaching_groups(
         version=version,
