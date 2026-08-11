@@ -3279,6 +3279,124 @@ def test_metagroup_inherits_sources_and_replaces_them_in_workload(
         ]
 
 
+def test_metagroup_replaces_unassigned_source_needs(app, make_user):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        classes = sorted(
+            snapshot.classes,
+            key=lambda item: item.name_snapshot,
+        )
+        sources = [
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=index,
+            )
+            for index, snapshot_class in enumerate(classes, start=1)
+        ]
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        version = line.education_plan.tariff_version
+
+        generated = generate_plan_needs(version, user_id=user_id)
+        db.session.flush()
+        source_ids = {group.id for group in sources}
+        source_needs = WorkloadNeed.query.filter(
+            WorkloadNeed.teaching_group_id.in_(source_ids),
+            WorkloadNeed.status != "CANCELLED",
+        ).all()
+        assert generated["created"] == 2
+        assert len(source_needs) == 2
+        assert WorkloadAssignment.query.count() == 0
+
+        metagroup = create_metagroup(
+            version=version,
+            snapshot=snapshot,
+            plans=[line.education_plan],
+            source_tokens=[
+                f"group:{group.id}" for group in sources
+            ],
+            name="Математика · объединённая группа",
+            user_id=user_id,
+        )
+        db.session.flush()
+
+        assert all(need.status == "CANCELLED" for need in source_needs)
+        active_needs = WorkloadNeed.query.filter(
+            WorkloadNeed.status != "CANCELLED",
+        ).all()
+        assert len(active_needs) == 1
+        assert active_needs[0].teaching_group_id == metagroup.id
+
+
+def test_metagroup_still_blocks_active_teacher_assignments(app, make_user):
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        classes = sorted(
+            snapshot.classes,
+            key=lambda item: item.name_snapshot,
+        )
+        sources = [
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=index,
+            )
+            for index, snapshot_class in enumerate(classes, start=1)
+        ]
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        version = line.education_plan.tariff_version
+        generate_plan_needs(version, user_id=user_id)
+        need = WorkloadNeed.query.filter_by(
+            teaching_group_id=sources[0].id,
+        ).one()
+        db.session.add(WorkloadAssignment(
+            organization_id=need.organization_id,
+            tariff_version_id=version.id,
+            workload_need_id=need.id,
+            employee_user_id=teacher_id,
+            position_code="TEACHER",
+            position_title="Учитель",
+            department_id=need.department_id,
+            building_id=need.building_id,
+            assignment_kind="MAIN",
+            date_from=need.date_from,
+            date_to=need.date_to,
+            weekly_hours=need.weekly_hours,
+            annual_hours=need.annual_hours,
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        ))
+        db.session.flush()
+
+        with pytest.raises(GroupValidationError, match="уже назначена"):
+            create_metagroup(
+                version=version,
+                snapshot=snapshot,
+                plans=[line.education_plan],
+                source_tokens=[
+                    f"group:{group.id}" for group in sources
+                ],
+                name="Математика · объединённая группа",
+                user_id=user_id,
+            )
+
+
 def test_metagroup_constructor_filters_by_grade_and_activity(
     app,
     client,

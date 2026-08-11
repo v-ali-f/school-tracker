@@ -10,6 +10,7 @@ from app.models import (
     TeachingGroupClass,
     TeachingGroupMember,
     TeachingMetagroupSource,
+    WorkloadAssignment,
     WorkloadNeed,
 )
 from app.services.class_plan_matrix_service import (
@@ -428,11 +429,18 @@ def create_metagroup(
             "Одна из групп уже включена в другую метагруппу."
         )
     source_ids = [group.id for group in sources]
-    if WorkloadNeed.query.filter(
-        WorkloadNeed.teaching_group_id.in_(source_ids)
+    source_needs = WorkloadNeed.query.filter(
+        WorkloadNeed.teaching_group_id.in_(source_ids),
+        WorkloadNeed.status != "CANCELLED",
+    ).all()
+    source_need_ids = [need.id for need in source_needs]
+    if source_need_ids and WorkloadAssignment.query.filter(
+        WorkloadAssignment.workload_need_id.in_(source_need_ids),
+        WorkloadAssignment.status != "CANCELLED",
     ).first():
         raise GroupValidationError(
-            "По исходным группам уже сформирована нагрузка."
+            "По исходным группам уже назначена нагрузка. "
+            "Сначала снимите назначения по выбранному предмету."
         )
     activity_ids = {
         group.education_activity_id for group in sources
@@ -577,6 +585,16 @@ def create_metagroup(
             "grade": grade,
         },
     )
+    if source_needs:
+        # Automatically generated needs are not teacher assignments and must
+        # not prevent structural planning.  Reconcile them immediately so the
+        # source-group needs are cancelled and one metagroup need replaces
+        # them before the workload workspace is opened again.
+        from app.services.workload_distribution_service import (
+            generate_plan_needs,
+        )
+
+        generate_plan_needs(version, user_id=user_id)
     return metagroup
 
 
