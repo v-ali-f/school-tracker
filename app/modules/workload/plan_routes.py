@@ -154,24 +154,11 @@ def _current_organization_id():
 
 
 def _synchronize_plan_workload(plan, line):
-    has_group = (
-        TeachingGroup.query
-        .filter_by(
-            tariff_version_id=plan.tariff_version_id,
-            source_plan_line_id=line.id,
-        )
-        .first()
+    generate_plan_needs(
+        plan.tariff_version,
+        user_id=current_user.id,
+        source_plan_line_ids={line.id},
     )
-    has_need = (
-        WorkloadNeedSource.query
-        .filter_by(education_plan_line_id=line.id)
-        .first()
-    )
-    if has_group is not None or has_need is not None:
-        generate_plan_needs(
-            plan.tariff_version,
-            user_id=current_user.id,
-        )
 
 
 def _require_plan_read():
@@ -1371,10 +1358,12 @@ def register_plan_routes(workload_bp):
                 scope_key=scope_key,
             ))
             db.session.add(line)
+            db.session.flush()
             touch_plan(plan, user_id=current_user.id)
+            _synchronize_plan_workload(plan, line)
             db.session.commit()
             selected_line_id = line.id
-        except PlanValidationError as exc:
+        except (PlanValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             if _is_matrix_ajax_request():
                 return jsonify({"ok": False, "error": str(exc)}), 422
@@ -1492,9 +1481,11 @@ def register_plan_routes(workload_bp):
                 scope_key=scope_key,
             ))
             db.session.add(line)
+            db.session.flush()
             touch_plan(plan, user_id=current_user.id)
+            _synchronize_plan_workload(plan, line)
             db.session.commit()
-        except PlanValidationError as exc:
+        except (PlanValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             if _is_matrix_ajax_request():
                 return jsonify({"ok": False, "error": str(exc)}), 422
@@ -1856,8 +1847,9 @@ def register_plan_routes(workload_bp):
                         **payload["period"],
                     ))
                 touch_plan(plan, user_id=current_user.id)
+                _synchronize_plan_workload(plan, line)
                 db.session.commit()
-            except PlanValidationError as exc:
+            except (PlanValidationError, WorkloadDistributionError) as exc:
                 db.session.rollback()
                 flash(str(exc), "danger")
             except IntegrityError:

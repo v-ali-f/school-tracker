@@ -348,7 +348,10 @@ def test_population_snapshot_preserves_classes_and_students(app, make_user):
         assert sorted(item.student_count for item in snapshot.classes) == [1, 2]
 
 
-def test_snapshot_refresh_keeps_previous_revision(app, make_user):
+def test_snapshot_refresh_reuses_current_revision_when_registry_is_unchanged(
+    app,
+    make_user,
+):
     user_id = make_user("ADMIN")
     with app.app_context():
         context = _group_context(user_id)
@@ -357,9 +360,10 @@ def test_snapshot_refresh_keeps_previous_revision(app, make_user):
 
         first = db.session.get(PopulationSnapshot, first_id)
         second = db.session.get(PopulationSnapshot, second_id)
-        assert first.status == "SUPERSEDED"
+        assert first_id == second_id
+        assert first.status == "CURRENT"
         assert second.status == "CURRENT"
-        assert second.revision_no == 2
+        assert second.revision_no == 1
 
 
 def test_class_students_can_be_split_between_two_curricula(app, make_user):
@@ -1461,6 +1465,198 @@ def test_group_matrix_creates_split_groups_and_restores_whole_class(
         assert len(group.members) == 2
 
 
+def test_unchanged_population_refresh_preserves_split_group_count(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        first_snapshot_id = _snapshot(user_id, context["version_id"])
+        version = db.session.get(TariffVersion, context["version_id"])
+        line = db.session.get(EducationPlanLine, context["plan_line_id"])
+        first_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=first_snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        replace_plan_binding_members(
+            line.education_plan,
+            first_class,
+            {item.id for item in first_class.enrollments},
+            user_id=user_id,
+        )
+        replace_teaching_group_count(
+            version=version,
+            snapshot=db.session.get(PopulationSnapshot, first_snapshot_id),
+            plans=[line.education_plan],
+            plan_line_id=line.id,
+            snapshot_class_id=first_class.id,
+            plan_id=line.education_plan_id,
+            group_count=2,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        second_snapshot = build_population_snapshot(
+            version,
+            user_id=user_id,
+            snapshot_date=date(2026, 9, 2),
+        )
+        materialize_default_teaching_groups(
+            version=version,
+            snapshot=second_snapshot,
+            plans=[line.education_plan],
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        second_class = next(
+            item
+            for item in second_snapshot.classes
+            if item.name_snapshot == "5А"
+        )
+        current_groups = (
+            TeachingGroup.query
+            .join(TeachingGroupClass)
+            .filter(
+                TeachingGroup.source_plan_line_id == line.id,
+                TeachingGroup.status != "CLOSED",
+                TeachingGroupClass.population_snapshot_class_id
+                == second_class.id,
+            )
+            .all()
+        )
+        assert len(current_groups) == 2
+
+
+def test_adding_plan_subject_only_opens_its_workload_cells(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        version = db.session.get(TariffVersion, context["version_id"])
+        original_line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        plan = original_line.education_plan
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = next(
+            item
+            for item in snapshot.classes
+            if item.name_snapshot == "5А"
+        )
+        replace_plan_binding_members(
+            plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        original_groups = replace_teaching_group_count(
+            version=version,
+            snapshot=snapshot,
+            plans=[plan],
+            plan_line_id=original_line.id,
+            snapshot_class_id=snapshot_class.id,
+            plan_id=plan.id,
+            group_count=2,
+            user_id=user_id,
+        )
+        original_group_ids = {item.id for item in original_groups}
+
+        activity = EducationActivity(
+            code="NEW-PLAN-SUBJECT",
+            name="Новый предмет",
+            activity_kind="SUBJECT",
+            is_global=True,
+            is_tariffable=True,
+            is_active=True,
+        )
+        db.session.add(activity)
+        db.session.flush()
+        new_line = EducationPlanLine(
+            education_plan_id=plan.id,
+            education_activity_id=activity.id,
+            component_kind="MANDATORY",
+            weekly_hours=Decimal("2"),
+            weeks_count=Decimal("34"),
+            annual_hours=Decimal("68"),
+            requires_division=False,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(new_line)
+        db.session.flush()
+        db.session.add(EducationPlanLineScope(
+            education_plan_line_id=new_line.id,
+            scope_kind="GRADE",
+            grade=5,
+            building_id=context["building_id"],
+            scope_key=line_scope_key(
+                "GRADE",
+                grade=5,
+                building_id=context["building_id"],
+            ),
+        ))
+        db.session.flush()
+        db.session.expire(plan, ["lines"])
+
+        generate_plan_needs(
+            version,
+            user_id=user_id,
+            source_plan_line_ids={new_line.id},
+        )
+        db.session.flush()
+
+        preserved_group_ids = {
+            item.id
+            for item in TeachingGroup.query.filter(
+                TeachingGroup.source_plan_line_id == original_line.id,
+                TeachingGroup.status != "CLOSED",
+            ).all()
+        }
+        assert preserved_group_ids == original_group_ids
+
+        new_groups = TeachingGroup.query.filter(
+            TeachingGroup.source_plan_line_id == new_line.id,
+            TeachingGroup.status != "CLOSED",
+        ).all()
+        assert len(new_groups) == 1
+        new_need = WorkloadNeed.query.filter_by(
+            teaching_group_id=new_groups[0].id,
+        ).one()
+
+        plan_matrix = build_teaching_group_matrix(
+            snapshot,
+            [plan],
+            "OOO",
+            version.id,
+            grade=5,
+        )
+        teacher = db.session.get(User, user_id)
+        workload_matrix = build_workload_assignment_matrix(
+            [new_need],
+            [],
+            plan_matrices=[plan_matrix],
+            extra_teachers=[teacher],
+            draft_rows=[(teacher, activity, "CURRICULUM")],
+        )
+        row = workload_matrix["blocks"][0]["rows"][0]
+        cells = list(row["matrix_cells"].values())
+        assert len(cells) == 1
+        assert cells[0]["planned"] is True
+        assert [slot["need"].id for slot in cells[0]["slots"]] == [
+            new_need.id,
+        ]
+
+
 def test_group_matrix_can_plan_split_before_students_are_enrolled(
     app,
     client,
@@ -1700,11 +1896,19 @@ def test_group_count_change_removes_only_unassigned_target_need(
             .all()
         )
         assert len(replacement_groups) == 2
-        remaining_need = WorkloadNeed.query.one()
-        assert remaining_need.teaching_group_id == untouched_group_id
+        active_need_group_ids = {
+            need.teaching_group_id
+            for need in WorkloadNeed.query.filter(
+                WorkloadNeed.status != "CANCELLED"
+            ).all()
+        }
+        assert active_need_group_ids == {
+            untouched_group_id,
+            *(group.id for group in replacement_groups),
+        }
 
 
-def test_assignments_are_relinked_after_population_snapshot_refresh(
+def test_population_refresh_keeps_workload_assignment_identity(
     app,
     make_user,
 ):
@@ -1754,6 +1958,20 @@ def test_assignments_are_relinked_after_population_snapshot_refresh(
         db.session.commit()
         old_need_id = need.id
 
+        school_class = SchoolClass.query.filter_by(
+            academic_year_id=context["year_id"],
+            name="5А",
+        ).one()
+        added_child = _child("Новый", "Ученик")
+        db.session.add(ChildEnrollment(
+            child_id=added_child.id,
+            academic_year_id=context["year_id"],
+            school_class_id=school_class.id,
+            status="ACTIVE",
+            enrolled_at=datetime(2026, 9, 2),
+        ))
+        db.session.commit()
+
         current_snapshot = build_population_snapshot(
             version,
             user_id=user_id,
@@ -1774,18 +1992,158 @@ def test_assignments_are_relinked_after_population_snapshot_refresh(
         )
         db.session.commit()
 
-        assert changed == 1
+        assert changed == 0
         db.session.refresh(assignment)
-        assert assignment.workload_need_id != old_need_id
+        assert assignment.workload_need_id == old_need_id
         target_class = (
             assignment.workload_need.teaching_group.source_classes[0]
             .population_snapshot_class
         )
         assert target_class.population_snapshot_id == current_snapshot.id
-        change = WorkloadAssignmentChange.query.one()
-        assert change.change_kind == "TRANSFER"
-        assert change.before_data["workload_need_id"] == old_need_id
-        assert change.after_data["workload_need_id"] == assignment.workload_need_id
+        assert WorkloadAssignmentChange.query.count() == 0
+        assert {
+            member.snapshot_enrollment.source_child_id
+            for member in assignment.workload_need.teaching_group.members
+        } == {
+            item.source_child_id
+            for item in target_class.enrollments
+        }
+
+
+def test_population_refresh_updates_only_split_group_rosters(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _group_context(user_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        first_snapshot_id = _snapshot(user_id, version.id)
+        first_snapshot = db.session.get(PopulationSnapshot, first_snapshot_id)
+        snapshot_class = next(
+            item
+            for item in first_snapshot.classes
+            if item.name_snapshot == "5А"
+        )
+        line = db.session.get(EducationPlanLine, context["plan_line_id"])
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            {item.id for item in snapshot_class.enrollments},
+            user_id=user_id,
+        )
+        groups = replace_teaching_group_count(
+            version=version,
+            snapshot=first_snapshot,
+            plans=[line.education_plan],
+            plan_line_id=line.id,
+            snapshot_class_id=snapshot_class.id,
+            plan_id=line.education_plan_id,
+            group_count=2,
+            user_id=user_id,
+        )
+        enrollments = list(snapshot_class.enrollments)
+        original_child_ids = {
+            item.source_child_id for item in enrollments
+        }
+        for group, enrollment in zip(groups, enrollments, strict=True):
+            db.session.add(TeachingGroupMember(
+                teaching_group_id=group.id,
+                snapshot_enrollment_id=enrollment.id,
+                valid_from=group.valid_from,
+                valid_to=group.valid_to,
+                source_kind="MANUAL",
+            ))
+            group.actual_size = 1
+            group.status = "READY"
+            group.source_classes[0].student_count = 1
+        db.session.add(TeachingGroupCompositionApproval(
+            tariff_version_id=version.id,
+            education_plan_line_id=line.id,
+            population_snapshot_class_id=snapshot_class.id,
+            approved_by_user_id=user_id,
+        ))
+        generate_plan_needs(version, user_id=user_id)
+        assigned_need = WorkloadNeed.query.filter_by(
+            teaching_group_id=groups[0].id,
+        ).one()
+        assignment = WorkloadAssignment(
+            organization_id=assigned_need.organization_id,
+            tariff_version_id=version.id,
+            workload_need_id=assigned_need.id,
+            employee_user_id=teacher_id,
+            position_code="TEACHER",
+            position_title="Учитель",
+            department_id=assigned_need.department_id,
+            building_id=assigned_need.building_id,
+            assignment_kind="MAIN",
+            date_from=assigned_need.date_from,
+            date_to=assigned_need.date_to,
+            weekly_hours=assigned_need.weekly_hours,
+            annual_hours=assigned_need.annual_hours,
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(assignment)
+        db.session.commit()
+        group_ids = {item.id for item in groups}
+        need_id = assigned_need.id
+        assignment_id = assignment.id
+
+        school_class = SchoolClass.query.filter_by(
+            academic_year_id=context["year_id"],
+            name="5А",
+        ).one()
+        departed_enrollment = db.session.get(
+            ChildEnrollment,
+            enrollments[1].source_enrollment_id,
+        )
+        departed_child_id = departed_enrollment.child_id
+        departed_enrollment.status = "EXPELLED"
+        departed_enrollment.ended_at = datetime(2026, 9, 2)
+        newcomer = _child("Новая", "Ученица")
+        db.session.add(ChildEnrollment(
+            child_id=newcomer.id,
+            academic_year_id=context["year_id"],
+            school_class_id=school_class.id,
+            status="ACTIVE",
+            enrolled_at=datetime(2026, 9, 2),
+        ))
+        db.session.commit()
+        newcomer_id = newcomer.id
+
+        current_snapshot = build_population_snapshot(
+            version,
+            user_id=user_id,
+            snapshot_date=date(2026, 9, 2),
+        )
+        db.session.commit()
+
+        current_groups = TeachingGroup.query.filter(
+            TeachingGroup.id.in_(group_ids)
+        ).all()
+        assert {item.id for item in current_groups} == group_ids
+        active_member_child_ids = {
+            member.snapshot_enrollment.source_child_id
+            for group in current_groups
+            for member in group.members
+        }
+        assert active_member_child_ids == (
+            original_child_ids - {departed_child_id}
+        )
+        assert newcomer_id not in active_member_child_ids
+        assert TeachingGroupCompositionApproval.query.count() == 0
+        db.session.refresh(assignment)
+        assert assignment.id == assignment_id
+        assert assignment.workload_need_id == need_id
+        assert all(
+            source.population_snapshot_class.population_snapshot_id
+            == current_snapshot.id
+            for group in current_groups
+            for source in group.source_classes
+        )
 
 
 def test_group_composition_assigns_students_to_split_groups(
@@ -1991,21 +2349,13 @@ def test_class_teacher_distributes_approves_and_exports_groups(
             .all()
         )
         for group in groups:
-            need = WorkloadNeed(
-                tariff_version_id=context["version_id"],
+            need = WorkloadNeed.query.filter_by(
                 teaching_group_id=group.id,
-                education_activity_id=group.education_activity_id,
-                building_id=context["building_id"],
-                date_from=date(2026, 9, 1),
-                date_to=date(2027, 8, 31),
-                weekly_hours=Decimal("2.5"),
-                annual_hours=Decimal("85"),
-                need_kind="PLAN",
-                status="COVERED",
-                created_by_user_id=admin_id,
-                updated_by_user_id=admin_id,
-            )
-            db.session.add(need)
+                status="OPEN",
+            ).one()
+            need.weekly_hours = Decimal("2.5")
+            need.annual_hours = Decimal("85")
+            need.status = "COVERED"
             db.session.flush()
             db.session.add(WorkloadAssignment(
                 tariff_version_id=context["version_id"],

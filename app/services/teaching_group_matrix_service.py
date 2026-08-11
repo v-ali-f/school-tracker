@@ -815,12 +815,16 @@ def replace_group_composition_assignments(
     group_ids = {group.id for group in groups}
     if (
         not allow_with_workload
-        and WorkloadNeed.query
-        .filter(WorkloadNeed.teaching_group_id.in_(group_ids))
+        and WorkloadAssignment.query
+        .join(WorkloadNeed)
+        .filter(
+            WorkloadNeed.teaching_group_id.in_(group_ids),
+            WorkloadAssignment.status != "CANCELLED",
+        )
         .first()
     ):
         raise GroupValidationError(
-            "По группам уже сформирована нагрузка. Сначала отмените её."
+            "По группам уже назначена нагрузка. Сначала отмените её."
         )
     eligible_ids = {
         enrollment.id for enrollment in item["enrollments"]
@@ -906,9 +910,14 @@ def materialize_default_teaching_groups(
     plans,
     user_id,
     matrices=None,
+    source_plan_line_ids=None,
 ):
     if version.status != "DRAFT" or snapshot is None:
         return 0
+    source_plan_line_ids = (
+        {int(item) for item in source_plan_line_ids}
+        if source_plan_line_ids else None
+    )
     existing_groups_by_key = {}
     for group in (
         TeachingGroup.query
@@ -935,10 +944,28 @@ def materialize_default_teaching_groups(
     created = 0
     matrix_data = None
     if matrices is None:
+        target_lines = (
+            EducationPlanLine.query.filter(
+                EducationPlanLine.id.in_(source_plan_line_ids)
+            ).all()
+            if source_plan_line_ids else []
+        )
+        target_grades = {
+            scope.grade
+            for line in target_lines
+            for scope in line.scopes
+            if scope.scope_kind == "GRADE" and scope.grade is not None
+        }
+        target_levels = {
+            (line.education_plan.root_plan or line.education_plan)
+            .education_level
+            for line in target_lines
+        }
         matrix_data = preload_class_plan_matrix_data(
             snapshot,
             plans,
             compact_enrollments=True,
+            grades=target_grades or None,
         )
         matrices = [
             build_class_plan_matrix(
@@ -948,6 +975,7 @@ def materialize_default_teaching_groups(
                 matrix_data=matrix_data,
             )
             for education_level in ("NOO", "OOO", "SOO")
+            if not target_levels or education_level in target_levels
         ]
     for matrix in matrices:
         columns_by_key = {
@@ -965,6 +993,11 @@ def materialize_default_teaching_groups(
                     ):
                         continue
                     line = cell["line"]
+                    if (
+                        source_plan_line_ids is not None
+                        and line.id not in source_plan_line_ids
+                    ):
+                        continue
                     snapshot_class = column["snapshot_class"]
                     key = (line.id, snapshot_class.id)
                     member_ids = set(column["member_ids"])

@@ -161,7 +161,12 @@ def _synchronize_full_assignment(
     return True
 
 
-def generate_plan_needs(tariff_version, *, user_id):
+def generate_plan_needs(
+    tariff_version,
+    *,
+    user_id,
+    source_plan_line_ids=None,
+):
     if tariff_version.status != "DRAFT":
         raise WorkloadLockedError(
             "Потребность можно пересчитывать только в черновой версии."
@@ -173,6 +178,10 @@ def generate_plan_needs(tariff_version, *, user_id):
         current_population_snapshot,
     )
 
+    source_plan_line_ids = (
+        {int(item) for item in source_plan_line_ids}
+        if source_plan_line_ids else None
+    )
     plans = [
         plan for plan in tariff_version.plans
         if plan.plan_kind == "CURRICULUM" and plan.root_plan_id is None
@@ -182,6 +191,7 @@ def generate_plan_needs(tariff_version, *, user_id):
         snapshot=current_population_snapshot(tariff_version.id),
         plans=plans,
         user_id=user_id,
+        source_plan_line_ids=source_plan_line_ids,
     )
     db.session.flush()
     organization_id = tariff_version.tariff_cycle.organization_id
@@ -218,6 +228,7 @@ def generate_plan_needs(tariff_version, *, user_id):
     created = 0
     updated = 0
     skipped_empty = 0
+    processed_groups = []
     for group in groups:
         source_lines = (
             list(dict.fromkeys(
@@ -227,6 +238,14 @@ def generate_plan_needs(tariff_version, *, user_id):
             if group.group_type == "METAGROUP"
             else [group.source_plan_line]
         )
+        if (
+            source_plan_line_ids is not None
+            and not source_plan_line_ids.intersection(
+                source_line.id for source_line in source_lines
+            )
+        ):
+            continue
+        processed_groups.append(group)
         line = source_lines[0]
         weekly, annual = resolve_line_hours(
             line,
@@ -352,10 +371,22 @@ def generate_plan_needs(tariff_version, *, user_id):
                 updated += 1
 
     cancelled = 0
-    existing_needs = WorkloadNeed.query.filter_by(
+    existing_needs_query = WorkloadNeed.query.filter_by(
         tariff_version_id=tariff_version.id,
         need_kind="PLAN",
-    ).all()
+    )
+    if source_plan_line_ids is not None:
+        existing_needs_query = (
+            existing_needs_query
+            .join(WorkloadNeedSource)
+            .filter(
+                WorkloadNeedSource.education_plan_line_id.in_(
+                    source_plan_line_ids
+                )
+            )
+            .distinct()
+        )
+    existing_needs = existing_needs_query.all()
     for need in existing_needs:
         key = (
             need.teaching_group_id,
@@ -382,7 +413,7 @@ def generate_plan_needs(tariff_version, *, user_id):
         "created": created,
         "updated": updated,
         "cancelled": cancelled,
-        "ready_groups": len(groups),
+        "ready_groups": len(processed_groups),
         "skipped_empty": skipped_empty,
     }
 
