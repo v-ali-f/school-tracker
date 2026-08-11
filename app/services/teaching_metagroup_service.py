@@ -207,11 +207,22 @@ def build_metagroup_workspace(matrix, version_id, activity_key=None):
             item["snapshot_class"].name_snapshot.casefold(),
             item["label"].casefold(),
         ))
-        if len({
+        candidate_class_ids = {
             class_id
             for candidate in cluster["candidates"]
             for class_id in candidate["class_ids"]
-        }) >= 2:
+        }
+        candidate_plan_line_ids = {
+            candidate["plan_line"].id
+            for candidate in cluster["candidates"]
+        }
+        if (
+            len({item["token"] for item in cluster["candidates"]}) >= 2
+            and (
+                len(candidate_class_ids) >= 2
+                or len(candidate_plan_line_ids) >= 2
+            )
+        ):
             available_clusters.append(cluster)
     available_clusters.sort(key=lambda item: (
         item["grade"] or 0,
@@ -461,9 +472,12 @@ def create_metagroup(
         raise GroupValidationError(
             "Метагруппа создаётся только из одной параллели."
         )
-    if len(source_classes) < 2:
+    source_plan_line_ids = {
+        group.source_plan_line_id for group in sources
+    }
+    if len(source_classes) < 2 and len(source_plan_line_ids) < 2:
         raise GroupValidationError(
-            "Выберите группы не менее чем из двух разных классов."
+            "Для одного класса выберите группы из разных учебных планов."
         )
     grade = next(iter(grades))
     signatures = {
