@@ -15,6 +15,7 @@ from app.models import (
     SchoolClass,
     TeachingGroup,
     TeachingGroupClass,
+    TeachingGroupCompositionApproval,
     TeachingGroupHistory,
     TeachingGroupMember,
 )
@@ -245,6 +246,12 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
     classes, enrollments_by_class, checksum = _live_population_rows(
         academic_year.id
     )
+    current = current_population_snapshot(tariff_version.id)
+    if current is not None and current.checksum == checksum:
+        # Do not replace stable class identifiers when the registry did not
+        # actually change.  Plan/subject edits are independent from the
+        # population and must not rebuild groups or workload assignments.
+        return current
     rows = []
     for school_class in classes:
         building_name = None
@@ -274,7 +281,6 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
             })
         rows.append((school_class, enrollment_rows, building_name))
 
-    current = current_population_snapshot(tariff_version.id)
     if current is not None:
         current.status = "SUPERSEDED"
         db.session.flush()
@@ -324,7 +330,164 @@ def build_population_snapshot(tariff_version, *, user_id, snapshot_date=None):
             snapshot,
             user_id=user_id,
         )
+        reconcile_group_population_links(
+            current,
+            snapshot,
+            user_id=user_id,
+        )
     return snapshot
+
+
+def reconcile_group_population_links(
+    previous_snapshot,
+    current_snapshot,
+    *,
+    user_id,
+):
+    """Refresh active rosters without rebuilding workload groups or needs."""
+    previous_classes = {item.id: item for item in previous_snapshot.classes}
+    current_by_school_class = {
+        item.source_school_class_id: item
+        for item in current_snapshot.classes
+    }
+    if not previous_classes:
+        return {"groups": 0, "members_removed": 0, "members_added": 0}
+
+    links = (
+        TeachingGroupClass.query
+        .options(
+            joinedload(TeachingGroupClass.population_snapshot_class),
+            joinedload(TeachingGroupClass.teaching_group)
+            .selectinload(TeachingGroup.members)
+            .joinedload(TeachingGroupMember.snapshot_enrollment),
+        )
+        .join(TeachingGroup)
+        .filter(
+            TeachingGroup.tariff_version_id
+            == current_snapshot.tariff_version_id,
+            TeachingGroup.status != "CLOSED",
+            TeachingGroupClass.population_snapshot_class_id.in_(
+                previous_classes
+            ),
+        )
+        .all()
+    )
+    changed_groups = defaultdict(lambda: {
+        "classes": [],
+        "removed_child_ids": [],
+        "added_child_ids": [],
+    })
+    removed_count = 0
+    added_count = 0
+    for link in links:
+        previous_class = previous_classes[
+            link.population_snapshot_class_id
+        ]
+        current_class = current_by_school_class.get(
+            previous_class.source_school_class_id
+        )
+        if current_class is None:
+            continue
+        current_enrollments_by_child = {
+            item.source_child_id: item
+            for item in current_class.enrollments
+        }
+        group = link.teaching_group
+        previous_members = [
+            member
+            for member in list(group.members)
+            if member.snapshot_enrollment is not None
+            and member.snapshot_enrollment.population_snapshot_class_id
+            == previous_class.id
+        ]
+        active_child_ids = set()
+        for member in previous_members:
+            child_id = member.snapshot_enrollment.source_child_id
+            current_enrollment = current_enrollments_by_child.get(child_id)
+            if current_enrollment is None:
+                db.session.delete(member)
+                changed_groups[group.id]["removed_child_ids"].append(child_id)
+                removed_count += 1
+                continue
+            member.snapshot_enrollment_id = current_enrollment.id
+            active_child_ids.add(child_id)
+
+        if link.relation_kind == "FULL":
+            for child_id, enrollment in current_enrollments_by_child.items():
+                if child_id in active_child_ids:
+                    continue
+                db.session.add(TeachingGroupMember(
+                    teaching_group_id=group.id,
+                    snapshot_enrollment_id=enrollment.id,
+                    valid_from=group.valid_from,
+                    valid_to=group.valid_to,
+                    source_kind="AUTO",
+                ))
+                active_child_ids.add(child_id)
+                changed_groups[group.id]["added_child_ids"].append(child_id)
+                added_count += 1
+
+        link.population_snapshot_class_id = current_class.id
+        link.student_count = (
+            current_class.student_count
+            if link.relation_kind == "FULL"
+            else len(active_child_ids)
+        )
+        changed_groups[group.id]["classes"].append({
+            "source_school_class_id": current_class.source_school_class_id,
+            "from_snapshot_class_id": previous_class.id,
+            "to_snapshot_class_id": current_class.id,
+        })
+
+    approvals = TeachingGroupCompositionApproval.query.filter(
+        TeachingGroupCompositionApproval.tariff_version_id
+        == current_snapshot.tariff_version_id,
+        TeachingGroupCompositionApproval.population_snapshot_class_id.in_(
+            previous_classes
+        ),
+    ).all()
+    for approval in approvals:
+        previous_class = previous_classes[
+            approval.population_snapshot_class_id
+        ]
+        current_class = current_by_school_class.get(
+            previous_class.source_school_class_id
+        )
+        if current_class is None:
+            continue
+        previous_child_ids = {
+            item.source_child_id for item in previous_class.enrollments
+        }
+        current_child_ids = {
+            item.source_child_id for item in current_class.enrollments
+        }
+        if previous_child_ids == current_child_ids:
+            approval.population_snapshot_class_id = current_class.id
+        else:
+            db.session.delete(approval)
+
+    for group_id, details in changed_groups.items():
+        group = db.session.get(TeachingGroup, group_id)
+        if group.composition_mode == "PERSONAL":
+            group.actual_size = sum(
+                int(source.student_count or 0)
+                for source in group.source_classes
+            )
+        touch_group(
+            group,
+            user_id=user_id,
+            event_code="POPULATION_RECONCILED",
+            details=details,
+        )
+    db.session.flush()
+    for group_id in changed_groups:
+        group = db.session.get(TeachingGroup, group_id)
+        db.session.expire(group, ["members", "source_classes"])
+    return {
+        "groups": len(changed_groups),
+        "members_removed": removed_count,
+        "members_added": added_count,
+    }
 
 
 def ensure_population_snapshot(tariff_version, *, user_id):

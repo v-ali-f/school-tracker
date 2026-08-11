@@ -261,6 +261,7 @@ def preload_class_plan_matrix_data(
     plans,
     *,
     compact_enrollments=False,
+    grades=None,
 ):
     """Load shared matrix inputs once for several education levels."""
     loaded_plans = _preload_matrix_plans(plans)
@@ -272,16 +273,18 @@ def preload_class_plan_matrix_data(
             PopulationSnapshotEnrollment.id,
             PopulationSnapshotEnrollment.population_snapshot_class_id,
         )
-    snapshot_classes = (
-        PopulationSnapshotClass.query
-        .options(
+    if snapshot is not None:
+        snapshot_class_query = PopulationSnapshotClass.query.options(
             joinedload(PopulationSnapshotClass.building),
             enrollment_loader,
-        )
-        .filter_by(population_snapshot_id=snapshot.id)
-        .all()
-        if snapshot else []
-    )
+        ).filter_by(population_snapshot_id=snapshot.id)
+        if grades:
+            snapshot_class_query = snapshot_class_query.filter(
+                PopulationSnapshotClass.grade_snapshot.in_(set(grades))
+            )
+        snapshot_classes = snapshot_class_query.all()
+    else:
+        snapshot_classes = []
     bindings_by_class = defaultdict(list)
     snapshot_class_ids = [item.id for item in snapshot_classes]
     root_plan_ids = [

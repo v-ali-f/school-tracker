@@ -830,6 +830,66 @@ def _workspace_matrix_group_ids(plan_matrices):
     return group_ids
 
 
+def _workspace_need_group_coverage(version):
+    merged_source_ids = {
+        item.source_group_id
+        for item in (
+            TeachingMetagroupSource.query
+            .join(
+                TeachingGroup,
+                TeachingGroup.id == TeachingMetagroupSource.metagroup_id,
+            )
+            .filter(
+                TeachingGroup.tariff_version_id == version.id,
+                TeachingGroup.status != "CLOSED",
+            )
+            .all()
+        )
+    }
+    expected_group_ids = set()
+    for group in (
+        TeachingGroup.query
+        .options(
+            joinedload(TeachingGroup.source_plan_line).selectinload(
+                EducationPlanLine.periods
+            ),
+            selectinload(TeachingGroup.metagroup_sources)
+            .joinedload(TeachingMetagroupSource.source_group)
+            .joinedload(TeachingGroup.source_plan_line)
+            .selectinload(EducationPlanLine.periods),
+        )
+        .filter(
+            TeachingGroup.tariff_version_id == version.id,
+            TeachingGroup.status != "CLOSED",
+        )
+        .all()
+    ):
+        if group.id in merged_source_ids:
+            continue
+        source_line = (
+            group.metagroup_sources[0].source_group.source_plan_line
+            if group.group_type == "METAGROUP" and group.metagroup_sources
+            else group.source_plan_line
+        )
+        if source_line is None:
+            continue
+        weekly, annual = resolve_line_hours(
+            source_line,
+            group.valid_from,
+            group.valid_to,
+        )
+        if weekly > ZERO or annual > ZERO:
+            expected_group_ids.add(group.id)
+    current_group_ids = {
+        item.teaching_group_id
+        for item in WorkloadNeed.query.filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadNeed.status != "CANCELLED",
+        ).all()
+    }
+    return expected_group_ids, current_group_ids
+
+
 def _ensure_workspace_plan_needs(
     version,
     snapshot,
@@ -929,6 +989,25 @@ def _ensure_workspace_plan_needs(
     ):
         cache.set(sync_key, True, timeout=3600)
         return False
+    plan_and_binding_updates = tuple(filter(None, (
+        plan_state[1],
+        plan_state[3],
+        binding_state[1],
+    )))
+    if (
+        need_state[0]
+        and latest_need_update is not None
+        and all(
+            updated_at <= latest_need_update
+            for updated_at in plan_and_binding_updates
+        )
+    ):
+        expected_group_ids, current_group_ids = (
+            _workspace_need_group_coverage(version)
+        )
+        if expected_group_ids <= current_group_ids:
+            cache.set(sync_key, True, timeout=3600)
+            return False
     created_groups = materialize_default_teaching_groups(
         version=version,
         snapshot=snapshot,
@@ -937,62 +1016,9 @@ def _ensure_workspace_plan_needs(
         matrices=plan_matrices,
     )
     db.session.flush()
-    merged_source_ids = {
-        item.source_group_id
-        for item in (
-            TeachingMetagroupSource.query
-            .join(
-                TeachingGroup,
-                TeachingGroup.id == TeachingMetagroupSource.metagroup_id,
-            )
-            .filter(
-                TeachingGroup.tariff_version_id == version.id,
-                TeachingGroup.status != "CLOSED",
-            )
-            .all()
-        )
-    }
-    expected_group_ids = set()
-    for group in (
-        TeachingGroup.query
-        .options(
-            joinedload(TeachingGroup.source_plan_line).selectinload(
-                EducationPlanLine.periods
-            ),
-            selectinload(TeachingGroup.metagroup_sources)
-            .joinedload(TeachingMetagroupSource.source_group)
-            .joinedload(TeachingGroup.source_plan_line)
-            .selectinload(EducationPlanLine.periods),
-        )
-        .filter(
-            TeachingGroup.tariff_version_id == version.id,
-            TeachingGroup.status != "CLOSED",
-        )
-        .all()
-    ):
-        if group.id in merged_source_ids:
-            continue
-        source_line = (
-            group.metagroup_sources[0].source_group.source_plan_line
-            if group.group_type == "METAGROUP" and group.metagroup_sources
-            else group.source_plan_line
-        )
-        if source_line is None:
-            continue
-        weekly, annual = resolve_line_hours(
-            source_line,
-            group.valid_from,
-            group.valid_to,
-        )
-        if weekly > ZERO or annual > ZERO:
-            expected_group_ids.add(group.id)
-    current_group_ids = {
-        item.teaching_group_id
-        for item in WorkloadNeed.query.filter(
-            WorkloadNeed.tariff_version_id == version.id,
-            WorkloadNeed.status != "CANCELLED",
-        ).all()
-    }
+    expected_group_ids, current_group_ids = _workspace_need_group_coverage(
+        version
+    )
     if not created_groups and expected_group_ids <= current_group_ids:
         cache.set(sync_key, True, timeout=3600)
         return False

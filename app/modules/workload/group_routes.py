@@ -74,6 +74,10 @@ from app.services.workload_editing_workflow_service import (
     change_groups_editing_status,
     require_groups_editable,
 )
+from app.services.workload_distribution_service import (
+    WorkloadDistributionError,
+    generate_plan_needs,
+)
 
 from .access import can_use_workload_permission, require_workload_write
 from .scopes import resolve_workload_scope
@@ -818,12 +822,28 @@ def register_group_routes(workload_bp):
                 name=request.form.get("name"),
                 user_id=current_user.id,
             )
+            source_line_ids = {
+                link.source_group.source_plan_line_id
+                for link in metagroup.metagroup_sources
+            }
+            generate_plan_needs(
+                version,
+                user_id=current_user.id,
+                source_plan_line_ids=source_line_ids,
+            )
             db.session.commit()
-        except (GroupValidationError, IntegrityError) as exc:
+        except (
+            GroupValidationError,
+            WorkloadDistributionError,
+            IntegrityError,
+        ) as exc:
             db.session.rollback()
             message = (
                 str(exc)
-                if isinstance(exc, GroupValidationError)
+                if isinstance(
+                    exc,
+                    (GroupValidationError, WorkloadDistributionError),
+                )
                 else "Не удалось сохранить метагруппу."
             )
             flash(message, "danger")
@@ -856,9 +876,19 @@ def register_group_routes(workload_bp):
             abort(403)
         try:
             _require_version_groups_editable(group.tariff_version)
+            version = group.tariff_version
+            source_line_ids = {
+                link.source_group.source_plan_line_id
+                for link in group.metagroup_sources
+            }
             delete_metagroup(group)
+            generate_plan_needs(
+                version,
+                user_id=current_user.id,
+                source_plan_line_ids=source_line_ids,
+            )
             db.session.commit()
-        except GroupValidationError as exc:
+        except (GroupValidationError, WorkloadDistributionError) as exc:
             db.session.rollback()
             flash(str(exc), "danger")
         else:
@@ -907,15 +937,21 @@ def register_group_routes(workload_bp):
             }), 422
         try:
             _require_version_groups_editable(version)
+            plan_line_id = request.form.get("plan_line_id", type=int)
             groups = replace_teaching_group_count(
                 version=version,
                 snapshot=snapshot,
                 plans=_group_matrix_plans(version),
-                plan_line_id=request.form.get("plan_line_id", type=int),
+                plan_line_id=plan_line_id,
                 snapshot_class_id=snapshot_class_id,
                 plan_id=request.form.get("plan_id", type=int),
                 group_count=group_count,
                 user_id=current_user.id,
+            )
+            generate_plan_needs(
+                version,
+                user_id=current_user.id,
+                source_plan_line_ids={plan_line_id},
             )
             db.session.commit()
         except GroupValidationError as exc:
