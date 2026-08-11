@@ -746,6 +746,77 @@
 <script>
 (() => {
   const pendingCellSaves = new Set();
+  let floatingMatrixHeader = null;
+  let floatingMatrixHeaderTable = null;
+  let floatingMatrixHeaderSource = null;
+  let floatingMatrixHeaderFrame = 0;
+
+  const syncFloatingMatrixHeader = () => {
+    floatingMatrixHeaderFrame = 0;
+    const matrixWrap = document.querySelector("[data-workload-matrix]");
+    const matrixTable = matrixWrap?.querySelector(".workload-assignment-matrix");
+    const matrixHead = matrixTable?.querySelector("thead");
+    if (!matrixWrap || !matrixTable || !matrixHead) {
+      if (floatingMatrixHeader) floatingMatrixHeader.hidden = true;
+      return;
+    }
+
+    if (!floatingMatrixHeader) {
+      floatingMatrixHeader = document.createElement("div");
+      floatingMatrixHeader.className = "workload-assignment-floating-header";
+      floatingMatrixHeader.setAttribute("aria-hidden", "true");
+      floatingMatrixHeader.hidden = true;
+      document.body.append(floatingMatrixHeader);
+    }
+
+    if (floatingMatrixHeaderSource !== matrixTable) {
+      floatingMatrixHeaderTable = matrixTable.cloneNode(false);
+      floatingMatrixHeaderTable.append(matrixHead.cloneNode(true));
+      floatingMatrixHeader.replaceChildren(floatingMatrixHeaderTable);
+      floatingMatrixHeaderSource = matrixTable;
+    }
+
+    const navbar = document.querySelector(".app-navbar");
+    const navbarBottom = Math.max(
+      0,
+      navbar?.getBoundingClientRect().bottom || 0,
+    );
+    const matrixRect = matrixWrap.getBoundingClientRect();
+    const headerHeight = matrixHead.getBoundingClientRect().height || 34;
+    const visibleLeft = Math.max(0, matrixRect.left);
+    const visibleWidth = Math.max(
+      0,
+      Math.min(matrixRect.right, window.innerWidth) - visibleLeft,
+    );
+    const shouldFloat = (
+      matrixRect.top < navbarBottom
+      && matrixRect.bottom > navbarBottom + headerHeight
+      && visibleWidth > 0
+    );
+
+    floatingMatrixHeader.hidden = !shouldFloat;
+    if (!shouldFloat) return;
+
+    floatingMatrixHeader.style.top = `${navbarBottom}px`;
+    floatingMatrixHeader.style.left = `${visibleLeft}px`;
+    floatingMatrixHeader.style.width = `${visibleWidth}px`;
+    floatingMatrixHeader.style.height = `${headerHeight}px`;
+    floatingMatrixHeaderTable.style.width = `${matrixTable.scrollWidth}px`;
+    floatingMatrixHeaderTable.style.minWidth = `${matrixTable.scrollWidth}px`;
+    floatingMatrixHeader.scrollLeft = matrixWrap.scrollLeft;
+  };
+
+  const scheduleFloatingMatrixHeader = () => {
+    if (floatingMatrixHeaderFrame) return;
+    floatingMatrixHeaderFrame = window.requestAnimationFrame(
+      syncFloatingMatrixHeader,
+    );
+  };
+
+  document.addEventListener("scroll", scheduleFloatingMatrixHeader, true);
+  window.addEventListener("resize", scheduleFloatingMatrixHeader);
+  window.addEventListener("load", scheduleFloatingMatrixHeader);
+  scheduleFloatingMatrixHeader();
 
   const filterbar = document.querySelector("[data-workload-filterbar]");
   filterbar?.querySelectorAll("[data-workload-filter-auto]").forEach((field) => {
@@ -1006,6 +1077,7 @@
         current.scrollLeft = scrollLeft;
         current.scrollTop = scrollTop;
         bindCellControls(current);
+        scheduleFloatingMatrixHeader();
         return;
       }
     }
@@ -1015,6 +1087,7 @@
     replacement.scrollLeft = scrollLeft;
     replacement.scrollTop = scrollTop;
     bindCellControls(replacement);
+    scheduleFloatingMatrixHeader();
   };
 
   const bindCellControls = (root = document) => {
