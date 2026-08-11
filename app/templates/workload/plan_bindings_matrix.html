@@ -4,7 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260810_5">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260811_1">
 {% endblock %}
 
 {% block workspace_content %}
@@ -195,6 +195,18 @@
           <th>Всего по учебному плану</th>
           {% for column in matrix.columns %}
           <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.plan_kind_column_totals['CURRICULUM'].get(column.key, 0)|compact_decimal }}</td>
+          {% endfor %}
+        </tr>
+        <tr class="class-plan-matrix__bundle-total is-extracurricular" data-plan-kind-total="EXTRACURRICULAR">
+          <th>Внеурочная деятельность</th>
+          {% for column in matrix.columns %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.plan_kind_column_totals['EXTRACURRICULAR'].get(column.key, 0)|compact_decimal }}</td>
+          {% endfor %}
+        </tr>
+        <tr class="class-plan-matrix__bundle-total is-additional" data-plan-kind-total="ADDITIONAL_EDUCATION">
+          <th>Дополнительное образование</th>
+          {% for column in matrix.columns %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.plan_kind_column_totals['ADDITIONAL_EDUCATION'].get(column.key, 0)|compact_decimal }}</td>
           {% endfor %}
         </tr>
         {% endif %}

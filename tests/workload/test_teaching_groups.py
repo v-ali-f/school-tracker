@@ -2481,6 +2481,20 @@ def test_class_plan_matrix_places_all_bundle_parts_on_one_sheet(
         "Дополнительное образование".encode()
     )
     assert mandatory_index < extracurricular_index < additional_index
+    curriculum_total_index = response.data.index(
+        "class-plan-matrix__curriculum-total".encode()
+    )
+    extracurricular_total_index = response.data.index(
+        'data-plan-kind-total="EXTRACURRICULAR"'.encode()
+    )
+    additional_total_index = response.data.index(
+        'data-plan-kind-total="ADDITIONAL_EDUCATION"'.encode()
+    )
+    assert (
+        curriculum_total_index
+        < extracurricular_total_index
+        < additional_total_index
+    )
     assert 'data-activity-name="Математика"'.encode() in response.data
     assert (
         'data-activity-name="Функциональная грамотность"'.encode()

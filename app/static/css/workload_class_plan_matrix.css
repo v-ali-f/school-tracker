@@ -415,6 +415,21 @@
   background: #dcecff;
 }
 
+.class-plan-matrix__bundle-total th,
+.class-plan-matrix__bundle-total td {
+  color: #24415f;
+  background: #f1f7fd;
+  font-weight: 700;
+}
+
+.class-plan-matrix__bundle-total.is-extracurricular th {
+  background: #e9f6ee;
+}
+
+.class-plan-matrix__bundle-total.is-additional th {
+  background: #fff4df;
+}
+
 .class-plan-matrix tfoot th,
 .class-plan-matrix tfoot td {
   height: 36px;
@@ -474,6 +489,7 @@
 .class-plan-summary-matrix .class-plan-matrix__section-label,
 .class-plan-summary-matrix .class-plan-matrix__subtotal th,
 .class-plan-summary-matrix .class-plan-matrix__curriculum-total th,
+.class-plan-summary-matrix .class-plan-matrix__bundle-total th,
 .class-plan-summary-matrix tfoot th {
   width: 190px;
   min-width: 190px;
@@ -527,7 +543,9 @@
 .class-plan-summary-matrix .class-plan-matrix__subtotal th,
 .class-plan-summary-matrix .class-plan-matrix__subtotal td,
 .class-plan-summary-matrix .class-plan-matrix__curriculum-total th,
-.class-plan-summary-matrix .class-plan-matrix__curriculum-total td {
+.class-plan-summary-matrix .class-plan-matrix__curriculum-total td,
+.class-plan-summary-matrix .class-plan-matrix__bundle-total th,
+.class-plan-summary-matrix .class-plan-matrix__bundle-total td {
   height: 22px;
 }
 

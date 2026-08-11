@@ -30,6 +30,7 @@ from app.models import (
     Department,
     EducationActivity,
     EducationPlan,
+    EducationPlanBinding,
     EducationPlanLine,
     OrganizationSettings,
     PopulationSnapshotClass,
@@ -408,6 +409,7 @@ def _filter_workspace_needs(
     grades=None,
     subject_ids=None,
     population_snapshot_id=None,
+    bound_plan_ids_by_class=None,
 ):
     selected_levels = set(education_levels or ())
     selected_grades = set(grades or ())
@@ -430,6 +432,14 @@ def _filter_workspace_needs(
             and snapshot_ids != {population_snapshot_id}
         ):
             continue
+        if (
+            bound_plan_ids_by_class is not None
+            and not _need_matches_current_plan_bindings(
+                need,
+                bound_plan_ids_by_class,
+            )
+        ):
+            continue
         if building_id and need.building_id != building_id:
             continue
         if (
@@ -445,6 +455,54 @@ def _filter_workspace_needs(
             continue
         result.append(need)
     return result
+
+
+def _workspace_bound_plan_ids(snapshot):
+    if snapshot is None:
+        return {}
+    rows = (
+        db.session.query(
+            EducationPlanBinding.population_snapshot_class_id,
+            EducationPlanBinding.education_plan_id,
+        )
+        .join(
+            PopulationSnapshotClass,
+            PopulationSnapshotClass.id
+            == EducationPlanBinding.population_snapshot_class_id,
+        )
+        .filter(
+            PopulationSnapshotClass.population_snapshot_id == snapshot.id,
+        )
+        .all()
+    )
+    result = defaultdict(set)
+    for class_id, plan_id in rows:
+        result[class_id].add(plan_id)
+    return result
+
+
+def _need_matches_current_plan_bindings(need, bound_plan_ids_by_class):
+    group = need.teaching_group
+    if group is None:
+        return True
+    source_groups = (
+        [link.source_group for link in group.metagroup_sources]
+        if group.group_type == "METAGROUP"
+        else [group]
+    )
+    for source_group in source_groups:
+        line = source_group.source_plan_line if source_group else None
+        plan = line.education_plan if line else None
+        if plan is None:
+            continue
+        root_plan_id = plan.root_plan_id or plan.id
+        for source_class in source_group.source_classes:
+            if root_plan_id not in bound_plan_ids_by_class.get(
+                source_class.population_snapshot_class_id,
+                (),
+            ):
+                return False
+    return True
 
 
 def _workspace_form_needs(version, *, activity_id=None):
@@ -470,6 +528,7 @@ def _workspace_form_needs(version, *, activity_id=None):
         )
     needs = query.all()
     snapshot = current_population_snapshot(version.id)
+    bound_plan_ids_by_class = _workspace_bound_plan_ids(snapshot)
     return _filter_workspace_needs(
         needs,
         department_id=department_id,
@@ -478,6 +537,7 @@ def _workspace_form_needs(version, *, activity_id=None):
         grades=grades,
         subject_ids=subject_ids,
         population_snapshot_id=(snapshot.id if snapshot else None),
+        bound_plan_ids_by_class=bound_plan_ids_by_class,
     )
 
 
@@ -803,6 +863,19 @@ def _ensure_workspace_plan_needs(
         )
         .one()
     )
+    binding_state = (
+        db.session.query(
+            db.func.count(EducationPlanBinding.id),
+            db.func.max(EducationPlanBinding.updated_at),
+            db.func.sum(EducationPlanBinding.revision),
+        )
+        .join(
+            EducationPlan,
+            EducationPlan.id == EducationPlanBinding.education_plan_id,
+        )
+        .filter(EducationPlan.tariff_version_id == version.id)
+        .one()
+    )
     need_state = (
         db.session.query(
             db.func.count(WorkloadNeed.id),
@@ -821,6 +894,7 @@ def _ensure_workspace_plan_needs(
         snapshot.checksum,
         *plan_state,
         *group_state,
+        *binding_state,
         *need_state,
     )
     if cache.get(sync_key):
@@ -831,6 +905,7 @@ def _ensure_workspace_plan_needs(
         plan_state[1],
         plan_state[3],
         group_state[1],
+        binding_state[1],
     )))
     if (
         need_state[0]
@@ -1467,6 +1542,7 @@ def register_assignment_routes(workload_bp):
             grades=grades,
             subject_ids=selected_subject_ids,
             population_snapshot_id=(snapshot.id if snapshot else None),
+            bound_plan_ids_by_class=_workspace_bound_plan_ids(snapshot),
         )
         all_assignments_query = (
             WorkloadAssignment.query
