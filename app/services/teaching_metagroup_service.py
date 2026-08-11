@@ -12,6 +12,7 @@ from app.models import (
     TeachingMetagroupSource,
     WorkloadAssignment,
     WorkloadNeed,
+    WorkloadNeedSource,
 )
 from app.services.class_plan_matrix_service import (
     effective_line_weekly_hours,
@@ -402,6 +403,67 @@ def _unique_metagroup_code(version_id, activity_id, grade):
     return code
 
 
+def _replace_source_needs_with_metagroup_need(
+    *,
+    version,
+    metagroup,
+    sources,
+    source_needs,
+    user_id,
+):
+    plan_needs = [
+        need for need in source_needs
+        if need.need_kind == "PLAN"
+    ]
+    if not plan_needs:
+        return None
+
+    from app.services.workload_distribution_service import (
+        resolve_line_hours,
+        resolve_need_department,
+    )
+
+    source_lines = list(dict.fromkeys(
+        group.source_plan_line for group in sources
+    ))
+    weekly_hours, annual_hours = resolve_line_hours(
+        source_lines[0],
+        metagroup.valid_from,
+        metagroup.valid_to,
+    )
+    metagroup_need = WorkloadNeed(
+        organization_id=version.tariff_cycle.organization_id,
+        tariff_version_id=version.id,
+        teaching_group_id=metagroup.id,
+        education_activity_id=metagroup.education_activity_id,
+        department_id=resolve_need_department(metagroup),
+        building_id=metagroup.building_id,
+        date_from=metagroup.valid_from,
+        date_to=metagroup.valid_to,
+        weekly_hours=weekly_hours,
+        annual_hours=annual_hours,
+        need_kind="PLAN",
+        status="OPEN",
+        created_by_user_id=user_id,
+        updated_by_user_id=user_id,
+    )
+    db.session.add(metagroup_need)
+    db.session.flush()
+    for source_line in source_lines:
+        db.session.add(WorkloadNeedSource(
+            workload_need_id=metagroup_need.id,
+            education_plan_line_id=source_line.id,
+            source_weekly_hours=weekly_hours,
+            source_annual_hours=annual_hours,
+            source_kind="MERGE",
+        ))
+    for source_need in plan_needs:
+        source_need.status = "CANCELLED"
+        source_need.revision = (source_need.revision or 0) + 1
+        source_need.updated_by_user_id = user_id
+    return metagroup_need
+
+
 def create_metagroup(
     *,
     version,
@@ -601,14 +663,15 @@ def create_metagroup(
     )
     if source_needs:
         # Automatically generated needs are not teacher assignments and must
-        # not prevent structural planning.  Reconcile them immediately so the
-        # source-group needs are cancelled and one metagroup need replaces
-        # them before the workload workspace is opened again.
-        from app.services.workload_distribution_service import (
-            generate_plan_needs,
+        # not prevent structural planning.  Replace only the selected source
+        # needs instead of recalculating the complete school workload.
+        _replace_source_needs_with_metagroup_need(
+            version=version,
+            metagroup=metagroup,
+            sources=sources,
+            source_needs=source_needs,
+            user_id=user_id,
         )
-
-        generate_plan_needs(version, user_id=user_id)
     return metagroup
 
 
