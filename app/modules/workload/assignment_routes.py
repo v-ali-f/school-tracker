@@ -103,7 +103,7 @@ from .scopes import resolve_workload_scope
 
 
 ZERO = Decimal("0")
-WORKSPACE_HOLDER_PAGE_SIZE = 5
+WORKSPACE_HOLDER_PAGE_SIZE = 3
 WORKSPACE_FILTER_FIELDS = (
     "version_id",
     "view",
