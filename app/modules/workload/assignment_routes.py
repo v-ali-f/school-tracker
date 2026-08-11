@@ -18,6 +18,7 @@ from flask_login import current_user, login_required
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -837,6 +838,17 @@ def _ensure_workspace_plan_needs(
 ):
     if version is None or snapshot is None or version.status != "DRAFT":
         return False
+    if db.engine.dialect.name == "postgresql":
+        # Several Gunicorn workers can open the workspace at the same time
+        # immediately after a plan binding changes.  Serialise materialisation
+        # per tariff version so they cannot create the same automatic group.
+        db.session.execute(
+            text(
+                "SELECT pg_advisory_xact_lock("
+                "hashtext('workload-plan-needs'), :version_id)"
+            ),
+            {"version_id": version.id},
+        )
     plan_state = (
         db.session.query(
             db.func.count(EducationPlanLine.id),
