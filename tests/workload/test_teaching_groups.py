@@ -281,12 +281,23 @@ def _group_form(context, class_ids, member_ids=(), **overrides):
     return data
 
 
-def _ready_source_group(context, snapshot_class, *, user_id, suffix):
+def _ready_source_group(
+    context,
+    snapshot_class,
+    *,
+    user_id,
+    suffix,
+    plan_line_id=None,
+    member_ids=None,
+):
     line = db.session.get(
         EducationPlanLine,
-        context["plan_line_id"],
+        plan_line_id or context["plan_line_id"],
     )
-    member_ids = [item.id for item in snapshot_class.enrollments]
+    member_ids = (
+        [item.id for item in snapshot_class.enrollments]
+        if member_ids is None else list(member_ids)
+    )
     group = TeachingGroup(
         tariff_version_id=context["version_id"],
         education_activity_id=line.education_activity_id,
@@ -3333,6 +3344,176 @@ def test_metagroup_replaces_unassigned_source_needs(app, make_user):
         ).all()
         assert len(active_needs) == 1
         assert active_needs[0].teaching_group_id == metagroup.id
+
+
+def test_metagroup_combines_one_class_across_two_curricula(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        first_line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        first_plan = first_line.education_plan
+        first_plan.education_level = "SOO"
+        first_scope = first_line.scopes[0]
+        first_scope.grade = 10
+        first_scope.scope_key = line_scope_key(
+            "GRADE",
+            grade=10,
+            building_id=context["building_id"],
+        )
+        school_classes = (
+            SchoolClass.query
+            .filter_by(academic_year_id=context["year_id"])
+            .order_by(SchoolClass.id.asc())
+            .all()
+        )
+        for school_class, name, letter in zip(
+            school_classes,
+            ("10З", "10Б"),
+            ("З", "Б"),
+        ):
+            school_class.grade = 10
+            school_class.name = name
+            school_class.letter = letter
+        db.session.commit()
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = next(
+            item
+            for item in snapshot.classes
+            if item.name_snapshot == "10З"
+        )
+        second_plan = EducationPlan(
+            tariff_version_id=context["version_id"],
+            plan_kind="CURRICULUM",
+            name="Второй профильный учебный план",
+            education_level="SOO",
+            building_id=context["building_id"],
+            scope_code="OOO_SECOND_PROFILE",
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(second_plan)
+        db.session.flush()
+        second_line = EducationPlanLine(
+            education_plan_id=second_plan.id,
+            education_activity_id=first_line.education_activity_id,
+            component_kind="MANDATORY",
+            weekly_hours=first_line.weekly_hours,
+            weeks_count=first_line.weeks_count,
+            annual_hours=first_line.annual_hours,
+            requires_division=True,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(second_line)
+        db.session.flush()
+        db.session.add(EducationPlanLineScope(
+            education_plan_line_id=second_line.id,
+            scope_kind="GRADE",
+            grade=10,
+            building_id=context["building_id"],
+            scope_key=line_scope_key(
+                "GRADE",
+                grade=10,
+                building_id=context["building_id"],
+            ),
+        ))
+        enrollment_ids = sorted(
+            item.id for item in snapshot_class.enrollments
+        )
+        replace_plan_binding_members(
+            first_plan,
+            snapshot_class,
+            {enrollment_ids[0]},
+            user_id=user_id,
+        )
+        replace_plan_binding_members(
+            second_plan,
+            snapshot_class,
+            {enrollment_ids[1]},
+            user_id=user_id,
+        )
+        sources = [
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=1,
+                plan_line_id=first_line.id,
+                member_ids={enrollment_ids[0]},
+            ),
+            _ready_source_group(
+                context,
+                snapshot_class,
+                user_id=user_id,
+                suffix=2,
+                plan_line_id=second_line.id,
+                member_ids={enrollment_ids[1]},
+            ),
+        ]
+        plan_matrix = build_teaching_group_matrix(
+            snapshot,
+            [first_plan, second_plan],
+            "SOO",
+            context["version_id"],
+            grade=10,
+        )
+        workspace = build_metagroup_workspace(
+            plan_matrix,
+            context["version_id"],
+        )
+        assert [
+            option["activity"].name
+            for option in workspace["activity_options"]
+        ] == ["Математика"]
+
+        metagroup = create_metagroup(
+            version=first_plan.tariff_version,
+            snapshot=snapshot,
+            plans=[first_plan, second_plan],
+            source_tokens=[
+                f"group:{group.id}" for group in sources
+            ],
+            name="Математика · два профиля 10З",
+            user_id=user_id,
+        )
+        db.session.flush()
+        assert len(metagroup.source_classes) == 1
+        assert len(metagroup.metagroup_sources) == 2
+
+        generate_plan_needs(
+            first_plan.tariff_version,
+            user_id=user_id,
+        )
+        need = WorkloadNeed.query.filter(
+            WorkloadNeed.status != "CANCELLED",
+        ).one()
+        matrix = build_workload_assignment_matrix(
+            [need],
+            [],
+            plan_matrices=[plan_matrix],
+            extra_teachers=[db.session.get(User, user_id)],
+            draft_rows=[(
+                db.session.get(User, user_id),
+                first_line.education_activity,
+                "CURRICULUM",
+            )],
+        )
+        row = matrix["blocks"][0]["rows"][0]
+        mirrored_slots = [
+            slot
+            for cell in row["matrix_cells"].values()
+            for slot in cell["slots"]
+        ]
+        assert len(mirrored_slots) == 2
+        assert {slot["need"].id for slot in mirrored_slots} == {need.id}
 
 
 def test_metagroup_still_blocks_active_teacher_assignments(app, make_user):
