@@ -20,6 +20,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.cache import cache, make_key
 from app.core.extensions import db
@@ -31,6 +32,7 @@ from app.models import (
     EducationPlan,
     EducationPlanLine,
     OrganizationSettings,
+    PopulationSnapshotClass,
     SchoolClass,
     TariffCycle,
     TariffCalculationRun,
@@ -101,7 +103,7 @@ from .scopes import resolve_workload_scope
 
 
 ZERO = Decimal("0")
-WORKSPACE_HOLDER_PAGE_SIZE = 10
+WORKSPACE_HOLDER_PAGE_SIZE = 5
 WORKSPACE_FILTER_FIELDS = (
     "version_id",
     "view",
@@ -187,7 +189,13 @@ def _scoped_need_query():
         ),
         joinedload(WorkloadNeed.teaching_group)
         .selectinload(TeachingGroup.source_classes)
-        .joinedload(TeachingGroupClass.population_snapshot_class),
+        .joinedload(TeachingGroupClass.population_snapshot_class)
+        .joinedload(PopulationSnapshotClass.building),
+        joinedload(WorkloadNeed.teaching_group)
+        .joinedload(TeachingGroup.building),
+        joinedload(WorkloadNeed.teaching_group)
+        .joinedload(TeachingGroup.metagroup_membership)
+        .joinedload(TeachingMetagroupSource.metagroup),
         joinedload(WorkloadNeed.teaching_group)
         .joinedload(TeachingGroup.source_plan_line)
         .joinedload(EducationPlanLine.education_plan)
@@ -196,7 +204,13 @@ def _scoped_need_query():
         .selectinload(TeachingGroup.metagroup_sources)
         .joinedload(TeachingMetagroupSource.source_group)
         .selectinload(TeachingGroup.source_classes)
-        .joinedload(TeachingGroupClass.population_snapshot_class),
+        .joinedload(TeachingGroupClass.population_snapshot_class)
+        .joinedload(PopulationSnapshotClass.building),
+        joinedload(WorkloadNeed.teaching_group)
+        .selectinload(TeachingGroup.metagroup_sources)
+        .joinedload(TeachingMetagroupSource.source_group)
+        .joinedload(TeachingGroup.metagroup_membership)
+        .joinedload(TeachingMetagroupSource.metagroup),
         joinedload(WorkloadNeed.teaching_group)
         .selectinload(TeachingGroup.metagroup_sources)
         .joinedload(TeachingMetagroupSource.source_group)
@@ -576,6 +590,41 @@ def _workspace_subject_options(needs):
     )
 
 
+def _workspace_subject_filter_options(version):
+    if version is None:
+        return []
+    query = (
+        EducationActivity.query
+        .join(
+            WorkloadNeed,
+            WorkloadNeed.education_activity_id == EducationActivity.id,
+        )
+        .filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadNeed.status != "CANCELLED",
+        )
+    )
+    organization_id = _current_organization_id()
+    query = (
+        query.filter(WorkloadNeed.organization_id.is_(None))
+        if organization_id is None
+        else query.filter(WorkloadNeed.organization_id == organization_id)
+    )
+    scope = resolve_workload_scope(current_user)
+    if not scope.unrestricted:
+        if scope.department_ids:
+            query = query.filter(
+                WorkloadNeed.department_id.in_(scope.department_ids)
+            )
+        if scope.building_ids:
+            query = query.filter(
+                WorkloadNeed.building_id.in_(scope.building_ids)
+            )
+        if not scope.department_ids and not scope.building_ids:
+            return []
+    return query.order_by(EducationActivity.name.asc()).distinct().all()
+
+
 def _workspace_plan_subject_options(plan_matrices, department_id=None):
     options = {}
     for matrix in plan_matrices:
@@ -620,6 +669,7 @@ def _workspace_plan_context(
     education_levels=None,
     grades=None,
     building_id=None,
+    include_matrices=True,
 ):
     if version is None:
         return None, [], []
@@ -660,7 +710,7 @@ def _workspace_plan_context(
             plans,
             compact_enrollments=True,
         )
-        if snapshot is not None else None
+        if snapshot is not None and include_matrices else None
     )
     matrices = [
         build_teaching_group_matrix(
@@ -674,7 +724,7 @@ def _workspace_plan_context(
             matrix_data=matrix_data,
         )
         for level, matrix_grade in matrix_specs
-    ] if snapshot is not None else []
+    ] if snapshot is not None and include_matrices else []
     return snapshot, plans, matrices
 
 
@@ -1274,31 +1324,16 @@ def register_assignment_routes(workload_bp):
             education_levels=education_levels,
             grades=grades,
             building_id=building_id,
+            include_matrices=False,
         )
         if can_update and selected_version is not None:
             try:
-                reusable_plan_matrices = (
-                    plan_matrices
-                    if (
-                        not education_levels
-                        and not grades
-                        and building_id is None
-                        and resolve_workload_scope(current_user).unrestricted
-                    )
-                    else None
-                )
-                if _ensure_workspace_plan_needs(
+                _ensure_workspace_plan_needs(
                     selected_version,
                     snapshot,
                     plans,
-                    reusable_plan_matrices,
-                ):
-                    _, _, plan_matrices = _workspace_plan_context(
-                        selected_version,
-                        education_levels=education_levels,
-                        grades=grades,
-                        building_id=building_id,
-                    )
+                    None,
+                )
                 relinked_assignments = (
                     relink_assignments_to_population_snapshot(
                         selected_version,
@@ -1392,7 +1427,9 @@ def register_assignment_routes(workload_bp):
             )
         elif fragment_holder_key:
             query = query.filter(db.false())
-        if education_levels or grades or building_id is not None:
+        if plan_matrices and (
+            education_levels or grades or building_id is not None
+        ):
             visible_group_ids = _workspace_matrix_group_ids(plan_matrices)
             query = (
                 query.filter(
@@ -1421,28 +1458,6 @@ def register_assignment_routes(workload_bp):
             )
             .options(
                 joinedload(WorkloadAssignment.employee),
-                joinedload(WorkloadAssignment.workload_need)
-                .joinedload(WorkloadNeed.teaching_group)
-                .joinedload(TeachingGroup.source_plan_line)
-                .joinedload(EducationPlanLine.education_plan)
-                .joinedload(EducationPlan.root_plan),
-                joinedload(WorkloadAssignment.workload_need)
-                .joinedload(WorkloadNeed.teaching_group)
-                .selectinload(TeachingGroup.source_classes)
-                .joinedload(TeachingGroupClass.population_snapshot_class),
-                joinedload(WorkloadAssignment.workload_need)
-                .joinedload(WorkloadNeed.teaching_group)
-                .selectinload(TeachingGroup.metagroup_sources)
-                .joinedload(TeachingMetagroupSource.source_group)
-                .joinedload(TeachingGroup.source_plan_line)
-                .joinedload(EducationPlanLine.education_plan)
-                .joinedload(EducationPlan.root_plan),
-                joinedload(WorkloadAssignment.workload_need)
-                .joinedload(WorkloadNeed.teaching_group)
-                .selectinload(TeachingGroup.metagroup_sources)
-                .joinedload(TeachingMetagroupSource.source_group)
-                .selectinload(TeachingGroup.source_classes)
-                .joinedload(TeachingGroupClass.population_snapshot_class),
             )
             .filter(
                 WorkloadNeed.tariff_version_id == (
@@ -1476,19 +1491,29 @@ def register_assignment_routes(workload_bp):
             all_assignments_query.all()
             if selected_version is not None else []
         )
-        if snapshot is not None:
-            all_assignments = [
-                item for item in all_assignments
-                if not need_population_snapshot_ids(item.workload_need)
-                or need_population_snapshot_ids(item.workload_need)
-                == {snapshot.id}
-            ]
         need_ids = {item.id for item in needs}
+        needs_by_id = {item.id: item for item in needs}
         assignments = [
             item
             for item in all_assignments
             if item.workload_need_id in need_ids
         ]
+        for assignment in assignments:
+            set_committed_value(
+                assignment,
+                "workload_need",
+                needs_by_id[assignment.workload_need_id],
+            )
+        holder_totals = defaultdict(Decimal)
+        for assignment in all_assignments:
+            holder_key = (
+                ("vacancy", assignment.position_code)
+                if assignment.assignment_kind == "VACANCY"
+                else ("teacher", assignment.employee_user_id)
+            )
+            holder_totals[holder_key] += Decimal(
+                assignment.weekly_hours or ZERO
+            )
         employees = _active_employees()
         employee_by_id = {item.id: item for item in employees}
         normalized_teacher_query = teacher_query.casefold()
@@ -1690,7 +1715,8 @@ def register_assignment_routes(workload_bp):
                 list(matrix_teachers.values()),
                 selected_version,
             ),
-            total_assignments=all_assignments,
+            total_assignments=assignments,
+            holder_totals=holder_totals,
             visible_holder_key=fragment_holder_key or None,
             visible_holder_keys=(
                 None if fragment_holder_key else page_holder_keys
@@ -1773,12 +1799,8 @@ def register_assignment_routes(workload_bp):
             selected_grades=sorted(grades),
             selected_teacher_query=teacher_query,
             selected_subject_ids=sorted(selected_subject_ids),
-            subject_filter_options=sorted(
-                {
-                    item["activity"].id: item["activity"]
-                    for item in subject_options
-                }.values(),
-                key=lambda item: item.name.casefold(),
+            subject_filter_options=_workspace_subject_filter_options(
+                selected_version
             ),
             holder_page=holder_page,
             holder_page_count=holder_page_count,

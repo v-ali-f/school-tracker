@@ -244,6 +244,50 @@ def _column_for_need(need, plan_context):
     }
 
 
+def _column_from_source(snapshot_class, root_plan):
+    """Build a workload column directly from an already materialized need."""
+    source_school_class_id = (
+        getattr(snapshot_class, "source_school_class_id", None)
+        or snapshot_class.id
+    )
+    split_profile_column = snapshot_class.grade_snapshot in {10, 11}
+    plan_id = root_plan.id if root_plan is not None else 0
+    plan_name = root_plan.name if root_plan is not None else ""
+    return {
+        "key": (
+            f"school-class-{source_school_class_id}-plan-{plan_id}"
+            if split_profile_column
+            else f"school-class-{source_school_class_id}"
+        ),
+        "label": snapshot_class.name_snapshot,
+        "detail": "",
+        "plan_name": plan_name,
+        "profile_label": (
+            (root_plan.profile_name or plan_name)
+            if root_plan is not None and split_profile_column
+            else ""
+        ),
+        "is_profile_column": split_profile_column,
+        "is_metagroup": False,
+        "is_orphan": False,
+        "grade": snapshot_class.grade_snapshot or 99,
+        "class_name": snapshot_class.name_snapshot,
+        "building_id": snapshot_class.building_id,
+        "building_name": snapshot_class.building_name_snapshot or "",
+        "building_tone": building_matrix_tone(snapshot_class.building),
+        "snapshot_class_id": snapshot_class.id,
+        "source_school_class_id": source_school_class_id,
+        "plan_id": plan_id,
+        "plan_names": [plan_name] if plan_name else [],
+        "sort_key": (
+            snapshot_class.grade_snapshot or 99,
+            _class_sort_key(snapshot_class.name_snapshot)[1],
+            0,
+            plan_name.casefold(),
+        ),
+    }
+
+
 def _new_row(teacher, activity, plan_kind):
     return {
         "teacher": teacher,
@@ -388,6 +432,7 @@ def build_workload_assignment_matrix(
     draft_vacancy_rows=(),
     teacher_metadata=None,
     total_assignments=None,
+    holder_totals=None,
     visible_holder_key=None,
     visible_holder_keys=None,
 ):
@@ -514,13 +559,49 @@ def build_workload_assignment_matrix(
                 else line.education_plan if line else None
             )
             for link in source_group.source_classes:
+                snapshot_class = link.population_snapshot_class
+                if snapshot_class is None:
+                    continue
                 key = (
                     f"class-{link.population_snapshot_class_id}-"
                     f"plan-{root_plan.id if root_plan is not None else 0}"
                 )
                 display_key = display_key_by_source_key.get(key)
+                if display_key is None and not plan_matrices:
+                    direct_column = _column_from_source(
+                        snapshot_class,
+                        root_plan,
+                    )
+                    display_key = direct_column["key"]
+                    existing_column = columns_by_key.setdefault(
+                        display_key,
+                        direct_column,
+                    )
+                    if (
+                        root_plan is not None
+                        and root_plan.name not in existing_column["plan_names"]
+                    ):
+                        existing_column["plan_names"].append(root_plan.name)
+                        existing_column["plan_name"] = " / ".join(
+                            existing_column["plan_names"]
+                        )
                 if display_key in columns_by_key:
                     source_keys.append(display_key)
+                    if not plan_matrices:
+                        cell_key = (
+                            need.education_activity_id,
+                            contexts[need.id]["plan_kind"],
+                            display_key,
+                        )
+                        merged_cell = plan_cells.setdefault(
+                            cell_key,
+                            {"groups": []},
+                        )
+                        if all(
+                            item.id != source_group.id
+                            for item in merged_cell["groups"]
+                        ):
+                            merged_cell["groups"].append(source_group)
         if source_keys:
             need_column_keys[need.id] = tuple(dict.fromkeys(source_keys))
         else:
@@ -556,6 +637,7 @@ def build_workload_assignment_matrix(
         assignments if total_assignments is None else list(total_assignments)
     )
     global_holder_totals = defaultdict(Decimal)
+    global_holder_totals.update(holder_totals or {})
     global_subject_totals = defaultdict(Decimal)
     for assignment in total_assignments:
         if assignment.status == "CANCELLED":
@@ -569,7 +651,8 @@ def build_workload_assignment_matrix(
             assignment.workload_need
         )
         hours = Decimal(assignment.weekly_hours or ZERO)
-        global_holder_totals[holder_key] += hours
+        if holder_totals is None:
+            global_holder_totals[holder_key] += hours
         global_subject_totals[(
             holder_key,
             assignment.workload_need.education_activity_id,

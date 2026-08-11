@@ -3862,6 +3862,28 @@ def test_metagroup_need_is_mirrored_across_source_class_columns(
         ]
         assert all(slot["is_metagroup"] for slot in mirrored_slots)
 
+        lightweight_matrix = build_workload_assignment_matrix(
+            [need],
+            [],
+            extra_teachers=[teacher],
+            draft_rows=[(
+                teacher,
+                line.education_activity,
+                "CURRICULUM",
+            )],
+        )
+        lightweight_row = lightweight_matrix["blocks"][0]["rows"][0]
+        lightweight_slots = [
+            slot
+            for cell in lightweight_row["matrix_cells"].values()
+            for slot in cell["slots"]
+        ]
+        assert len(lightweight_matrix["columns"]) == 2
+        assert [slot["need"].id for slot in lightweight_slots] == [
+            need.id,
+            need.id,
+        ]
+
 
 def test_metagroup_rejects_sources_from_one_class(app, make_user):
     user_id = make_user("ADMIN")
