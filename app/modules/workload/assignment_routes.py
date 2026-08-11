@@ -101,6 +101,7 @@ from .scopes import resolve_workload_scope
 
 
 ZERO = Decimal("0")
+WORKSPACE_HOLDER_PAGE_SIZE = 10
 WORKSPACE_FILTER_FIELDS = (
     "version_id",
     "view",
@@ -108,6 +109,7 @@ WORKSPACE_FILTER_FIELDS = (
     "building_id",
     "education_level",
     "grade",
+    "subject_id",
     "teacher_query",
 )
 
@@ -289,7 +291,7 @@ def _workspace_redirect():
         if field_values:
             values[field] = (
                 field_values
-                if field in {"education_level", "grade"}
+                if field in {"education_level", "grade", "subject_id"}
                 else field_values[-1]
             )
     return redirect(url_for("workload.assignment_workspace", **values))
@@ -312,6 +314,18 @@ def _workspace_selected_grades(source):
             continue
         if grade in range(1, 12):
             result.add(grade)
+    return result
+
+
+def _workspace_selected_subject_ids(source):
+    result = set()
+    for value in source.getlist("subject_id"):
+        try:
+            subject_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if subject_id > 0:
+            result.add(subject_id)
     return result
 
 
@@ -378,16 +392,23 @@ def _filter_workspace_needs(
     grade=None,
     education_levels=None,
     grades=None,
+    subject_ids=None,
     population_snapshot_id=None,
 ):
     selected_levels = set(education_levels or ())
     selected_grades = set(grades or ())
+    selected_subject_ids = set(subject_ids or ())
     if education_level:
         selected_levels.add(education_level)
     if grade:
         selected_grades.add(grade)
     result = []
     for need in needs:
+        if (
+            selected_subject_ids
+            and need.education_activity_id not in selected_subject_ids
+        ):
+            continue
         snapshot_ids = need_population_snapshot_ids(need)
         if (
             population_snapshot_id is not None
@@ -420,6 +441,7 @@ def _workspace_form_needs(version, *, activity_id=None):
     )
     education_levels = _workspace_selected_levels(request.form)
     grades = _workspace_selected_grades(request.form)
+    subject_ids = _workspace_selected_subject_ids(request.form)
     query = _scoped_need_query().filter(
         WorkloadNeed.tariff_version_id == version.id,
         WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
@@ -427,6 +449,10 @@ def _workspace_form_needs(version, *, activity_id=None):
     if activity_id is not None:
         query = query.filter(
             WorkloadNeed.education_activity_id == activity_id
+        )
+    elif subject_ids:
+        query = query.filter(
+            WorkloadNeed.education_activity_id.in_(subject_ids)
         )
     needs = query.all()
     snapshot = current_population_snapshot(version.id)
@@ -436,6 +462,7 @@ def _workspace_form_needs(version, *, activity_id=None):
         building_id=request.form.get("building_id", type=int),
         education_levels=education_levels,
         grades=grades,
+        subject_ids=subject_ids,
         population_snapshot_id=(snapshot.id if snapshot else None),
     )
 
@@ -673,6 +700,25 @@ def _workspace_matrix_specs(education_levels, grades):
     ]
 
 
+def _workspace_matrix_group_ids(plan_matrices):
+    """Return target teaching groups represented by the visible matrices."""
+    group_ids = set()
+    for plan_matrix in plan_matrices or ():
+        for section in plan_matrix.get("sections", ()):
+            for row in section.get("rows", ()):
+                for cell in row.get("cells", {}).values():
+                    for source_group in cell.get("groups", ()):
+                        membership = source_group.metagroup_membership
+                        target_group = (
+                            membership.metagroup
+                            if membership is not None
+                            else source_group
+                        )
+                        if target_group is not None and target_group.id:
+                            group_ids.add(target_group.id)
+    return group_ids
+
+
 def _ensure_workspace_plan_needs(
     version,
     snapshot,
@@ -710,8 +756,7 @@ def _ensure_workspace_plan_needs(
     need_state = (
         db.session.query(
             db.func.count(WorkloadNeed.id),
-            db.func.max(WorkloadNeed.updated_at),
-            db.func.sum(WorkloadNeed.revision),
+            db.func.max(WorkloadNeed.id),
         )
         .filter(
             WorkloadNeed.tariff_version_id == version.id,
@@ -1187,6 +1232,7 @@ def register_assignment_routes(workload_bp):
         building_id = request.args.get("building_id", type=int)
         education_levels = _workspace_selected_levels(request.args)
         grades = _workspace_selected_grades(request.args)
+        selected_subject_ids = _workspace_selected_subject_ids(request.args)
         teacher_query = " ".join(
             (request.args.get("teacher_query") or "").split()
         )[:160]
@@ -1195,6 +1241,7 @@ def register_assignment_routes(workload_bp):
         fragment_holder_key = (
             request.args.get("fragment_holder_key") or ""
         ).strip()[:80]
+        holder_page = max(1, request.args.get("holder_page", type=int) or 1)
         fragment_type, separator, fragment_value = (
             fragment_holder_key.partition(":")
         )
@@ -1270,6 +1317,58 @@ def register_assignment_routes(workload_bp):
             except WorkloadDistributionError as exc:
                 db.session.rollback()
                 flash(str(exc), "danger")
+        state_key, state = _workspace_state(version_id or 0)
+        fragment_activity_ids = set()
+        if fragment_holder_key and selected_version is not None:
+            fragment_activity_ids.update(
+                row.get("activity_id")
+                for row in state["rows"]
+                if row.get("activity_id")
+                and (
+                    (
+                        fragment_type == "teacher"
+                        and row.get("holder_type", "teacher") == "teacher"
+                        and str(row.get("teacher_id") or "") == fragment_value
+                    )
+                    or (
+                        fragment_type == "vacancy"
+                        and row.get("holder_type") == "vacancy"
+                        and str(row.get("vacancy_key") or "") == fragment_value
+                    )
+                )
+            )
+            fragment_assignment_activities = (
+                db.session.query(WorkloadNeed.education_activity_id)
+                .join(
+                    WorkloadAssignment,
+                    WorkloadAssignment.workload_need_id == WorkloadNeed.id,
+                )
+                .filter(
+                    WorkloadNeed.tariff_version_id == selected_version.id,
+                    WorkloadAssignment.status != "CANCELLED",
+                )
+            )
+            if fragment_type == "teacher" and fragment_value.isdigit():
+                fragment_assignment_activities = (
+                    fragment_assignment_activities.filter(
+                        WorkloadAssignment.employee_user_id
+                        == int(fragment_value),
+                        WorkloadAssignment.assignment_kind != "VACANCY",
+                    )
+                )
+            else:
+                fragment_assignment_activities = (
+                    fragment_assignment_activities.filter(
+                        WorkloadAssignment.assignment_kind == "VACANCY",
+                        WorkloadAssignment.position_code == fragment_value,
+                    )
+                )
+            fragment_activity_ids.update(
+                activity_id
+                for (activity_id,) in (
+                    fragment_assignment_activities.distinct().all()
+                )
+            )
         query = _scoped_need_query().filter(
             WorkloadNeed.status.in_(
                 ("OPEN", "PARTIAL", "COVERED", "OVERALLOCATED")
@@ -1279,39 +1378,117 @@ def register_assignment_routes(workload_bp):
             query = query.filter(
                 WorkloadNeed.tariff_version_id == selected_version.id
             )
-        all_needs = query.order_by(
+        effective_subject_ids = set(selected_subject_ids)
+        if fragment_holder_key:
+            effective_subject_ids = (
+                effective_subject_ids.intersection(fragment_activity_ids)
+                if effective_subject_ids else fragment_activity_ids
+            )
+        if effective_subject_ids:
+            query = query.filter(
+                WorkloadNeed.education_activity_id.in_(
+                    effective_subject_ids
+                )
+            )
+        elif fragment_holder_key:
+            query = query.filter(db.false())
+        if education_levels or grades or building_id is not None:
+            visible_group_ids = _workspace_matrix_group_ids(plan_matrices)
+            query = (
+                query.filter(
+                    WorkloadNeed.teaching_group_id.in_(visible_group_ids)
+                )
+                if visible_group_ids else query.filter(db.false())
+            )
+        needs = query.order_by(
             WorkloadNeed.status.asc(),
             WorkloadNeed.education_activity_id.asc(),
         ).all()
-        all_needs = _filter_workspace_needs(
-            all_needs,
-            population_snapshot_id=(snapshot.id if snapshot else None),
-        )
         needs = _filter_workspace_needs(
-            all_needs,
+            needs,
             department_id=department_id,
             building_id=building_id,
             education_levels=education_levels,
             grades=grades,
+            subject_ids=selected_subject_ids,
             population_snapshot_id=(snapshot.id if snapshot else None),
         )
-        all_need_ids = [item.id for item in all_needs]
-        all_assignments = (
+        all_assignments_query = (
             WorkloadAssignment.query
+            .join(
+                WorkloadNeed,
+                WorkloadNeed.id == WorkloadAssignment.workload_need_id,
+            )
+            .options(
+                joinedload(WorkloadAssignment.employee),
+                joinedload(WorkloadAssignment.workload_need)
+                .joinedload(WorkloadNeed.teaching_group)
+                .joinedload(TeachingGroup.source_plan_line)
+                .joinedload(EducationPlanLine.education_plan)
+                .joinedload(EducationPlan.root_plan),
+                joinedload(WorkloadAssignment.workload_need)
+                .joinedload(WorkloadNeed.teaching_group)
+                .selectinload(TeachingGroup.source_classes)
+                .joinedload(TeachingGroupClass.population_snapshot_class),
+                joinedload(WorkloadAssignment.workload_need)
+                .joinedload(WorkloadNeed.teaching_group)
+                .selectinload(TeachingGroup.metagroup_sources)
+                .joinedload(TeachingMetagroupSource.source_group)
+                .joinedload(TeachingGroup.source_plan_line)
+                .joinedload(EducationPlanLine.education_plan)
+                .joinedload(EducationPlan.root_plan),
+                joinedload(WorkloadAssignment.workload_need)
+                .joinedload(WorkloadNeed.teaching_group)
+                .selectinload(TeachingGroup.metagroup_sources)
+                .joinedload(TeachingMetagroupSource.source_group)
+                .selectinload(TeachingGroup.source_classes)
+                .joinedload(TeachingGroupClass.population_snapshot_class),
+            )
             .filter(
-                WorkloadAssignment.workload_need_id.in_(all_need_ids),
+                WorkloadNeed.tariff_version_id == (
+                    selected_version.id if selected_version is not None else -1
+                ),
                 WorkloadAssignment.status != "CANCELLED",
             )
-            .all()
-            if all_need_ids else []
         )
+        assignment_scope = resolve_workload_scope(current_user)
+        if not assignment_scope.unrestricted:
+            if assignment_scope.department_ids:
+                all_assignments_query = all_assignments_query.filter(
+                    WorkloadNeed.department_id.in_(
+                        assignment_scope.department_ids
+                    )
+                )
+            if assignment_scope.building_ids:
+                all_assignments_query = all_assignments_query.filter(
+                    WorkloadNeed.building_id.in_(
+                        assignment_scope.building_ids
+                    )
+                )
+            if (
+                not assignment_scope.department_ids
+                and not assignment_scope.building_ids
+            ):
+                all_assignments_query = all_assignments_query.filter(
+                    db.false()
+                )
+        all_assignments = (
+            all_assignments_query.all()
+            if selected_version is not None else []
+        )
+        if snapshot is not None:
+            all_assignments = [
+                item for item in all_assignments
+                if not need_population_snapshot_ids(item.workload_need)
+                or need_population_snapshot_ids(item.workload_need)
+                == {snapshot.id}
+            ]
         need_ids = {item.id for item in needs}
         assignments = [
             item
             for item in all_assignments
             if item.workload_need_id in need_ids
         ]
-        state_key, state = _workspace_state(version_id or 0)
         employees = _active_employees()
         employee_by_id = {item.id: item for item in employees}
         normalized_teacher_query = teacher_query.casefold()
@@ -1378,6 +1555,10 @@ def register_assignment_routes(workload_bp):
                 row.get("activity_id"),
                 row.get("plan_kind"),
             ) in allowed_subject_keys
+            and (
+                not selected_subject_ids
+                or row.get("activity_id") in selected_subject_ids
+            )
         ]
         draft_vacancy_rows = [
             (
@@ -1393,7 +1574,78 @@ def register_assignment_routes(workload_bp):
                 row.get("activity_id"),
                 row.get("plan_kind"),
             ) in allowed_subject_keys
+            and (
+                not selected_subject_ids
+                or row.get("activity_id") in selected_subject_ids
+            )
         ]
+        holder_labels = {}
+        for assignment in assignments:
+            if assignment.assignment_kind == "VACANCY":
+                holder_key = f"vacancy:{assignment.position_code}"
+                holder_labels[holder_key] = (
+                    assignment.position_title or "Вакансия"
+                )
+            elif assignment.employee is not None:
+                holder_key = f"teacher:{assignment.employee_user_id}"
+                holder_labels[holder_key] = assignment.employee.fio
+            else:
+                continue
+        for teacher, _, _ in draft_rows:
+            holder_key = f"teacher:{teacher.id}"
+            holder_labels[holder_key] = teacher.fio
+        for vacancy_key, _, _ in draft_vacancy_rows:
+            holder_key = f"vacancy:{vacancy_key}"
+            holder_labels[holder_key] = vacancies_by_key.get(
+                vacancy_key,
+                {"label": "Вакансия"},
+            )["label"]
+        if not selected_subject_ids:
+            for teacher in extra_teachers:
+                holder_labels.setdefault(
+                    f"teacher:{teacher.id}",
+                    teacher.fio,
+                )
+            for vacancy in extra_vacancies:
+                holder_labels.setdefault(
+                    f"vacancy:{vacancy['key']}",
+                    vacancy["label"],
+                )
+        if view_mode == "vacancies":
+            holder_labels = {
+                key: label
+                for key, label in holder_labels.items()
+                if key.startswith("vacancy:")
+            }
+        elif teacher_query:
+            allowed_teacher_keys = {
+                f"teacher:{teacher_id}"
+                for teacher_id in matching_teacher_ids
+            }
+            holder_labels = {
+                key: label
+                for key, label in holder_labels.items()
+                if key in allowed_teacher_keys
+            }
+        ordered_holder_keys = [
+            key for key, _ in sorted(
+                holder_labels.items(),
+                key=lambda item: item[1].casefold(),
+            )
+        ]
+        holder_total_count = len(ordered_holder_keys)
+        holder_page_count = max(
+            1,
+            (
+                holder_total_count + WORKSPACE_HOLDER_PAGE_SIZE - 1
+            ) // WORKSPACE_HOLDER_PAGE_SIZE,
+        )
+        holder_page = min(holder_page, holder_page_count)
+        holder_page_start = (holder_page - 1) * WORKSPACE_HOLDER_PAGE_SIZE
+        page_holder_keys = set(ordered_holder_keys[
+            holder_page_start:
+            holder_page_start + WORKSPACE_HOLDER_PAGE_SIZE
+        ])
         matrix_teachers = {
             assignment.employee_user_id: assignment.employee
             for assignment in assignments
@@ -1414,6 +1666,18 @@ def register_assignment_routes(workload_bp):
                 for teacher_id, teacher in matrix_teachers.items()
                 if teacher_id == visible_teacher_id
             }
+        else:
+            visible_teacher_ids = {
+                int(key.partition(":")[2])
+                for key in page_holder_keys
+                if key.startswith("teacher:")
+                and key.partition(":")[2].isdigit()
+            }
+            matrix_teachers = {
+                teacher_id: teacher
+                for teacher_id, teacher in matrix_teachers.items()
+                if teacher_id in visible_teacher_ids
+            }
         matrix = build_workload_assignment_matrix(
             needs,
             assignments,
@@ -1428,7 +1692,20 @@ def register_assignment_routes(workload_bp):
             ),
             total_assignments=all_assignments,
             visible_holder_key=fragment_holder_key or None,
+            visible_holder_keys=(
+                None if fragment_holder_key else page_holder_keys
+            ),
         )
+        if selected_subject_ids:
+            matrix["blocks"] = [
+                block for block in matrix["blocks"]
+                if any(
+                    row.get("activity") is not None
+                    and row["activity"].id in selected_subject_ids
+                    for row in block["rows"]
+                )
+            ]
+            matrix["teacher_count"] = len(matrix["blocks"])
         if view_mode == "vacancies":
             matrix["blocks"] = [
                 block for block in matrix["blocks"]
@@ -1443,6 +1720,8 @@ def register_assignment_routes(workload_bp):
                 )
             ]
             matrix["teacher_count"] = len(matrix["blocks"])
+        if not fragment_holder_key:
+            matrix["teacher_count"] = holder_total_count
         departments, buildings = _scope_options()
         filter_classes = list(snapshot.classes) if snapshot else []
         workspace_scope = resolve_workload_scope(current_user)
@@ -1493,6 +1772,24 @@ def register_assignment_routes(workload_bp):
             selected_education_levels=sorted(education_levels),
             selected_grades=sorted(grades),
             selected_teacher_query=teacher_query,
+            selected_subject_ids=sorted(selected_subject_ids),
+            subject_filter_options=sorted(
+                {
+                    item["activity"].id: item["activity"]
+                    for item in subject_options
+                }.values(),
+                key=lambda item: item.name.casefold(),
+            ),
+            holder_page=holder_page,
+            holder_page_count=holder_page_count,
+            holder_total_count=holder_total_count,
+            holder_page_from=(
+                holder_page_start + 1 if holder_total_count else 0
+            ),
+            holder_page_to=min(
+                holder_page_start + WORKSPACE_HOLDER_PAGE_SIZE,
+                holder_total_count,
+            ),
             teacher_filter_options=employees,
             level_counts=level_counts,
             level_labels=EDUCATION_LEVEL_LABELS,
@@ -2494,6 +2791,7 @@ def register_assignment_routes(workload_bp):
         )
         education_levels = _workspace_selected_levels(request.args)
         grades = _workspace_selected_grades(request.args)
+        selected_subject_ids = _workspace_selected_subject_ids(request.args)
         building_id = request.args.get("building_id", type=int)
         teacher_query = " ".join(
             (request.args.get("teacher_query") or "").split()
@@ -2506,15 +2804,31 @@ def register_assignment_routes(workload_bp):
             grades=grades,
             building_id=building_id,
         )
-        needs = _filter_workspace_needs(
-            _scoped_need_query().filter(
+        needs_query = _scoped_need_query().filter(
                 WorkloadNeed.tariff_version_id == version.id,
                 WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
-            ).all(),
+            )
+        if selected_subject_ids:
+            needs_query = needs_query.filter(
+                WorkloadNeed.education_activity_id.in_(
+                    selected_subject_ids
+                )
+            )
+        if education_levels or grades or building_id is not None:
+            visible_group_ids = _workspace_matrix_group_ids(plan_matrices)
+            needs_query = (
+                needs_query.filter(
+                    WorkloadNeed.teaching_group_id.in_(visible_group_ids)
+                )
+                if visible_group_ids else needs_query.filter(db.false())
+            )
+        needs = _filter_workspace_needs(
+            needs_query.all(),
             department_id=department_id,
             building_id=building_id,
             education_levels=education_levels,
             grades=grades,
+            subject_ids=selected_subject_ids,
             population_snapshot_id=(snapshot.id if snapshot else None),
         )
         need_ids = [item.id for item in needs]
