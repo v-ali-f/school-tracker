@@ -16,6 +16,9 @@
   {% for grade in selected_grades %}
   <input type="hidden" name="grade" value="{{ grade }}">
   {% endfor %}
+  {% for subject_id in selected_subject_ids %}
+  <input type="hidden" name="subject_id" value="{{ subject_id }}">
+  {% endfor %}
   {% if selected_teacher_query %}
   <input type="hidden" name="teacher_query" value="{{ selected_teacher_query }}">
   {% endif %}
@@ -39,6 +42,7 @@
         building_id=selected_building_id or '',
         education_level=selected_education_levels,
         grade=selected_grades,
+        subject_id=selected_subject_ids,
         teacher_query=selected_teacher_query
       ) }}"
     >
@@ -193,10 +197,39 @@
     <div class="workload-filter-field workload-filter-field--view">
       <span class="workload-filter-label">Вид нагрузки</span>
       <nav class="workload-view-tabs" aria-label="Вид нагрузки">
-        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, teacher_query=selected_teacher_query) }}">Вся нагрузка</a>
-        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, teacher_query=selected_teacher_query) }}">По кафедре</a>
-        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades) }}">Вакансии</a>
+        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query) }}">Вся нагрузка</a>
+        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query) }}">По кафедре</a>
+        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids) }}">Вакансии</a>
       </nav>
+    </div>
+    <div class="workload-filter-field workload-filter-field--subjects">
+      <span class="workload-filter-label">Предметы</span>
+      <details class="workload-subject-filter" data-workload-subject-filter>
+        <summary>
+          <span>
+            {% if selected_subject_ids %}
+              Выбрано: {{ selected_subject_ids|length }}
+            {% else %}
+              Все предметы
+            {% endif %}
+          </span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </summary>
+        <div class="workload-subject-filter__menu">
+          <div class="workload-subject-filter__list">
+            {% for item in subject_filter_options %}
+            <label>
+              <input type="checkbox" name="subject_id" value="{{ item.id }}" {% if item.id in selected_subject_ids %}checked{% endif %}>
+              <span>{{ item.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <div class="workload-subject-filter__actions">
+            <button class="btn btn-link btn-sm" type="button" data-workload-subject-clear>Сбросить</button>
+            <button class="btn btn-primary btn-sm" type="submit">Применить</button>
+          </div>
+        </div>
+      </details>
     </div>
     {% if view_mode != 'vacancies' %}
     <div class="workload-filter-field workload-filter-field--teacher">
@@ -260,6 +293,25 @@
     <span class="workload-matrix-toolbar__hint">Часов в неделю</span>
   </div>
 </div>
+
+{% if holder_page_count > 1 %}
+<nav class="workload-holder-pagination" aria-label="Страницы педагогов">
+  <span>Педагоги {{ holder_page_from }}–{{ holder_page_to }} из {{ holder_total_count }}</span>
+  <div>
+    {% if holder_page > 1 %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, holder_page=holder_page - 1) }}">
+      <i class="bi bi-chevron-left" aria-hidden="true"></i> Предыдущие
+    </a>
+    {% endif %}
+    <span>{{ holder_page }} / {{ holder_page_count }}</span>
+    {% if holder_page < holder_page_count %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, holder_page=holder_page + 1) }}">
+      Следующие <i class="bi bi-chevron-right" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
 
 {% if matrix.unassigned_items %}
 <div class="collapse workload-unassigned-panel" id="workload-unassigned-hours">
@@ -359,9 +411,11 @@
       {% for block in matrix.blocks %}
         {% if not fragment_holder_key or block.holder_key == fragment_holder_key %}
         <!-- workload-holder-start:{{ block.holder_key }} -->
-        {% set block_rowspan = block.rows|length + (1 if can_update else 0) %}
+        {% set compact_subject_filter = selected_subject_ids and block.rows|length < 3 %}
+        {% set show_add_subject_row = can_update and not selected_subject_ids %}
+        {% set block_rowspan = block.rows|length + (1 if show_add_subject_row else 0) %}
         {% for row in block.rows %}
-        <tr
+        <tr class="{% if loop.first %}workload-holder-start{% endif %}"
           data-workload-holder-row="{{ block.holder_key }}"
           data-holder-sort-key="{{ block.label|lower }}"
           data-holder-key="{{ block.holder_key }}"
@@ -370,12 +424,13 @@
           data-vacancy-key="{{ block.vacancy_key or '' }}"
         >
           {% if loop.first %}
-          <th class="workload-assignment-matrix__teacher-cell" rowspan="{{ block_rowspan }}">
+          <th class="workload-assignment-matrix__teacher-cell {% if compact_subject_filter %}is-filter-compact{% endif %}" rowspan="{{ block_rowspan }}">
             {% if block.is_vacancy %}
             <strong class="workload-holder-vacancy"><i class="bi bi-briefcase" aria-hidden="true"></i>{{ block.label }}</strong>
             <small>Преподаватель не назначен</small>
             {% else %}
             <a href="{{ url_for('departments.teacher_profile', teacher_id=block.teacher.id, academic_year_id=selected_version.tariff_cycle.academic_year_id) }}">{{ block.label }}</a>
+            {% if not compact_subject_filter %}
             <small>Кл. руководство: {{ block.metadata.class_teacher or '—' }}</small>
             {% set mcko_overview = block.metadata.mcko_overview %}
             {% if block.metadata.mcko_items %}
@@ -388,6 +443,7 @@
               {% endif %}
             {% else %}
               <small class="workload-teacher-mcko {% if mcko_overview and mcko_overview.status == 'INCOMPLETE' %}is-muted{% else %}is-danger{% endif %}">МЦКО: {{ mcko_overview.status_label if mcko_overview else 'Диагностика отсутствует' }}</small>
+            {% endif %}
             {% endif %}
             {% endif %}
             {% if can_update %}
@@ -519,7 +575,7 @@
           {% endfor %}
         </tr>
         {% endfor %}
-        {% if can_update %}
+        {% if show_add_subject_row %}
         <tr class="workload-add-subject-row" data-workload-holder-row="{{ block.holder_key }}" data-holder-sort-key="{{ block.label|lower }}">
           <th class="workload-assignment-matrix__subject-cell workload-add-subject-row__subject">
             <details class="workload-subject-add">
@@ -551,14 +607,14 @@
         <!-- workload-holder-end:{{ block.holder_key }} -->
         {% endif %}
       {% endfor %}
-      {% if not matrix.blocks and (not can_update or selected_teacher_query) %}
+      {% if not matrix.blocks and (not can_update or selected_teacher_query or selected_subject_ids) %}
       <tr>
         <td class="workload-assignment-matrix__no-teachers" colspan="{{ 4 + matrix.columns|length }}">
-          {% if selected_teacher_query %}По запросу «{{ selected_teacher_query }}» педагог не найден.{% else %}Нет преподавателей для отображения.{% endif %}
+          {% if selected_teacher_query %}По запросу «{{ selected_teacher_query }}» педагог не найден.{% elif selected_subject_ids %}По выбранным предметам нагрузка не найдена.{% else %}Нет преподавателей для отображения.{% endif %}
         </td>
       </tr>
       {% endif %}
-      {% if can_update and selected_version and not selected_teacher_query %}
+      {% if can_update and selected_version and not selected_teacher_query and not selected_subject_ids %}
       <tr class="workload-add-teacher-row">
         <td colspan="{{ 4 + matrix.columns|length }}">
           <button
@@ -706,6 +762,15 @@
       filterbar.requestSubmit();
     });
   });
+  filterbar?.querySelector("[data-workload-subject-clear]")?.addEventListener(
+    "click",
+    () => {
+      filterbar.querySelectorAll('input[name="subject_id"]').forEach((field) => {
+        field.checked = false;
+      });
+      filterbar.requestSubmit();
+    },
+  );
 
   document.addEventListener("click", (event) => {
     const summary = event.target.closest(".workload-subject-add summary");

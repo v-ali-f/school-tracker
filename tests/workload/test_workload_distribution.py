@@ -6,6 +6,9 @@ import pytest
 from werkzeug.datastructures import MultiDict
 
 from app.core.extensions import db
+from app.modules.workload.assignment_routes import (
+    _workspace_selected_subject_ids,
+)
 from app.models import (
     AcademicYear,
     Building,
@@ -394,6 +397,27 @@ def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
     assert matrix["total_remaining"] == Decimal("0")
     assert matrix["blocks"][0]["total"] == Decimal("3")
     assert matrix["blocks"][0]["rows"][0]["total"] == Decimal("3")
+
+    paged_matrix = build_workload_assignment_matrix(
+        [need],
+        [visible_assignment],
+        plan_matrices=[plan_matrix],
+        total_assignments=[visible_assignment],
+        visible_holder_keys=set(),
+    )
+    assert paged_matrix["blocks"] == []
+    assert paged_matrix["total_allocated"] == Decimal("1")
+
+
+def test_workspace_subject_filter_accepts_multiple_values():
+    selected = _workspace_selected_subject_ids(MultiDict([
+        ("subject_id", "12"),
+        ("subject_id", "35"),
+        ("subject_id", "12"),
+        ("subject_id", "bad"),
+    ]))
+
+    assert selected == {12, 35}
 
 
 def test_workload_save_submit_approve_and_return_cycle(
@@ -1090,6 +1114,20 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert filtered_html.index("workload-matrix-totals") < (
         filtered_html.index("workload-matrix-legend")
     )
+
+    subject_filtered = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            **filters,
+            "subject_id": str(activity_id),
+        },
+    )
+    subject_filtered_html = subject_filtered.get_data(as_text=True)
+    assert subject_filtered.status_code == 200
+    assert "is-filter-compact" in subject_filtered_html
+    assert "Кл. руководство:" not in subject_filtered_html
+    assert "МЦКО:" not in subject_filtered_html
+    assert "workload-add-subject-row" not in subject_filtered_html
 
 
 def test_workspace_preserves_multiple_level_and_grade_filters(

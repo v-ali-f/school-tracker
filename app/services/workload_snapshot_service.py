@@ -71,6 +71,41 @@ def relink_assignments_to_population_snapshot(
     if target_snapshot is None or target_snapshot.tariff_version_id != version.id:
         return 0
 
+    # In normal operation every active assignment already points at the current
+    # population snapshot.  Check that inexpensive condition in SQL before
+    # loading the complete assignment/group graph.  The workspace calls this
+    # guard on every view and filter change, while the full graph is only needed
+    # after an actual population snapshot rollover.
+    stale_assignment = (
+        db.session.query(WorkloadAssignment.id)
+        .join(
+            WorkloadNeed,
+            WorkloadNeed.id == WorkloadAssignment.workload_need_id,
+        )
+        .join(
+            TeachingGroup,
+            TeachingGroup.id == WorkloadNeed.teaching_group_id,
+        )
+        .join(
+            TeachingGroupClass,
+            TeachingGroupClass.teaching_group_id == TeachingGroup.id,
+        )
+        .join(
+            PopulationSnapshotClass,
+            PopulationSnapshotClass.id
+            == TeachingGroupClass.population_snapshot_class_id,
+        )
+        .filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadAssignment.status != "CANCELLED",
+            PopulationSnapshotClass.population_snapshot_id
+            != target_snapshot.id,
+        )
+        .first()
+    )
+    if stale_assignment is None:
+        return 0
+
     assignments = (
         WorkloadAssignment.query
         .options(

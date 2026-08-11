@@ -118,7 +118,8 @@
 }
 
 .workload-filterbar__secondary {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   align-items: end;
   gap: 10px;
   padding-top: 8px;
@@ -126,21 +127,123 @@
 }
 
 .workload-filter-field--view {
-  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .workload-filter-field--department {
-  width: min(420px, 100%);
+  min-width: 0;
 }
 
-.workload-filter-field--teacher {
-  width: min(380px, 100%);
-  margin-left: auto;
+.workload-filter-field--teacher,
+.workload-filter-field--subjects {
+  min-width: 0;
 }
 
 .workload-filter-field--teacher .form-control {
   min-height: 32px;
   font-size: 11px;
+}
+
+.workload-subject-filter {
+  position: relative;
+}
+
+.workload-subject-filter > summary {
+  min-height: 32px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  background: #fff;
+  color: #263754;
+  cursor: pointer;
+  font-size: 11px;
+  list-style: none;
+}
+
+.workload-subject-filter > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workload-subject-filter[open] > summary {
+  border-color: #7aa7ec;
+  box-shadow: 0 0 0 2px rgb(47 111 237 / 10%);
+}
+
+.workload-subject-filter[open] > summary i {
+  transform: rotate(180deg);
+}
+
+.workload-subject-filter__menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  min-width: 280px;
+  padding: 7px;
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(26 48 84 / 18%);
+}
+
+.workload-subject-filter__list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.workload-subject-filter__list label {
+  margin: 0;
+  padding: 5px 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: #263754;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.workload-subject-filter__list label:hover {
+  background: #f2f6fc;
+}
+
+.workload-subject-filter__actions {
+  margin-top: 5px;
+  padding-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #e5eaf2;
+}
+
+.workload-holder-pagination {
+  min-height: 34px;
+  margin: -1px 0 7px;
+  padding: 5px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #dfe6f0;
+  color: #657188;
+  font-size: 10px;
+}
+
+.workload-holder-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.workload-holder-pagination .btn {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 10px;
 }
 
 .workload-filter-field {
@@ -612,6 +715,15 @@
   height: 26px;
 }
 
+.workload-assignment-matrix thead tr:last-child > th {
+  border-bottom: 2px solid #7f91ad !important;
+  box-shadow: inset 0 -1px 0 #ffffff;
+}
+
+.workload-assignment-matrix tbody tr.workload-holder-start:not(:first-child) > * {
+  border-top: 2px solid #8799b3 !important;
+}
+
 .workload-assignment-matrix[data-workload-secondary-headers="1"] thead th {
   height: 30px;
 }
@@ -648,6 +760,17 @@
   width: 160px;
   min-width: 160px;
   max-width: 160px;
+}
+
+.workload-assignment-matrix__teacher-cell.is-filter-compact {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  vertical-align: middle !important;
+}
+
+.workload-assignment-matrix__teacher-cell.is-filter-compact .workload-holder-row-actions {
+  margin-top: 2px;
+  gap: 5px;
 }
 
 .workload-assignment-matrix__subject,
@@ -1390,13 +1513,6 @@
     grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
 
-  .workload-filterbar__secondary {
-    flex-wrap: wrap;
-  }
-
-  .workload-filter-field--teacher {
-    margin-left: 0;
-  }
 }
 
 .workload-assignment-segment small,
@@ -1712,7 +1828,7 @@
 
   .workload-filterbar__secondary {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .workload-matrix-toolbar,
