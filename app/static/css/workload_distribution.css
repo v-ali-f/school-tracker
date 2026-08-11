@@ -662,6 +662,29 @@
   background: #fff;
 }
 
+.workload-assignment-floating-header {
+  position: fixed;
+  z-index: 99;
+  overflow: hidden;
+  pointer-events: none;
+  background: #fff;
+  border: 1px solid var(--workload-border-strong, #acb9ca);
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 5px 12px rgba(31, 45, 69, 0.14);
+}
+
+.workload-assignment-floating-header[hidden] {
+  display: none;
+}
+
+.workload-assignment-floating-header .workload-assignment-matrix {
+  margin: 0;
+}
+
+.workload-assignment-floating-header .workload-assignment-matrix thead th {
+  top: 0 !important;
+}
+
 .workload-assignment-matrix {
   --workload-border: #cbd5e1;
   --workload-border-strong: #acb9ca;
