@@ -218,6 +218,21 @@ def _current_organization_id():
     return organization.id if organization else None
 
 
+def _legacy_teacher_load_query(activity, *, is_archived=False):
+    subject_id = (
+        activity.legacy_subject.id
+        if activity.legacy_subject is not None
+        else None
+    )
+    conditions = [TeacherLoad.education_activity_id == activity.id]
+    if subject_id is not None:
+        conditions.append(TeacherLoad.subject_id == subject_id)
+    return TeacherLoad.query.filter(
+        TeacherLoad.is_archived.is_(is_archived),
+        or_(*conditions),
+    )
+
+
 def _activity_usage(activity):
     plan_lines = (
         EducationPlanLine.query
@@ -282,6 +297,7 @@ def _activity_usage(activity):
             conditions.append(model.subject_id == subject_id)
         return model.query.filter(or_(*conditions)).count()
 
+    active_legacy_load_count = _legacy_teacher_load_query(activity).count()
     references = [
         {
             "label": "Результаты МЦКО преподавателей",
@@ -311,17 +327,7 @@ def _activity_usage(activity):
         },
         {
             "label": "Действующая нагрузка старого раздела",
-            "count": TeacherLoad.query.filter(
-                TeacherLoad.is_archived.is_(False),
-                or_(
-                    TeacherLoad.education_activity_id == activity.id,
-                    *(
-                        [TeacherLoad.subject_id == subject_id]
-                        if subject_id is not None
-                        else []
-                    ),
-                ),
-            ).count(),
+            "count": active_legacy_load_count,
         },
         {
             "label": "Сопоставления импортированных названий",
@@ -354,22 +360,12 @@ def _activity_usage(activity):
         "blocking_count": sum(item["count"] for item in blocking),
         "references": references,
         "reference_count": sum(item["count"] for item in references),
+        "active_legacy_load_count": active_legacy_load_count,
     }
 
 
 def _detach_archived_teacher_loads(activity):
-    subject_id = (
-        activity.legacy_subject.id
-        if activity.legacy_subject is not None
-        else None
-    )
-    conditions = [TeacherLoad.education_activity_id == activity.id]
-    if subject_id is not None:
-        conditions.append(TeacherLoad.subject_id == subject_id)
-    TeacherLoad.query.filter(
-        TeacherLoad.is_archived.is_(True),
-        or_(*conditions),
-    ).update(
+    _legacy_teacher_load_query(activity, is_archived=True).update(
         {
             TeacherLoad.education_activity_id: None,
             TeacherLoad.subject_id: None,
@@ -655,6 +651,28 @@ def catalog_toggle_active(activity_id):
     db.session.commit()
     flash("Статус элемента каталога изменён.", "success")
     return redirect(url_for("workload.catalog_detail", activity_id=activity.id))
+
+
+@workload_bp.post("/catalog/<int:activity_id>/archive-legacy-loads")
+@login_required
+def catalog_archive_legacy_loads(activity_id):
+    _require_catalog_manage()
+    activity = EducationActivity.query.get_or_404(activity_id)
+    archived_count = _legacy_teacher_load_query(activity).update(
+        {TeacherLoad.is_archived: True},
+        synchronize_session=False,
+    )
+    db.session.commit()
+    if archived_count:
+        flash(
+            f"Старая импортированная нагрузка отключена: {archived_count}. "
+            "История сохранена; теперь предмет можно удалить, если других "
+            "связей нет.",
+            "success",
+        )
+    else:
+        flash("Действующей старой нагрузки по предмету уже нет.", "info")
+    return redirect(url_for("workload.catalog_edit", activity_id=activity.id))
 
 
 @workload_bp.post("/catalog/<int:activity_id>/delete")
