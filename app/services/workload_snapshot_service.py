@@ -14,10 +14,19 @@ from app.models import (
     WorkloadNeed,
 )
 from app.services.workload_distribution_service import (
-    WorkloadDistributionError,
     assignment_snapshot,
     refresh_need_status,
 )
+
+
+class AssignmentRelinkResult(int):
+    """Transferred count with reconciliation details for the UI."""
+
+    def __new__(cls, transferred=0, cancelled=0):
+        result = int.__new__(cls, transferred)
+        result.transferred = transferred
+        result.cancelled = cancelled
+        return result
 
 
 def _class_key(group):
@@ -40,13 +49,35 @@ def _need_key(need):
     )
 
 
-def _assignment_key(assignment):
+def _semantic_need_key(need):
+    """Identify the same workload cell after a class changes its plan.
+
+    ``source_plan_line_id`` is intentionally omitted here: replacing the
+    bound education plan creates another line id even when the class, subject,
+    period and hours stay unchanged.  This key is only used as a guarded
+    fallback when the exact key has no target, and the caller still requires
+    exactly one matching current need.
+    """
+    group = need.teaching_group
+    return (
+        need.education_activity_id,
+        _class_key(group),
+        need.need_kind,
+        need.date_from,
+        need.date_to,
+        need.weekly_hours,
+        need.annual_hours,
+        group.group_type if group is not None else None,
+    )
+
+
+def _semantic_assignment_key(assignment):
     holder_key = (
         ("vacancy", assignment.position_code)
         if assignment.assignment_kind == "VACANCY"
         else ("teacher", assignment.employee_user_id)
     )
-    return (*_need_key(assignment.workload_need), holder_key)
+    return (*_semantic_need_key(assignment.workload_need), holder_key)
 
 
 def _snapshot_revision(assignment):
@@ -63,13 +94,15 @@ def relink_assignments_to_population_snapshot(
     *,
     user_id,
 ):
-    """Move active assignments from superseded snapshots to matching needs.
+    """Reconcile active assignments with the current workload structure.
 
-    No partial move is allowed: if one target is missing or ambiguous, the
-    caller receives an error and can roll back the transaction.
+    An assignment is transferred only when one current target is found.  If
+    its plan cell was removed or split into several groups, the old assignment
+    is cancelled with an audit record so the new cell can be distributed
+    deliberately without affecting unrelated workload.
     """
     if target_snapshot is None or target_snapshot.tariff_version_id != version.id:
-        return 0
+        return AssignmentRelinkResult()
 
     # In normal operation every active assignment already points at the current
     # population snapshot.  Check that inexpensive condition in SQL before
@@ -104,7 +137,7 @@ def relink_assignments_to_population_snapshot(
         .first()
     )
     if stale_assignment is None:
-        return 0
+        return AssignmentRelinkResult()
 
     assignments = (
         WorkloadAssignment.query
@@ -140,31 +173,17 @@ def relink_assignments_to_population_snapshot(
         and assignment.workload_need.teaching_group is not None
         and _class_key(assignment.workload_need.teaching_group)
     ]
-    current_keys = {
-        _assignment_key(assignment)
+    current_semantic_keys = {
+        _semantic_assignment_key(assignment)
         for assignment in current_assignments
     }
-    newest_stale_by_key = {}
+    stale_by_semantic_key = defaultdict(list)
     for assignment in stale_candidates:
-        key = _assignment_key(assignment)
-        current = newest_stale_by_key.get(key)
-        if current is None or (
-            _snapshot_revision(assignment),
-            assignment.created_at,
-            assignment.id,
-        ) > (
-            _snapshot_revision(current),
-            current.created_at,
-            current.id,
-        ):
-            newest_stale_by_key[key] = assignment
-    stale_assignments = [
-        assignment
-        for key, assignment in newest_stale_by_key.items()
-        if key not in current_keys
-    ]
-    if not stale_assignments:
-        return 0
+        stale_by_semantic_key[
+            _semantic_assignment_key(assignment)
+        ].append(assignment)
+    if not stale_by_semantic_key:
+        return AssignmentRelinkResult()
 
     target_needs = (
         WorkloadNeed.query
@@ -194,29 +213,54 @@ def relink_assignments_to_population_snapshot(
         .all()
     )
     targets_by_key = defaultdict(list)
+    targets_by_semantic_key = defaultdict(list)
     for need in target_needs:
         targets_by_key[_need_key(need)].append(need)
+        targets_by_semantic_key[_semantic_need_key(need)].append(need)
 
     mappings = []
-    errors = []
-    for assignment in stale_assignments:
+    cancelled = []
+    for semantic_key, matching_assignments in stale_by_semantic_key.items():
+        matching_assignments.sort(
+            key=lambda assignment: (
+                _snapshot_revision(assignment),
+                assignment.created_at,
+                assignment.id,
+            ),
+            reverse=True,
+        )
+        assignment = matching_assignments[0]
+        # Older active copies are historical leftovers from previous registry
+        # revisions.  Keep their audit trail, but do not let them participate
+        # in the current workload or make every workspace load expensive.
+        cancelled.extend(matching_assignments[1:])
+        if semantic_key in current_semantic_keys:
+            cancelled.append(assignment)
+            continue
         candidates = targets_by_key.get(_need_key(assignment.workload_need), ())
-        if len(candidates) != 1:
-            errors.append(
-                f"назначение №{assignment.id}: найдено целей {len(candidates)}"
+        if not candidates:
+            candidates = targets_by_semantic_key.get(
+                _semantic_need_key(assignment.workload_need),
+                (),
             )
+        if len(candidates) != 1:
+            # A missing target means the plan line was removed.  Multiple
+            # targets mean that the cell was split into groups.  In either
+            # case retaining the old assignment would put hours into an
+            # incorrect cell; preserve it in history as cancelled and leave
+            # the new cell(s) open for deliberate redistribution.
+            cancelled.append(assignment)
             continue
         target_need = candidates[0]
         mappings.append((assignment, target_need))
 
-    if errors:
-        details = "; ".join(errors[:5])
-        raise WorkloadDistributionError(
-            "Нагрузка сохранена в предыдущем снимке, но не может быть "
-            f"перенесена автоматически: {details}."
-        )
-
-    old_needs = {assignment.workload_need for assignment, _ in mappings}
+    old_needs = {
+        assignment.workload_need
+        for assignment, _ in mappings
+    } | {
+        assignment.workload_need
+        for assignment in cancelled
+    }
     new_needs = {target_need for _, target_need in mappings}
     for assignment, target_need in mappings:
         before = assignment_snapshot(assignment)
@@ -239,10 +283,33 @@ def relink_assignments_to_population_snapshot(
             ),
         ))
 
+    for assignment in cancelled:
+        before = assignment_snapshot(assignment)
+        assignment.status = "CANCELLED"
+        assignment.revision += 1
+        assignment.updated_by_user_id = user_id
+        db.session.add(WorkloadAssignmentChange(
+            workload_assignment=assignment,
+            change_kind="CANCEL",
+            changed_by_user_id=user_id,
+            before_data=before,
+            after_data=assignment_snapshot(assignment),
+            reason=(
+                "Автоматическое снятие нагрузки: строка учебного плана "
+                "удалена, заменена или разделена на другое число групп."
+            ),
+        ))
+
     db.session.flush()
     for need in old_needs | new_needs:
         refresh_need_status(need)
-    return len(mappings)
+    return AssignmentRelinkResult(
+        transferred=len(mappings),
+        cancelled=len(cancelled),
+    )
 
 
-__all__ = ["relink_assignments_to_population_snapshot"]
+__all__ = [
+    "AssignmentRelinkResult",
+    "relink_assignments_to_population_snapshot",
+]
