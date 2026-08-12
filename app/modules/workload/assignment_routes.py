@@ -1471,14 +1471,35 @@ def register_assignment_routes(workload_bp):
                         snapshot,
                         user_id=current_user.id,
                     )
-                    if snapshot is not None else 0
                 )
-                if relinked_assignments:
+                if (
+                    relinked_assignments.transferred
+                    or relinked_assignments.cancelled
+                ):
                     db.session.commit()
+                    message_parts = []
+                    if relinked_assignments.transferred:
+                        message_parts.append(
+                            "перенесено назначений: "
+                            f"{relinked_assignments.transferred}"
+                        )
+                    if relinked_assignments.cancelled:
+                        message_parts.append(
+                            "снято в изменённых ячейках: "
+                            f"{relinked_assignments.cancelled}"
+                        )
                     flash(
-                        "Нагрузка сохранена и перепривязана к обновлённому "
-                        f"контингенту: {relinked_assignments} назначений.",
-                        "success",
+                        "Нагрузка синхронизирована; "
+                        + "; ".join(message_parts)
+                        + (
+                            ". Снятые часы необходимо распределить заново."
+                            if relinked_assignments.cancelled else "."
+                        ),
+                        (
+                            "warning"
+                            if relinked_assignments.cancelled
+                            else "success"
+                        ),
                     )
             except WorkloadDistributionError as exc:
                 db.session.rollback()

@@ -2010,6 +2010,145 @@ def test_population_refresh_keeps_workload_assignment_identity(
         }
 
 
+def test_population_refresh_relinks_assignment_after_bound_plan_change(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _group_context(user_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        first_snapshot = db.session.get(
+            PopulationSnapshot,
+            _snapshot(user_id, version.id),
+        )
+        first_class = next(
+            item for item in first_snapshot.classes
+            if item.name_snapshot == "5А"
+        )
+        old_line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        old_group = _ready_source_group(
+            context,
+            first_class,
+            user_id=user_id,
+            suffix="OLD_PLAN",
+            member_ids=[],
+        )
+        old_need = WorkloadNeed(
+            tariff_version_id=version.id,
+            teaching_group_id=old_group.id,
+            education_activity_id=old_line.education_activity_id,
+            building_id=context["building_id"],
+            date_from=date(2026, 9, 1),
+            date_to=date(2027, 5, 28),
+            weekly_hours=Decimal("5"),
+            annual_hours=Decimal("170"),
+            need_kind="PLAN",
+            status="COVERED",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(old_need)
+        db.session.flush()
+        assignment = WorkloadAssignment(
+            tariff_version_id=version.id,
+            workload_need_id=old_need.id,
+            employee_user_id=teacher_id,
+            position_code="TEACHER",
+            position_title="Учитель",
+            building_id=context["building_id"],
+            assignment_kind="MAIN",
+            date_from=old_need.date_from,
+            date_to=old_need.date_to,
+            weekly_hours=old_need.weekly_hours,
+            annual_hours=old_need.annual_hours,
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(assignment)
+
+        replacement_line = EducationPlanLine(
+            education_plan_id=old_line.education_plan_id,
+            education_activity_id=old_line.education_activity_id,
+            component_kind=old_line.component_kind,
+            weekly_hours=old_line.weekly_hours,
+            weeks_count=old_line.weeks_count,
+            annual_hours=old_line.annual_hours,
+            requires_division=old_line.requires_division,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(replacement_line)
+        first_snapshot.status = "SUPERSEDED"
+        db.session.flush()
+        current_snapshot = PopulationSnapshot(
+            tariff_version_id=version.id,
+            revision_no=2,
+            snapshot_date=date(2026, 9, 2),
+            status="CURRENT",
+            source_kind="REGISTRY",
+            checksum="replacement-plan",
+            created_by_user_id=user_id,
+        )
+        db.session.add(current_snapshot)
+        db.session.flush()
+        current_class = PopulationSnapshotClass(
+            population_snapshot_id=current_snapshot.id,
+            source_school_class_id=first_class.source_school_class_id,
+            name_snapshot=first_class.name_snapshot,
+            grade_snapshot=first_class.grade_snapshot,
+            building_id=first_class.building_id,
+            building_name_snapshot=first_class.building_name_snapshot,
+            student_count=first_class.student_count,
+        )
+        db.session.add(current_class)
+        db.session.flush()
+        new_group = _ready_source_group(
+            context,
+            current_class,
+            user_id=user_id,
+            suffix="NEW_PLAN",
+            plan_line_id=replacement_line.id,
+            member_ids=[],
+        )
+        new_need = WorkloadNeed(
+            tariff_version_id=version.id,
+            teaching_group_id=new_group.id,
+            education_activity_id=replacement_line.education_activity_id,
+            building_id=context["building_id"],
+            date_from=old_need.date_from,
+            date_to=old_need.date_to,
+            weekly_hours=old_need.weekly_hours,
+            annual_hours=old_need.annual_hours,
+            need_kind=old_need.need_kind,
+            status="OPEN",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(new_need)
+        db.session.commit()
+
+        changed = relink_assignments_to_population_snapshot(
+            version,
+            current_snapshot,
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert changed == 1
+        db.session.refresh(assignment)
+        assert assignment.workload_need_id == new_need.id
+        assert WorkloadAssignmentChange.query.filter_by(
+            workload_assignment_id=assignment.id,
+            change_kind="TRANSFER",
+        ).count() == 1
+
+
 def test_population_refresh_updates_only_split_group_rosters(
     app,
     make_user,
