@@ -1199,6 +1199,33 @@ def test_group_matrix_uses_one_as_default_for_existing_plan_cells(
     assert html.count("data-group-count") == 1
     assert "Основной учебный план" in html
     assert 'class="group-matrix__plan-short"' in html
+    assert "Excel" in html
+    assert "PDF" in html
+
+    xlsx_response = client.get(
+        f"/workload/groups/export.xlsx"
+        f"?version_id={version_id}&level=OOO"
+    )
+    assert xlsx_response.status_code == 200
+    assert xlsx_response.data.startswith(b"PK")
+    workbook = load_workbook(BytesIO(xlsx_response.data), data_only=True)
+    sheet = workbook["OOO"]
+    exported_values = {
+        cell.value
+        for row in sheet.iter_rows()
+        for cell in row
+        if cell.value is not None
+    }
+    assert "Количество учебных групп" in exported_values
+    assert "Математика" in exported_values
+    assert 1 in exported_values
+
+    pdf_response = client.get(
+        f"/workload/groups/export.pdf"
+        f"?version_id={version_id}&level=OOO"
+    )
+    assert pdf_response.status_code == 200
+    assert pdf_response.data.startswith(b"%PDF")
 
     grade_response = client.get(
         f"/workload/groups/"
@@ -4159,6 +4186,25 @@ def test_metagroup_constructor_filters_by_grade_and_activity(
     assert 'class="metagroup-cluster"' in html
     assert "5А" in html
     assert "5Б" in html
+    assert "Excel" in html
+    assert "PDF" in html
+
+    xlsx_response = client.get(
+        "/workload/groups/metagroups/export.xlsx",
+        query_string=base_query,
+    )
+    assert xlsx_response.status_code == 200
+    assert xlsx_response.data.startswith(b"PK")
+    workbook = load_workbook(BytesIO(xlsx_response.data), data_only=True)
+    sheet = workbook["Метагруппы"]
+    assert sheet["A1"].value == "Реестр метагрупп"
+
+    pdf_response = client.get(
+        "/workload/groups/metagroups/export.pdf",
+        query_string=base_query,
+    )
+    assert pdf_response.status_code == 200
+    assert pdf_response.data.startswith(b"%PDF")
 
 
 def test_metagroup_can_be_planned_before_children_are_distributed(

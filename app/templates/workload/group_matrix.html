@@ -19,6 +19,24 @@
       <h2>Количество учебных групп</h2>
       <p>1 — весь класс или профильная часть класса, 2 и более — деление на группы</p>
     </div>
+    {% if selected_version %}
+    <div class="class-plan-heading__actions" aria-label="Выгрузка групп">
+      <a
+        class="btn btn-outline-success btn-sm"
+        href="{{ url_for('workload.groups_export_xlsx', version_id=selected_version.id, level=selected_level, grade=selected_grade, building_id=selected_building_id) }}"
+      >
+        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+        Excel
+      </a>
+      <a
+        class="btn btn-outline-danger btn-sm"
+        href="{{ url_for('workload.groups_export_pdf', version_id=selected_version.id, level=selected_level, grade=selected_grade, building_id=selected_building_id) }}"
+      >
+        <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+        PDF
+      </a>
+    </div>
+    {% endif %}
   </header>
   {% include "workload/_groups_editing_controls.html" %}
 

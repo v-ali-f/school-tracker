@@ -7,6 +7,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     url_for,
 )
 from flask_login import current_user, login_required
@@ -67,6 +68,12 @@ from app.services.teaching_metagroup_service import (
     build_metagroup_workspace,
     create_metagroup,
     delete_metagroup,
+)
+from app.services.teaching_group_export_service import (
+    build_metagroup_register_pdf,
+    build_metagroup_register_xlsx,
+    build_teaching_group_matrix_pdf,
+    build_teaching_group_matrix_xlsx,
 )
 from app.services.teaching_group_service import population_registry_status
 from app.services.workload_editing_workflow_service import (
@@ -591,6 +598,18 @@ def _group_matrix_context(
     }
 
 
+def _group_export_suffix(context):
+    grade_suffix = (
+        f"_{context['selected_grade']}_grade"
+        if context["selected_grade"] else ""
+    )
+    building_suffix = (
+        f"_building_{context['selected_building_id']}"
+        if context["selected_building_id"] else ""
+    )
+    return f"{grade_suffix}{building_suffix}"
+
+
 def register_group_routes(workload_bp):
     @workload_bp.post("/groups/editing-status")
     @login_required
@@ -647,6 +666,67 @@ def register_group_routes(workload_bp):
         return render_template(
             "workload/group_matrix.html",
             **context,
+        )
+
+    @workload_bp.get("/groups/export.xlsx")
+    @login_required
+    def groups_export_xlsx():
+        _require_groups_read()
+        context = _group_matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+            request.args.get("grade"),
+            request.args.get("building_id"),
+        )
+        version = context["selected_version"]
+        if version is None:
+            abort(404)
+        year_name = version.tariff_cycle.academic_year.name
+        return send_file(
+            build_teaching_group_matrix_xlsx(
+                context["matrix"],
+                year_name,
+            ),
+            as_attachment=True,
+            download_name=(
+                "Altair_teaching_groups_"
+                f"{year_name.replace('/', '-')}_"
+                f"{context['selected_level']}"
+                f"{_group_export_suffix(context)}.xlsx"
+            ),
+            mimetype=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+        )
+
+    @workload_bp.get("/groups/export.pdf")
+    @login_required
+    def groups_export_pdf():
+        _require_groups_read()
+        context = _group_matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+            request.args.get("grade"),
+            request.args.get("building_id"),
+        )
+        version = context["selected_version"]
+        if version is None:
+            abort(404)
+        year_name = version.tariff_cycle.academic_year.name
+        return send_file(
+            build_teaching_group_matrix_pdf(
+                context["matrix"],
+                year_name,
+            ),
+            as_attachment=True,
+            download_name=(
+                "Altair_teaching_groups_"
+                f"{year_name.replace('/', '-')}_"
+                f"{context['selected_level']}"
+                f"{_group_export_suffix(context)}.pdf"
+            ),
+            mimetype="application/pdf",
         )
 
     @workload_bp.get("/groups/composition/")
@@ -796,6 +876,72 @@ def register_group_routes(workload_bp):
         return render_template(
             "workload/metagroups.html",
             **context,
+        )
+
+    def _metagroup_export_context():
+        context = _group_matrix_context(
+            request.args.get("version_id", type=int),
+            request.args.get("level"),
+            request.args.get("grade"),
+            request.args.get("building_id"),
+        )
+        version = context["selected_version"]
+        if version is None:
+            abort(404)
+        context["metagroup_workspace"] = build_metagroup_workspace(
+            context["matrix"],
+            version.id,
+            request.args.get("activity"),
+        )
+        return context
+
+    @workload_bp.get("/groups/metagroups/export.xlsx")
+    @login_required
+    def metagroups_export_xlsx():
+        _require_groups_read()
+        context = _metagroup_export_context()
+        version = context["selected_version"]
+        year_name = version.tariff_cycle.academic_year.name
+        return send_file(
+            build_metagroup_register_xlsx(
+                context["metagroup_workspace"]["metagroups"],
+                year_name,
+                context["matrix"]["level_label"],
+            ),
+            as_attachment=True,
+            download_name=(
+                "Altair_metagroups_"
+                f"{year_name.replace('/', '-')}_"
+                f"{context['selected_level']}"
+                f"{_group_export_suffix(context)}.xlsx"
+            ),
+            mimetype=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+        )
+
+    @workload_bp.get("/groups/metagroups/export.pdf")
+    @login_required
+    def metagroups_export_pdf():
+        _require_groups_read()
+        context = _metagroup_export_context()
+        version = context["selected_version"]
+        year_name = version.tariff_cycle.academic_year.name
+        return send_file(
+            build_metagroup_register_pdf(
+                context["metagroup_workspace"]["metagroups"],
+                year_name,
+                context["matrix"]["level_label"],
+            ),
+            as_attachment=True,
+            download_name=(
+                "Altair_metagroups_"
+                f"{year_name.replace('/', '-')}_"
+                f"{context['selected_level']}"
+                f"{_group_export_suffix(context)}.pdf"
+            ),
+            mimetype="application/pdf",
         )
 
     @workload_bp.post("/groups/metagroups/create")
