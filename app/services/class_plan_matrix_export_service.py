@@ -10,6 +10,8 @@ from openpyxl.utils import get_column_letter
 
 def _number(value):
     value = Decimal(value or 0)
+    if not value:
+        return None
     if value == value.to_integral():
         return int(value)
     return float(value)
@@ -17,6 +19,8 @@ def _number(value):
 
 def _display(value):
     value = Decimal(value or 0)
+    if not value:
+        return ""
     if value == value.to_integral():
         return str(int(value))
     return format(value.normalize(), "f").replace(".", ",")
@@ -138,7 +142,7 @@ def build_class_plan_matrix_xlsx(matrix, academic_year_name):
             sheet.cell(row_index, 1, row["activity"].name)
             for offset, column in enumerate(matrix["columns"], start=2):
                 cell = row["cells"].get(column["key"])
-                if cell is not None and cell["hours"] is not None:
+                if cell is not None and cell["hours"]:
                     sheet.cell(row_index, offset, _number(cell["hours"]))
             row_index += 1
 
@@ -302,7 +306,7 @@ def _pdf_table(matrix, columns, styles, colors, fonts, page_width):
                                 and row["cells"][column["key"]]["hours"]
                                 is not None
                             )
-                            else "—"
+                            else ""
                         ),
                         styles["Cell"],
                     )

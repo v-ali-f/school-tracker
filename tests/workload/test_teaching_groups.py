@@ -906,6 +906,7 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert 'class="class-plan-matrix__section-label"'.encode() in response.data
     assert 'class="class-plan-matrix__section-band"'.encode() in response.data
     assert "building-tone-1".encode() in response.data
+    assert "class-plan-matrix__empty-value".encode() not in response.data
 
     building_response = client.get(
         f"/workload/plan-bindings/matrix"
@@ -950,6 +951,15 @@ def test_class_plan_matrix_uses_assigned_plan_hours(
     assert "Свод учебных планов по классам" in values
     assert "Математика" in values
     assert "Всего по учебному плану" in values
+    subtotal_row = next(
+        row[0].row
+        for row in sheet.iter_rows()
+        if row[0].value == "Итого по разделу"
+    )
+    assert any(
+        cell.value is None
+        for cell in sheet[subtotal_row][1:]
+    )
 
     pdf_response = client.get(
         f"/workload/plan-bindings/matrix/export.pdf"
