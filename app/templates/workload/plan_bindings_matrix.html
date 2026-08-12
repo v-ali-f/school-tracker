@@ -175,10 +175,8 @@
             {% for column in matrix.columns %}
             {% set cell = row.cells.get(column.key) %}
             <td class="{% if column.is_unassigned %}is-unassigned{% endif %} {% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}" data-column-key="{{ column.key }}">
-              {% if cell and cell.hours is not none %}
+              {% if cell and cell.hours %}
               <strong>{{ cell.hours|compact_decimal }}</strong>
-              {% else %}
-              <span class="class-plan-matrix__empty-value">—</span>
               {% endif %}
             </td>
             {% endfor %}
@@ -187,26 +185,30 @@
         <tr class="class-plan-matrix__subtotal">
           <th>Итого по разделу</th>
           {% for column in matrix.columns %}
-          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ section.column_totals.get(column.key, 0)|compact_decimal }}</td>
+          {% set column_total = section.column_totals.get(column.key, 0) %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{% if column_total %}{{ column_total|compact_decimal }}{% endif %}</td>
           {% endfor %}
         </tr>
         {% if section.plan_kind == 'CURRICULUM' and section.is_plan_kind_end %}
         <tr class="class-plan-matrix__curriculum-total">
           <th>Всего по учебному плану</th>
           {% for column in matrix.columns %}
-          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.plan_kind_column_totals['CURRICULUM'].get(column.key, 0)|compact_decimal }}</td>
+          {% set column_total = matrix.plan_kind_column_totals['CURRICULUM'].get(column.key, 0) %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{% if column_total %}{{ column_total|compact_decimal }}{% endif %}</td>
           {% endfor %}
         </tr>
         <tr class="class-plan-matrix__bundle-total is-extracurricular" data-plan-kind-total="EXTRACURRICULAR">
           <th>Внеурочная деятельность</th>
           {% for column in matrix.columns %}
-          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.plan_kind_column_totals['EXTRACURRICULAR'].get(column.key, 0)|compact_decimal }}</td>
+          {% set column_total = matrix.plan_kind_column_totals['EXTRACURRICULAR'].get(column.key, 0) %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{% if column_total %}{{ column_total|compact_decimal }}{% endif %}</td>
           {% endfor %}
         </tr>
         <tr class="class-plan-matrix__bundle-total is-additional" data-plan-kind-total="ADDITIONAL_EDUCATION">
           <th>Дополнительное образование</th>
           {% for column in matrix.columns %}
-          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.plan_kind_column_totals['ADDITIONAL_EDUCATION'].get(column.key, 0)|compact_decimal }}</td>
+          {% set column_total = matrix.plan_kind_column_totals['ADDITIONAL_EDUCATION'].get(column.key, 0) %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{% if column_total %}{{ column_total|compact_decimal }}{% endif %}</td>
           {% endfor %}
         </tr>
         {% endif %}
@@ -223,7 +225,8 @@
         <tr>
           <th>Всего часов в неделю</th>
           {% for column in matrix.columns %}
-          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{{ matrix.column_totals.get(column.key, 0)|compact_decimal }}</td>
+          {% set column_total = matrix.column_totals.get(column.key, 0) %}
+          <td class="{% if not selected_building_id %}building-tone-{{ building_tone_by_id.get(column.snapshot_class.building_id, 0) }}{% endif %}">{% if column_total %}{{ column_total|compact_decimal }}{% endif %}</td>
           {% endfor %}
         </tr>
       </tfoot>
