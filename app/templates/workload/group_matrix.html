@@ -12,7 +12,8 @@
 <section
   class="class-plan-stage group-matrix-stage"
   data-group-matrix
-  data-save-url="{{ url_for('workload.group_matrix_cell_update') }}"
+  data-save-url="{{ url_for('workload.group_matrix_cells_update') }}"
+  data-version-id="{{ selected_version.id if selected_version else '' }}"
 >
   <header class="class-plan-heading">
     <div>
@@ -126,7 +127,13 @@
   {% else %}
   <div class="class-plan-caption group-matrix-caption">
     <strong>{{ matrix.level_label }}</strong>
-    <span data-group-matrix-status>Щёлкните по ячейке и укажите количество групп от 1 до 9.</span>
+    <span data-group-matrix-status>Измените нужные ячейки, затем сохраните их одной кнопкой.</span>
+    {% if can_update %}
+    <button class="btn btn-primary btn-sm" type="button" data-group-matrix-save disabled>
+      <i class="bi bi-check2-circle" aria-hidden="true"></i>
+      <span data-group-matrix-save-label>Сохранить изменения</span>
+    </button>
+    {% endif %}
   </div>
 
   <div class="class-plan-matrix-wrap" tabindex="0" aria-label="Количество групп по классам и учебным планам">
@@ -226,5 +233,5 @@
 {% endblock %}
 
 {% block workspace_scripts %}
-<script src="{{ url_for('static', filename='js/workload_group_matrix.js') }}?v=20260810_3"></script>
+<script src="{{ url_for('static', filename='js/workload_group_matrix.js') }}?v=20260812_1"></script>
 {% endblock %}

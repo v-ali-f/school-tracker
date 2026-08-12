@@ -1577,8 +1577,10 @@ def register_assignment_routes(workload_bp):
                     effective_subject_ids
                 )
             )
-        elif fragment_holder_key:
-            query = query.filter(db.false())
+        # A newly added teacher has no subject rows yet. Keep the needs for
+        # this fragment so the class columns and the empty holder row can be
+        # rendered. Filtering to false made the fragment markers disappear
+        # and caused a misleading 404 after a successful teacher addition.
         if plan_matrices and (
             education_levels or grades or building_id is not None
         ):

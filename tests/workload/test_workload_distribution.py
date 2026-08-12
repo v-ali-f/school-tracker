@@ -1004,6 +1004,17 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         "ok": True,
         "holder_key": f"teacher:{teacher_id}",
     }
+    empty_holder_fragment = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            **filters,
+            "fragment_holder_key": f"teacher:{teacher_id}",
+        },
+    )
+    empty_fragment_html = empty_holder_fragment.get_data(as_text=True)
+    assert empty_holder_fragment.status_code == 200
+    assert "data-workload-holder-fragment" in empty_fragment_html
+    assert "workload-add-subject-row" in empty_fragment_html
     after_teacher_add = client.get(
         "/workload/assignments/workspace",
         query_string=filters,

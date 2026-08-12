@@ -1117,6 +1117,103 @@ def register_group_routes(workload_bp):
             "needs_composition": len(groups) > 1,
         })
 
+    @workload_bp.post("/groups/matrix/cells")
+    @login_required
+    def group_matrix_cells_update():
+        """Persist all edited matrix cells and rebuild needs only once."""
+        _require_groups_update()
+        payload = request.get_json(silent=True) or {}
+        try:
+            version_id = int(payload.get("version_id"))
+        except (TypeError, ValueError):
+            version_id = None
+        version = db.session.get(TariffVersion, version_id)
+        if version is None or version not in _available_group_matrix_versions():
+            abort(404)
+        snapshot = current_population_snapshot(version.id)
+        if snapshot is None:
+            return jsonify({
+                "ok": False,
+                "message": "Сначала загрузите сводный контингент.",
+            }), 422
+        changes = payload.get("changes")
+        if not isinstance(changes, list) or not changes:
+            return jsonify({
+                "ok": False,
+                "message": "Нет изменений для сохранения.",
+            }), 422
+        if len(changes) > 500:
+            return jsonify({
+                "ok": False,
+                "message": "За один раз можно сохранить не более 500 ячеек.",
+            }), 422
+
+        scope = resolve_workload_scope(current_user)
+        plans = _group_matrix_plans(version)
+        results = []
+        changed_line_ids = set()
+        try:
+            _require_version_groups_editable(version)
+            for change in changes:
+                if not isinstance(change, dict):
+                    raise GroupValidationError("Некорректный формат изменения.")
+                try:
+                    plan_line_id = int(change.get("plan_line_id"))
+                    snapshot_class_id = int(change.get("snapshot_class_id"))
+                    plan_id = int(change.get("plan_id"))
+                    group_count = int(change.get("group_count"))
+                except (TypeError, ValueError):
+                    raise GroupValidationError(
+                        "В одной из ячеек указаны некорректные данные."
+                    )
+                snapshot_class = db.session.get(
+                    PopulationSnapshotClass,
+                    snapshot_class_id,
+                )
+                if (
+                    snapshot_class is None
+                    or snapshot_class.population_snapshot_id != snapshot.id
+                ):
+                    raise GroupValidationError("Класс не найден в текущем своде.")
+                if (
+                    not scope.unrestricted
+                    and snapshot_class.building_id not in scope.building_ids
+                ):
+                    abort(403)
+                groups = replace_teaching_group_count(
+                    version=version,
+                    snapshot=snapshot,
+                    plans=plans,
+                    plan_line_id=plan_line_id,
+                    snapshot_class_id=snapshot_class_id,
+                    plan_id=plan_id,
+                    group_count=group_count,
+                    user_id=current_user.id,
+                )
+                changed_line_ids.add(plan_line_id)
+                results.append({
+                    "key": f"{plan_line_id}:{snapshot_class_id}:{plan_id}",
+                    "group_count": len(groups),
+                    "needs_composition": len(groups) > 1,
+                })
+            generate_plan_needs(
+                version,
+                user_id=current_user.id,
+                source_plan_line_ids=changed_line_ids,
+            )
+            db.session.commit()
+        except (GroupValidationError, WorkloadDistributionError) as exc:
+            db.session.rollback()
+            return jsonify({
+                "ok": False,
+                "message": str(exc),
+            }), 422
+        return jsonify({
+            "ok": True,
+            "message": f"Сохранено изменений: {len(results)}.",
+            "results": results,
+        })
+
     @workload_bp.post("/groups/snapshot/refresh")
     @login_required
     def group_snapshot_refresh():

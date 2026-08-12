@@ -1502,6 +1502,59 @@ def test_group_matrix_creates_split_groups_and_restores_whole_class(
         assert len(group.members) == 2
 
 
+def test_group_matrix_saves_multiple_cells_in_one_request(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        line = db.session.get(EducationPlanLine, context["plan_line_id"])
+        classes = sorted(snapshot.classes, key=lambda item: item.name_snapshot)
+        for snapshot_class in classes:
+            replace_plan_binding_members(
+                line.education_plan,
+                snapshot_class,
+                {item.id for item in snapshot_class.enrollments},
+                user_id=user_id,
+            )
+        db.session.commit()
+        changes = [
+            {
+                "plan_line_id": line.id,
+                "snapshot_class_id": snapshot_class.id,
+                "plan_id": line.education_plan_id,
+                "group_count": 2,
+            }
+            for snapshot_class in classes
+        ]
+
+    login(user_id)
+    response = client.post(
+        "/workload/groups/matrix/cells",
+        json={
+            "version_id": context["version_id"],
+            "changes": changes,
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["message"] == "Сохранено изменений: 2."
+    assert len(payload["results"]) == 2
+    assert {item["group_count"] for item in payload["results"]} == {2}
+    with app.app_context():
+        assert TeachingGroup.query.count() == 4
+
+
 def test_unchanged_population_refresh_preserves_split_group_count(
     app,
     make_user,
