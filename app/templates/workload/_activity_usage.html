@@ -45,6 +45,28 @@
     {% endfor %}.
     Эти данные сохранятся при смене вида.
   </div>
+  {% if activity_usage.active_legacy_load_count %}
+  <div class="alert alert-light border py-2 px-3 mt-2 mb-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <div class="fw-semibold">Старая нагрузка из Excel больше не используется?</div>
+      <div class="text-muted">
+        Отключатся только {{ activity_usage.active_legacy_load_count }} старых
+        {% if activity_usage.active_legacy_load_count == 1 %}строка{% elif activity_usage.active_legacy_load_count in [2, 3, 4] %}строки{% else %}строк{% endif %}
+        этого предмета. Новая матрица нагрузки не изменится, история сохранится.
+      </div>
+    </div>
+    <form
+      method="post"
+      action="{{ url_for('workload.catalog_archive_legacy_loads', activity_id=activity.id) }}"
+      onsubmit="return confirm('Отключить старую импортированную нагрузку этого предмета? Новая матрица нагрузки не изменится.');"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-warning btn-sm" type="submit">
+        <i class="bi bi-archive me-1" aria-hidden="true"></i>Отключить старую нагрузку
+      </button>
+    </form>
+  </div>
+  {% endif %}
   {% elif not activity_usage.blocking %}
   <div class="small text-muted">Связей с учебными планами, результатами и нагрузкой нет.</div>
   {% endif %}

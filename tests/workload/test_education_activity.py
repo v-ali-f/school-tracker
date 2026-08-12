@@ -711,6 +711,60 @@ def test_catalog_kind_change_ignores_archived_teacher_load(
         assert db.session.get(TeacherLoad, load_id) is not None
 
 
+def test_catalog_archives_active_legacy_load_before_activity_delete(
+    app, client, make_user, login
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    login(user_id)
+
+    with app.app_context():
+        activity = _global_activity("OLD_EXCEL_SUBJECT", "Предмет из Excel")
+        from app.services.education_activity_service import (
+            sync_subject_from_activity,
+        )
+        subject = sync_subject_from_activity(activity)
+        db.session.flush()
+        load = TeacherLoad(
+            teacher_id=user_id,
+            subject_id=subject.id,
+            education_activity_id=activity.id,
+            subject_name=activity.name,
+            hours=2,
+            is_archived=False,
+        )
+        db.session.add(load)
+        db.session.commit()
+        activity_id = activity.id
+        subject_id = subject.id
+        load_id = load.id
+
+    response = client.post(
+        f"/workload/catalog/{activity_id}/archive-legacy-loads",
+        data={"csrf_token": "test"},
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(TeacherLoad, load_id).is_archived is True
+
+    response = client.post(
+        f"/workload/catalog/{activity_id}/delete",
+        data={"csrf_token": "test"},
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(EducationActivity, activity_id) is None
+        assert db.session.get(Subject, subject_id) is None
+        preserved_load = db.session.get(TeacherLoad, load_id)
+        assert preserved_load is not None
+        assert preserved_load.education_activity_id is None
+        assert preserved_load.subject_id is None
+        assert preserved_load.subject_name == "Предмет из Excel"
+
+
 def test_catalog_delete_detaches_only_archived_teacher_load(
     app, client, make_user, login
 ):
