@@ -16,6 +16,24 @@
       <h2>Метагруппы</h2>
       <p>Объединение классов или групп одной параллели с одинаковым объёмом часов</p>
     </div>
+    {% if selected_version %}
+    <div class="class-plan-heading__actions" aria-label="Выгрузка метагрупп">
+      <a
+        class="btn btn-outline-success btn-sm"
+        href="{{ url_for('workload.metagroups_export_xlsx', version_id=selected_version.id, level=selected_level, grade=selected_grade, building_id=selected_building_id, activity=metagroup_workspace.selected_activity_key) }}"
+      >
+        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+        Excel
+      </a>
+      <a
+        class="btn btn-outline-danger btn-sm"
+        href="{{ url_for('workload.metagroups_export_pdf', version_id=selected_version.id, level=selected_level, grade=selected_grade, building_id=selected_building_id, activity=metagroup_workspace.selected_activity_key) }}"
+      >
+        <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+        PDF
+      </a>
+    </div>
+    {% endif %}
   </header>
 
   <div class="class-plan-toolbar">
