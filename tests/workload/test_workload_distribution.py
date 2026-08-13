@@ -670,6 +670,51 @@ def test_delete_plan_line_removes_groups_needs_and_assignments(
         assert WorkloadAssignment.query.count() == 0
 
 
+def test_delete_plan_line_detaches_independent_copied_line(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(user_id)
+        source_line = EducationPlanLine.query.one()
+        source_plan = source_line.education_plan
+        copied_plan = EducationPlan(
+            tariff_version_id=source_plan.tariff_version_id,
+            plan_kind=source_plan.plan_kind,
+            name="Независимая копия плана",
+            education_level=source_plan.education_level,
+            scope_code="COPY",
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(copied_plan)
+        db.session.flush()
+        copied_line = EducationPlanLine(
+            education_plan_id=copied_plan.id,
+            education_activity_id=source_line.education_activity_id,
+            component_kind=source_line.component_kind,
+            weekly_hours=0,
+            annual_hours=0,
+            source_line_id=source_line.id,
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(copied_line)
+        db.session.commit()
+        copied_line_id = copied_line.id
+
+        deleted = delete_plan_lines_with_dependencies([source_line])
+        db.session.commit()
+
+        assert deleted == {"groups": 1, "needs": 0, "assignments": 0}
+        assert db.session.get(EducationPlanLine, source_line.id) is None
+        preserved_copy = db.session.get(EducationPlanLine, copied_line_id)
+        assert preserved_copy is not None
+        assert preserved_copy.source_line_id is None
+
+
 def test_plan_matrix_delete_route_cascades_to_workload(
     app,
     client,
