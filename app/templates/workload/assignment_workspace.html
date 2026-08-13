@@ -460,6 +460,18 @@
               <span>Подпись</span>
             </button>
             {% endif %}
+            {% if not block.is_vacancy and block.rows|selectattr('activity')|list %}
+            <button
+              class="workload-holder-replace-button"
+              type="button"
+              data-open-copy-subjects-dialog
+              data-source-teacher-id="{{ block.teacher_id }}"
+              data-source-label="{{ block.label }}"
+            >
+              <i class="bi bi-copy" aria-hidden="true"></i>
+              <span>Скопировать предметы</span>
+            </button>
+            {% endif %}
             <button
               class="workload-holder-replace-button"
               type="button"
@@ -592,7 +604,15 @@
                 <select class="form-select form-select-sm" name="activity_plan_kind" data-activity-plan-kind required>
                   <option value="">Выберите предмет</option>
                   {% for option in subject_options %}
+                  {% set option_state = namespace(added=false) %}
+                  {% for existing_row in block.rows %}
+                    {% if existing_row.activity and existing_row.activity.id == option.activity.id and existing_row.plan_kind == option.plan_kind %}
+                      {% set option_state.added = true %}
+                    {% endif %}
+                  {% endfor %}
+                  {% if not option_state.added %}
                   <option value="{{ option.activity.id }}:{{ option.plan_kind }}">{{ option.activity.name }} · {{ option.plan_kind_label }}</option>
+                  {% endif %}
                   {% endfor %}
                 </select>
               </form>
@@ -703,6 +723,34 @@
     <div class="workload-teacher-dialog__actions">
       <button class="btn btn-outline-secondary" type="button" data-close-vacancy-dialog>Отмена</button>
       <button class="btn btn-primary" type="submit" data-vacancy-submit>Добавить вакансию</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="workload-teacher-dialog" data-copy-subjects-dialog>
+  <form method="post" action="{{ url_for('workload.assignment_workspace_holder_copy_subjects') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ workspace_fields() }}
+    <input type="hidden" name="source_teacher_id" value="" data-copy-source-teacher>
+    <div class="workload-teacher-dialog__head">
+      <div>
+        <strong>Скопировать набор предметов</strong>
+        <small>Предметы <span data-copy-source-label></span> будут добавлены без назначения часов.</small>
+      </div>
+      <button type="button" title="Закрыть" aria-label="Закрыть" data-close-copy-subjects-dialog>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <label for="matrix-copy-target-teacher">Кому скопировать</label>
+    <select class="form-select" id="matrix-copy-target-teacher" name="target_teacher_id" required data-copy-target-teacher>
+      <option value="">Выберите преподавателя без нагрузки</option>
+      {% for item in copy_teacher_choices %}
+      <option value="{{ item.id }}">{{ item.fio }}</option>
+      {% endfor %}
+    </select>
+    <div class="workload-teacher-dialog__actions">
+      <button class="btn btn-outline-secondary" type="button" data-close-copy-subjects-dialog>Отмена</button>
+      <button class="btn btn-primary" type="submit">Скопировать</button>
     </div>
   </form>
 </dialog>
@@ -910,6 +958,28 @@
     if (event.target === vacancyDialog) vacancyDialog.close();
   });
 
+  const copySubjectsDialog = document.querySelector("[data-copy-subjects-dialog]");
+  const copySourceTeacher = copySubjectsDialog?.querySelector("[data-copy-source-teacher]");
+  const copySourceLabel = copySubjectsDialog?.querySelector("[data-copy-source-label]");
+  const copyTargetTeacher = copySubjectsDialog?.querySelector("[data-copy-target-teacher]");
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-open-copy-subjects-dialog]");
+    if (!button || !copySubjectsDialog) return;
+    if (copySourceTeacher) copySourceTeacher.value = button.dataset.sourceTeacherId || "";
+    if (copySourceLabel) {
+      copySourceLabel.textContent = `«${button.dataset.sourceLabel || "выбранного учителя"}»`;
+    }
+    if (copyTargetTeacher) copyTargetTeacher.value = "";
+    copySubjectsDialog.showModal();
+    copyTargetTeacher?.focus();
+  });
+  document.querySelectorAll("[data-close-copy-subjects-dialog]").forEach((button) => {
+    button.addEventListener("click", () => copySubjectsDialog?.close());
+  });
+  copySubjectsDialog?.addEventListener("click", (event) => {
+    if (event.target === copySubjectsDialog) copySubjectsDialog.close();
+  });
+
   const holderDialog = document.querySelector("[data-holder-dialog]");
   const holderSourceType = holderDialog?.querySelector("[data-holder-source-type]");
   const holderSourceTeacher = holderDialog?.querySelector("[data-holder-source-teacher]");
@@ -1048,7 +1118,7 @@
       });
   };
 
-  const refreshMatrix = async (holderKey = "") => {
+  const refreshMatrix = async (holderKey = "", subjectOptions = null) => {
     const current = document.querySelector("[data-workload-matrix]");
     if (!current) return;
     const scrollLeft = current.scrollLeft;
@@ -1068,6 +1138,16 @@
       const replacementRows = Array.from(
         fragment?.querySelectorAll(selector) || []
       );
+      if (subjectOptions) {
+        const replacementSelect = replacementRows
+          .map((row) => row.querySelector("[data-activity-plan-kind]"))
+          .find(Boolean);
+        if (replacementSelect) {
+          replacementSelect.replaceChildren(
+            ...subjectOptions.map((option) => option.cloneNode(true)),
+          );
+        }
+      }
       const anchor = currentRows[0] || current.querySelector(".workload-add-teacher-row");
       if (replacementRows.length && anchor) {
         anchor.before(...replacementRows);
@@ -1181,6 +1261,10 @@
     if (!select || !select.value) return;
     const form = select.closest("form");
     const formData = new FormData(form);
+    const selectedValue = select.value;
+    const remainingSubjectOptions = Array.from(select.options)
+      .filter((option) => !option.value || option.value !== selectedValue)
+      .map((option) => option.cloneNode(true));
     select.closest("details")?.removeAttribute("open");
     select.disabled = true;
     try {
@@ -1189,7 +1273,10 @@
         body: formData,
         headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
       }));
-      await refreshMatrix(payload.holder_key || "");
+      await refreshMatrix(
+        payload.holder_key || "",
+        remainingSubjectOptions,
+      );
     } catch (error) {
       window.alert(error.message);
       select.disabled = false;

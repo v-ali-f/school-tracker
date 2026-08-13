@@ -77,9 +77,23 @@ def resolve_line_hours(plan_line, date_from, date_to):
         if period.date_from <= date_from and period.date_to >= date_to
     ]
     period = containing_periods[0] if len(containing_periods) == 1 else None
+    starting_period = next(
+        (
+            item
+            for item in sorted(
+                plan_line.periods,
+                key=lambda candidate: candidate.date_from,
+            )
+            if item.date_from <= date_from <= item.date_to
+        ),
+        None,
+    )
     weekly = (
         period.weekly_hours
         if period is not None and period.weekly_hours is not None
+        else starting_period.weekly_hours
+        if starting_period is not None
+        and starting_period.weekly_hours is not None
         else plan_line.weekly_hours
     )
     annual = (
