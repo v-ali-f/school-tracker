@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from app.core.extensions import db
 from app.models import (
     EducationActivityDepartment,
+    EducationPlanLine,
     TariffVersion,
     TeachingGroup,
     TeachingMetagroupSource,
@@ -431,6 +432,17 @@ def delete_plan_lines_with_dependencies(lines):
         )
     version_id = next(iter(version_ids))
     line_ids = {line.id for line in lines}
+    # Lines copied into another plan/version keep a historical source link.
+    # They are independent rows and must not make deletion of the original
+    # line look like an active workload conflict.
+    (
+        EducationPlanLine.query
+        .filter(EducationPlanLine.source_line_id.in_(line_ids))
+        .update(
+            {EducationPlanLine.source_line_id: None},
+            synchronize_session=False,
+        )
+    )
     groups = (
         TeachingGroup.query
         .filter(
