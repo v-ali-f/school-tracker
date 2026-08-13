@@ -18,6 +18,7 @@ from app.models import (
     EducationActivityDepartment,
     EducationPlan,
     EducationPlanLine,
+    EducationPlanLinePeriod,
     TariffVersion,
     TariffAllowanceRule,
     TariffCalculationRun,
@@ -55,6 +56,7 @@ from app.services.workload_distribution_service import (
     delete_plan_lines_with_dependencies,
     generate_plan_needs,
     refresh_need_status,
+    resolve_line_hours,
     validate_assignment,
 )
 from app.services.tariff_calculation_service import (
@@ -212,6 +214,88 @@ def _assignment(need, employee_id, weekly, annual=None, kind="MAIN"):
         annual_hours=annual,
         status="DRAFT",
     )
+
+
+def test_resolve_line_hours_uses_period_active_at_start_of_full_year():
+    line = EducationPlanLine(
+        weekly_hours=Decimal("5"),
+        weeks_count=Decimal("34"),
+        annual_hours=Decimal("161"),
+    )
+    line.periods = [
+        EducationPlanLinePeriod(
+            date_from=date(2026, 9, 1),
+            date_to=date(2026, 10, 31),
+            weekly_hours=Decimal("4"),
+            weeks_count=Decimal("9"),
+            annual_hours=Decimal("36"),
+        ),
+        EducationPlanLinePeriod(
+            date_from=date(2026, 11, 1),
+            date_to=date(2027, 5, 31),
+            weekly_hours=Decimal("5"),
+            weeks_count=Decimal("25"),
+            annual_hours=Decimal("125"),
+        ),
+    ]
+
+    weekly, annual = resolve_line_hours(
+        line,
+        date(2026, 9, 1),
+        date(2027, 5, 31),
+    )
+
+    assert weekly == Decimal("4.000")
+    assert annual == Decimal("161.000")
+
+
+def test_workspace_repairs_existing_need_with_wrong_start_period_hours(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        line = EducationPlanLine.query.one()
+        line.weeks_count = Decimal("34")
+        line.annual_hours = Decimal("161")
+        line.periods = [
+            EducationPlanLinePeriod(
+                date_from=date(2026, 9, 1),
+                date_to=date(2026, 10, 31),
+                weekly_hours=Decimal("4"),
+                weeks_count=Decimal("9"),
+                annual_hours=Decimal("36"),
+            ),
+            EducationPlanLinePeriod(
+                date_from=date(2026, 11, 1),
+                date_to=date(2027, 5, 31),
+                weekly_hours=Decimal("5"),
+                weeks_count=Decimal("25"),
+                annual_hours=Decimal("125"),
+            ),
+        ]
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        need.weekly_hours = Decimal("5")
+        db.session.commit()
+        need_id = need.id
+    login(admin_id)
+
+    response = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    )
+
+    assert response.status_code == 200
+    with app.app_context():
+        repaired = db.session.get(WorkloadNeed, need_id)
+        assert repaired.weekly_hours == Decimal("4.000")
+        assert repaired.annual_hours == Decimal("161.000")
 
 
 def test_workspace_filter_builds_matrices_for_multiple_levels_and_grades():
@@ -1021,6 +1105,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
     admin_id = make_user("ADMIN")
     teacher_id = make_user("TEACHER")
+    unused_teacher_id = make_user("TEACHER")
     with app.app_context():
         context = _distribution_context(admin_id)
         _generate(context, admin_id)
@@ -1030,9 +1115,11 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         teacher = db.session.get(User, teacher_id)
         teacher.last_name = "Иванова"
         teacher.first_name = "Анна"
+        unused_teacher = db.session.get(User, unused_teacher_id)
+        unused_teacher.last_name = "Ивановский"
+        unused_teacher.first_name = "Незагруженный"
         db.session.get(User, admin_id).last_name = "Администраторов"
         db.session.commit()
-        teacher_fio = teacher.fio
     login(admin_id)
     filters = {
         "version_id": str(context["version_id"]),
@@ -1126,6 +1213,11 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "data-workload-holder-fragment" in fragment_html
     assert "data-workload-matrix" not in fragment_html
     assert f'data-workload-holder-row="teacher:{teacher_id}"' in fragment_html
+    subject_select = fragment_html.split(
+        'name="activity_plan_kind"',
+        1,
+    )[1].split("</select>", 1)[0]
+    assert f'value="{activity_id}:CURRICULUM"' not in subject_select
 
     assign = client.post(
         "/workload/assignments/workspace/cell",
@@ -1188,13 +1280,19 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         "/workload/assignments/workspace",
         query_string={
             **filters,
-            "teacher_query": teacher_fio,
+            "teacher_query": "Иван",
         },
     )
     filtered_html = filtered_matrix.get_data(as_text=True)
     assert filtered_matrix.status_code == 200
     assert f'data-workload-holder-row="teacher:{teacher_id}"' in filtered_html
     assert f'data-workload-holder-row="teacher:{admin_id}"' not in filtered_html
+    assert f'data-workload-holder-row="teacher:{unused_teacher_id}"' not in filtered_html
+    filter_options = filtered_html.split(
+        'id="workspace-teacher-options"',
+        1,
+    )[1].split("</datalist>", 1)[0]
+    assert "Незагруженный" not in filter_options
     assert 'name="teacher_query"' in filtered_html
     assert 'placeholder="Введите ФИО"' in filtered_html
     assert 'class="workload-matrix-toolbar__guide"' in filtered_html
@@ -1582,6 +1680,97 @@ def test_workspace_rejects_transfer_to_teacher_with_existing_load(
         assert WorkloadAssignment.query.filter_by(
             employee_user_id=source_teacher_id,
         ).count() == 1
+
+
+def test_workspace_copies_subject_set_only_to_teacher_without_load(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    source_teacher_id = make_user("TEACHER")
+    target_teacher_id = make_user("TEACHER")
+    occupied_teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        source_teacher = db.session.get(User, source_teacher_id)
+        source_teacher.last_name = "Исходный"
+        target_teacher = db.session.get(User, target_teacher_id)
+        target_teacher.last_name = "Свободный"
+        occupied_teacher = db.session.get(User, occupied_teacher_id)
+        occupied_teacher.last_name = "Занятый"
+        db.session.add_all([
+            _assignment(need, source_teacher_id, "5"),
+            _assignment(need, occupied_teacher_id, "1"),
+        ])
+        db.session.commit()
+        activity_id = need.education_activity_id
+        source_name = source_teacher.fio
+        target_name = target_teacher.fio
+        occupied_name = occupied_teacher.fio
+    login(admin_id)
+    filters = {
+        "version_id": str(context["version_id"]),
+        "view": "all",
+    }
+
+    before = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert "Скопировать предметы" in before
+    copy_dialog = before.split(
+        'data-copy-subjects-dialog',
+        1,
+    )[1].split('data-holder-dialog', 1)[0]
+    assert target_name in copy_dialog
+    assert occupied_name not in copy_dialog
+    assert source_name not in copy_dialog
+
+    copied = client.post(
+        "/workload/assignments/workspace/holder/copy-subjects",
+        data={
+            **filters,
+            "source_teacher_id": str(source_teacher_id),
+            "target_teacher_id": str(target_teacher_id),
+        },
+        follow_redirects=True,
+    )
+    copied_html = copied.get_data(as_text=True)
+    assert copied.status_code == 200
+    assert "Набор из 1 предметов скопирован" in copied_html
+    assert f'data-workload-holder-row="teacher:{target_teacher_id}"' in copied_html
+    target_fragment = copied_html.split(
+        f'workload-holder-start:teacher:{target_teacher_id}',
+        1,
+    )[1].split(
+        f'workload-holder-end:teacher:{target_teacher_id}',
+        1,
+    )[0]
+    assert f'name="activity_id" value="{activity_id}"' in target_fragment
+    with app.app_context():
+        assert WorkloadAssignment.query.filter_by(
+            employee_user_id=target_teacher_id,
+        ).count() == 0
+        assert WorkloadAssignment.query.filter_by(
+            employee_user_id=source_teacher_id,
+        ).count() == 1
+
+    rejected = client.post(
+        "/workload/assignments/workspace/holder/copy-subjects",
+        data={
+            **filters,
+            "source_teacher_id": str(source_teacher_id),
+            "target_teacher_id": str(occupied_teacher_id),
+        },
+        follow_redirects=True,
+    )
+    assert "уже есть нагрузка" in rejected.get_data(as_text=True)
 
 
 def test_workload_editor_settings_and_workspace_hide_draft_badge(

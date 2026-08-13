@@ -847,6 +847,7 @@ def _workspace_need_group_coverage(version):
         )
     }
     expected_group_ids = set()
+    expected_hours_by_group = {}
     for group in (
         TeachingGroup.query
         .options(
@@ -880,14 +881,25 @@ def _workspace_need_group_coverage(version):
         )
         if weekly > ZERO or annual > ZERO:
             expected_group_ids.add(group.id)
-    current_group_ids = {
-        item.teaching_group_id
-        for item in WorkloadNeed.query.filter(
+            expected_hours_by_group[group.id] = (weekly, annual)
+    current_needs = WorkloadNeed.query.filter(
             WorkloadNeed.tariff_version_id == version.id,
             WorkloadNeed.status != "CANCELLED",
         ).all()
+    current_group_ids = {
+        item.teaching_group_id for item in current_needs
     }
-    return expected_group_ids, current_group_ids
+    current_hours_by_group = defaultdict(set)
+    for need in current_needs:
+        current_hours_by_group[need.teaching_group_id].add((
+            Decimal(need.weekly_hours or ZERO).quantize(Decimal("0.001")),
+            Decimal(need.annual_hours or ZERO).quantize(Decimal("0.001")),
+        ))
+    hours_match = all(
+        expected_hours in current_hours_by_group.get(group_id, set())
+        for group_id, expected_hours in expected_hours_by_group.items()
+    )
+    return expected_group_ids, current_group_ids, hours_match
 
 
 def _ensure_workspace_plan_needs(
@@ -1002,10 +1014,10 @@ def _ensure_workspace_plan_needs(
             for updated_at in plan_and_binding_updates
         )
     ):
-        expected_group_ids, current_group_ids = (
+        expected_group_ids, current_group_ids, hours_match = (
             _workspace_need_group_coverage(version)
         )
-        if expected_group_ids <= current_group_ids:
+        if expected_group_ids <= current_group_ids and hours_match:
             cache.set(sync_key, True, timeout=3600)
             return False
     created_groups = materialize_default_teaching_groups(
@@ -1016,10 +1028,14 @@ def _ensure_workspace_plan_needs(
         matrices=plan_matrices,
     )
     db.session.flush()
-    expected_group_ids, current_group_ids = _workspace_need_group_coverage(
-        version
+    expected_group_ids, current_group_ids, hours_match = (
+        _workspace_need_group_coverage(version)
     )
-    if not created_groups and expected_group_ids <= current_group_ids:
+    if (
+        not created_groups
+        and expected_group_ids <= current_group_ids
+        and hours_match
+    ):
         cache.set(sync_key, True, timeout=3600)
         return False
     generate_plan_needs(version, user_id=current_user.id)
@@ -1678,10 +1694,7 @@ def register_assignment_routes(workload_bp):
             if normalized_teacher_query
             and normalized_teacher_query in item.fio.casefold()
         }
-        extra_teacher_ids = list(dict.fromkeys([
-            *state["teacher_ids"],
-            *sorted(matching_teacher_ids),
-        ]))
+        extra_teacher_ids = list(dict.fromkeys(state["teacher_ids"]))
         extra_teachers = [
             employee_by_id[teacher_id]
             for teacher_id in extra_teacher_ids
@@ -1791,6 +1804,12 @@ def register_assignment_routes(workload_bp):
                     f"vacancy:{vacancy['key']}",
                     vacancy["label"],
                 )
+        filter_teacher_ids = {
+            int(key.partition(":")[2])
+            for key in holder_labels
+            if key.startswith("teacher:")
+            and key.partition(":")[2].isdigit()
+        }
         if view_mode == "vacancies":
             holder_labels = {
                 key: label
@@ -1967,7 +1986,9 @@ def register_assignment_routes(workload_bp):
                 holder_page_start + WORKSPACE_HOLDER_PAGE_SIZE,
                 holder_total_count,
             ),
-            teacher_filter_options=employees,
+            teacher_filter_options=[
+                item for item in employees if item.id in filter_teacher_ids
+            ],
             level_counts=level_counts,
             level_labels=EDUCATION_LEVEL_LABELS,
             level_grades=level_grades,
@@ -1978,6 +1999,22 @@ def register_assignment_routes(workload_bp):
                 assignments,
             ),
             replacement_choices=employees,
+            copy_teacher_choices=[
+                item
+                for item in employees
+                if item.id not in {
+                    assignment.employee_user_id
+                    for assignment in all_assignments
+                    if assignment.assignment_kind != "VACANCY"
+                    and assignment.employee_user_id is not None
+                }
+                and item.id not in {
+                    row.get("teacher_id")
+                    for row in state["rows"]
+                    if row.get("holder_type", "teacher") == "teacher"
+                    and row.get("teacher_id") is not None
+                }
+            ],
             subject_options=subject_options,
             need_status_labels=WORKLOAD_NEED_STATUS_LABELS,
             assignment_kind_labels=WORKLOAD_ASSIGNMENT_KIND_LABELS,
@@ -2292,6 +2329,118 @@ def register_assignment_routes(workload_bp):
                 else f"teacher:{teacher.id}"
             )
             return jsonify({"ok": True, "holder_key": holder_key})
+        return _workspace_redirect()
+
+    @workload_bp.post("/assignments/workspace/holder/copy-subjects")
+    @login_required
+    def assignment_workspace_holder_copy_subjects():
+        _require_assignments_update()
+        version_id = request.form.get("version_id", type=int)
+        source_teacher_id = request.form.get("source_teacher_id", type=int)
+        target_teacher_id = request.form.get("target_teacher_id", type=int)
+        version = (
+            _draft_versions_query()
+            .filter(TariffVersion.id == version_id)
+            .first_or_404()
+        )
+        _require_version_workload_editable(version)
+        source_teacher = (
+            db.session.get(User, source_teacher_id)
+            if source_teacher_id else None
+        )
+        target_teacher = (
+            db.session.get(User, target_teacher_id)
+            if target_teacher_id else None
+        )
+        if source_teacher is None:
+            flash("Исходный преподаватель не найден.", "danger")
+            return _workspace_redirect()
+        if (
+            target_teacher is None
+            or not target_teacher.is_active_user
+            or target_teacher.employment_status != "ACTIVE"
+        ):
+            flash("Выберите работающего преподавателя.", "danger")
+            return _workspace_redirect()
+        if source_teacher.id == target_teacher.id:
+            flash("Выбран тот же преподаватель.", "warning")
+            return _workspace_redirect()
+
+        key, state = _workspace_state(version.id)
+        target_has_assignments = WorkloadAssignment.query.filter(
+            WorkloadAssignment.tariff_version_id == version.id,
+            WorkloadAssignment.status != "CANCELLED",
+            WorkloadAssignment.assignment_kind != "VACANCY",
+            WorkloadAssignment.employee_user_id == target_teacher.id,
+        ).first()
+        target_has_rows = any(
+            row.get("holder_type", "teacher") == "teacher"
+            and row.get("teacher_id") == target_teacher.id
+            for row in state["rows"]
+        )
+        if target_has_assignments is not None or target_has_rows:
+            flash(
+                f"Копирование не выполнено: у {target_teacher.fio} уже "
+                "есть нагрузка в выбранном учебном году.",
+                "danger",
+            )
+            return _workspace_redirect()
+
+        visible_needs = _workspace_form_needs(version)
+        visible_need_ids = {need.id for need in visible_needs}
+        source_keys = {
+            (
+                assignment.workload_need.education_activity_id,
+                need_plan_kind(assignment.workload_need),
+            )
+            for assignment in WorkloadAssignment.query.filter(
+                WorkloadAssignment.tariff_version_id == version.id,
+                WorkloadAssignment.workload_need_id.in_(visible_need_ids),
+                WorkloadAssignment.status != "CANCELLED",
+                WorkloadAssignment.assignment_kind != "VACANCY",
+                WorkloadAssignment.employee_user_id == source_teacher.id,
+            ).all()
+        } if visible_need_ids else set()
+        allowed_keys = {
+            (need.education_activity_id, need_plan_kind(need))
+            for need in visible_needs
+        }
+        source_keys.update(
+            (row.get("activity_id"), row.get("plan_kind"))
+            for row in state["rows"]
+            if row.get("holder_type", "teacher") == "teacher"
+            and row.get("teacher_id") == source_teacher.id
+            and (row.get("activity_id"), row.get("plan_kind"))
+            in allowed_keys
+        )
+        source_keys.discard((None, None))
+        if not source_keys:
+            flash(
+                f"У {source_teacher.fio} нет предметов для копирования "
+                "в текущем отображении.",
+                "warning",
+            )
+            return _workspace_redirect()
+
+        if target_teacher.id not in state["teacher_ids"]:
+            state["teacher_ids"].append(target_teacher.id)
+        for activity_id, plan_kind in sorted(source_keys):
+            row = {
+                "holder_type": "teacher",
+                "teacher_id": target_teacher.id,
+                "vacancy_key": None,
+                "activity_id": activity_id,
+                "plan_kind": plan_kind,
+            }
+            if row not in state["rows"]:
+                state["rows"].append(row)
+        _save_workspace_state(key, state)
+        flash(
+            f"Набор из {len(source_keys)} предметов скопирован: "
+            f"{source_teacher.fio} → {target_teacher.fio}. "
+            "Часы можно назначить в ячейках новой строки.",
+            "success",
+        )
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/subjects/delete")
