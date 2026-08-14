@@ -2349,6 +2349,7 @@ def register_assignment_routes(workload_bp):
             return jsonify({
                 "ok": True,
                 "holder_key": f"teacher:{teacher.id}",
+                "teacher_name": teacher.fio,
             })
         return _workspace_redirect()
 

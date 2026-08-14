@@ -1181,6 +1181,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         teacher = db.session.get(User, teacher_id)
         teacher.last_name = "Иванова"
         teacher.first_name = "Анна"
+        teacher_name = teacher.fio
         unused_teacher = db.session.get(User, unused_teacher_id)
         unused_teacher.last_name = "Ивановский"
         unused_teacher.first_name = "Незагруженный"
@@ -1201,6 +1202,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert add_teacher.get_json() == {
         "ok": True,
         "holder_key": f"teacher:{teacher_id}",
+        "teacher_name": teacher_name,
     }
     empty_holder_fragment = client.get(
         "/workload/assignments/workspace",
@@ -1647,6 +1649,9 @@ def test_workspace_paginates_five_teachers_by_default(
     assert default_response.status_code == 200
     assert default_html.count("<!-- workload-holder-start:") == 5
     assert "Педагоги 1–5 из 6" in default_html
+    assert default_html.count('aria-label="Страницы педагогов"') == 2
+    assert "workload-holder-pagination--top" in default_html
+    assert "workload-holder-pagination--bottom" in default_html
     assert '<option value="5" selected>5</option>' in default_html
     assert "loadHolderPage" in default_html
     assert 'searchParams.set("page_fragment", "1")' in default_html
@@ -1666,6 +1671,7 @@ def test_workspace_paginates_five_teachers_by_default(
     assert fragment_response.status_code == 200
     assert 'data-workload-page-region' in fragment_html
     assert "Педагоги 6–6 из 6" in fragment_html
+    assert fragment_html.count('aria-label="Страницы педагогов"') == 2
     assert fragment_html.count("<!-- workload-holder-start:") == 1
     assert "data-workload-filterbar" not in fragment_html
     assert "data-copy-subjects-dialog" not in fragment_html

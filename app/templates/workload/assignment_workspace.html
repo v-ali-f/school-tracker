@@ -321,24 +321,8 @@
 
 <!-- workload-page-region-start -->
 <div data-workload-page-region>
-{% if holder_page_count > 1 %}
-<nav class="workload-holder-pagination" aria-label="Страницы педагогов">
-  <span>Педагоги {{ holder_page_from }}–{{ holder_page_to }} из {{ holder_total_count }}</span>
-  <div>
-    {% if holder_page > 1 %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size, holder_page=holder_page - 1) }}">
-      <i class="bi bi-chevron-left" aria-hidden="true"></i> Предыдущие
-    </a>
-    {% endif %}
-    <span>{{ holder_page }} / {{ holder_page_count }}</span>
-    {% if holder_page < holder_page_count %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size, holder_page=holder_page + 1) }}">
-      Следующие <i class="bi bi-chevron-right" aria-hidden="true"></i>
-    </a>
-    {% endif %}
-  </div>
-</nav>
-{% endif %}
+{% set pagination_position = "top" %}
+{% include "workload/_assignment_workspace_pagination.html" %}
 
 {% if matrix.unassigned_items %}
 <div class="collapse workload-unassigned-panel" id="workload-unassigned-hours">
@@ -667,14 +651,18 @@
       {% if can_update and selected_version and not selected_teacher_query and not selected_subject_ids %}
       <tr class="workload-add-teacher-row">
         <td colspan="{{ 4 + matrix.columns|length }}">
-          <button
-            class="workload-add-teacher-row__button"
-            type="button"
-            data-open-teacher-dialog
-          >
-            <i class="bi bi-plus-lg" aria-hidden="true"></i>
-            <span>Добавить преподавателя</span>
-          </button>
+          <div class="workload-add-teacher-row__actions">
+            <button
+              class="workload-add-teacher-row__button"
+              type="button"
+              data-open-teacher-dialog
+            >
+              <i class="bi bi-plus-lg" aria-hidden="true"></i>
+              <span>Добавить преподавателя</span>
+            </button>
+            {% set pagination_position = "bottom" %}
+            {% include "workload/_assignment_workspace_pagination.html" %}
+          </div>
         </td>
       </tr>
       {% endif %}
@@ -899,6 +887,23 @@
   window.addEventListener("load", scheduleFloatingMatrixHeader);
   scheduleFloatingMatrixHeader();
 
+  const focusHolderRows = (holderKey) => {
+    const focusedRows = Array.from(document.querySelectorAll(
+      `[data-workload-holder-row="${holderKey}"]`
+    ));
+    if (!focusedRows.length) return;
+    focusedRows[0].scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "nearest",
+    });
+    focusedRows.forEach((row) => row.classList.add("is-row-hovered"));
+    window.setTimeout(
+      () => focusedRows.forEach((row) => row.classList.remove("is-row-hovered")),
+      2400,
+    );
+  };
+
   let holderPageRequest = null;
   const loadHolderPage = async (targetUrl, {pushHistory = true} = {}) => {
     const currentRegion = document.querySelector("[data-workload-page-region]");
@@ -934,8 +939,19 @@
       }
       const newRegionTop = replacement.getBoundingClientRect().top;
       window.scrollBy(0, newRegionTop - regionTop);
+      const focusHolder = requestUrl.searchParams.get("focus_holder");
+      if (focusHolder) {
+        window.requestAnimationFrame(() => focusHolderRows(focusHolder));
+      }
       if (pushHistory) {
-        window.history.pushState({workloadHolderPage: true}, "", targetUrl);
+        const historyUrl = new URL(targetUrl, window.location.href);
+        historyUrl.searchParams.delete("focus_holder");
+        historyUrl.searchParams.delete("page_fragment");
+        window.history.pushState(
+          {workloadHolderPage: true},
+          "",
+          historyUrl,
+        );
       }
       scheduleFloatingMatrixHeader();
     } catch (error) {
@@ -1425,7 +1441,19 @@
         }));
         teacherDialog.close();
         form.reset();
-        await refreshMatrix(payload.holder_key || "");
+        if (payload.teacher_name && payload.holder_key) {
+          const targetUrl = new URL(window.location.href);
+          targetUrl.searchParams.set("teacher_query", payload.teacher_name);
+          targetUrl.searchParams.set("focus_holder", payload.holder_key);
+          targetUrl.searchParams.delete("holder_page");
+          const teacherQuery = document.querySelector(
+            "[data-workload-filterbar] [name=\"teacher_query\"]"
+          );
+          if (teacherQuery) teacherQuery.value = payload.teacher_name;
+          await loadHolderPage(targetUrl);
+        } else {
+          await refreshMatrix(payload.holder_key || "");
+        }
       } catch (error) {
         window.alert(error.message);
       } finally {
@@ -1468,19 +1496,7 @@
   const focusUrl = new URL(window.location.href);
   const focusHolder = focusUrl.searchParams.get("focus_holder");
   if (focusHolder) {
-    const focusedRows = Array.from(document.querySelectorAll(
-      `[data-workload-holder-row="${focusHolder}"]`
-    ));
-    if (focusedRows.length) {
-      window.requestAnimationFrame(() => {
-        focusedRows[0].scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
-        focusedRows.forEach((row) => row.classList.add("is-row-hovered"));
-        window.setTimeout(
-          () => focusedRows.forEach((row) => row.classList.remove("is-row-hovered")),
-          2400,
-        );
-      });
-    }
+    window.requestAnimationFrame(() => focusHolderRows(focusHolder));
     focusUrl.searchParams.delete("focus_holder");
     window.history.replaceState({}, "", focusUrl);
   }

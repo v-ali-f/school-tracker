@@ -1434,6 +1434,26 @@
   border-top: 2px solid var(--workload-border-strong) !important;
 }
 
+.workload-add-teacher-row__actions {
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workload-add-teacher-row__actions .workload-holder-pagination--bottom {
+  min-height: 26px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  position: sticky;
+  right: 6px;
+  z-index: 7;
+  flex: 0 0 auto;
+  border: 0;
+  background: #f8fafc;
+}
+
 .workload-add-teacher-row__button {
   min-height: 26px;
   padding: 3px 8px;
