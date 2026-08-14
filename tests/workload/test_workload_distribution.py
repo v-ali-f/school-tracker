@@ -1648,6 +1648,29 @@ def test_workspace_paginates_five_teachers_by_default(
     assert default_html.count("<!-- workload-holder-start:") == 5
     assert "Педагоги 1–5 из 6" in default_html
     assert '<option value="5" selected>5</option>' in default_html
+    assert "loadHolderPage" in default_html
+    assert 'searchParams.set("page_fragment", "1")' in default_html
+    assert "window.history.pushState" in default_html
+    assert 'window.addEventListener("popstate"' in default_html
+
+    fragment_response = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            "version_id": context["version_id"],
+            "holder_page": 2,
+            "page_fragment": 1,
+        },
+    )
+    fragment_html = fragment_response.get_data(as_text=True)
+
+    assert fragment_response.status_code == 200
+    assert 'data-workload-page-region' in fragment_html
+    assert "Педагоги 6–6 из 6" in fragment_html
+    assert fragment_html.count("<!-- workload-holder-start:") == 1
+    assert "data-workload-filterbar" not in fragment_html
+    assert "data-copy-subjects-dialog" not in fragment_html
+    assert "<script>" not in fragment_html
+    assert len(fragment_html) < len(default_html)
 
     expanded_response = client.get(
         "/workload/assignments/workspace",

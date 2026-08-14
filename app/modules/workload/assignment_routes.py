@@ -1603,6 +1603,11 @@ def register_assignment_routes(workload_bp):
             fragment_holder_key = ""
         if fragment_holder_key:
             presentation_mode = "matrix"
+        page_fragment = (
+            request.args.get("page_fragment") == "1"
+            and not fragment_holder_key
+            and presentation_mode == "matrix"
+        )
         versions = _draft_versions_query().all()
         version_id = request.args.get("version_id", type=int)
         if version_id is None and versions:
@@ -2226,6 +2231,14 @@ def register_assignment_routes(workload_bp):
             ),
             fragment_holder_key=fragment_holder_key,
         )
+        if page_fragment:
+            start_marker = "<!-- workload-page-region-start -->"
+            end_marker = "<!-- workload-page-region-end -->"
+            start = rendered.find(start_marker)
+            end = rendered.find(end_marker)
+            if start < 0 or end < start:
+                abort(404)
+            return rendered[start + len(start_marker):end]
         if fragment_holder_key:
             start_marker = (
                 f"<!-- workload-holder-start:{fragment_holder_key} -->"
