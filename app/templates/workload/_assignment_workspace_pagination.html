@@ -1,0 +1,21 @@
+{% if holder_page_count > 1 %}
+<nav
+  class="workload-holder-pagination workload-holder-pagination--{{ pagination_position|default('top') }}"
+  aria-label="Страницы педагогов"
+>
+  <span>Педагоги {{ holder_page_from }}–{{ holder_page_to }} из {{ holder_total_count }}</span>
+  <div>
+    {% if holder_page > 1 %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size, holder_page=holder_page - 1) }}">
+      <i class="bi bi-chevron-left" aria-hidden="true"></i> Предыдущие
+    </a>
+    {% endif %}
+    <span>{{ holder_page }} / {{ holder_page_count }}</span>
+    {% if holder_page < holder_page_count %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size, holder_page=holder_page + 1) }}">
+      Следующие <i class="bi bi-chevron-right" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
