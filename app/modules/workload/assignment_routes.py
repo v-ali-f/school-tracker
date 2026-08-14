@@ -107,7 +107,8 @@ from .scopes import resolve_workload_scope
 
 
 ZERO = Decimal("0")
-WORKSPACE_HOLDER_PAGE_SIZE = 10
+WORKSPACE_HOLDER_PAGE_SIZES = (5, 10, 20)
+WORKSPACE_DEFAULT_HOLDER_PAGE_SIZE = 5
 WORKSPACE_FILTER_FIELDS = (
     "version_id",
     "view",
@@ -118,6 +119,7 @@ WORKSPACE_FILTER_FIELDS = (
     "subject_id",
     "teacher_query",
     "presentation",
+    "holder_page_size",
 )
 
 
@@ -1585,6 +1587,9 @@ def register_assignment_routes(workload_bp):
             request.args.get("fragment_holder_key") or ""
         ).strip()[:80]
         holder_page = max(1, request.args.get("holder_page", type=int) or 1)
+        holder_page_size = request.args.get("holder_page_size", type=int)
+        if holder_page_size not in WORKSPACE_HOLDER_PAGE_SIZES:
+            holder_page_size = WORKSPACE_DEFAULT_HOLDER_PAGE_SIZE
         fragment_type, separator, fragment_value = (
             fragment_holder_key.partition(":")
         )
@@ -1998,14 +2003,14 @@ def register_assignment_routes(workload_bp):
         holder_page_count = max(
             1,
             (
-                holder_total_count + WORKSPACE_HOLDER_PAGE_SIZE - 1
-            ) // WORKSPACE_HOLDER_PAGE_SIZE,
+                holder_total_count + holder_page_size - 1
+            ) // holder_page_size,
         )
         holder_page = min(holder_page, holder_page_count)
-        holder_page_start = (holder_page - 1) * WORKSPACE_HOLDER_PAGE_SIZE
+        holder_page_start = (holder_page - 1) * holder_page_size
         page_holder_keys = set(ordered_holder_keys[
             holder_page_start:
-            holder_page_start + WORKSPACE_HOLDER_PAGE_SIZE
+            holder_page_start + holder_page_size
         ])
         matrix_teachers = {
             assignment.employee_user_id: assignment.employee
@@ -2159,13 +2164,15 @@ def register_assignment_routes(workload_bp):
                 selected_version
             ),
             holder_page=holder_page,
+            holder_page_size=holder_page_size,
+            holder_page_sizes=WORKSPACE_HOLDER_PAGE_SIZES,
             holder_page_count=holder_page_count,
             holder_total_count=holder_total_count,
             holder_page_from=(
                 holder_page_start + 1 if holder_total_count else 0
             ),
             holder_page_to=min(
-                holder_page_start + WORKSPACE_HOLDER_PAGE_SIZE,
+                holder_page_start + holder_page_size,
                 holder_total_count,
             ),
             workload_list=workload_list,

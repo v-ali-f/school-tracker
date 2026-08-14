@@ -22,6 +22,10 @@ from app.models import (
     WorkloadSourceTransition,
 )
 from app.services.tariff_calculation_service import latest_successful_run
+from app.services.teaching_group_display_service import (
+    teaching_group_assignment_label,
+    teaching_group_class_label,
+)
 
 
 ZERO = Decimal("0")
@@ -63,6 +67,8 @@ class DepartmentLoadRow:
     plan_kind: str = "CURRICULUM"
     is_readonly: bool = True
     source_kind: str = "INTERNAL"
+    class_label: str | None = None
+    group_label: str | None = None
 
 
 def active_organization_id():
@@ -322,6 +328,8 @@ def internal_department_load_rows(
                 teacher_totals[line.employee_user_id]
             ),
             plan_kind=_plan_kind_from_group(group),
+            class_label=teaching_group_class_label(group),
+            group_label=teaching_group_assignment_label(group),
         ))
     return rows
 
@@ -489,6 +497,8 @@ def current_department_load_rows(
                 teacher_totals[assignment.employee_user_id]
             ),
             plan_kind=_plan_kind_from_group(group),
+            class_label=teaching_group_class_label(group),
+            group_label=teaching_group_assignment_label(group),
         ))
     return rows, tariff_version
 
