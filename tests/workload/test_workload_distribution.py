@@ -1,8 +1,10 @@
 from datetime import date, datetime
 from decimal import Decimal
+from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+from openpyxl import load_workbook
 from werkzeug.datastructures import MultiDict
 
 from app.core.extensions import db
@@ -300,6 +302,57 @@ def test_workspace_repairs_existing_need_with_wrong_start_period_hours(
         repaired = db.session.get(WorkloadNeed, need_id)
         assert repaired.weekly_hours == Decimal("4.000")
         assert repaired.annual_hours == Decimal("161.000")
+
+
+def test_generate_plan_needs_removes_line_inactive_at_year_start(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        line = EducationPlanLine.query.one()
+        line.weekly_hours = Decimal("1")
+        line.weeks_count = Decimal("26")
+        line.annual_hours = Decimal("26")
+        _generate(context, admin_id)
+        need_id = WorkloadNeed.query.one().id
+
+        line.periods = [
+            EducationPlanLinePeriod(
+                date_from=date(2026, 9, 1),
+                date_to=date(2026, 10, 31),
+                weekly_hours=Decimal("0"),
+                weeks_count=Decimal("9"),
+                annual_hours=Decimal("0"),
+            ),
+            EducationPlanLinePeriod(
+                date_from=date(2026, 11, 1),
+                date_to=date(2027, 5, 31),
+                weekly_hours=Decimal("1"),
+                weeks_count=Decimal("26"),
+                annual_hours=Decimal("26"),
+            ),
+        ]
+        db.session.commit()
+
+    login(admin_id)
+    response = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    )
+
+    assert response.status_code == 200
+    with app.app_context():
+        need = db.session.get(WorkloadNeed, need_id)
+        assert need.status == "CANCELLED"
+        assert WorkloadNeed.query.filter(
+            WorkloadNeed.status != "CANCELLED"
+        ).count() == 0
 
 
 def test_workspace_filter_builds_matrices_for_multiple_levels_and_grades():
@@ -1541,6 +1594,73 @@ def test_workspace_export_and_compact_hours(
     assert export.status_code == 200
     assert export.data.startswith(b"PK")
     assert "spreadsheetml.sheet" in export.content_type
+
+
+def test_workspace_list_view_and_matching_excel_export(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        db.session.add(_assignment(need, teacher_id, "5"))
+        db.session.commit()
+        teacher_name = db.session.get(User, teacher_id).fio
+    login(admin_id)
+
+    response = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            "version_id": context["version_id"],
+            "presentation": "list",
+        },
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "workload-teacher-list" in html
+    assert "workload-assignment-matrix-wrap" not in html
+    assert teacher_name in html
+    assert "Урочная деятельность" in html
+    assert "Математика" in html
+    assert "Группа / весь класс" in html
+    assert "Группа 1" in html
+    assert "Главное здание" in html
+    assert "Всего у преподавателя" in html
+
+    export = client.get(
+        "/workload/assignments/workspace/export.xlsx",
+        query_string={
+            "version_id": context["version_id"],
+            "presentation": "list",
+        },
+    )
+
+    assert export.status_code == 200
+    workbook = load_workbook(BytesIO(export.data), data_only=True)
+    sheet = workbook["Нагрузка списком"]
+    values = {
+        cell.value
+        for row in sheet.iter_rows()
+        for cell in row
+        if cell.value is not None
+    }
+    assert teacher_name in values
+    assert "Предмет" in values
+    assert "Класс" in values
+    assert "Часы" in values
+    assert "Группа / весь класс" in values
+    assert "Здание" in values
+    assert "Математика" in values
+    assert "Урочная деятельность" in values
+    assert "Итоги по всей выборке" in values
 
 
 def test_workspace_vacancy_can_be_filled_by_teacher(

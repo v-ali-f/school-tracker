@@ -19,6 +19,12 @@ PLAN_KIND_ORDER = {
     "ADDITIONAL_EDUCATION": 2,
 }
 
+LIST_PLAN_KIND_LABELS = {
+    "CURRICULUM": "Урочная деятельность",
+    "EXTRACURRICULAR": "Внеурочная деятельность",
+    "ADDITIONAL_EDUCATION": "Дополнительное образование",
+}
+
 
 def _class_sort_key(name):
     text = " ".join((name or "").split())
@@ -104,6 +110,148 @@ def _group_label(group):
         match = re.search(r"группа\s*(\d+)", group.name or "", re.I)
         return f"Группа {match.group(1)}" if match else group.name
     return group.name
+
+
+def _list_source_groups(group):
+    if group is None:
+        return []
+    if group.group_type == "METAGROUP":
+        return [
+            link.source_group
+            for link in group.metagroup_sources
+            if link.source_group is not None
+        ]
+    return [group]
+
+
+def _list_class_names(group):
+    return sorted({
+        link.population_snapshot_class.name_snapshot
+        for source_group in _list_source_groups(group)
+        for link in source_group.source_classes
+        if link.population_snapshot_class is not None
+        and link.population_snapshot_class.name_snapshot
+    }, key=_class_sort_key)
+
+
+def _list_building_names(need):
+    names = set()
+    if need.building is not None and need.building.name:
+        return [need.building.name]
+    for source_group in _list_source_groups(need.teaching_group):
+        if source_group.building is not None and source_group.building.name:
+            names.add(source_group.building.name)
+        for link in source_group.source_classes:
+            snapshot_class = link.population_snapshot_class
+            if (
+                snapshot_class is not None
+                and snapshot_class.building_name_snapshot
+            ):
+                names.add(snapshot_class.building_name_snapshot)
+    return sorted(names, key=str.casefold)
+
+
+def build_workload_assignment_list(assignments, *, visible_holder_keys=None):
+    """Build a compact teacher-by-teacher view of assigned weekly hours."""
+    blocks_by_holder = {}
+    overall_totals = {
+        plan_kind: ZERO for plan_kind in PLAN_KIND_ORDER
+    }
+    allowed_keys = (
+        None if visible_holder_keys is None else set(visible_holder_keys)
+    )
+
+    for assignment in assignments:
+        if assignment.status == "CANCELLED":
+            continue
+        is_vacancy = assignment.assignment_kind == "VACANCY"
+        holder_key = (
+            f"vacancy:{assignment.position_code}"
+            if is_vacancy
+            else f"teacher:{assignment.employee_user_id}"
+        )
+        if allowed_keys is not None and holder_key not in allowed_keys:
+            continue
+        if not is_vacancy and assignment.employee is None:
+            continue
+
+        need = assignment.workload_need
+        plan_kind = need_plan_kind(need)
+        hours = Decimal(assignment.weekly_hours or ZERO)
+        block = blocks_by_holder.setdefault(holder_key, {
+            "holder_key": holder_key,
+            "teacher_id": assignment.employee_user_id,
+            "is_vacancy": is_vacancy,
+            "label": (
+                assignment.position_title or "Вакансия"
+                if is_vacancy else assignment.employee.fio
+            ),
+            "rows": [],
+            "totals": {
+                item: ZERO for item in PLAN_KIND_ORDER
+            },
+            "total": ZERO,
+        })
+        class_names = _list_class_names(need.teaching_group)
+        building_names = _list_building_names(need)
+        block["rows"].append({
+            "assignment": assignment,
+            "plan_kind": plan_kind,
+            "plan_kind_label": LIST_PLAN_KIND_LABELS.get(
+                plan_kind,
+                PLAN_KIND_LABELS.get(plan_kind, plan_kind),
+            ),
+            "subject_name": need.education_activity.name,
+            "class_label": ", ".join(class_names) or "—",
+            "hours": hours,
+            "group_label": _group_label(need.teaching_group),
+            "building_label": ", ".join(building_names) or "—",
+        })
+        block["totals"][plan_kind] = (
+            block["totals"].get(plan_kind, ZERO) + hours
+        )
+        block["total"] += hours
+        overall_totals[plan_kind] = (
+            overall_totals.get(plan_kind, ZERO) + hours
+        )
+
+    blocks = sorted(
+        blocks_by_holder.values(),
+        key=lambda item: item["label"].casefold(),
+    )
+    for block in blocks:
+        block["rows"].sort(key=lambda row: (
+            PLAN_KIND_ORDER.get(row["plan_kind"], 99),
+            _class_sort_key(row["class_label"]),
+            row["subject_name"].casefold(),
+            row["group_label"].casefold(),
+            row["assignment"].id,
+        ))
+        block["sections"] = [
+            {
+                "plan_kind": plan_kind,
+                "label": LIST_PLAN_KIND_LABELS.get(
+                    plan_kind,
+                    PLAN_KIND_LABELS.get(plan_kind, plan_kind),
+                ),
+                "rows": [
+                    row for row in block["rows"]
+                    if row["plan_kind"] == plan_kind
+                ],
+                "total": block["totals"].get(plan_kind, ZERO),
+            }
+            for plan_kind in sorted(
+                PLAN_KIND_ORDER,
+                key=lambda item: PLAN_KIND_ORDER[item],
+            )
+            if block["totals"].get(plan_kind, ZERO) > ZERO
+        ]
+
+    return {
+        "blocks": blocks,
+        "totals": overall_totals,
+        "total": sum(overall_totals.values(), ZERO),
+    }
 
 
 def _column_for_need(need, plan_context):
@@ -989,6 +1137,8 @@ def build_workload_assignment_matrix(
 
 
 __all__ = [
+    "LIST_PLAN_KIND_LABELS",
+    "build_workload_assignment_list",
     "build_workload_assignment_matrix",
     "need_education_level",
     "need_grades",

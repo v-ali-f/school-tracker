@@ -267,7 +267,12 @@ def generate_plan_needs(
             group.valid_from,
             group.valid_to,
         )
-        if weekly <= ZERO and annual <= ZERO:
+        # The workload workspace distributes weekly hours for the period that
+        # is active at the beginning of the school year.  A line that starts
+        # later (for example Art in grade 1 from November) may still have
+        # annual hours, but it must not create an apparently clickable zero
+        # hour cell for September–October.
+        if weekly <= ZERO:
             skipped_empty += 1
             continue
         key = (

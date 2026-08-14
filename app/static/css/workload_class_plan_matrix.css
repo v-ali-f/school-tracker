@@ -2,6 +2,155 @@
   color: var(--workload-text);
 }
 
+.workload-list-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.workload-list-summary > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 2px 10px;
+  padding: 12px 14px;
+  border: 1px solid #d8e1ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.workload-list-summary span {
+  color: #52627a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workload-list-summary strong {
+  grid-row: span 2;
+  color: #173d78;
+  font-size: 22px;
+}
+
+.workload-list-summary small {
+  color: #7b8799;
+  font-size: 11px;
+}
+
+.workload-list-summary .is-total {
+  border-color: #a9c2ed;
+  background: #edf4ff;
+}
+
+.workload-teacher-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.workload-teacher-list__card {
+  overflow: hidden;
+  border: 1px solid #ccd7e7;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.workload-teacher-list__card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ccd7e7;
+  background: #edf4ff;
+}
+
+.workload-teacher-list__card > header a,
+.workload-teacher-list__card > header > div > strong {
+  color: #1656bd;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.workload-teacher-list__card > header > span {
+  white-space: nowrap;
+  color: #52627a;
+  font-size: 13px;
+}
+
+.workload-teacher-list__table-wrap {
+  overflow-x: auto;
+}
+
+.workload-teacher-list__table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.workload-teacher-list__table th,
+.workload-teacher-list__table td {
+  padding: 8px 10px;
+  border-right: 1px solid #d9e1ec;
+  border-bottom: 1px solid #d9e1ec;
+  vertical-align: top;
+}
+
+.workload-teacher-list__table tr > *:last-child {
+  border-right: 0;
+}
+
+.workload-teacher-list__table thead th {
+  color: #44536a;
+  background: #f5f7fa;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.workload-teacher-list__table th:first-child,
+.workload-teacher-list__table td:first-child {
+  width: 48px;
+  text-align: center;
+}
+
+.workload-teacher-list__table .is-hours {
+  width: 90px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.workload-teacher-list__section th {
+  padding: 7px 10px;
+  color: #315784;
+  background: #e8f0fb;
+  text-align: left !important;
+  text-transform: none;
+}
+
+.workload-teacher-list__section-total td {
+  color: #315784;
+  background: #f4f8fd;
+  font-weight: 700;
+}
+
+.workload-teacher-list__table tfoot th {
+  color: #fff;
+  background: #315d99;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .workload-list-summary {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .workload-teacher-list__card > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .class-plan-heading {
   min-height: 46px;
   display: flex;
