@@ -246,6 +246,15 @@
   font-size: 10px;
 }
 
+[data-workload-page-region] {
+  transition: opacity 0.16s ease;
+}
+
+[data-workload-page-region][aria-busy="true"] {
+  pointer-events: none;
+  opacity: 0.58;
+}
+
 .workload-filter-field {
   min-width: 0;
 }

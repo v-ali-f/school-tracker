@@ -319,6 +319,8 @@
   </div>
 </div>
 
+<!-- workload-page-region-start -->
+<div data-workload-page-region>
 {% if holder_page_count > 1 %}
 <nav class="workload-holder-pagination" aria-label="Страницы педагогов">
   <span>Педагоги {{ holder_page_from }}–{{ holder_page_to }} из {{ holder_total_count }}</span>
@@ -686,6 +688,8 @@
   <span>Измените фильтры или сформируйте потребность по учебным планам.</span>
 </div>
 {% endif %}
+</div>
+<!-- workload-page-region-end -->
 
 {% if can_update and selected_version %}
 <dialog class="workload-teacher-dialog" data-teacher-dialog>
@@ -894,6 +898,69 @@
   window.addEventListener("resize", scheduleFloatingMatrixHeader);
   window.addEventListener("load", scheduleFloatingMatrixHeader);
   scheduleFloatingMatrixHeader();
+
+  let holderPageRequest = null;
+  const loadHolderPage = async (targetUrl, {pushHistory = true} = {}) => {
+    const currentRegion = document.querySelector("[data-workload-page-region]");
+    if (!currentRegion) {
+      window.location.assign(targetUrl);
+      return;
+    }
+    holderPageRequest?.abort();
+    const requestController = new AbortController();
+    holderPageRequest = requestController;
+    const requestUrl = new URL(targetUrl, window.location.href);
+    requestUrl.searchParams.set("page_fragment", "1");
+    const currentMatrix = currentRegion.querySelector("[data-workload-matrix]");
+    const scrollLeft = currentMatrix?.scrollLeft || 0;
+    const scrollTop = currentMatrix?.scrollTop || 0;
+    const regionTop = currentRegion.getBoundingClientRect().top;
+    currentRegion.setAttribute("aria-busy", "true");
+    try {
+      const response = await fetch(requestUrl, {
+        headers: {"Accept": "text/html", "X-Requested-With": "XMLHttpRequest"},
+        signal: requestController.signal,
+      });
+      if (!response.ok) throw new Error("Не удалось загрузить страницу педагогов.");
+      const page = new DOMParser().parseFromString(await response.text(), "text/html");
+      const replacement = page.querySelector("[data-workload-page-region]");
+      if (!replacement) throw new Error("Не найдена матрица нагрузки.");
+      currentRegion.replaceWith(replacement);
+      const replacementMatrix = replacement.querySelector("[data-workload-matrix]");
+      if (replacementMatrix) {
+        replacementMatrix.scrollLeft = scrollLeft;
+        replacementMatrix.scrollTop = scrollTop;
+        bindCellControls(replacementMatrix);
+      }
+      const newRegionTop = replacement.getBoundingClientRect().top;
+      window.scrollBy(0, newRegionTop - regionTop);
+      if (pushHistory) {
+        window.history.pushState({workloadHolderPage: true}, "", targetUrl);
+      }
+      scheduleFloatingMatrixHeader();
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      window.location.assign(targetUrl);
+    } finally {
+      if (holderPageRequest === requestController) {
+        holderPageRequest = null;
+      }
+      document.querySelector("[data-workload-page-region]")
+        ?.removeAttribute("aria-busy");
+    }
+  };
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest(".workload-holder-pagination a");
+    if (!link || !document.querySelector("[data-workload-page-region]")) return;
+    event.preventDefault();
+    loadHolderPage(link.href);
+  });
+  window.addEventListener("popstate", () => {
+    if (document.querySelector("[data-workload-page-region]")) {
+      loadHolderPage(window.location.href, {pushHistory: false});
+    }
+  });
 
   const filterbar = document.querySelector("[data-workload-filterbar]");
   filterbar?.querySelectorAll("[data-workload-filter-auto]").forEach((field) => {
