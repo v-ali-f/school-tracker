@@ -86,6 +86,10 @@ from app.services.workload_integration_service import (
     source_state,
     switch_workload_source,
 )
+from app.services.teaching_group_display_service import (
+    teaching_group_assignment_label,
+    teaching_group_class_label,
+)
 from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
     change_workload_approval_status,
@@ -704,6 +708,10 @@ def test_teacher_profile_marks_workload_preliminary_or_approved(
     assert response.status_code == 200
     assert "Предварительная" in response.get_data(as_text=True)
     assert "registry-matrix" in response.get_data(as_text=True)
+    assert "<th>Класс</th>" in response.get_data(as_text=True)
+    assert "Весь класс / группа" in response.get_data(as_text=True)
+    assert "5А" in response.get_data(as_text=True)
+    assert "Группа 1" in response.get_data(as_text=True)
 
     with app.app_context():
         version = db.session.get(TariffVersion, context["version_id"])
@@ -1246,7 +1254,11 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "workload-matrix-sticky-plan" in html
     assert "workload-assignment-matrix__class-group" not in html
     assert "data-matrix-column-key=" not in html
-    assert "columnCell?.cellIndex" in html
+    assert "columnCell?.cellIndex" not in html
+    assert 'data-matrix-column-index="0"' in html
+    assert "columnCell?.dataset.matrixColumnIndex" in html
+    assert 'id="workspace-holder-page-size"' in html
+    assert '<option value="5" selected>5</option>' in html
     assert "is-row-hovered" in html
     assert "is-column-hovered" in html
     assert html.count('class="workload-subject-add"') == 1
@@ -1596,6 +1608,54 @@ def test_workspace_export_and_compact_hours(
     assert "spreadsheetml.sheet" in export.content_type
 
 
+def test_workspace_paginates_five_teachers_by_default(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_ids = [make_user("TEACHER") for _ in range(6)]
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+    login(admin_id)
+    with client.session_transaction() as workspace_session:
+        workspace_session[
+            f"workload_matrix_state_{context['version_id']}"
+        ] = {
+            "teacher_ids": teacher_ids,
+            "vacancies": [],
+            "rows": [],
+        }
+
+    default_response = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    )
+    default_html = default_response.get_data(as_text=True)
+
+    assert default_response.status_code == 200
+    assert default_html.count("<!-- workload-holder-start:") == 5
+    assert "Педагоги 1–5 из 6" in default_html
+    assert '<option value="5" selected>5</option>' in default_html
+
+    expanded_response = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            "version_id": context["version_id"],
+            "holder_page_size": 10,
+        },
+    )
+    expanded_html = expanded_response.get_data(as_text=True)
+
+    assert expanded_response.status_code == 200
+    assert expanded_html.count("<!-- workload-holder-start:") == 6
+    assert '<option value="10" selected>10</option>' in expanded_html
+
+
 def test_workspace_list_view_and_matching_excel_export(
     app,
     client,
@@ -1632,6 +1692,7 @@ def test_workspace_list_view_and_matching_excel_export(
     assert "Математика" in html
     assert "Группа / весь класс" in html
     assert "Группа 1" in html
+    assert ">5А<" in html
     assert "Главное здание" in html
     assert "Всего у преподавателя" in html
 
@@ -1659,8 +1720,31 @@ def test_workspace_list_view_and_matching_excel_export(
     assert "Группа / весь класс" in values
     assert "Здание" in values
     assert "Математика" in values
+    assert "5А" in values
+    assert "Группа 1" in values
     assert "Урочная деятельность" in values
     assert "Итоги по всей выборке" in values
+
+
+def test_metagroup_display_lists_its_combined_classes():
+    def source_group(class_name):
+        return SimpleNamespace(source_classes=[SimpleNamespace(
+            population_snapshot_class=SimpleNamespace(
+                name_snapshot=class_name,
+            ),
+        )])
+
+    group = SimpleNamespace(
+        group_type="METAGROUP",
+        name="Метагруппа английского языка",
+        metagroup_sources=[
+            SimpleNamespace(source_group=source_group("5А")),
+            SimpleNamespace(source_group=source_group("5Б")),
+        ],
+    )
+
+    assert teaching_group_class_label(group) == "5А, 5Б"
+    assert teaching_group_assignment_label(group) == "Метагруппа: 5А + 5Б"
 
 
 def test_workspace_vacancy_can_be_filled_by_teacher(

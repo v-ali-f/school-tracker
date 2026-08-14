@@ -9,6 +9,7 @@
   <input type="hidden" name="version_id" value="{{ selected_version_id or '' }}">
   <input type="hidden" name="view" value="{{ view_mode }}">
   <input type="hidden" name="presentation" value="{{ presentation_mode }}">
+  <input type="hidden" name="holder_page_size" value="{{ holder_page_size }}">
   <input type="hidden" name="department_id" value="{{ selected_department_id or '' }}">
   <input type="hidden" name="building_id" value="{{ selected_building_id or '' }}">
   {% for level in selected_education_levels %}
@@ -36,11 +37,11 @@
     <div class="btn-group btn-group-sm" role="group" aria-label="Вид нагрузки">
       <a
         class="btn btn-outline-primary {% if presentation_mode == 'matrix' %}active{% endif %}"
-        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix') }}"
+        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size) }}"
       ><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Матрица</a>
       <a
         class="btn btn-outline-primary {% if presentation_mode == 'list' %}active{% endif %}"
-        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='list') }}"
+        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='list', holder_page_size=holder_page_size) }}"
       ><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Списком</a>
     </div>
     <a
@@ -210,9 +211,9 @@
     <div class="workload-filter-field workload-filter-field--view">
       <span class="workload-filter-label">Вид нагрузки</span>
       <nav class="workload-view-tabs" aria-label="Вид нагрузки">
-        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query) }}">Вся нагрузка</a>
-        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query) }}">По кафедре</a>
-        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids) }}">Вакансии</a>
+        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation=presentation_mode, holder_page_size=holder_page_size) }}">Вся нагрузка</a>
+        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation=presentation_mode, holder_page_size=holder_page_size) }}">По кафедре</a>
+        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, presentation=presentation_mode, holder_page_size=holder_page_size) }}">Вакансии</a>
       </nav>
     </div>
     <div class="workload-filter-field workload-filter-field--subjects">
@@ -274,6 +275,14 @@
       </select>
     </div>
     {% endif %}
+    <div class="workload-filter-field workload-filter-field--page-size">
+      <label for="workspace-holder-page-size">Педагогов на странице</label>
+      <select class="form-select form-select-sm" id="workspace-holder-page-size" name="holder_page_size" data-workload-filter-auto>
+        {% for page_size in holder_page_sizes %}
+        <option value="{{ page_size }}" {% if page_size == holder_page_size %}selected{% endif %}>{{ page_size }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
 </form>
 
@@ -315,13 +324,13 @@
   <span>Педагоги {{ holder_page_from }}–{{ holder_page_to }} из {{ holder_total_count }}</span>
   <div>
     {% if holder_page > 1 %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, holder_page=holder_page - 1) }}">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size, holder_page=holder_page - 1) }}">
       <i class="bi bi-chevron-left" aria-hidden="true"></i> Предыдущие
     </a>
     {% endif %}
     <span>{{ holder_page }} / {{ holder_page_count }}</span>
     {% if holder_page < holder_page_count %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, holder_page=holder_page + 1) }}">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix', holder_page_size=holder_page_size, holder_page=holder_page + 1) }}">
       Следующие <i class="bi bi-chevron-right" aria-hidden="true"></i>
     </a>
     {% endif %}
@@ -406,6 +415,7 @@
         <th
           class="workload-assignment-matrix__class-plan {% if column.is_profile_column %}is-profile{% endif %} {% if class_group.is_alt %}is-alt{% endif %} {% if column.remaining > 0 %}has-remaining{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
           data-matrix-class-column
+          data-matrix-column-index="{{ column.display_index }}"
         >
           <span class="workload-matrix-sticky-class">{{ class_group.label }}</span>
           {% if column.subheader_label %}<span class="workload-matrix-sticky-plan" title="{{ column.plan_name }}">{{ column.subheader_label if column.is_metagroup or column.is_orphan else column.subheader_label[:3] }}</span>{% endif %}
@@ -573,6 +583,7 @@
           {% set matrix_cell = row.matrix_cells.get(column.key) %}
           <td
             class="workload-assignment-matrix__cell {% if column.is_alt %}is-alt{% endif %} {% if not matrix_cell %}is-empty{% endif %} {% if not selected_building_id %}building-tone-{{ column.building_tone }}{% endif %}"
+            data-matrix-column-index="{{ column.display_index }}"
           >
             {% if matrix_cell %}
             <div class="workload-cell-slots {% if matrix_cell.slots|length > 1 %}has-groups{% endif %}">
@@ -636,7 +647,7 @@
           </th>
           <td class="workload-assignment-matrix__subject-total-cell workload-add-subject-row__total" aria-hidden="true"></td>
           {% for column in matrix.columns %}
-          <td class="workload-add-subject-row__empty {% if column.is_alt %}is-alt{% endif %}" aria-hidden="true"></td>
+          <td class="workload-add-subject-row__empty {% if column.is_alt %}is-alt{% endif %}" data-matrix-column-index="{{ column.display_index }}" aria-hidden="true"></td>
           {% endfor %}
         </tr>
         {% endif %}
@@ -1258,13 +1269,12 @@
     clearMatrixHover(matrix);
     const row = event.target.closest("tbody tr[data-workload-holder-row]");
     row?.classList.add("is-row-hovered");
-    const columnCell = event.target.closest("th, td");
-    const columnIndex = columnCell?.cellIndex;
-    if (columnIndex === undefined || columnIndex < 4) return;
-    matrix.querySelectorAll("tr").forEach((matrixRow) => {
-      const element = matrixRow.cells[columnIndex];
-      if (element) element.classList.add("is-column-hovered");
-    });
+    const columnCell = event.target.closest("[data-matrix-column-index]");
+    const columnIndex = columnCell?.dataset.matrixColumnIndex;
+    if (columnIndex === undefined) return;
+    matrix.querySelectorAll(
+      `[data-matrix-column-index="${columnIndex}"]`
+    ).forEach((element) => element.classList.add("is-column-hovered"));
   });
   document.addEventListener("pointerout", (event) => {
     const matrix = event.target.closest("[data-workload-matrix]");

@@ -2,6 +2,11 @@ import re
 from collections import defaultdict
 from decimal import Decimal
 
+from app.services.teaching_group_display_service import (
+    teaching_group_assignment_label,
+    teaching_group_class_names,
+    teaching_group_source_groups,
+)
 from app.utils.building_matrix_tones import building_matrix_tone
 
 
@@ -102,36 +107,15 @@ def need_matches_department(need, department_id):
 
 
 def _group_label(group):
-    if group is None:
-        return "Без учебной группы"
-    if group.group_type == "CLASS":
-        return "Весь класс"
-    if group.group_type == "SUBGROUP":
-        match = re.search(r"группа\s*(\d+)", group.name or "", re.I)
-        return f"Группа {match.group(1)}" if match else group.name
-    return group.name
+    return teaching_group_assignment_label(group)
 
 
 def _list_source_groups(group):
-    if group is None:
-        return []
-    if group.group_type == "METAGROUP":
-        return [
-            link.source_group
-            for link in group.metagroup_sources
-            if link.source_group is not None
-        ]
-    return [group]
+    return teaching_group_source_groups(group)
 
 
 def _list_class_names(group):
-    return sorted({
-        link.population_snapshot_class.name_snapshot
-        for source_group in _list_source_groups(group)
-        for link in source_group.source_classes
-        if link.population_snapshot_class is not None
-        and link.population_snapshot_class.name_snapshot
-    }, key=_class_sort_key)
+    return teaching_group_class_names(group)
 
 
 def _list_building_names(need):
@@ -928,8 +912,9 @@ def build_workload_assignment_matrix(
         columns_by_key.values(),
         key=lambda item: item["sort_key"],
     )
-    for column in columns:
+    for display_index, column in enumerate(columns):
         column["building_tone"] = int(column.get("building_tone") or 0)
+        column["display_index"] = display_index
     class_groups = []
     class_groups_by_key = {}
     for column in columns:

@@ -71,8 +71,8 @@
     </div>
   </div>
   <div class="registry-matrix-card"><div class="table-responsive"><table class="registry-matrix registry-matrix-wide">
-    <thead><tr><th>Предмет или курс</th><th>Класс или группа</th><th>Раздел</th><th>Кафедра</th><th>Здание</th><th class="text-end">Часы/нед.</th></tr></thead>
-    <tbody>{% for row in load_rows %}<tr><td class="registry-cell-clip">{{ row.subject_name }}</td><td class="registry-cell-clip">{{ row.group_name or '—' }}</td><td>{% if row.plan_kind == 'CURRICULUM' %}Учебный план{% elif row.plan_kind == 'EXTRACURRICULAR' %}Внеурочная деятельность{% else %}Дополнительное образование{% endif %}</td><td class="registry-cell-clip">{{ row.department.name if row.department else '—' }}</td><td class="registry-cell-clip">{{ row.building_name or '—' }}</td><td class="registry-cell-center fw-semibold">{{ row.hours|compact_decimal }}</td></tr>{% endfor %}</tbody>
+    <thead><tr><th>Предмет или курс</th><th>Класс</th><th>Весь класс / группа</th><th>Раздел</th><th>Кафедра</th><th>Здание</th><th class="text-end">Часы/нед.</th></tr></thead>
+    <tbody>{% for row in load_rows %}<tr><td class="registry-cell-clip">{{ row.subject_name }}</td><td class="registry-cell-clip">{{ row.class_label or '—' }}</td><td class="registry-cell-clip">{{ row.group_label or '—' }}</td><td>{% if row.plan_kind == 'CURRICULUM' %}Учебный план{% elif row.plan_kind == 'EXTRACURRICULAR' %}Внеурочная деятельность{% else %}Дополнительное образование{% endif %}</td><td class="registry-cell-clip">{{ row.department.name if row.department else '—' }}</td><td class="registry-cell-clip">{{ row.building_name or '—' }}</td><td class="registry-cell-center fw-semibold">{{ row.hours|compact_decimal }}</td></tr>{% endfor %}</tbody>
   </table></div></div>
 </div></div>
 {% endif %}
