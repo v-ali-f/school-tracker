@@ -1540,6 +1540,58 @@
   text-transform: uppercase;
 }
 
+.workload-teacher-picker {
+  position: relative;
+}
+
+.workload-teacher-picker__results {
+  max-height: 260px;
+  margin-top: 4px;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 20;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--workload-border-strong);
+  border-radius: 5px;
+  box-shadow: 0 10px 24px rgba(31, 45, 69, 0.16);
+}
+
+.workload-teacher-picker__results > button {
+  width: 100%;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--workload-text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.workload-teacher-picker__results > button:hover,
+.workload-teacher-picker__results > button:focus-visible {
+  background: #edf4ff;
+  outline: 0;
+}
+
+.workload-teacher-picker__results > button small {
+  flex: 0 0 auto;
+  color: var(--workload-muted);
+  font-size: 9px;
+}
+
+.workload-teacher-picker__empty {
+  padding: 12px 9px;
+  color: var(--workload-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
 .workload-vacancy-note {
   margin-top: 10px;
 }

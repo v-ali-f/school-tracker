@@ -597,7 +597,12 @@ def _workspace_teacher_choices(
     selected_version,
     department_id,
     assignments,
+    excluded_teacher_ids=None,
 ):
+    excluded_teacher_ids = set(excluded_teacher_ids or ())
+    available_employees = [
+        item for item in employees if item.id not in excluded_teacher_ids
+    ]
     suggested_ids = {
         item.employee_user_id
         for item in assignments
@@ -625,10 +630,10 @@ def _workspace_teacher_choices(
         )
     return {
         "suggested": [
-            item for item in employees if item.id in suggested_ids
+            item for item in available_employees if item.id in suggested_ids
         ],
         "other": [
-            item for item in employees if item.id not in suggested_ids
+            item for item in available_employees if item.id not in suggested_ids
         ],
     }
 
@@ -2195,6 +2200,17 @@ def register_assignment_routes(workload_bp):
                 selected_version,
                 department_id,
                 assignments,
+                excluded_teacher_ids={
+                    assignment.employee_user_id
+                    for assignment in all_assignments
+                    if assignment.assignment_kind != "VACANCY"
+                    and assignment.employee_user_id is not None
+                } | set(state["teacher_ids"]) | {
+                    row.get("teacher_id")
+                    for row in state["rows"]
+                    if row.get("holder_type", "teacher") == "teacher"
+                    and row.get("teacher_id") is not None
+                },
             ),
             replacement_choices=employees,
             copy_teacher_choices=[
@@ -2349,6 +2365,7 @@ def register_assignment_routes(workload_bp):
             return jsonify({
                 "ok": True,
                 "holder_key": f"teacher:{teacher.id}",
+                "teacher_id": teacher.id,
                 "teacher_name": teacher.fio,
             })
         return _workspace_redirect()
@@ -2786,6 +2803,14 @@ def register_assignment_routes(workload_bp):
     @login_required
     def assignment_workspace_holder_delete():
         _require_assignments_update()
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if is_ajax:
+                return jsonify({"ok": False, "message": message}), 422
+            flash(message, "danger")
+            return _workspace_redirect()
+
         version_id = request.form.get("version_id", type=int)
         holder_type = (
             request.form.get("holder_type") or "teacher"
@@ -2805,8 +2830,7 @@ def register_assignment_routes(workload_bp):
             or (holder_type == "teacher" and teacher_id is None)
             or (holder_type == "vacancy" and not vacancy_key)
         ):
-            flash("Строка преподавателя не найдена.", "danger")
-            return _workspace_redirect()
+            return fail("Строка преподавателя не найдена.")
 
         need_ids = [
             need.id for need in _workspace_form_needs(version)
@@ -2839,6 +2863,11 @@ def register_assignment_routes(workload_bp):
             holder_label = (
                 teacher.fio if teacher is not None else "Преподаватель"
             )
+
+        released_weekly_hours = sum(
+            (Decimal(item.weekly_hours or ZERO) for item in assignments),
+            ZERO,
+        )
 
         key, state = _workspace_state(version.id)
         state = {
@@ -2881,14 +2910,37 @@ def register_assignment_routes(workload_bp):
             db.session.commit()
         except WorkloadDistributionError as exc:
             db.session.rollback()
-            flash(str(exc), "danger")
+            return fail(str(exc))
         else:
             _save_workspace_state(key, state)
-            flash(
+            message = (
                 f"{holder_label}: строка удалена, "
-                f"освобождено назначений — {len(assignments)}.",
-                "success",
+                f"освобождено назначений — {len(assignments)}."
             )
+            if is_ajax:
+                payload = {
+                    "ok": True,
+                    "holder_key": (
+                        f"vacancy:{vacancy_key}"
+                        if holder_type == "vacancy"
+                        else f"teacher:{teacher_id}"
+                    ),
+                    "holder_name": holder_label,
+                    "released_weekly_hours": float(released_weekly_hours),
+                    "message": message,
+                }
+                if (
+                    holder_type == "teacher"
+                    and teacher is not None
+                    and teacher.is_active_user
+                    and teacher.employment_status == "ACTIVE"
+                ):
+                    payload["teacher"] = {
+                        "id": teacher.id,
+                        "name": teacher.fio,
+                    }
+                return jsonify(payload)
+            flash(message, "success")
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/assign")
