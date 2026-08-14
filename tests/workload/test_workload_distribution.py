@@ -2,6 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from openpyxl import load_workbook
@@ -1484,6 +1485,8 @@ def test_workspace_can_delete_teacher_subject_row(
     ).get_data(as_text=True)
     assert "Удалить строку предмета" in before
     assert "/workload/assignments/workspace/subjects/delete" in before
+    assert "data-workload-async-subject-delete" in before
+    assert '"X-Requested-With": "XMLHttpRequest"' in before
     assert "Удалить всю строку" in before
 
     deleted = client.post(
@@ -1495,12 +1498,16 @@ def test_workspace_can_delete_teacher_subject_row(
             "activity_id": str(activity_id),
             "plan_kind": "CURRICULUM",
         },
-        follow_redirects=True,
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    deleted_html = deleted.get_data(as_text=True)
     assert deleted.status_code == 200
-    assert "строка удалена" in deleted_html
-    assert "Предмет не выбран" in deleted_html
+    assert deleted.get_json()["holder_key"] == f"teacher:{teacher_id}"
+    assert "строка удалена" in deleted.get_json()["message"]
+    after_html = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
+    assert "Предмет не выбран" in after_html
 
     with app.app_context():
         assignment = WorkloadAssignment.query.one()
@@ -1747,6 +1754,30 @@ def test_metagroup_display_lists_its_combined_classes():
     assert teaching_group_assignment_label(group) == "Метагруппа: 5А + 5Б"
 
 
+def test_extracurricular_group_display_uses_composition_not_subject_name():
+    snapshot_class = SimpleNamespace(name_snapshot="2И")
+    full_class_group = SimpleNamespace(
+        group_type="EXTRACURRICULAR_GROUP",
+        name="2И · Разговоры о важном",
+        source_classes=[SimpleNamespace(
+            relation_kind="FULL",
+            population_snapshot_class=snapshot_class,
+        )],
+    )
+    numbered_group = SimpleNamespace(
+        group_type="EXTRACURRICULAR_GROUP",
+        name="2И · Робототехника · группа 2",
+        source_classes=[SimpleNamespace(
+            relation_kind="SOURCE",
+            population_snapshot_class=snapshot_class,
+        )],
+    )
+
+    assert teaching_group_class_label(full_class_group) == "2И"
+    assert teaching_group_assignment_label(full_class_group) == "Весь класс"
+    assert teaching_group_assignment_label(numbered_group) == "Группа 2"
+
+
 def test_workspace_vacancy_can_be_filled_by_teacher(
     app,
     client,
@@ -1952,6 +1983,12 @@ def test_workspace_copies_subject_set_only_to_teacher_without_load(
     copied_html = copied.get_data(as_text=True)
     assert copied.status_code == 200
     assert "Набор из 1 предметов скопирован" in copied_html
+    redirect_query = parse_qs(urlparse(
+        copied.history[0].headers["Location"]
+    ).query)
+    assert redirect_query["teacher_query"] == [target_name]
+    assert redirect_query["focus_holder"] == [f"teacher:{target_teacher_id}"]
+    assert "scrollIntoView" in copied_html
     assert f'data-workload-holder-row="teacher:{target_teacher_id}"' in copied_html
     target_fragment = copied_html.split(
         f'workload-holder-start:teacher:{target_teacher_id}',

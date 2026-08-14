@@ -548,7 +548,8 @@
               <form
                 method="post"
                 action="{{ url_for('workload.assignment_workspace_subject_delete') }}"
-                onsubmit="return confirm('Удалить эту строку предмета? Назначенные часы снова станут доступными.');"
+                data-workload-async-subject-delete
+                data-confirm="Удалить эту строку предмета? Назначенные часы снова станут доступными."
               >
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {{ workspace_fields() }}
@@ -1159,6 +1160,14 @@
     });
     if (!response.ok) throw new Error("Не удалось обновить матрицу нагрузки.");
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    ["allocated", "remaining"].forEach((totalKind) => {
+      const selector = `[data-workload-total-${totalKind}]`;
+      const currentTotal = document.querySelector(selector);
+      const refreshedTotal = page.querySelector(selector);
+      if (currentTotal && refreshedTotal) {
+        currentTotal.textContent = refreshedTotal.textContent;
+      }
+    });
     if (holderKey) {
       const selector = `[data-workload-holder-row="${holderKey}"]`;
       const currentRows = Array.from(current.querySelectorAll(selector));
@@ -1310,6 +1319,27 @@
     }
   });
 
+  document.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-workload-async-subject-delete]");
+    if (!form) return;
+    event.preventDefault();
+    if (!window.confirm(form.dataset.confirm || "Удалить строку?")) return;
+    form.setAttribute("aria-busy", "true");
+    form.querySelectorAll("button").forEach((button) => button.disabled = true);
+    try {
+      const payload = await responsePayload(await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+      }));
+      await refreshMatrix(payload.holder_key || "");
+    } catch (error) {
+      window.alert(error.message);
+      form.removeAttribute("aria-busy");
+      form.querySelectorAll("button").forEach((button) => button.disabled = false);
+    }
+  });
+
   teacherDialog?.querySelector("[data-workload-async-add]")?.addEventListener(
     "submit",
     async (event) => {
@@ -1367,6 +1397,26 @@
       event.currentTarget.submit();
     },
   );
+
+  const focusUrl = new URL(window.location.href);
+  const focusHolder = focusUrl.searchParams.get("focus_holder");
+  if (focusHolder) {
+    const focusedRows = Array.from(document.querySelectorAll(
+      `[data-workload-holder-row="${focusHolder}"]`
+    ));
+    if (focusedRows.length) {
+      window.requestAnimationFrame(() => {
+        focusedRows[0].scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
+        focusedRows.forEach((row) => row.classList.add("is-row-hovered"));
+        window.setTimeout(
+          () => focusedRows.forEach((row) => row.classList.remove("is-row-hovered")),
+          2400,
+        );
+      });
+    }
+    focusUrl.searchParams.delete("focus_holder");
+    window.history.replaceState({}, "", focusUrl);
+  }
 })();
 </script>
 {% endblock %}
