@@ -282,6 +282,10 @@ def test_workspace_repairs_existing_need_with_wrong_start_period_hours(
         _generate(context, admin_id)
         need = WorkloadNeed.query.one()
         need.weekly_hours = Decimal("5")
+        # Production needs are commonly newer than their source plans because
+        # teachers are assigned after plan generation.  A newer timestamp must
+        # not hide a mismatch between the stored and start-period hours.
+        need.updated_at = datetime(2030, 1, 1)
         db.session.commit()
         need_id = need.id
     login(admin_id)

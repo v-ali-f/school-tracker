@@ -984,23 +984,6 @@ def _ensure_workspace_plan_needs(
     if cache.get(sync_key):
         return False
     latest_need_update = need_state[2]
-    source_updates = tuple(filter(None, (
-        snapshot.created_at,
-        plan_state[1],
-        plan_state[3],
-        group_state[1],
-        binding_state[1],
-    )))
-    if (
-        need_state[0]
-        and latest_need_update is not None
-        and all(
-            updated_at < latest_need_update
-            for updated_at in source_updates
-        )
-    ):
-        cache.set(sync_key, True, timeout=3600)
-        return False
     plan_and_binding_updates = tuple(filter(None, (
         plan_state[1],
         plan_state[3],
