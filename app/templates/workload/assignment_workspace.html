@@ -2,12 +2,13 @@
 {% block title %}Распределение нагрузки{% endblock %}
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260810_5">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260814_1">
 {% endblock %}
 
 {% macro workspace_fields() %}
   <input type="hidden" name="version_id" value="{{ selected_version_id or '' }}">
   <input type="hidden" name="view" value="{{ view_mode }}">
+  <input type="hidden" name="presentation" value="{{ presentation_mode }}">
   <input type="hidden" name="department_id" value="{{ selected_department_id or '' }}">
   <input type="hidden" name="building_id" value="{{ selected_building_id or '' }}">
   {% for level in selected_education_levels %}
@@ -28,10 +29,20 @@
 <div class="page-head mb-3">
   <div>
     <div class="page-title">Распределение нагрузки</div>
-    <div class="page-sub">Одна матрица для учебного плана, внеурочной деятельности и дополнительного образования</div>
+    <div class="page-sub">{% if presentation_mode == 'list' %}Нагрузка каждого педагога по предметам, классам и группам{% else %}Одна матрица для учебного плана, внеурочной деятельности и дополнительного образования{% endif %}</div>
   </div>
   <div class="page-actions">
     {% if selected_version %}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Вид нагрузки">
+      <a
+        class="btn btn-outline-primary {% if presentation_mode == 'matrix' %}active{% endif %}"
+        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='matrix') }}"
+      ><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Матрица</a>
+      <a
+        class="btn btn-outline-primary {% if presentation_mode == 'list' %}active{% endif %}"
+        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='list') }}"
+      ><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Списком</a>
+    </div>
     <a
       class="btn btn-outline-secondary btn-sm"
       href="{{ url_for(
@@ -43,7 +54,8 @@
         education_level=selected_education_levels,
         grade=selected_grades,
         subject_id=selected_subject_ids,
-        teacher_query=selected_teacher_query
+        teacher_query=selected_teacher_query,
+        presentation=presentation_mode
       ) }}"
     >
       <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Скачать Excel
@@ -124,6 +136,7 @@
 
 <form class="workload-matrix-filterbar" method="get" data-workload-filterbar>
   <input type="hidden" name="view" value="{{ view_mode }}">
+  <input type="hidden" name="presentation" value="{{ presentation_mode }}">
   {% if view_mode != 'department' %}
   <input type="hidden" name="department_id" value="">
   {% endif %}
@@ -264,6 +277,9 @@
   </div>
 </form>
 
+{% if presentation_mode == 'list' %}
+  {% include "workload/_assignment_workspace_list.html" %}
+{% else %}
 <div class="workload-matrix-toolbar">
   <div class="workload-matrix-totals">
     <span>План <strong>{{ matrix.total_weekly|compact_decimal }}</strong></span>
@@ -789,6 +805,7 @@
     </div>
   </form>
 </dialog>
+{% endif %}
 {% endif %}
 
 <script>

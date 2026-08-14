@@ -76,8 +76,10 @@ from app.services.class_plan_matrix_service import (
     preload_class_plan_matrix_data,
 )
 from app.services.workload_assignment_matrix_service import (
+    LIST_PLAN_KIND_LABELS,
     PLAN_KIND_LABELS,
     PLAN_KIND_ORDER,
+    build_workload_assignment_list,
     build_workload_assignment_matrix,
     need_education_level,
     need_grades,
@@ -115,6 +117,7 @@ WORKSPACE_FILTER_FIELDS = (
     "grade",
     "subject_id",
     "teacher_query",
+    "presentation",
 )
 
 
@@ -879,12 +882,14 @@ def _workspace_need_group_coverage(version):
             group.valid_from,
             group.valid_to,
         )
-        if weekly > ZERO or annual > ZERO:
+        if weekly > ZERO:
             expected_group_ids.add(group.id)
             expected_hours_by_group[group.id] = (weekly, annual)
     current_needs = WorkloadNeed.query.filter(
             WorkloadNeed.tariff_version_id == version.id,
             WorkloadNeed.status != "CANCELLED",
+            WorkloadNeed.need_kind == "PLAN",
+            WorkloadNeed.teaching_group_id.isnot(None),
         ).all()
     current_group_ids = {
         item.teaching_group_id for item in current_needs
@@ -1000,7 +1005,7 @@ def _ensure_workspace_plan_needs(
         expected_group_ids, current_group_ids, hours_match = (
             _workspace_need_group_coverage(version)
         )
-        if expected_group_ids <= current_group_ids and hours_match:
+        if expected_group_ids == current_group_ids and hours_match:
             cache.set(sync_key, True, timeout=3600)
             return False
     created_groups = materialize_default_teaching_groups(
@@ -1016,7 +1021,7 @@ def _ensure_workspace_plan_needs(
     )
     if (
         not created_groups
-        and expected_group_ids <= current_group_ids
+        and expected_group_ids == current_group_ids
         and hours_match
     ):
         cache.set(sync_key, True, timeout=3600)
@@ -1124,6 +1129,158 @@ def _teacher_rows(assignments):
             "departments": departments,
         })
     return sorted(rows, key=lambda row: row["employee"].fio.lower())
+
+
+def _build_workload_list_workbook(workload_list, *, title):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Нагрузка списком"
+    sheet.sheet_view.showGridLines = False
+    columns = [
+        "№",
+        "Предмет",
+        "Класс",
+        "Часы",
+        "Группа / весь класс",
+        "Здание",
+    ]
+    header_fill = PatternFill("solid", fgColor="2F6FED")
+    section_fill = PatternFill("solid", fgColor="DCE8FA")
+    total_fill = PatternFill("solid", fgColor="EAF3EA")
+
+    sheet.append([title, "", "", "", "", ""])
+    sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+    sheet.cell(1, 1).font = Font(bold=True, size=14, color="FFFFFF")
+    sheet.cell(1, 1).fill = header_fill
+    sheet.row_dimensions[1].height = 24
+
+    for block in workload_list["blocks"]:
+        teacher_row = sheet.max_row + 2
+        sheet.cell(teacher_row, 1, block["label"])
+        sheet.merge_cells(
+            start_row=teacher_row,
+            start_column=1,
+            end_row=teacher_row,
+            end_column=6,
+        )
+        sheet.cell(teacher_row, 1).font = Font(
+            bold=True,
+            color="FFFFFF",
+        )
+        sheet.cell(teacher_row, 1).fill = header_fill
+        number = 1
+        for section in block["sections"]:
+            section_row = sheet.max_row + 1
+            sheet.cell(section_row, 1, section["label"])
+            sheet.merge_cells(
+                start_row=section_row,
+                start_column=1,
+                end_row=section_row,
+                end_column=6,
+            )
+            sheet.cell(section_row, 1).font = Font(bold=True)
+            sheet.cell(section_row, 1).fill = section_fill
+            sheet.append(columns)
+            for cell in sheet[sheet.max_row]:
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True,
+                )
+            for row in section["rows"]:
+                sheet.append([
+                    number,
+                    row["subject_name"],
+                    row["class_label"],
+                    float(row["hours"]),
+                    row["group_label"],
+                    row["building_label"],
+                ])
+                number += 1
+            total_row = sheet.max_row + 1
+            sheet.cell(total_row, 1, f"Итого: {section['label']}")
+            sheet.merge_cells(
+                start_row=total_row,
+                start_column=1,
+                end_row=total_row,
+                end_column=3,
+            )
+            sheet.cell(total_row, 4, float(section["total"]))
+            for cell in sheet[total_row]:
+                cell.font = Font(bold=True)
+                cell.fill = total_fill
+        total_row = sheet.max_row + 1
+        sheet.cell(total_row, 1, "Всего у преподавателя")
+        sheet.merge_cells(
+            start_row=total_row,
+            start_column=1,
+            end_row=total_row,
+            end_column=3,
+        )
+        sheet.cell(total_row, 4, float(block["total"]))
+        for cell in sheet[total_row]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = header_fill
+
+    summary_row = sheet.max_row + 2
+    sheet.cell(summary_row, 1, "Итоги по всей выборке")
+    sheet.merge_cells(
+        start_row=summary_row,
+        start_column=1,
+        end_row=summary_row,
+        end_column=6,
+    )
+    sheet.cell(summary_row, 1).font = Font(bold=True, color="FFFFFF")
+    sheet.cell(summary_row, 1).fill = header_fill
+    for plan_kind in sorted(
+        PLAN_KIND_ORDER,
+        key=lambda item: PLAN_KIND_ORDER[item],
+    ):
+        row_index = sheet.max_row + 1
+        sheet.cell(
+            row_index,
+            1,
+            LIST_PLAN_KIND_LABELS.get(plan_kind, plan_kind),
+        )
+        sheet.merge_cells(
+            start_row=row_index,
+            start_column=1,
+            end_row=row_index,
+            end_column=3,
+        )
+        sheet.cell(
+            row_index,
+            4,
+            float(workload_list["totals"].get(plan_kind, ZERO)),
+        )
+    grand_total_row = sheet.max_row + 1
+    sheet.cell(grand_total_row, 1, "Всего")
+    sheet.merge_cells(
+        start_row=grand_total_row,
+        start_column=1,
+        end_row=grand_total_row,
+        end_column=3,
+    )
+    sheet.cell(grand_total_row, 4, float(workload_list["total"]))
+    for cell in sheet[grand_total_row]:
+        cell.font = Font(bold=True)
+        cell.fill = total_fill
+
+    for row in sheet.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+    sheet.freeze_panes = "A2"
+    for column_letter, width in {
+        "A": 8,
+        "B": 34,
+        "C": 18,
+        "D": 12,
+        "E": 24,
+        "F": 28,
+    }.items():
+        sheet.column_dimensions[column_letter].width = width
+    return workbook
 
 
 def register_assignment_routes(workload_bp):
@@ -1416,6 +1573,12 @@ def register_assignment_routes(workload_bp):
         teacher_query = " ".join(
             (request.args.get("teacher_query") or "").split()
         )[:160]
+        presentation_mode = (
+            "list"
+            if (request.args.get("presentation") or "").strip().lower()
+            == "list"
+            else "matrix"
+        )
         if view_mode == "vacancies":
             teacher_query = ""
         fragment_holder_key = (
@@ -1432,6 +1595,8 @@ def register_assignment_routes(workload_bp):
             or not fragment_value.replace("_", "").isalnum()
         ):
             fragment_holder_key = ""
+        if fragment_holder_key:
+            presentation_mode = "matrix"
         versions = _draft_versions_query().all()
         version_id = request.args.get("version_id", type=int)
         if version_id is None and versions:
@@ -1787,6 +1952,20 @@ def register_assignment_routes(workload_bp):
                     f"vacancy:{vacancy['key']}",
                     vacancy["label"],
                 )
+        if presentation_mode == "list":
+            assigned_holder_keys = {
+                (
+                    f"vacancy:{assignment.position_code}"
+                    if assignment.assignment_kind == "VACANCY"
+                    else f"teacher:{assignment.employee_user_id}"
+                )
+                for assignment in assignments
+            }
+            holder_labels = {
+                key: label
+                for key, label in holder_labels.items()
+                if key in assigned_holder_keys
+            }
         filter_teacher_ids = {
             int(key.partition(":")[2])
             for key in holder_labels
@@ -1905,6 +2084,25 @@ def register_assignment_routes(workload_bp):
             matrix["teacher_count"] = len(matrix["blocks"])
         if not fragment_holder_key:
             matrix["teacher_count"] = holder_total_count
+        list_assignments = assignments
+        if view_mode == "vacancies":
+            list_assignments = [
+                assignment for assignment in assignments
+                if assignment.assignment_kind == "VACANCY"
+            ]
+        elif teacher_query:
+            list_assignments = [
+                assignment for assignment in assignments
+                if assignment.assignment_kind != "VACANCY"
+                and assignment.employee_user_id in matching_teacher_ids
+            ]
+        workload_list = build_workload_assignment_list(
+            list_assignments,
+            visible_holder_keys=page_holder_keys,
+        )
+        workload_list_summary = build_workload_assignment_list(
+            list_assignments
+        )
         departments, buildings = _scope_options()
         filter_classes = list(snapshot.classes) if snapshot else []
         workspace_scope = resolve_workload_scope(current_user)
@@ -1955,6 +2153,7 @@ def register_assignment_routes(workload_bp):
             selected_education_levels=sorted(education_levels),
             selected_grades=sorted(grades),
             selected_teacher_query=teacher_query,
+            presentation_mode=presentation_mode,
             selected_subject_ids=sorted(selected_subject_ids),
             subject_filter_options=_workspace_subject_filter_options(
                 selected_version
@@ -1969,6 +2168,9 @@ def register_assignment_routes(workload_bp):
                 holder_page_start + WORKSPACE_HOLDER_PAGE_SIZE,
                 holder_total_count,
             ),
+            workload_list=workload_list,
+            workload_list_summary=workload_list_summary,
+            list_plan_kind_labels=LIST_PLAN_KIND_LABELS,
             teacher_filter_options=[
                 item for item in employees if item.id in filter_teacher_ids
             ],
@@ -3105,6 +3307,12 @@ def register_assignment_routes(workload_bp):
         teacher_query = " ".join(
             (request.args.get("teacher_query") or "").split()
         )[:160]
+        presentation_mode = (
+            "list"
+            if (request.args.get("presentation") or "").strip().lower()
+            == "list"
+            else "matrix"
+        )
         if view_mode == "vacancies":
             teacher_query = ""
         snapshot, _, plan_matrices = _workspace_plan_context(
@@ -3143,6 +3351,7 @@ def register_assignment_routes(workload_bp):
         need_ids = [item.id for item in needs]
         assignments = (
             WorkloadAssignment.query
+            .options(joinedload(WorkloadAssignment.employee))
             .filter(
                 WorkloadAssignment.workload_need_id.in_(need_ids),
                 WorkloadAssignment.status != "CANCELLED",
@@ -3150,6 +3359,54 @@ def register_assignment_routes(workload_bp):
             .all()
             if need_ids else []
         )
+        needs_by_id = {item.id: item for item in needs}
+        for assignment in assignments:
+            set_committed_value(
+                assignment,
+                "workload_need",
+                needs_by_id[assignment.workload_need_id],
+            )
+        if presentation_mode == "list":
+            if view_mode == "vacancies":
+                assignments = [
+                    assignment for assignment in assignments
+                    if assignment.assignment_kind == "VACANCY"
+                ]
+            elif teacher_query:
+                matching_teacher_ids = {
+                    item.id
+                    for item in _active_employees()
+                    if teacher_query.casefold() in item.fio.casefold()
+                }
+                assignments = [
+                    assignment for assignment in assignments
+                    if assignment.assignment_kind != "VACANCY"
+                    and assignment.employee_user_id in matching_teacher_ids
+                ]
+            workload_list = build_workload_assignment_list(assignments)
+            workbook = _build_workload_list_workbook(
+                workload_list,
+                title=(
+                    "Нагрузка педагогов · "
+                    f"{version.tariff_cycle.academic_year.name}"
+                ),
+            )
+            stream = BytesIO()
+            workbook.save(stream)
+            stream.seek(0)
+            return send_file(
+                stream,
+                as_attachment=True,
+                download_name=(
+                    "Altair_workload_list_"
+                    f"{version.tariff_cycle.academic_year.name.replace('/', '-')}"
+                    ".xlsx"
+                ),
+                mimetype=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+            )
         matrix = build_workload_assignment_matrix(
             needs,
             assignments,
