@@ -67,6 +67,24 @@ def teaching_group_assignment_label(group):
             f"Метагруппа: {' + '.join(class_names)}"
             if class_names else group.name or "Метагруппа"
         )
+    if group.group_type in {
+        "EXTRACURRICULAR_GROUP",
+        "ADDITIONAL_GROUP",
+    }:
+        match = _SUBGROUP_NUMBER_RE.search(group.name or "")
+        if match:
+            return f"Группа {match.group(1)}"
+        source_links = getattr(group, "source_classes", None) or []
+        if (
+            len(source_links) == 1
+            and getattr(source_links[0], "relation_kind", None) == "FULL"
+        ):
+            return "Весь класс"
+        class_names = teaching_group_class_names(group)
+        return (
+            f"Группа: {' + '.join(class_names)}"
+            if len(class_names) > 1 else "Группа"
+        )
     if group.group_type == "INDIVIDUAL":
         return "Индивидуально"
     return group.name or "Учебная группа"

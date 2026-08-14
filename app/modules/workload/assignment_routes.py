@@ -301,7 +301,7 @@ def _scope_options():
     return departments, buildings
 
 
-def _workspace_redirect():
+def _workspace_redirect(**overrides):
     values = {}
     for field in WORKSPACE_FILTER_FIELDS:
         field_values = [
@@ -315,6 +315,7 @@ def _workspace_redirect():
                 if field in {"education_level", "grade", "subject_id"}
                 else field_values[-1]
             )
+    values.update(overrides)
     return redirect(url_for("workload.assignment_workspace", **values))
 
 
@@ -2633,12 +2634,23 @@ def register_assignment_routes(workload_bp):
             "Часы можно назначить в ячейках новой строки.",
             "success",
         )
-        return _workspace_redirect()
+        return _workspace_redirect(
+            teacher_query=target_teacher.fio,
+            focus_holder=f"teacher:{target_teacher.id}",
+        )
 
     @workload_bp.post("/assignments/workspace/subjects/delete")
     @login_required
     def assignment_workspace_subject_delete():
         _require_assignments_update()
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+        def fail(message):
+            if is_ajax:
+                return jsonify({"ok": False, "message": message}), 422
+            flash(message, "danger")
+            return _workspace_redirect()
+
         version_id = request.form.get("version_id", type=int)
         holder_type = (
             request.form.get("holder_type") or "teacher"
@@ -2665,8 +2677,7 @@ def register_assignment_routes(workload_bp):
             or (holder_type == "teacher" and teacher_id is None)
             or (holder_type == "vacancy" and not vacancy_key)
         ):
-            flash("Строка предмета не найдена.", "danger")
-            return _workspace_redirect()
+            return fail("Строка предмета не найдена.")
 
         needs = [
             need
@@ -2733,17 +2744,28 @@ def register_assignment_routes(workload_bp):
             db.session.commit()
         except WorkloadDistributionError as exc:
             db.session.rollback()
-            flash(str(exc), "danger")
+            return fail(str(exc))
         else:
             _save_workspace_state(key, state)
+            holder_key = (
+                f"vacancy:{vacancy_key}"
+                if holder_type == "vacancy"
+                else f"teacher:{teacher_id}"
+            )
             if assignments or removed_draft_rows:
-                flash(
+                message = (
                     f"{activity.name}: строка удалена, "
-                    f"освобождено назначений — {len(assignments)}.",
-                    "success",
+                    f"освобождено назначений — {len(assignments)}."
                 )
             else:
-                flash("Строка предмета уже удалена.", "info")
+                message = "Строка предмета уже удалена."
+            if is_ajax:
+                return jsonify({
+                    "ok": True,
+                    "holder_key": holder_key,
+                    "message": message,
+                })
+            flash(message, "success" if assignments or removed_draft_rows else "info")
         return _workspace_redirect()
 
     @workload_bp.post("/assignments/workspace/holders/delete")
