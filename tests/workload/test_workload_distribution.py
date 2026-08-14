@@ -1202,6 +1202,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert add_teacher.get_json() == {
         "ok": True,
         "holder_key": f"teacher:{teacher_id}",
+        "teacher_id": teacher_id,
         "teacher_name": teacher_name,
     }
     empty_holder_fragment = client.get(
@@ -1272,6 +1273,12 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
         1,
     )[0]
     assert 'name="vacancy_note"' not in teacher_dialog_html
+    assert "data-teacher-picker-search" in teacher_dialog_html
+    assert "Введите фамилию или её часть" in teacher_dialog_html
+    assert f'data-teacher-id="{teacher_id}"' not in teacher_dialog_html
+    assert f'data-teacher-id="{unused_teacher_id}"' in teacher_dialog_html
+    assert "normalizeTeacherSearch(option.dataset.search).includes(query)" in html
+    assert "removeTeacherPickerOption(payload.teacher_id)" in html
 
     holder_fragment = client.get(
         "/workload/assignments/workspace",
@@ -1557,6 +1564,7 @@ def test_workspace_can_delete_entire_teacher_row(
     ).get_data(as_text=True)
     assert f'data-source-teacher-id="{teacher_id}"' in before
     assert "/workload/assignments/workspace/holders/delete" in before
+    assert "data-workload-async-holder-delete" in before
 
     deleted = client.post(
         "/workload/assignments/workspace/holders/delete",
@@ -1565,12 +1573,29 @@ def test_workspace_can_delete_entire_teacher_row(
             "holder_type": "teacher",
             "teacher_id": str(teacher_id),
         },
-        follow_redirects=True,
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    deleted_html = deleted.get_data(as_text=True)
     assert deleted.status_code == 200
-    assert "строка удалена" in deleted_html
+    payload = deleted.get_json()
+    assert payload["ok"] is True
+    assert payload["holder_key"] == f"teacher:{teacher_id}"
+    assert payload["released_weekly_hours"] == 5.0
+    assert payload["teacher"] == {
+        "id": teacher_id,
+        "name": "Удаляемов Полностью",
+    }
+    assert "строка удалена" in payload["message"]
+
+    deleted_html = client.get(
+        "/workload/assignments/workspace",
+        query_string=filters,
+    ).get_data(as_text=True)
     assert f'data-source-teacher-id="{teacher_id}"' not in deleted_html
+    teacher_dialog_html = deleted_html.split(
+        'data-teacher-dialog',
+        1,
+    )[1].split('data-vacancy-dialog', 1)[0]
+    assert f'data-teacher-id="{teacher_id}"' in teacher_dialog_html
 
     with app.app_context():
         assignment = WorkloadAssignment.query.one()

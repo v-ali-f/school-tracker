@@ -499,7 +499,8 @@
             <form
               method="post"
               action="{{ url_for('workload.assignment_workspace_holder_delete') }}"
-              onsubmit="return confirm('Удалить всю строку преподавателя? Все назначенные ему часы в текущем отображении снова станут доступными.');"
+              data-workload-async-holder-delete
+              data-confirm="Удалить всю строку преподавателя? Все назначенные ему часы в текущем отображении снова станут доступными."
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               {{ workspace_fields() }}
@@ -694,21 +695,37 @@
       </button>
     </div>
     <label for="matrix-teacher">Преподаватель</label>
-    <select class="form-select" id="matrix-teacher" name="teacher_id" required>
-      <option value="">Выберите сотрудника</option>
+    <div class="workload-teacher-picker" data-teacher-picker>
+      <input type="hidden" name="teacher_id" value="" data-teacher-picker-value>
+      <input
+        class="form-control"
+        id="matrix-teacher"
+        type="search"
+        placeholder="Введите фамилию или её часть"
+        autocomplete="off"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded="false"
+        aria-controls="matrix-teacher-results"
+        required
+        data-teacher-picker-search
+      >
+      <div class="workload-teacher-picker__results" id="matrix-teacher-results" role="listbox" hidden data-teacher-picker-results>
       {% if teacher_choices.suggested %}
-      <optgroup label="Преподаватели кафедры">
         {% for item in teacher_choices.suggested %}
-        <option value="{{ item.id }}">{{ item.fio }}</option>
+        <button type="button" role="option" data-teacher-picker-option data-teacher-id="{{ item.id }}" data-search="{{ item.fio|lower }}">
+          <span>{{ item.fio }}</span><small>Преподаватель кафедры</small>
+        </button>
         {% endfor %}
-      </optgroup>
       {% endif %}
-      <optgroup label="Другие сотрудники">
         {% for item in teacher_choices.other %}
-        <option value="{{ item.id }}">{{ item.fio }}</option>
+        <button type="button" role="option" data-teacher-picker-option data-teacher-id="{{ item.id }}" data-search="{{ item.fio|lower }}">
+          <span>{{ item.fio }}</span><small>Другой сотрудник</small>
+        </button>
         {% endfor %}
-      </optgroup>
-    </select>
+        <div class="workload-teacher-picker__empty" data-teacher-picker-empty hidden>Совпадений не найдено</div>
+      </div>
+    </div>
     <div class="workload-teacher-dialog__actions">
       <button class="btn btn-outline-secondary" type="button" data-close-teacher-dialog>Отмена</button>
       <button class="btn btn-outline-primary" type="button" data-open-vacancy-dialog><i class="bi bi-briefcase me-1" aria-hidden="true"></i>Добавить вакансию</button>
@@ -1024,12 +1041,95 @@
   });
 
   const teacherDialog = document.querySelector("[data-teacher-dialog]");
+  const teacherPicker = teacherDialog?.querySelector("[data-teacher-picker]");
+  const teacherPickerSearch = teacherPicker?.querySelector("[data-teacher-picker-search]");
+  const teacherPickerValue = teacherPicker?.querySelector("[data-teacher-picker-value]");
+  const teacherPickerResults = teacherPicker?.querySelector("[data-teacher-picker-results]");
+  const teacherPickerEmpty = teacherPicker?.querySelector("[data-teacher-picker-empty]");
+  const normalizeTeacherSearch = (value) => (value || "")
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .trim();
+  const teacherPickerOptions = () => Array.from(
+    teacherPickerResults?.querySelectorAll("[data-teacher-picker-option]") || []
+  );
+  const renderTeacherPicker = () => {
+    if (!teacherPickerResults || !teacherPickerSearch) return;
+    const query = normalizeTeacherSearch(teacherPickerSearch.value);
+    let visibleCount = 0;
+    teacherPickerOptions().forEach((option) => {
+      const matches = (
+        (!query || normalizeTeacherSearch(option.dataset.search).includes(query))
+        && visibleCount < 30
+      );
+      option.hidden = !matches;
+      if (matches) visibleCount += 1;
+    });
+    if (teacherPickerEmpty) teacherPickerEmpty.hidden = visibleCount > 0;
+    teacherPickerResults.hidden = false;
+    teacherPickerSearch.setAttribute("aria-expanded", "true");
+  };
+  const closeTeacherPicker = () => {
+    if (!teacherPickerResults || !teacherPickerSearch) return;
+    teacherPickerResults.hidden = true;
+    teacherPickerSearch.setAttribute("aria-expanded", "false");
+  };
+  const selectTeacherPickerOption = (option) => {
+    if (!teacherPickerSearch || !teacherPickerValue) return;
+    teacherPickerValue.value = option.dataset.teacherId || "";
+    teacherPickerSearch.value = option.querySelector("span")?.textContent?.trim() || "";
+    teacherPickerSearch.setCustomValidity("");
+    closeTeacherPicker();
+  };
+  const removeTeacherPickerOption = (teacherId) => {
+    if (!teacherId) return;
+    teacherPickerResults
+      ?.querySelector(`[data-teacher-id="${teacherId}"]`)
+      ?.remove();
+  };
+  const addTeacherPickerOption = (teacher) => {
+    if (
+      !teacherPickerResults
+      || !teacher?.id
+      || !teacher?.name
+      || teacherPickerResults.querySelector(`[data-teacher-id="${teacher.id}"]`)
+    ) return;
+    const option = document.createElement("button");
+    option.type = "button";
+    option.setAttribute("role", "option");
+    option.dataset.teacherPickerOption = "";
+    option.dataset.teacherId = String(teacher.id);
+    option.dataset.search = normalizeTeacherSearch(teacher.name);
+    const label = document.createElement("span");
+    label.textContent = teacher.name;
+    const note = document.createElement("small");
+    note.textContent = "Доступен для добавления";
+    option.append(label, note);
+    teacherPickerResults.prepend(option);
+  };
+  teacherPickerSearch?.addEventListener("focus", renderTeacherPicker);
+  teacherPickerSearch?.addEventListener("input", () => {
+    if (teacherPickerValue) teacherPickerValue.value = "";
+    teacherPickerSearch.setCustomValidity("");
+    renderTeacherPicker();
+  });
+  teacherPickerResults?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-teacher-picker-option]");
+    if (option) selectTeacherPickerOption(option);
+  });
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-open-teacher-dialog]")) {
       teacherDialog?.showModal();
+      window.requestAnimationFrame(() => {
+        teacherPickerSearch?.focus();
+        renderTeacherPicker();
+      });
     }
     if (event.target.closest("[data-close-teacher-dialog]")) {
       teacherDialog?.close();
+    }
+    if (teacherPicker && !teacherPicker.contains(event.target)) {
+      closeTeacherPicker();
     }
   });
   teacherDialog?.addEventListener("click", (event) => {
@@ -1423,6 +1523,45 @@
     }
   });
 
+  document.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-workload-async-holder-delete]");
+    if (!form) return;
+    event.preventDefault();
+    if (!window.confirm(form.dataset.confirm || "Удалить строку преподавателя?")) return;
+    form.setAttribute("aria-busy", "true");
+    form.querySelectorAll("button").forEach((button) => button.disabled = true);
+    try {
+      const payload = await responsePayload(await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+      }));
+      if (payload.teacher) addTeacherPickerOption(payload.teacher);
+      const targetUrl = new URL(window.location.href);
+      const teacherQuery = document.querySelector(
+        "[data-workload-filterbar] [name=\"teacher_query\"]"
+      );
+      const queryMatchesDeletedTeacher = (
+        teacherQuery
+        && normalizeTeacherSearch(teacherQuery.value)
+          === normalizeTeacherSearch(payload.holder_name)
+      );
+      if (queryMatchesDeletedTeacher) {
+        teacherQuery.value = "";
+        targetUrl.searchParams.delete("teacher_query");
+        targetUrl.searchParams.delete("holder_page");
+      }
+      await loadHolderPage(targetUrl, {pushHistory: queryMatchesDeletedTeacher});
+      const releasedHours = Number(payload.released_weekly_hours || 0);
+      adjustTotal("[data-workload-total-allocated]", -releasedHours);
+      adjustTotal("[data-workload-total-remaining]", releasedHours);
+    } catch (error) {
+      window.alert(error.message);
+      form.removeAttribute("aria-busy");
+      form.querySelectorAll("button").forEach((button) => button.disabled = false);
+    }
+  });
+
   teacherDialog?.querySelector("[data-workload-async-add]")?.addEventListener(
     "submit",
     async (event) => {
@@ -1431,6 +1570,12 @@
       const submitter = event.submitter;
       const formData = new FormData(form);
       if (submitter?.name) formData.set(submitter.name, submitter.value);
+      if (!teacherPickerValue?.value) {
+        teacherPickerSearch?.setCustomValidity("Выберите преподавателя из найденных вариантов.");
+        teacherPickerSearch?.reportValidity();
+        renderTeacherPicker();
+        return;
+      }
       form.setAttribute("aria-busy", "true");
       form.querySelectorAll("button").forEach((button) => button.disabled = true);
       try {
@@ -1439,6 +1584,7 @@
           body: formData,
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
         }));
+        removeTeacherPickerOption(payload.teacher_id);
         teacherDialog.close();
         form.reset();
         if (payload.teacher_name && payload.holder_key) {
