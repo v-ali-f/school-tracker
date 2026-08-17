@@ -476,10 +476,16 @@ def test_workspace_hides_needs_from_plan_no_longer_bound_to_class():
 def test_department_membership_uses_only_curriculum_then_keeps_full_load():
     department_id = 7
 
-    def need(need_id, plan_kind, linked_department_id):
+    def need(
+        need_id,
+        plan_kind,
+        linked_department_id,
+        activity_name="Обычный предмет",
+    ):
         plan = SimpleNamespace(plan_kind=plan_kind, root_plan=None)
         line = SimpleNamespace(education_plan=plan)
         activity = SimpleNamespace(
+            name=activity_name,
             department_links=[SimpleNamespace(
                 department_id=linked_department_id,
                 is_active=True,
@@ -496,6 +502,12 @@ def test_department_membership_uses_only_curriculum_then_keeps_full_load():
     other_department_need = need(2, "CURRICULUM", 8)
     extracurricular_need = need(3, "EXTRACURRICULAR", department_id)
     additional_need = need(4, "ADDITIONAL_EDUCATION", department_id)
+    individual_project_need = need(
+        5,
+        "CURRICULUM",
+        department_id,
+        "Индивидуальный проект",
+    )
     assignments = [
         SimpleNamespace(
             workload_need_id=1,
@@ -521,6 +533,12 @@ def test_department_membership_uses_only_curriculum_then_keeps_full_load():
             employee_user_id=103,
             position_code="TEACHER",
         ),
+        SimpleNamespace(
+            workload_need_id=5,
+            assignment_kind="MAIN",
+            employee_user_id=104,
+            position_code="TEACHER",
+        ),
     ]
     needs_by_id = {
         item.id: item
@@ -529,6 +547,7 @@ def test_department_membership_uses_only_curriculum_then_keeps_full_load():
             other_department_need,
             extracurricular_need,
             additional_need,
+            individual_project_need,
         )
     }
 
@@ -549,10 +568,17 @@ def test_department_membership_uses_only_curriculum_then_keeps_full_load():
 
 def test_draft_department_membership_ignores_non_curriculum_rows():
     department_id = 7
-    activity = SimpleNamespace(department_links=[SimpleNamespace(
-        department_id=department_id,
-        is_active=True,
-    )])
+    activity = SimpleNamespace(
+        name="Обычный предмет",
+        department_links=[SimpleNamespace(
+            department_id=department_id,
+            is_active=True,
+        )],
+    )
+    individual_project = SimpleNamespace(
+        name="Индивидуальный проект",
+        department_links=activity.department_links,
+    )
     rows = [
         {
             "holder_type": "teacher",
@@ -572,11 +598,17 @@ def test_draft_department_membership_ignores_non_curriculum_rows():
             "activity_id": 1,
             "plan_kind": "ADDITIONAL_EDUCATION",
         },
+        {
+            "holder_type": "teacher",
+            "teacher_id": 104,
+            "activity_id": 2,
+            "plan_kind": "CURRICULUM",
+        },
     ]
 
     assert _workspace_state_department_holder_keys(
         rows,
-        {1: activity},
+        {1: activity, 2: individual_project},
         department_id,
     ) == {"teacher:101"}
 
@@ -1290,6 +1322,7 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
     matching_teacher_id = make_user("TEACHER")
     extracurricular_only_teacher_id = make_user("TEACHER")
     additional_only_teacher_id = make_user("TEACHER")
+    project_only_teacher_id = make_user("TEACHER")
 
     with app.app_context():
         context = _distribution_context(admin_id)
@@ -1322,6 +1355,9 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
         )
         additional_only_teacher.last_name = "Дополнительный"
         additional_only_teacher.first_name = "Только"
+        project_only_teacher = db.session.get(User, project_only_teacher_id)
+        project_only_teacher.last_name = "Проектный"
+        project_only_teacher.first_name = "Только"
 
         def add_need(
             code,
@@ -1440,6 +1476,14 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
             math_department,
             "ADDITIONAL",
         )
+        individual_project_need = add_need(
+            "INDIVIDUAL-PROJECT-DEPARTMENT-FILTER",
+            "Индивидуальный проект",
+            "CURRICULUM",
+            "CLASS",
+            math_department,
+            "MANDATORY",
+        )
         math_need = WorkloadNeed.query.filter_by(
             education_activity_id=(
                 EducationActivity.query.filter_by(
@@ -1472,6 +1516,11 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
         assign(extracurricular_need, matching_teacher_id, math_department)
         assign(additional_need, matching_teacher_id, math_department)
         assign(
+            individual_project_need,
+            matching_teacher_id,
+            math_department,
+        )
+        assign(
             extracurricular_need,
             extracurricular_only_teacher_id,
             math_department,
@@ -1479,6 +1528,11 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
         assign(
             additional_need,
             additional_only_teacher_id,
+            math_department,
+        )
+        assign(
+            individual_project_need,
+            project_only_teacher_id,
             math_department,
         )
         db.session.commit()
@@ -1500,8 +1554,10 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
     assert "Литература другой кафедры" in html
     assert "Общий внеурочный курс" in html
     assert "Общий дополнительный курс" in html
+    assert "Индивидуальный проект" in html
     assert "Внеурочный" not in html
     assert "Дополнительный" not in html
+    assert "Проектный" not in html
 
 
 def test_generate_from_workspace_returns_to_matrix(
