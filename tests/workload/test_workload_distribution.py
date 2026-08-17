@@ -10,6 +10,8 @@ from werkzeug.datastructures import MultiDict
 
 from app.core.extensions import db
 from app.modules.workload.assignment_routes import (
+    _workspace_department_holder_keys,
+    _workspace_state_department_holder_keys,
     _workspace_teacher_metadata,
     _workspace_selected_subject_ids,
 )
@@ -469,6 +471,114 @@ def test_workspace_hides_needs_from_plan_no_longer_bound_to_class():
         population_snapshot_id=20,
         bound_plan_ids_by_class={101: {302}},
     ) == []
+
+
+def test_department_membership_uses_only_curriculum_then_keeps_full_load():
+    department_id = 7
+
+    def need(need_id, plan_kind, linked_department_id):
+        plan = SimpleNamespace(plan_kind=plan_kind, root_plan=None)
+        line = SimpleNamespace(education_plan=plan)
+        activity = SimpleNamespace(
+            department_links=[SimpleNamespace(
+                department_id=linked_department_id,
+                is_active=True,
+            )],
+        )
+        return SimpleNamespace(
+            id=need_id,
+            department_id=None,
+            education_activity=activity,
+            teaching_group=SimpleNamespace(source_plan_line=line),
+        )
+
+    curriculum_need = need(1, "CURRICULUM", department_id)
+    other_department_need = need(2, "CURRICULUM", 8)
+    extracurricular_need = need(3, "EXTRACURRICULAR", department_id)
+    additional_need = need(4, "ADDITIONAL_EDUCATION", department_id)
+    assignments = [
+        SimpleNamespace(
+            workload_need_id=1,
+            assignment_kind="MAIN",
+            employee_user_id=101,
+            position_code="TEACHER",
+        ),
+        SimpleNamespace(
+            workload_need_id=2,
+            assignment_kind="MAIN",
+            employee_user_id=101,
+            position_code="TEACHER",
+        ),
+        SimpleNamespace(
+            workload_need_id=3,
+            assignment_kind="MAIN",
+            employee_user_id=102,
+            position_code="TEACHER",
+        ),
+        SimpleNamespace(
+            workload_need_id=4,
+            assignment_kind="MAIN",
+            employee_user_id=103,
+            position_code="TEACHER",
+        ),
+    ]
+    needs_by_id = {
+        item.id: item
+        for item in (
+            curriculum_need,
+            other_department_need,
+            extracurricular_need,
+            additional_need,
+        )
+    }
+
+    holder_keys = _workspace_department_holder_keys(
+        assignments,
+        needs_by_id,
+        department_id,
+    )
+    visible_assignments = [
+        assignment
+        for assignment in assignments
+        if f"teacher:{assignment.employee_user_id}" in holder_keys
+    ]
+
+    assert holder_keys == {"teacher:101"}
+    assert [item.workload_need_id for item in visible_assignments] == [1, 2]
+
+
+def test_draft_department_membership_ignores_non_curriculum_rows():
+    department_id = 7
+    activity = SimpleNamespace(department_links=[SimpleNamespace(
+        department_id=department_id,
+        is_active=True,
+    )])
+    rows = [
+        {
+            "holder_type": "teacher",
+            "teacher_id": 101,
+            "activity_id": 1,
+            "plan_kind": "CURRICULUM",
+        },
+        {
+            "holder_type": "teacher",
+            "teacher_id": 102,
+            "activity_id": 1,
+            "plan_kind": "EXTRACURRICULAR",
+        },
+        {
+            "holder_type": "teacher",
+            "teacher_id": 103,
+            "activity_id": 1,
+            "plan_kind": "ADDITIONAL_EDUCATION",
+        },
+    ]
+
+    assert _workspace_state_department_holder_keys(
+        rows,
+        {1: activity},
+        department_id,
+    ) == {"teacher:101"}
 
 
 def test_workspace_merges_non_profile_plan_columns_and_keeps_global_totals():
@@ -1166,6 +1276,232 @@ def test_assignment_workspace_hides_unassigned_pseudo_teacher(
     assert "Неназначенные часы" in html
     assert "Математика" in html
     assert "Учебный план" in html
+
+
+def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = False
+    admin_id = make_user("ADMIN")
+    matching_teacher_id = make_user("TEACHER")
+    extracurricular_only_teacher_id = make_user("TEACHER")
+    additional_only_teacher_id = make_user("TEACHER")
+
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        version = db.session.get(TariffVersion, context["version_id"])
+        building = db.session.get(Building, context["building_id"])
+        math_department = db.session.get(
+            Department,
+            context["department_id"],
+        )
+        language_department = Department(
+            name="Кафедра словесности",
+            code="language-department-filter",
+        )
+        db.session.add(language_department)
+        db.session.flush()
+
+        matching_teacher = db.session.get(User, matching_teacher_id)
+        matching_teacher.last_name = "Кафедральный"
+        matching_teacher.first_name = "Подходящий"
+        extracurricular_only_teacher = db.session.get(
+            User,
+            extracurricular_only_teacher_id,
+        )
+        extracurricular_only_teacher.last_name = "Внеурочный"
+        extracurricular_only_teacher.first_name = "Только"
+        additional_only_teacher = db.session.get(
+            User,
+            additional_only_teacher_id,
+        )
+        additional_only_teacher.last_name = "Дополнительный"
+        additional_only_teacher.first_name = "Только"
+
+        def add_need(
+            code,
+            name,
+            plan_kind,
+            group_type,
+            department,
+            component_kind,
+        ):
+            activity = EducationActivity(
+                code=code,
+                name=name,
+                activity_kind="COURSE",
+                is_global=True,
+                is_tariffable=True,
+                is_active=True,
+            )
+            db.session.add(activity)
+            db.session.flush()
+            db.session.add(EducationActivityDepartment(
+                education_activity_id=activity.id,
+                department_id=department.id,
+                is_primary=True,
+                is_active=True,
+            ))
+            plan = EducationPlan(
+                tariff_version_id=version.id,
+                root_plan_id=(
+                    context["plan_id"]
+                    if plan_kind != "CURRICULUM" else None
+                ),
+                plan_kind=plan_kind,
+                name=f"{name} — план",
+                education_level="OOO",
+                building_id=building.id,
+                scope_code=f"TEST-{code}",
+                status="DRAFT",
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            )
+            db.session.add(plan)
+            db.session.flush()
+            line = EducationPlanLine(
+                education_plan_id=plan.id,
+                education_activity_id=activity.id,
+                component_kind=component_kind,
+                weekly_hours=Decimal("1"),
+                weeks_count=Decimal("34"),
+                annual_hours=Decimal("34"),
+                requires_division=False,
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            )
+            db.session.add(line)
+            db.session.flush()
+            group = TeachingGroup(
+                tariff_version_id=version.id,
+                education_activity_id=activity.id,
+                group_type=group_type,
+                code=f"GROUP-{code}",
+                name=f"Группа {name}",
+                composition_mode="COUNT_ONLY",
+                building_id=building.id,
+                department_id=department.id,
+                planned_size=10,
+                actual_size=10,
+                valid_from=date(2026, 9, 1),
+                valid_to=date(2027, 5, 31),
+                source_plan_line_id=line.id,
+                status="READY",
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            )
+            db.session.add(group)
+            db.session.flush()
+            need = WorkloadNeed(
+                tariff_version_id=version.id,
+                teaching_group_id=group.id,
+                education_activity_id=activity.id,
+                department_id=department.id,
+                building_id=building.id,
+                date_from=date(2026, 9, 1),
+                date_to=date(2027, 5, 31),
+                weekly_hours=Decimal("1"),
+                annual_hours=Decimal("34"),
+                need_kind="PLAN",
+                status="COVERED",
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            )
+            db.session.add(need)
+            db.session.flush()
+            return need
+
+        language_need = add_need(
+            "LANGUAGE-FULL-LOAD",
+            "Литература другой кафедры",
+            "CURRICULUM",
+            "CLASS",
+            language_department,
+            "MANDATORY",
+        )
+        extracurricular_need = add_need(
+            "EXTRA-DEPARTMENT-FILTER",
+            "Общий внеурочный курс",
+            "EXTRACURRICULAR",
+            "EXTRACURRICULAR_GROUP",
+            math_department,
+            "EXTRACURRICULAR",
+        )
+        additional_need = add_need(
+            "ADDITIONAL-DEPARTMENT-FILTER",
+            "Общий дополнительный курс",
+            "ADDITIONAL_EDUCATION",
+            "ADDITIONAL_GROUP",
+            math_department,
+            "ADDITIONAL",
+        )
+        math_need = WorkloadNeed.query.filter_by(
+            education_activity_id=(
+                EducationActivity.query.filter_by(
+                    code="MATH-DISTRIBUTION"
+                ).one().id
+            )
+        ).one()
+        math_need.status = "COVERED"
+
+        def assign(need, teacher_id, department):
+            db.session.add(WorkloadAssignment(
+                tariff_version_id=version.id,
+                workload_need_id=need.id,
+                employee_user_id=teacher_id,
+                position_code="TEACHER",
+                department_id=department.id,
+                building_id=building.id,
+                assignment_kind="MAIN",
+                date_from=need.date_from,
+                date_to=need.date_to,
+                weekly_hours=need.weekly_hours,
+                annual_hours=need.annual_hours,
+                status="DRAFT",
+                created_by_user_id=admin_id,
+                updated_by_user_id=admin_id,
+            ))
+
+        assign(math_need, matching_teacher_id, math_department)
+        assign(language_need, matching_teacher_id, language_department)
+        assign(extracurricular_need, matching_teacher_id, math_department)
+        assign(additional_need, matching_teacher_id, math_department)
+        assign(
+            extracurricular_need,
+            extracurricular_only_teacher_id,
+            math_department,
+        )
+        assign(
+            additional_need,
+            additional_only_teacher_id,
+            math_department,
+        )
+        db.session.commit()
+
+    login(admin_id)
+    response = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            "version_id": context["version_id"],
+            "view": "department",
+            "department_id": context["department_id"],
+            "presentation": "list",
+        },
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Кафедральный" in html
+    assert "Литература другой кафедры" in html
+    assert "Общий внеурочный курс" in html
+    assert "Общий дополнительный курс" in html
+    assert "Внеурочный" not in html
+    assert "Дополнительный" not in html
 
 
 def test_generate_from_workspace_returns_to_matrix(
