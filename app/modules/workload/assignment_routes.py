@@ -689,6 +689,61 @@ def _workspace_assignment_holder_key(assignment):
     return f"teacher:{assignment.employee_user_id}"
 
 
+def _workspace_department_holder_keys(
+    assignments,
+    needs_by_id,
+    department_id,
+):
+    """Return holders belonging to a department by curriculum workload.
+
+    Extracurricular and additional-education rows are intentionally ignored
+    when department membership is established.  Once a holder qualifies, the
+    workspace can display all of that holder's workload.
+    """
+    if not department_id:
+        return None
+    holder_keys = set()
+    for assignment in assignments:
+        need = needs_by_id.get(assignment.workload_need_id)
+        if (
+            need is None
+            or need_plan_kind(need) != "CURRICULUM"
+            or not need_matches_department(need, department_id)
+        ):
+            continue
+        holder_keys.add(_workspace_assignment_holder_key(assignment))
+    return holder_keys
+
+
+def _workspace_state_department_holder_keys(
+    rows,
+    activities_by_id,
+    department_id,
+):
+    """Apply the same department rule to unsaved workspace holder rows."""
+    if not department_id:
+        return set()
+    holder_keys = set()
+    for row in rows:
+        if row.get("plan_kind") != "CURRICULUM":
+            continue
+        activity = activities_by_id.get(row.get("activity_id"))
+        if activity is None or not any(
+            link.is_active and link.department_id == department_id
+            for link in activity.department_links
+        ):
+            continue
+        if row.get("holder_type", "teacher") == "teacher":
+            teacher_id = row.get("teacher_id")
+            if teacher_id is not None:
+                holder_keys.add(f"teacher:{teacher_id}")
+        elif row.get("holder_type") == "vacancy":
+            vacancy_key = row.get("vacancy_key")
+            if vacancy_key:
+                holder_keys.add(f"vacancy:{vacancy_key}")
+    return holder_keys
+
+
 def _workspace_assignment_holder_label(assignment):
     if assignment.assignment_kind == "VACANCY":
         return assignment.position_title or "Вакансия"
@@ -1812,7 +1867,10 @@ def register_assignment_routes(workload_bp):
                 effective_subject_ids.intersection(fragment_activity_ids)
                 if effective_subject_ids else fragment_activity_ids
             )
-        if effective_subject_ids:
+        # Department view first determines holder membership from every
+        # curriculum assignment in the version.  Subject filtering is applied
+        # only afterwards to the displayed workload.
+        if effective_subject_ids and department_id is None:
             query = query.filter(
                 WorkloadNeed.education_activity_id.in_(
                     effective_subject_ids
@@ -1832,13 +1890,14 @@ def register_assignment_routes(workload_bp):
                 )
                 if visible_group_ids else query.filter(db.false())
             )
-        needs = query.order_by(
+        version_needs = query.order_by(
             WorkloadNeed.status.asc(),
             WorkloadNeed.education_activity_id.asc(),
         ).all()
+        version_needs_by_id = {item.id: item for item in version_needs}
         needs = _filter_workspace_needs(
-            needs,
-            department_id=department_id,
+            version_needs,
+            department_id=None,
             building_id=building_id,
             education_levels=education_levels,
             grades=grades,
@@ -1887,12 +1946,71 @@ def register_assignment_routes(workload_bp):
             all_assignments_query.all()
             if selected_version is not None else []
         )
+        activities = {
+            item.id: item
+            for item in EducationActivity.query.options(
+                selectinload(EducationActivity.department_links)
+            ).filter(
+                EducationActivity.id.in_({
+                    row.get("activity_id")
+                    for row in state["rows"]
+                    if row.get("activity_id")
+                })
+            ).all()
+        } if state["rows"] else {}
+        department_holder_keys = _workspace_department_holder_keys(
+            all_assignments,
+            version_needs_by_id,
+            department_id,
+        )
+        if department_holder_keys is not None:
+            department_holder_keys.update(
+                _workspace_state_department_holder_keys(
+                    state["rows"],
+                    activities,
+                    department_id,
+                )
+            )
+            persisted_holder_keys = {
+                _workspace_assignment_holder_key(assignment)
+                for assignment in all_assignments
+            }
+            draft_holder_keys = {
+                (
+                    f"vacancy:{row.get('vacancy_key')}"
+                    if row.get("holder_type") == "vacancy"
+                    else f"teacher:{row.get('teacher_id')}"
+                )
+                for row in state["rows"]
+            }
+            # Keep a just-added empty holder visible long enough to choose its
+            # first curriculum subject.  Holders that already have persisted
+            # or draft rows must satisfy the curriculum membership rule.
+            department_holder_keys.update(
+                f"teacher:{teacher_id}"
+                for teacher_id in state["teacher_ids"]
+                if f"teacher:{teacher_id}" not in persisted_holder_keys
+                and f"teacher:{teacher_id}" not in draft_holder_keys
+            )
+            department_holder_keys.update(
+                f"vacancy:{vacancy['key']}"
+                for vacancy in state["vacancies"]
+                if vacancy.get("key")
+                and f"vacancy:{vacancy['key']}"
+                not in persisted_holder_keys
+                and f"vacancy:{vacancy['key']}" not in draft_holder_keys
+            )
         need_ids = {item.id for item in needs}
         needs_by_id = {item.id: item for item in needs}
         assignments = [
             item
             for item in all_assignments
             if item.workload_need_id in need_ids
+            and (
+                department_holder_keys is None
+                or _workspace_assignment_holder_key(item)
+                in department_holder_keys
+            )
         ]
         for assignment in assignments:
             set_committed_value(
@@ -1913,11 +2031,6 @@ def register_assignment_routes(workload_bp):
         employees = _active_employees()
         employee_by_id = {item.id: item for item in employees}
         extra_teacher_ids = list(dict.fromkeys(state["teacher_ids"]))
-        extra_teachers = [
-            employee_by_id[teacher_id]
-            for teacher_id in extra_teacher_ids
-            if teacher_id in employee_by_id
-        ]
         vacancies_by_key = {
             item["key"]: item
             for item in state["vacancies"]
@@ -1942,16 +2055,21 @@ def register_assignment_routes(workload_bp):
             (item["activity"].id, item["plan_kind"])
             for item in subject_options
         }
-        activities = {
-            item.id: item
-            for item in EducationActivity.query.filter(
-                EducationActivity.id.in_({
-                    row.get("activity_id")
-                    for row in state["rows"]
-                    if row.get("activity_id")
-                })
-            ).all()
-        } if state["rows"] else {}
+        extra_teachers = [
+            employee_by_id[teacher_id]
+            for teacher_id in extra_teacher_ids
+            if teacher_id in employee_by_id
+            and (
+                department_holder_keys is None
+                or f"teacher:{teacher_id}" in department_holder_keys
+            )
+        ]
+        extra_vacancies = [
+            vacancy
+            for vacancy in extra_vacancies
+            if department_holder_keys is None
+            or f"vacancy:{vacancy['key']}" in department_holder_keys
+        ]
         draft_rows = [
             (
                 employee_by_id[row["teacher_id"]],
@@ -1969,6 +2087,11 @@ def register_assignment_routes(workload_bp):
             and (
                 not selected_subject_ids
                 or row.get("activity_id") in selected_subject_ids
+            )
+            and (
+                department_holder_keys is None
+                or f"teacher:{row['teacher_id']}"
+                in department_holder_keys
             )
         ]
         draft_vacancy_rows = [
@@ -1988,6 +2111,11 @@ def register_assignment_routes(workload_bp):
             and (
                 not selected_subject_ids
                 or row.get("activity_id") in selected_subject_ids
+            )
+            and (
+                department_holder_keys is None
+                or f"vacancy:{row['vacancy_key']}"
+                in department_holder_keys
             )
         ]
         holder_labels = {}
@@ -2131,6 +2259,45 @@ def register_assignment_routes(workload_bp):
                 None if fragment_holder_key else page_holder_keys
             ),
         )
+        if department_id is not None:
+            # Department plan indicators and the unassigned-hours dialog stay
+            # scoped to curriculum subjects of the selected department, even
+            # though every workload row of matching holders is displayed.
+            department_summary_need_ids = {
+                need.id
+                for need in needs
+                if need_plan_kind(need) == "CURRICULUM"
+                and need_matches_department(need, department_id)
+            }
+            department_summary_needs = [
+                need
+                for need in needs
+                if need.id in department_summary_need_ids
+            ]
+            matrix["total_weekly"] = sum(
+                (
+                    Decimal(need.weekly_hours or ZERO)
+                    for need in department_summary_needs
+                ),
+                ZERO,
+            )
+            matrix["total_allocated"] = sum(
+                (
+                    Decimal(assignment.weekly_hours or ZERO)
+                    for assignment in all_assignments
+                    if assignment.workload_need_id
+                    in department_summary_need_ids
+                ),
+                ZERO,
+            )
+            matrix["total_remaining"] = (
+                matrix["total_weekly"] - matrix["total_allocated"]
+            )
+            matrix["unassigned_items"] = [
+                item
+                for item in matrix["unassigned_items"]
+                if item["need"].id in department_summary_need_ids
+            ]
         if selected_subject_ids:
             matrix["blocks"] = [
                 block for block in matrix["blocks"]
