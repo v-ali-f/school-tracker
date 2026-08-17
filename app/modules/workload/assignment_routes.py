@@ -2012,17 +2012,21 @@ def register_assignment_routes(workload_bp):
             )
         need_ids = {item.id for item in needs}
         needs_by_id = {item.id: item for item in needs}
-        assignments = [
+        matrix_assignments = [
             item
             for item in all_assignments
             if item.workload_need_id in need_ids
-            and (
+        ]
+        assignments = [
+            item
+            for item in matrix_assignments
+            if (
                 department_holder_keys is None
                 or _workspace_assignment_holder_key(item)
                 in department_holder_keys
             )
         ]
-        for assignment in assignments:
+        for assignment in matrix_assignments:
             set_committed_value(
                 assignment,
                 "workload_need",
@@ -2252,7 +2256,7 @@ def register_assignment_routes(workload_bp):
             }
         matrix = build_workload_assignment_matrix(
             needs,
-            assignments,
+            matrix_assignments,
             plan_matrices=plan_matrices,
             extra_teachers=extra_teachers,
             extra_vacancies=extra_vacancies,

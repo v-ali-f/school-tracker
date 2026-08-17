@@ -1468,6 +1468,50 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
             math_department,
             "EXTRACURRICULAR",
         )
+        extracurricular_line = (
+            extracurricular_need.teaching_group.source_plan_line
+        )
+        other_class_extracurricular_group = TeachingGroup(
+            tariff_version_id=version.id,
+            education_activity_id=(
+                extracurricular_need.education_activity_id
+            ),
+            group_type="EXTRACURRICULAR_GROUP",
+            code="GROUP-EXTRA-OTHER-CLASS",
+            name="Другой класс · общий внеурочный курс",
+            composition_mode="COUNT_ONLY",
+            building_id=building.id,
+            department_id=math_department.id,
+            planned_size=10,
+            actual_size=10,
+            valid_from=date(2026, 9, 1),
+            valid_to=date(2027, 5, 31),
+            source_plan_line_id=extracurricular_line.id,
+            status="READY",
+            created_by_user_id=admin_id,
+            updated_by_user_id=admin_id,
+        )
+        db.session.add(other_class_extracurricular_group)
+        db.session.flush()
+        other_class_extracurricular_need = WorkloadNeed(
+            tariff_version_id=version.id,
+            teaching_group_id=other_class_extracurricular_group.id,
+            education_activity_id=(
+                extracurricular_need.education_activity_id
+            ),
+            department_id=math_department.id,
+            building_id=building.id,
+            date_from=date(2026, 9, 1),
+            date_to=date(2027, 5, 31),
+            weekly_hours=Decimal("1"),
+            annual_hours=Decimal("34"),
+            need_kind="PLAN",
+            status="COVERED",
+            created_by_user_id=admin_id,
+            updated_by_user_id=admin_id,
+        )
+        db.session.add(other_class_extracurricular_need)
+        db.session.flush()
         additional_need = add_need(
             "ADDITIONAL-DEPARTMENT-FILTER",
             "Общий дополнительный курс",
@@ -1526,6 +1570,11 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
             math_department,
         )
         assign(
+            other_class_extracurricular_need,
+            extracurricular_only_teacher_id,
+            math_department,
+        )
+        assign(
             additional_need,
             additional_only_teacher_id,
             math_department,
@@ -1536,6 +1585,9 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
             math_department,
         )
         db.session.commit()
+        other_class_extracurricular_need_id = (
+            other_class_extracurricular_need.id
+        )
 
     login(admin_id)
     response = client.get(
@@ -1558,6 +1610,29 @@ def test_department_view_selects_by_curriculum_and_shows_full_teacher_load(
     assert "Внеурочный" not in html
     assert "Дополнительный" not in html
     assert "Проектный" not in html
+
+    matrix_response = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            "version_id": context["version_id"],
+            "view": "department",
+            "department_id": context["department_id"],
+            "presentation": "matrix",
+        },
+    )
+    matrix_html = matrix_response.get_data(as_text=True)
+    need_marker = (
+        f'data-need-id="{other_class_extracurricular_need_id}"'
+    )
+    need_index = matrix_html.index(need_marker)
+    cell_start = matrix_html.rfind("<div", 0, need_index)
+    cell_end = matrix_html.index(">", need_index)
+
+    assert matrix_response.status_code == 200
+    assert "is-locked" in matrix_html[cell_start:cell_end]
+    assert "Назначено другому преподавателю." in matrix_html[
+        cell_start:cell_start + 900
+    ]
 
 
 def test_generate_from_workspace_returns_to_matrix(
