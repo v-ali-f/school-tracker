@@ -261,6 +261,57 @@ PERMISSIONS = {
 # =========================================================
 # BASIC ROLE HELPERS
 # =========================================================
+def is_assigned_class_teacher(user=None) -> bool:
+    """Treat the live class assignment as the source of class-teacher rights.
+
+    Some imported users still have the base VIEWER role even though the current
+    SchoolClass row points to them.  Runtime access must follow that assignment
+    and must not depend on a separately synchronised UserRole row.
+    """
+    user = user or current_user
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+
+    cache = None
+    try:
+        from flask import g
+        cache = getattr(g, "_assigned_class_teacher_cache", None)
+        if cache is None:
+            cache = {}
+            g._assigned_class_teacher_cache = cache
+        if user_id in cache:
+            return cache[user_id]
+    except RuntimeError:
+        cache = None
+
+    try:
+        from app.models import AcademicYear, SchoolClass
+        current_year = (
+            AcademicYear.query
+            .filter_by(is_current=True)
+            .order_by(AcademicYear.id.desc())
+            .first()
+        )
+        assigned = bool(
+            current_year
+            and SchoolClass.query.filter_by(
+                academic_year_id=current_year.id,
+                teacher_user_id=user_id,
+                is_active=True,
+                is_archived=False,
+            ).first()
+        )
+    except Exception:
+        assigned = False
+
+    if cache is not None:
+        cache[user_id] = assigned
+    return assigned
+
+
 def _user_role_codes(user=None) -> set:
     # Preview-mode override: hub sets g._hub_preview_role_codes for emulation
     if user is None:
@@ -278,28 +329,29 @@ def _user_role_codes(user=None) -> set:
         return set()
 
     # Новая схема: user.roles -> список объектов с code
+    codes = set()
     if hasattr(user, "roles") and user.roles:
-        codes = set()
         for r in user.roles:
             code = getattr(r, "code", None)
             if code:
                 codes.add(str(code).upper())
-        if codes:
-            return codes
 
     # Временная совместимость со старой схемой: user.role = "ADMIN"
     single_role = getattr(user, "role", None)
-    if single_role:
+    if single_role and not codes:
         code = str(single_role).upper()
 
         # Директор — отдельная управленческая роль,
         # но наследует административные права.
         if code == "DIRECTOR":
-            return {"DIRECTOR", "ADMIN"}
+            codes.update({"DIRECTOR", "ADMIN"})
+        else:
+            codes.add(code)
 
-        return {code}
+    if is_assigned_class_teacher(user=user):
+        codes.add(CLASS_TEACHER)
 
-    return set()
+    return codes
 
 
 def has_role(role_code: str, user=None) -> bool:
@@ -691,6 +743,7 @@ def build_menu_flags(user=None) -> dict:
         "can_dashboard_view": has_permission("dashboard_view", user=user),
         "can_contingent_view": has_permission("contingent_view", user=user),
         "can_children_registry_view": has_permission("children_registry_view", user=user),
+        "can_global_student_search": has_any_role(ADMIN, METHODIST, user=user),
         "can_incident_add": has_permission("incident_add", user=user),
         "can_incident_registry_view": has_permission("incident_registry_view", user=user),
         "can_incident_dashboard_view": has_permission("incident_dashboard_view", user=user),

@@ -24,6 +24,22 @@
     <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('main.dashboard') }}">На главную</a>
   </div>
 
+  {% if theme.classroom_class %}
+  <section class="dashboard-section dashboard-section-classic portal-theme-section mb-3">
+    <div class="section-head mb-2">
+      <div>
+        <div class="section-overline">Мой класс</div>
+        <h4 class="section-title mb-0">{{ theme.classroom_class.name }}</h4>
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="small text-muted">Классный руководитель</div><div class="fw-semibold mt-1">{{ theme.classroom_class.teacher }}</div></div></div>
+      <div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="small text-muted">Здание</div><div class="fw-semibold mt-1">{{ theme.classroom_class.building }}</div></div></div>
+      <div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="small text-muted">Обучающихся</div><div class="fw-semibold mt-1">{{ theme.classroom_class.student_count }}</div></div></div>
+    </div>
+  </section>
+  {% endif %}
+
   {% if theme.summary_cards %}
   <section class="dashboard-section dashboard-section-classic portal-theme-section mb-3">
     <div class="section-head mb-2">
