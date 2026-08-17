@@ -638,6 +638,24 @@ def _workspace_teacher_choices(
     }
 
 
+def _workspace_assignment_holder_key(assignment):
+    if assignment.assignment_kind == "VACANCY":
+        return f"vacancy:{assignment.position_code}"
+    return f"teacher:{assignment.employee_user_id}"
+
+
+def _workspace_assignment_holder_label(assignment):
+    if assignment.assignment_kind == "VACANCY":
+        return assignment.position_title or "Вакансия"
+    if assignment.employee is not None:
+        return assignment.employee.fio
+    return "Преподаватель"
+
+
+def _workspace_search_text(value):
+    return " ".join((value or "").casefold().replace("ё", "е").split())
+
+
 def _workspace_subject_options(needs):
     options = {}
     for need in needs:
@@ -1587,8 +1605,6 @@ def register_assignment_routes(workload_bp):
             == "list"
             else "matrix"
         )
-        if view_mode == "vacancies":
-            teacher_query = ""
         fragment_holder_key = (
             request.args.get("fragment_holder_key") or ""
         ).strip()[:80]
@@ -1851,13 +1867,6 @@ def register_assignment_routes(workload_bp):
             )
         employees = _active_employees()
         employee_by_id = {item.id: item for item in employees}
-        normalized_teacher_query = teacher_query.casefold()
-        matching_teacher_ids = {
-            item.id
-            for item in employees
-            if normalized_teacher_query
-            and normalized_teacher_query in item.fio.casefold()
-        }
         extra_teacher_ids = list(dict.fromkeys(state["teacher_ids"]))
         extra_teachers = [
             employee_by_id[teacher_id]
@@ -1982,28 +1991,31 @@ def register_assignment_routes(workload_bp):
                 for key, label in holder_labels.items()
                 if key in assigned_holder_keys
             }
-        filter_teacher_ids = {
-            int(key.partition(":")[2])
-            for key in holder_labels
-            if key.startswith("teacher:")
-            and key.partition(":")[2].isdigit()
-        }
         if view_mode == "vacancies":
             holder_labels = {
                 key: label
                 for key, label in holder_labels.items()
                 if key.startswith("vacancy:")
             }
-        elif teacher_query:
-            allowed_teacher_keys = {
-                f"teacher:{teacher_id}"
-                for teacher_id in matching_teacher_ids
+        holder_filter_options = [
+            {
+                "key": key,
+                "label": label,
+                "is_vacancy": key.startswith("vacancy:"),
             }
+            for key, label in sorted(
+                holder_labels.items(),
+                key=lambda item: item[1].casefold(),
+            )
+        ]
+        normalized_teacher_query = _workspace_search_text(teacher_query)
+        if normalized_teacher_query:
             holder_labels = {
                 key: label
                 for key, label in holder_labels.items()
-                if key in allowed_teacher_keys
+                if normalized_teacher_query in _workspace_search_text(label)
             }
+        matching_holder_keys = set(holder_labels)
         ordered_holder_keys = [
             key for key, _ in sorted(
                 holder_labels.items(),
@@ -2084,20 +2096,14 @@ def register_assignment_routes(workload_bp):
                 )
             ]
             matrix["teacher_count"] = len(matrix["blocks"])
-        if view_mode == "vacancies":
-            matrix["blocks"] = [
-                block for block in matrix["blocks"]
+        matrix["blocks"] = [
+            block for block in matrix["blocks"]
+            if (
+                f"vacancy:{block['vacancy_key']}"
                 if block["is_vacancy"]
-            ]
-        elif teacher_query:
-            matrix["blocks"] = [
-                block for block in matrix["blocks"]
-                if (
-                    not block["is_vacancy"]
-                    and block["teacher_id"] in matching_teacher_ids
-                )
-            ]
-            matrix["teacher_count"] = len(matrix["blocks"])
+                else f"teacher:{block['teacher_id']}"
+            ) in matching_holder_keys
+        ]
         if not fragment_holder_key:
             matrix["teacher_count"] = holder_total_count
         list_assignments = assignments
@@ -2106,11 +2112,11 @@ def register_assignment_routes(workload_bp):
                 assignment for assignment in assignments
                 if assignment.assignment_kind == "VACANCY"
             ]
-        elif teacher_query:
+        if normalized_teacher_query:
             list_assignments = [
-                assignment for assignment in assignments
-                if assignment.assignment_kind != "VACANCY"
-                and assignment.employee_user_id in matching_teacher_ids
+                assignment for assignment in list_assignments
+                if _workspace_assignment_holder_key(assignment)
+                in matching_holder_keys
             ]
         workload_list = build_workload_assignment_list(
             list_assignments,
@@ -2189,9 +2195,7 @@ def register_assignment_routes(workload_bp):
             workload_list=workload_list,
             workload_list_summary=workload_list_summary,
             list_plan_kind_labels=LIST_PLAN_KIND_LABELS,
-            teacher_filter_options=[
-                item for item in employees if item.id in filter_teacher_ids
-            ],
+            holder_filter_options=holder_filter_options,
             level_counts=level_counts,
             level_labels=EDUCATION_LEVEL_LABELS,
             level_grades=level_grades,
@@ -2349,6 +2353,7 @@ def register_assignment_routes(workload_bp):
                 return jsonify({
                     "ok": True,
                     "holder_key": f"vacancy:{vacancy['key']}",
+                    "holder_name": vacancy["label"],
                 })
             return _workspace_redirect()
         teacher = db.session.get(User, teacher_id) if teacher_id else None
@@ -2444,6 +2449,7 @@ def register_assignment_routes(workload_bp):
             return jsonify({
                 "ok": True,
                 "holder_key": f"vacancy:{vacancy_key}",
+                "holder_name": label,
             })
         flash("Подпись вакансии сохранена.", "success")
         return _workspace_redirect()
@@ -3165,9 +3171,7 @@ def register_assignment_routes(workload_bp):
             holder_key = f"teacher:{teacher.id}"
         plan_kind = need_plan_kind(need)
         holder_delta = Decimal(value or ZERO) - previous_value
-        allocated_delta = (
-            ZERO if holder_type == "vacancy" else holder_delta
-        )
+        allocated_delta = holder_delta
         if is_ajax:
             return jsonify({
                 "ok": True,
@@ -3408,8 +3412,6 @@ def register_assignment_routes(workload_bp):
             == "list"
             else "matrix"
         )
-        if view_mode == "vacancies":
-            teacher_query = ""
         snapshot, _, plan_matrices = _workspace_plan_context(
             version,
             education_levels=education_levels,
@@ -3461,23 +3463,20 @@ def register_assignment_routes(workload_bp):
                 "workload_need",
                 needs_by_id[assignment.workload_need_id],
             )
+        if view_mode == "vacancies":
+            assignments = [
+                assignment for assignment in assignments
+                if assignment.assignment_kind == "VACANCY"
+            ]
+        normalized_teacher_query = _workspace_search_text(teacher_query)
+        if normalized_teacher_query:
+            assignments = [
+                assignment for assignment in assignments
+                if normalized_teacher_query in _workspace_search_text(
+                    _workspace_assignment_holder_label(assignment)
+                )
+            ]
         if presentation_mode == "list":
-            if view_mode == "vacancies":
-                assignments = [
-                    assignment for assignment in assignments
-                    if assignment.assignment_kind == "VACANCY"
-                ]
-            elif teacher_query:
-                matching_teacher_ids = {
-                    item.id
-                    for item in _active_employees()
-                    if teacher_query.casefold() in item.fio.casefold()
-                }
-                assignments = [
-                    assignment for assignment in assignments
-                    if assignment.assignment_kind != "VACANCY"
-                    and assignment.employee_user_id in matching_teacher_ids
-                ]
             workload_list = build_workload_assignment_list(assignments)
             workbook = _build_workload_list_workbook(
                 workload_list,
@@ -3507,24 +3506,6 @@ def register_assignment_routes(workload_bp):
             assignments,
             plan_matrices=plan_matrices,
         )
-        if view_mode == "vacancies":
-            matrix["blocks"] = [
-                block for block in matrix["blocks"]
-                if block["is_vacancy"]
-            ]
-        elif teacher_query:
-            matching_teacher_ids = {
-                item.id
-                for item in _active_employees()
-                if teacher_query.casefold() in item.fio.casefold()
-            }
-            matrix["blocks"] = [
-                block for block in matrix["blocks"]
-                if (
-                    not block["is_vacancy"]
-                    and block["teacher_id"] in matching_teacher_ids
-                )
-            ]
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "Нагрузка"

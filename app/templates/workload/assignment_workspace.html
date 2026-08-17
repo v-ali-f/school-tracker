@@ -245,25 +245,33 @@
         </div>
       </details>
     </div>
-    {% if view_mode != 'vacancies' %}
     <div class="workload-filter-field workload-filter-field--teacher">
-      <label for="workspace-teacher-query">Педагог</label>
-      <input
-        class="form-control form-control-sm"
-        id="workspace-teacher-query"
-        type="search"
-        name="teacher_query"
-        value="{{ selected_teacher_query }}"
-        list="workspace-teacher-options"
-        placeholder="Введите ФИО"
-        autocomplete="off"
-        data-workload-filter-auto
-      >
-      <datalist id="workspace-teacher-options">
-        {% for item in teacher_filter_options %}<option value="{{ item.fio }}"></option>{% endfor %}
-      </datalist>
+      <label for="workspace-teacher-query">Педагог или вакансия</label>
+      <div class="workload-holder-filter" data-workload-holder-filter>
+        <input
+          class="form-control form-control-sm"
+          id="workspace-teacher-query"
+          type="search"
+          name="teacher_query"
+          value="{{ selected_teacher_query }}"
+          placeholder="Введите фамилию или название вакансии"
+          autocomplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="false"
+          aria-controls="workspace-holder-options"
+          data-workload-holder-filter-search
+        >
+        <div class="workload-holder-filter__results" id="workspace-holder-options" role="listbox" hidden data-workload-holder-filter-results>
+          {% for item in holder_filter_options %}
+          <button type="button" role="option" data-workload-holder-filter-option data-holder-key="{{ item.key }}" data-search="{{ item.label|lower }}">
+            <span>{{ item.label }}</span><small>{{ 'Вакансия' if item.is_vacancy else 'Педагог' }}</small>
+          </button>
+          {% endfor %}
+          <div class="workload-holder-filter__empty" data-workload-holder-filter-empty hidden>Совпадений в нагрузке не найдено</div>
+        </div>
+      </div>
     </div>
-    {% endif %}
     {% if view_mode == 'department' %}
     <div class="workload-filter-field workload-filter-field--department">
       <label for="workspace-department">Кафедра</label>
@@ -645,7 +653,7 @@
       {% if not matrix.blocks and (not can_update or selected_teacher_query or selected_subject_ids) %}
       <tr>
         <td class="workload-assignment-matrix__no-teachers" colspan="{{ 4 + matrix.columns|length }}">
-          {% if selected_teacher_query %}По запросу «{{ selected_teacher_query }}» педагог не найден.{% elif selected_subject_ids %}По выбранным предметам нагрузка не найдена.{% else %}Нет преподавателей для отображения.{% endif %}
+          {% if selected_teacher_query %}По запросу «{{ selected_teacher_query }}» строка нагрузки не найдена.{% elif selected_subject_ids %}По выбранным предметам нагрузка не найдена.{% else %}Нет преподавателей для отображения.{% endif %}
         </td>
       </tr>
       {% endif %}
@@ -995,7 +1003,88 @@
     }
   });
 
+  const normalizeWorkloadSearch = (value) => (value || "")
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .trim();
   const filterbar = document.querySelector("[data-workload-filterbar]");
+  const workloadHolderFilter = filterbar?.querySelector("[data-workload-holder-filter]");
+  const workloadHolderFilterSearch = workloadHolderFilter?.querySelector(
+    "[data-workload-holder-filter-search]"
+  );
+  const workloadHolderFilterResults = workloadHolderFilter?.querySelector(
+    "[data-workload-holder-filter-results]"
+  );
+  const workloadHolderFilterEmpty = workloadHolderFilter?.querySelector(
+    "[data-workload-holder-filter-empty]"
+  );
+  const workloadHolderFilterOptions = () => Array.from(
+    workloadHolderFilterResults?.querySelectorAll(
+      "[data-workload-holder-filter-option]"
+    ) || []
+  );
+  const closeWorkloadHolderFilter = () => {
+    if (!workloadHolderFilterResults || !workloadHolderFilterSearch) return;
+    workloadHolderFilterResults.hidden = true;
+    workloadHolderFilterSearch.setAttribute("aria-expanded", "false");
+  };
+  const renderWorkloadHolderFilter = () => {
+    if (!workloadHolderFilterResults || !workloadHolderFilterSearch) return;
+    const query = normalizeWorkloadSearch(workloadHolderFilterSearch.value);
+    if (!query) {
+      workloadHolderFilterOptions().forEach((option) => option.hidden = true);
+      if (workloadHolderFilterEmpty) workloadHolderFilterEmpty.hidden = true;
+      closeWorkloadHolderFilter();
+      return;
+    }
+    let visibleCount = 0;
+    workloadHolderFilterOptions().forEach((option) => {
+      const matches = (
+        normalizeWorkloadSearch(option.dataset.search).includes(query)
+        && visibleCount < 30
+      );
+      option.hidden = !matches;
+      if (matches) visibleCount += 1;
+    });
+    if (workloadHolderFilterEmpty) {
+      workloadHolderFilterEmpty.hidden = visibleCount > 0;
+    }
+    workloadHolderFilterResults.hidden = false;
+    workloadHolderFilterSearch.setAttribute("aria-expanded", "true");
+  };
+  const upsertWorkloadHolderFilterOption = (holderKey, label, isVacancy = false) => {
+    if (!workloadHolderFilterResults || !holderKey || !label) return;
+    let option = workloadHolderFilterResults.querySelector(
+      `[data-holder-key="${holderKey}"]`
+    );
+    if (!option) {
+      option = document.createElement("button");
+      option.type = "button";
+      option.setAttribute("role", "option");
+      option.dataset.workloadHolderFilterOption = "";
+      option.dataset.holderKey = holderKey;
+      option.append(document.createElement("span"), document.createElement("small"));
+      workloadHolderFilterResults.insertBefore(option, workloadHolderFilterEmpty);
+    }
+    option.dataset.search = normalizeWorkloadSearch(label);
+    option.querySelector("span").textContent = label;
+    option.querySelector("small").textContent = isVacancy ? "Вакансия" : "Педагог";
+  };
+  const removeWorkloadHolderFilterOption = (holderKey) => {
+    if (!holderKey) return;
+    workloadHolderFilterResults
+      ?.querySelector(`[data-holder-key="${holderKey}"]`)
+      ?.remove();
+  };
+  workloadHolderFilterSearch?.addEventListener("focus", renderWorkloadHolderFilter);
+  workloadHolderFilterSearch?.addEventListener("input", renderWorkloadHolderFilter);
+  workloadHolderFilterResults?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-workload-holder-filter-option]");
+    if (!option || !workloadHolderFilterSearch) return;
+    workloadHolderFilterSearch.value = option.querySelector("span")?.textContent?.trim() || "";
+    closeWorkloadHolderFilter();
+    filterbar?.requestSubmit();
+  });
   filterbar?.querySelectorAll("[data-workload-filter-auto]").forEach((field) => {
     field.addEventListener("change", () => {
       filterbar.requestSubmit();
@@ -1021,6 +1110,9 @@
   );
 
   document.addEventListener("click", (event) => {
+    if (workloadHolderFilter && !workloadHolderFilter.contains(event.target)) {
+      closeWorkloadHolderFilter();
+    }
     const summary = event.target.closest(".workload-subject-add summary");
     if (summary) {
       document.querySelectorAll(".workload-subject-add").forEach((details) => {
@@ -1035,6 +1127,7 @@
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    closeWorkloadHolderFilter();
     document.querySelectorAll(".workload-subject-add").forEach(
       (details) => details.removeAttribute("open")
     );
@@ -1046,20 +1139,23 @@
   const teacherPickerValue = teacherPicker?.querySelector("[data-teacher-picker-value]");
   const teacherPickerResults = teacherPicker?.querySelector("[data-teacher-picker-results]");
   const teacherPickerEmpty = teacherPicker?.querySelector("[data-teacher-picker-empty]");
-  const normalizeTeacherSearch = (value) => (value || "")
-    .toLocaleLowerCase("ru-RU")
-    .replaceAll("ё", "е")
-    .trim();
+  const normalizeTeacherSearch = normalizeWorkloadSearch;
   const teacherPickerOptions = () => Array.from(
     teacherPickerResults?.querySelectorAll("[data-teacher-picker-option]") || []
   );
   const renderTeacherPicker = () => {
     if (!teacherPickerResults || !teacherPickerSearch) return;
     const query = normalizeTeacherSearch(teacherPickerSearch.value);
+    if (!query) {
+      teacherPickerOptions().forEach((option) => option.hidden = true);
+      if (teacherPickerEmpty) teacherPickerEmpty.hidden = true;
+      closeTeacherPicker();
+      return;
+    }
     let visibleCount = 0;
     teacherPickerOptions().forEach((option) => {
       const matches = (
-        (!query || normalizeTeacherSearch(option.dataset.search).includes(query))
+        normalizeTeacherSearch(option.dataset.search).includes(query)
         && visibleCount < 30
       );
       option.hidden = !matches;
@@ -1537,6 +1633,7 @@
         headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
       }));
       if (payload.teacher) addTeacherPickerOption(payload.teacher);
+      removeWorkloadHolderFilterOption(payload.holder_key);
       const targetUrl = new URL(window.location.href);
       const teacherQuery = document.querySelector(
         "[data-workload-filterbar] [name=\"teacher_query\"]"
@@ -1585,6 +1682,11 @@
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
         }));
         removeTeacherPickerOption(payload.teacher_id);
+        upsertWorkloadHolderFilterOption(
+          payload.holder_key,
+          payload.teacher_name,
+          false,
+        );
         teacherDialog.close();
         form.reset();
         if (payload.teacher_name && payload.holder_key) {
@@ -1619,9 +1721,21 @@
         body: new FormData(form),
         headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
       }));
+      upsertWorkloadHolderFilterOption(
+        payload.holder_key,
+        payload.holder_name,
+        true,
+      );
       vacancyDialog.close();
       form.reset();
-      await refreshMatrix(payload.holder_key || "");
+      const targetUrl = new URL(window.location.href);
+      targetUrl.searchParams.set("teacher_query", payload.holder_name);
+      targetUrl.searchParams.set("focus_holder", payload.holder_key);
+      targetUrl.searchParams.delete("holder_page");
+      if (workloadHolderFilterSearch) {
+        workloadHolderFilterSearch.value = payload.holder_name;
+      }
+      await loadHolderPage(targetUrl);
     } catch (error) {
       window.alert(error.message);
     } finally {

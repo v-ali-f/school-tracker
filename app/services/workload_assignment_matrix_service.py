@@ -760,10 +760,9 @@ def build_workload_assignment_matrix(
         if assignment.status == "CANCELLED":
             continue
         assignments_by_need[assignment.workload_need_id].append(assignment)
-        if assignment.assignment_kind != "VACANCY":
-            allocated_by_need[assignment.workload_need_id] += Decimal(
-                assignment.weekly_hours or ZERO
-            )
+        allocated_by_need[assignment.workload_need_id] += Decimal(
+            assignment.weekly_hours or ZERO
+        )
 
     total_assignments = (
         assignments if total_assignments is None else list(total_assignments)
