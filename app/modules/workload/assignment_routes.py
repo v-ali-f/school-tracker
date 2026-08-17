@@ -108,6 +108,9 @@ from .scopes import resolve_workload_scope
 
 
 ZERO = Decimal("0")
+DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES = {
+    "индивидуальный проект",
+}
 WORKSPACE_HOLDER_PAGE_SIZES = (5, 10, 20)
 WORKSPACE_DEFAULT_HOLDER_PAGE_SIZE = 5
 WORKSPACE_FILTER_FIELDS = (
@@ -708,6 +711,8 @@ def _workspace_department_holder_keys(
         if (
             need is None
             or need_plan_kind(need) != "CURRICULUM"
+            or _workspace_search_text(need.education_activity.name)
+            in DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES
             or not need_matches_department(need, department_id)
         ):
             continue
@@ -728,9 +733,14 @@ def _workspace_state_department_holder_keys(
         if row.get("plan_kind") != "CURRICULUM":
             continue
         activity = activities_by_id.get(row.get("activity_id"))
-        if activity is None or not any(
-            link.is_active and link.department_id == department_id
-            for link in activity.department_links
+        if (
+            activity is None
+            or _workspace_search_text(activity.name)
+            in DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES
+            or not any(
+                link.is_active and link.department_id == department_id
+                for link in activity.department_links
+            )
         ):
             continue
         if row.get("holder_type", "teacher") == "teacher":
@@ -2267,6 +2277,8 @@ def register_assignment_routes(workload_bp):
                 need.id
                 for need in needs
                 if need_plan_kind(need) == "CURRICULUM"
+                and _workspace_search_text(need.education_activity.name)
+                not in DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES
                 and need_matches_department(need, department_id)
             }
             department_summary_needs = [
