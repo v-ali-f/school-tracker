@@ -10,6 +10,7 @@ from werkzeug.datastructures import MultiDict
 
 from app.core.extensions import db
 from app.modules.workload.assignment_routes import (
+    _workspace_teacher_metadata,
     _workspace_selected_subject_ids,
 )
 from app.models import (
@@ -47,6 +48,7 @@ from app.models import (
     WorkloadSourceSetting,
     WorkloadSourceTransition,
     Subject,
+    SchoolClass,
 )
 from app.services.education_plan_service import (
     ensure_draft_tariff_version,
@@ -196,6 +198,42 @@ def _generate(context, user_id):
     result = generate_plan_needs(version, user_id=user_id)
     db.session.commit()
     return result
+
+
+def test_workspace_class_teacher_metadata_uses_class_registry_assignment(
+    app,
+    make_user,
+):
+    admin_id = make_user("ADMIN")
+    workload_teacher_id = make_user("TEACHER")
+    registry_teacher_id = make_user("VIEWER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        workload_teacher = db.session.get(User, workload_teacher_id)
+        registry_teacher = db.session.get(User, registry_teacher_id)
+        for teacher in (workload_teacher, registry_teacher):
+            teacher.last_name = "Иванова"
+            teacher.first_name = "Мария"
+            teacher.middle_name = "Петровна"
+        db.session.add(SchoolClass(
+            academic_year_id=context["year_id"],
+            building_id=context["building_id"],
+            name="5А",
+            grade=5,
+            letter="А",
+            teacher_user_id=registry_teacher_id,
+            is_active=True,
+            is_archived=False,
+        ))
+        db.session.commit()
+
+        version = db.session.get(TariffVersion, context["version_id"])
+        metadata = _workspace_teacher_metadata(
+            [workload_teacher],
+            version,
+        )
+
+        assert metadata[workload_teacher_id]["class_teacher"] == "5А"
 
 
 def _assignment(need, employee_id, weekly, annual=None, kind="MAIN"):

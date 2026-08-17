@@ -96,6 +96,7 @@ from app.services.teaching_group_service import (
     ensure_population_snapshot,
 )
 from app.services.teacher_mcko_service import mcko_overviews_for_teachers
+from app.utils.user_matching import normalize_fio
 from app.services.workload_editing_workflow_service import (
     WorkloadEditingWorkflowError,
     change_workload_approval_status,
@@ -568,18 +569,62 @@ def _workspace_teacher_metadata(teachers, selected_version):
         return {}
     academic_year_id = selected_version.tariff_cycle.academic_year_id
     class_names = defaultdict(list)
-    for item in (
+    class_rows = (
         SchoolClass.query
+        .options(joinedload(SchoolClass.teacher_user))
         .filter(
             SchoolClass.academic_year_id == academic_year_id,
-            SchoolClass.teacher_user_id.in_(teacher_ids),
+            SchoolClass.teacher_user_id.isnot(None),
             SchoolClass.is_active.is_(True),
             SchoolClass.is_archived.is_(False),
         )
         .order_by(SchoolClass.grade.asc(), SchoolClass.name.asc())
         .all()
-    ):
-        class_names[item.teacher_user_id].append(item.name)
+    )
+    teacher_by_id = {teacher.id: teacher for teacher in teachers}
+    for item in class_rows:
+        if item.teacher_user_id in teacher_by_id:
+            class_names[item.teacher_user_id].append(item.name)
+
+    # Imported staff can occasionally exist as two User rows: the class
+    # registry points to one row while workload assignments point to another.
+    # Link such rows only when the normalized FIO is unambiguous on both sides.
+    unmatched_teachers_by_fio = defaultdict(list)
+    for teacher in teachers:
+        if class_names.get(teacher.id):
+            continue
+        fio_key = normalize_fio(
+            teacher.last_name,
+            teacher.first_name,
+            teacher.middle_name,
+        )
+        if fio_key:
+            unmatched_teachers_by_fio[fio_key].append(teacher)
+
+    assigned_users_by_fio = defaultdict(set)
+    assigned_classes_by_fio = defaultdict(list)
+    for item in class_rows:
+        assigned_user = item.teacher_user
+        if assigned_user is None:
+            continue
+        fio_key = normalize_fio(
+            assigned_user.last_name,
+            assigned_user.first_name,
+            assigned_user.middle_name,
+        )
+        if not fio_key:
+            continue
+        assigned_users_by_fio[fio_key].add(assigned_user.id)
+        assigned_classes_by_fio[fio_key].append(item.name)
+
+    for fio_key, matching_teachers in unmatched_teachers_by_fio.items():
+        if len(matching_teachers) != 1:
+            continue
+        if len(assigned_users_by_fio.get(fio_key, ())) != 1:
+            continue
+        class_names[matching_teachers[0].id].extend(
+            assigned_classes_by_fio[fio_key]
+        )
     mcko_by_teacher = mcko_overviews_for_teachers(teacher_ids)
     return {
         teacher_id: {
