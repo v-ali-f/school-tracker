@@ -1278,6 +1278,7 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert f'data-teacher-id="{teacher_id}"' not in teacher_dialog_html
     assert f'data-teacher-id="{unused_teacher_id}"' in teacher_dialog_html
     assert "normalizeTeacherSearch(option.dataset.search).includes(query)" in html
+    assert "teacherPickerOptions().forEach((option) => option.hidden = true)" in html
     assert "removeTeacherPickerOption(payload.teacher_id)" in html
 
     holder_fragment = client.get(
@@ -1368,12 +1369,14 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert f'data-workload-holder-row="teacher:{admin_id}"' not in filtered_html
     assert f'data-workload-holder-row="teacher:{unused_teacher_id}"' not in filtered_html
     filter_options = filtered_html.split(
-        'id="workspace-teacher-options"',
+        'id="workspace-holder-options"',
         1,
-    )[1].split("</datalist>", 1)[0]
+    )[1].split('data-workload-holder-filter-empty', 1)[0]
     assert "Незагруженный" not in filter_options
+    assert teacher_name in filter_options
     assert 'name="teacher_query"' in filtered_html
-    assert 'placeholder="Введите ФИО"' in filtered_html
+    assert 'placeholder="Введите фамилию или название вакансии"' in filtered_html
+    assert "data-workload-holder-filter-option" in filtered_html
     assert 'class="workload-matrix-toolbar__guide"' in filtered_html
     assert filtered_html.index("workload-matrix-totals") < (
         filtered_html.index("workload-matrix-legend")
@@ -1880,8 +1883,10 @@ def test_workspace_vacancy_can_be_filled_by_teacher(
             "need_id": str(need_id),
             "hours": "5",
         },
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    assert assigned.status_code == 302
+    assert assigned.status_code == 200
+    assert assigned.get_json()["allocated_delta"] == 5.0
     with app.app_context():
         vacancy = WorkloadAssignment.query.one()
         assert vacancy.assignment_kind == "VACANCY"
@@ -1902,6 +1907,7 @@ def test_workspace_vacancy_can_be_filled_by_teacher(
     assert renamed.get_json() == {
         "ok": True,
         "holder_key": "vacancy:VACANCY_1",
+        "holder_name": "Вакансия 1 (Иванова А.А.)",
     }
     with app.app_context():
         assert (
@@ -1911,9 +1917,21 @@ def test_workspace_vacancy_can_be_filled_by_teacher(
 
     vacancy_view = client.get(
         "/workload/assignments/workspace",
-        query_string={**filters, "view": "vacancies"},
+        query_string={
+            **filters,
+            "view": "vacancies",
+            "teacher_query": "Иванов",
+        },
     ).get_data(as_text=True)
     assert "Вакансия 1 (Иванова А.А.)" in vacancy_view
+    assert 'data-workload-total-allocated>5</strong>' in vacancy_view
+    assert 'data-workload-total-remaining>0</strong>' in vacancy_view
+    holder_filter = vacancy_view.split(
+        'id="workspace-holder-options"',
+        1,
+    )[1].split('data-workload-holder-filter-empty', 1)[0]
+    assert 'data-holder-key="vacancy:VACANCY_1"' in holder_filter
+    assert "Вакансия 1 (Иванова А.А.)" in holder_filter
     assert "Преподаватель не назначен" in vacancy_view
     assert 'data-open-vacancy-dialog' in vacancy_view
     assert 'data-vacancy-key="VACANCY_1"' in vacancy_view

@@ -144,6 +144,59 @@
   font-size: 11px;
 }
 
+.workload-holder-filter {
+  position: relative;
+}
+
+.workload-holder-filter__results {
+  max-height: 280px;
+  padding: 4px;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 85;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d8e0ec;
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgb(26 48 84 / 18%);
+}
+
+.workload-holder-filter__results > button {
+  width: 100%;
+  padding: 6px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  color: #263754;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.workload-holder-filter__results > button:hover,
+.workload-holder-filter__results > button:focus-visible {
+  background: #edf4ff;
+  outline: 0;
+}
+
+.workload-holder-filter__results > button small {
+  flex: 0 0 auto;
+  color: var(--workload-muted);
+  font-size: 9px;
+}
+
+.workload-holder-filter__empty {
+  padding: 10px 7px;
+  color: var(--workload-muted);
+  font-size: 10px;
+  text-align: center;
+}
+
 .workload-subject-filter {
   position: relative;
 }
