@@ -1742,6 +1742,9 @@ def teacher_profile(teacher_id):
             teacher.id == current_user.id
             and has_permission("incident_add")
         ),
+        can_view_departments_hub=(
+            _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
+        ),
         today=date.today(),
     )
 

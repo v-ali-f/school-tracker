@@ -1,4 +1,4 @@
-{% set show_home_search = not role_block_codes or 'home_search' in role_block_codes %}
+{% set show_home_search = can_global_student_search and (not role_block_codes or 'home_search' in role_block_codes) %}
 {% set show_home_summary = not role_block_codes or 'home_summary' in role_block_codes %}
 {% set show_home_quick_links = not role_block_codes or 'home_quick_links' in role_block_codes %}
 {% set show_home_sections = not role_block_codes or 'home_sections' in role_block_codes %}
@@ -108,12 +108,15 @@
     <div class="portal-home-card-grid portal-home-card-grid-quick">
       {% if is_class_teacher %}
         {{ home_card('Добавить инцидент', 'Зарегистрировать новое событие по ученику.', url_for('children.incident_new'), 'bi-shield-plus', 'orange') }}
+        {{ home_card('Мои инциденты', 'Созданные мной обращения и их текущие статусы.', url_for('children.incidents_my'), 'bi-inbox', 'orange') }}
         {{ home_card('Добавить пропуск', 'Оформить пропуск для ученика класса.', url_for('attendance.new_pass'), 'bi-person-vcard', 'green') }}
         {% if class_teacher_class %}
           {{ home_card('Мой класс', 'Список учеников ' ~ class_teacher_class.name ~ '.', url_for('children.list_children', class_id=class_teacher_class.id), 'bi-people-fill', 'blue') }}
+          {{ home_card('Классное руководство', 'Социальный паспорт, учебный план, преподаватели и деление на группы.', url_for('hub.classroom'), 'bi-person-badge', 'green') }}
         {% else %}
           {{ home_card('Мой класс', 'Список учеников своего класса.', url_for('children.list_children'), 'bi-people-fill', 'blue') }}
         {% endif %}
+        {{ home_card('Мой профиль преподавателя', 'Нагрузка и мои профессиональные сведения.', url_for('departments.my_teacher_profile'), 'bi-person-vcard', 'blue') }}
         {{ home_card('Мои задачи', 'Поручения, сроки исполнения и комментарии.', url_for('tasks.my_tasks'), 'bi-check2-square', 'slate') }}
       {% else %}
         {% for item in page.quick_actions %}

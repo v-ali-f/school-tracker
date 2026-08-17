@@ -41,6 +41,15 @@ diagnostics_bp = Blueprint("diagnostics", __name__, url_prefix="/diagnostics")
 GROUP_SUBJECT_MARKERS = ["англий", "иностран", "немец", "француз", "испан"]
 
 
+@diagnostics_bp.before_request
+def _restrict_diagnostics_module():
+    """School-wide MCKO data is available only to admins and methodists."""
+    if not getattr(current_user, "is_authenticated", False):
+        return None
+    if not (has_role("ADMIN") or has_role("METHODIST")):
+        abort(403)
+
+
 # ------------------------------------------------------------
 # BASIC HELPERS
 # ------------------------------------------------------------

@@ -13,7 +13,11 @@
     <div class="page-sub">Персональные сведения, профессиональное развитие и педагогическая нагрузка</div>
   </div>
   <div class="page-actions">
+    {% if can_view_departments_hub %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary', academic_year_id=academic_year_id) }}"><i class="bi bi-arrow-left"></i> К своду кафедр</a>
+    {% else %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-arrow-left"></i> На главную</a>
+    {% endif %}
   </div>
 </div>
 

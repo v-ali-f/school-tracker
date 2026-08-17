@@ -857,10 +857,15 @@ def home():
 @children_bp.route("/children")
 @login_required
 def list_children():
+    can_view_school = has_role("ADMIN") or has_role("METHODIST") or has_role("PSYCHOLOGIST") or has_role("SOCIAL_PEDAGOG")
+    if not can_view_school and not has_role("CLASS_TEACHER"):
+        abort(403)
     query, year = _children_base_query_for_current_year()
-    # /children: поиск без ограничения классом (даже для CLASS_TEACHER и TEACHER).
-    # Открытие карточки по-прежнему ограничено can_view_child_basic(child).
-    filters = _registry_filter_state(year, allow_only_own_class=False)
+    own_class_only = not can_view_school
+    filters = _registry_filter_state(year, allow_only_own_class=own_class_only)
+
+    if own_class_only:
+        query = query.filter(SchoolClass.teacher_user_id == current_user.id)
 
     if filters["selected_grade"] is not None:
         query = query.filter(SchoolClass.grade == filters["selected_grade"])
@@ -941,7 +946,7 @@ def search_children_ajax():
     q = request.args.get("q", "").strip()
     if len(q) < 2:
         return jsonify([])
-    if not has_permission("children_registry_view"):
+    if not (has_role("ADMIN") or has_role("METHODIST")):
         return jsonify([])
 
     results: list[dict] = []
@@ -2360,6 +2365,8 @@ def expel_child(child_id: int):
 @children_bp.route("/contingent")
 @login_required
 def contingent():
+    if not (has_role("ADMIN") or has_role("METHODIST")):
+        abort(403)
     year_id = request.args.get("year_id", type=int)
     building_id = request.args.get("building_id", type=int)
 
@@ -3978,6 +3985,8 @@ def registry_expelled_export():
 @children_bp.route("/incidents/new", methods=["GET", "POST"])
 @login_required
 def incident_new():
+    if not has_permission("incident_add"):
+        abort(403)
     if request.method == "POST":
         occurred_date = (request.form.get("occurred_date") or "").strip()
         occurred_hour = (request.form.get("occurred_hour") or "").strip()
@@ -4137,6 +4146,8 @@ def incident_new():
 @children_bp.route("/api/classes/by-grade")
 @login_required
 def api_classes_by_grade():
+    if not has_permission("incident_add"):
+        abort(403)
     grade = request.args.get("grade", type=int)
     if not grade:
         return jsonify([])
@@ -4157,6 +4168,8 @@ def api_classes_by_grade():
 @children_bp.route("/api/children/by-class")
 @login_required
 def api_children_by_class():
+    if not has_permission("incident_add"):
+        abort(403)
     class_id = request.args.get("class_id", type=int)
     if not class_id:
         return jsonify([])
@@ -5755,6 +5768,8 @@ def incidents_my():
       • user-view: «Мои заявки» — только инциденты, где текущий пользователь автор,
         с подгруженной последней заметкой исполнителя.
     """
+    if not has_permission("incident_add"):
+        abort(403)
     uid = current_user.id
     is_admin_view = _can_change_status()
     # Социальный педагог получает admin-view, но ограниченный его назначениями

@@ -352,7 +352,7 @@ def test_teacher_manages_own_professional_records_only(
     assert "Добавить аттестацию" not in html
 
 
-def test_department_hub_exposes_only_personal_teacher_profile(
+def test_teacher_profile_is_direct_on_home_and_department_hub_is_restricted(
     app,
     client,
     make_user,
@@ -361,12 +361,14 @@ def test_department_hub_exposes_only_personal_teacher_profile(
     teacher_id = make_user("TEACHER")
     login(teacher_id)
     teacher_page = client.get("/hub/departments")
-    teacher_html = teacher_page.get_data(as_text=True)
+    assert teacher_page.status_code == 403
 
-    assert teacher_page.status_code == 200
-    assert "Мой профиль преподавателя" in teacher_html
-    assert 'href="/departments/teacher/profile"' in teacher_html
-    assert "Аналитика по кафедрам" not in teacher_html
+    home = client.get("/")
+    home_html = home.get_data(as_text=True)
+    assert home.status_code == 200
+    assert "Мой профиль преподавателя" in home_html
+    assert 'href="/departments/teacher/profile"' in home_html
+    assert "Кафедры" not in home_html
 
     admin_id = make_user("ADMIN")
     login(admin_id)

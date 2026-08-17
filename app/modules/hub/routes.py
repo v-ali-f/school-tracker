@@ -412,7 +412,7 @@ def _main_page_config():
                 "title": "Сводный контингент",
                 "description": "Общая сводка по обучающимся.",
                 "endpoint": "children.contingent",
-                "permission_any": ["contingent_view"],
+                "roles_any": ["ADMIN", "METHODIST"],
                 "accent": "success",
             },
             {
@@ -428,6 +428,12 @@ def _main_page_config():
                 "endpoint": "children.incidents_my",
                 "permission_any": ["incident_add"],
                 "accent": "secondary",
+            },
+            {
+                "title": "Мой профиль преподавателя",
+                "description": "Моя нагрузка и профессиональные сведения.",
+                "endpoint": "departments.my_teacher_profile",
+                "accent": "primary",
             },
             {
                 "title": "Мои задачи",
@@ -453,7 +459,7 @@ def _main_page_config():
                 "title": "Контингент",
                 "description": "Реестры обучающихся, движение и сводная структура контингента.",
                 "endpoint": "hub.contingent",
-                "permission_any": ["contingent_view"],
+                "roles_any": ["ADMIN", "METHODIST"],
             },
             {
                 "title": "Инциденты",
@@ -476,11 +482,13 @@ def _main_page_config():
                 "title": "Кафедры",
                 "description": "Предметные кафедры, сводки и нагрузка педагогов.",
                 "endpoint": "hub.departments",
+                "roles_any": ["ADMIN", "METHODIST", "DIRECTOR", "DEPUTY_DIRECTOR", "DEPARTMENT_HEAD"],
             },
             {
                 "title": "Диагностики МЦКО",
                 "description": "Сессии, импорт результатов, аналитика и привязка к учителям.",
                 "endpoint": "hub.diagnostics",
+                "roles_any": ["ADMIN", "METHODIST"],
             },
             {
                 "title": "Пропуска и аналитика посещаемости",
@@ -492,18 +500,13 @@ def _main_page_config():
                 "title": "Основные реестры",
                 "description": "Контингент, профессиональные сведения педагогов и другие основные реестры.",
                 "endpoint": "hub.registries",
-                "visible_if": lambda: (
-                    has_any_role("ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD")
-                    or any(has_permission(code) for code in (
-                        "children_registry_view", "registry_ovz_view", "registry_vshu_view",
-                        "registry_kdn_view", "registry_az_view",
-                    ))
-                ),
+                "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD", "SOCIAL_PEDAGOG", "PSYCHOLOGIST"],
             },
             {
                 "title": "Дошкольное отделение",
                 "description": "Контингент ДОУ, группы, представители и детодни.",
                 "endpoint": "preschool.index",
+                "roles_any": ["ADMIN", "METHODIST", "PRESCHOOL_ADMIN", "PRESCHOOL_TEACHER"],
             },
             {
                 "title": "Контрольные работы",
@@ -624,7 +627,7 @@ def _theme_configs():
         "contingent": {
             "title": "Контингент",
             "subtitle": "Реестры обучающихся, движение и состав контингента школы.",
-            "permission_any": ["contingent_view"],
+            "roles_any": ["ADMIN", "METHODIST"],
             "quick_actions": _materialize([
                 {"title": "Сводный контингент", "endpoint": "children.contingent", "permission_any": ["contingent_view"]},
                 {"title": "Дошкольное отделение", "endpoint": "preschool.index", "permission_any": ["contingent_view"]},
@@ -647,10 +650,12 @@ def _theme_configs():
             "permission_any": ["incident_add", "incident_registry_view", "incident_dashboard_view"],
             "quick_actions": _materialize([
                 {"title": "Добавить инцидент", "endpoint": "children.incident_new", "permission_any": ["incident_add"]},
+                {"title": "Мои инциденты", "endpoint": "children.incidents_my", "permission_any": ["incident_add"]},
                 {"title": "Дашборд инцидентов", "endpoint": "children.incidents_dashboard", "permission_any": ["incident_dashboard_view"]},
             ]),
             "sections": _materialize([
                 {"title": "Добавить инцидент", "description": "Создать новую запись об инциденте.", "endpoint": "children.incident_new", "permission_any": ["incident_add"]},
+                {"title": "Мои инциденты", "description": "Только созданные мной обращения и их статусы.", "endpoint": "children.incidents_my", "permission_any": ["incident_add"]},
                 {"title": "Дашборд инцидентов", "description": "Оперативная аналитика по событиям.", "endpoint": "children.incidents_dashboard", "permission_any": ["incident_dashboard_view"]},
                 {"title": "Реестр инцидентов", "description": "Полный журнал инцидентов.", "endpoint": "children.incidents_registry", "permission_any": ["incident_registry_view"]},
                 {"title": "Травмы", "description": "Контроль случаев травмирования.", "endpoint": "children.incidents_registry", "permission_any": ["incident_registry_view"]},
@@ -661,6 +666,7 @@ def _theme_configs():
         "departments": {
             "title": "Кафедры",
             "subtitle": "Предметные кафедры, педнагрузка и аналитика по объединениям.",
+            "roles_any": ["ADMIN", "METHODIST", "DIRECTOR", "DEPUTY_DIRECTOR", "DEPARTMENT_HEAD"],
             "sections": _materialize([
                 {"title": "Настройка предметных кафедр", "description": "Структура кафедр и состав участников.", "endpoint": "departments.settings"},
                 {"title": "Свод по кафедрам", "description": "Итоги и показатели по кафедрам.", "endpoint": "departments.summary"},
@@ -675,6 +681,7 @@ def _theme_configs():
         "diagnostics": {
             "title": "Диагностики МЦКО",
             "subtitle": "Сессии диагностики, импорт PDF-отчетов, аналитика и привязка к учителям.",
+            "roles_any": ["ADMIN", "METHODIST"],
             "sections": _materialize([
                 {"title": "Список диагностик", "description": "Сессии и карточки диагностик.", "endpoint": "diagnostics.index"},
                 {"title": "Импорт результатов", "description": "Загрузка новых пакетов результатов.", "endpoint": "diagnostics.imports_registry"},
@@ -871,7 +878,51 @@ def orders():
 @hub_bp.route("/classroom")
 @login_required
 def classroom():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("classroom"))
+    theme = _theme_or_403("classroom")
+    school_class = _class_teacher_context()
+    own_scope = bool(
+        school_class
+        and not has_any_role(
+            "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "SOCIAL_PEDAGOG"
+        )
+    )
+    if own_scope:
+        class_id = school_class.id
+        target_urls = {
+            "Социальный паспорт класса": _safe_url("children.social_passport_class", class_id=class_id),
+            "Список класса": _safe_url("children.list_children", class_id=class_id),
+            "Учебный план класса": _safe_url("hub.classroom_curriculum", class_id=class_id),
+            "Распределение по учебным группам": _safe_url("hub.classroom_groups", class_id=class_id),
+        }
+        wanted = set(target_urls)
+        sections = []
+        for item in theme.get("sections") or []:
+            if item.get("title") not in wanted:
+                continue
+            row = dict(item)
+            row["url"] = target_urls[row["title"]]
+            sections.append(row)
+        sections.append(_decorate_item({
+            "title": "Мои инциденты",
+            "description": "Созданные мной обращения и их текущие статусы.",
+            "url": _safe_url("children.incidents_my"),
+        }))
+        theme["sections"] = sections
+
+        from app.models import ChildEnrollment
+        student_count = ChildEnrollment.query.filter(
+            ChildEnrollment.academic_year_id == school_class.academic_year_id,
+            ChildEnrollment.school_class_id == class_id,
+            ChildEnrollment.status == "ACTIVE",
+            ChildEnrollment.ended_at.is_(None),
+        ).count()
+        theme["classroom_class"] = {
+            "name": school_class.name,
+            "teacher": school_class.teacher_user.fio if school_class.teacher_user else "—",
+            "building": school_class.building.name if school_class.building else "—",
+            "student_count": student_count,
+        }
+    return render_template("hub/theme_page.html", theme=theme)
 
 
 @hub_bp.route("/admin")
@@ -965,7 +1016,7 @@ def _filter_page_sections_by_modules(page, module_codes):
         "hub.control_works": "control_works",
         "hub.olympiads": "olympiads",
         "hub.orders": "orders",
-        "hub.class_guidance": "class_guidance",
+        "hub.classroom": "class_guidance",
         "hub.service_staff": "service_staff",
         "tasks.my_tasks": "tasks",
         "school_plan.index": "school_plan",
@@ -979,6 +1030,8 @@ def _filter_page_sections_by_modules(page, module_codes):
 
     def keep(item):
         endpoint = item.get("endpoint")
+        if endpoint == "hub.classroom" and _class_teacher_context() is not None:
+            return True
         module_key = endpoint_to_module.get(endpoint)
         if not module_key:
             return True
