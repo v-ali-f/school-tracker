@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+{% block title %}Реестр кабинетов{% endblock %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/classrooms_registry.css') }}?v=20260818_1">
+{% endblock %}
+{% block content %}
+
+<div class="page-head mb-3">
+  <div>
+    <div class="section-overline">Основные реестры</div>
+    <h1 class="page-title">Реестр кабинетов</h1>
+    <div class="page-sub">Кабинеты по зданиям и закрепление за педагогами для выгрузки в aSc Расписание</div>
+  </div>
+  <div class="page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('hub.registries') }}">
+      <i class="bi bi-arrow-left me-1"></i>К реестрам
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.buildings_registry') }}">
+      <i class="bi bi-buildings me-1"></i>Здания
+    </a>
+  </div>
+</div>
+
+<form class="registry-filter-panel" method="get" action="{{ url_for('children.classrooms_registry') }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="classroom-building-filter">Здание</label>
+      <select class="form-select form-select-sm" id="classroom-building-filter" name="building_id" onchange="this.form.submit()">
+        <option value="">Все здания</option>
+        {% for building in buildings %}
+          <option value="{{ building.id }}" {% if selected_building_id == building.id %}selected{% endif %}>{{ building.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-8">
+      <div class="classrooms-registry-hint">
+        <i class="bi bi-info-circle me-1"></i>
+        Один кабинет педагога на здание. Без привязки кабинет в занятии aSc останется пустым.
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="registry-mobile-scroll-hint"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+<div class="registry-matrix-card">
+  <div class="registry-table-scroll" tabindex="0" aria-label="Реестр кабинетов">
+    <table class="registry-matrix registry-matrix-wide classrooms-registry-table">
+      <colgroup>
+        <col style="width:15%">
+        <col style="width:19%">
+        <col style="width:9%">
+        <col style="width:8%">
+        <col style="width:34%">
+        <col style="width:7%">
+        <col style="width:8%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Здание</th>
+          <th>Кабинет</th>
+          <th>Кратко</th>
+          <th>Мест</th>
+          <th>Кабинет педагога</th>
+          <th>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="classroom-add-row">
+          <td>
+            <form id="classroom-add-form" method="post" action="{{ url_for('children.classrooms_new') }}"></form>
+            <select class="form-select form-select-sm" name="building_id" form="classroom-add-form" aria-label="Здание нового кабинета" required>
+              <option value="">Здание…</option>
+              {% for building in buildings %}
+                <option value="{{ building.id }}" {% if selected_building_id == building.id %}selected{% endif %}>{{ building.short_name or building.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input class="form-control form-control-sm" name="name" form="classroom-add-form" placeholder="Номер или название" aria-label="Название нового кабинета" required></td>
+          <td><input class="form-control form-control-sm" name="short_name" form="classroom-add-form" placeholder="Кратко" aria-label="Краткое название нового кабинета"></td>
+          <td><input class="form-control form-control-sm" name="capacity" form="classroom-add-form" type="number" min="1" placeholder="—" aria-label="Вместимость нового кабинета"></td>
+          <td>
+            <select class="form-select form-select-sm" name="teacher_user_id" form="classroom-add-form" aria-label="Педагог нового кабинета">
+              <option value="">Не закреплён</option>
+              {% for teacher in teachers %}<option value="{{ teacher.id }}">{{ teacher.fio or teacher.username }}</option>{% endfor %}
+            </select>
+          </td>
+          <td class="registry-cell-center">
+            <input type="hidden" name="is_active" value="1" form="classroom-add-form">
+            <span class="badge text-bg-success">Активен</span>
+          </td>
+          <td class="registry-cell-center">
+            <button class="btn btn-primary registry-row-action" type="submit" form="classroom-add-form" title="Добавить кабинет" aria-label="Добавить кабинет">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </td>
+        </tr>
+
+        {% for classroom in classrooms %}
+          {% set form_id = 'classroom-update-' ~ classroom.id %}
+          <tr data-classroom-row>
+            <td class="registry-cell-clip" title="{{ classroom.building.name }}">
+              <span data-classroom-view>{{ classroom.building.short_name or classroom.building.name }}</span>
+              <select class="form-select form-select-sm d-none" name="building_id" form="{{ form_id }}" data-classroom-edit aria-label="Здание кабинета {{ classroom.name }}" required>
+                {% for building in buildings %}
+                  <option value="{{ building.id }}" {% if classroom.building_id == building.id %}selected{% endif %}>{{ building.short_name or building.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="registry-cell-clip fw-semibold" title="{{ classroom.name }}">
+              <span data-classroom-view>{{ classroom.name }}</span>
+              <input class="form-control form-control-sm d-none" name="name" form="{{ form_id }}" value="{{ classroom.name }}" data-classroom-edit aria-label="Название кабинета" required>
+            </td>
+            <td class="registry-cell-center">
+              <span data-classroom-view>{{ classroom.short_name or '—' }}</span>
+              <input class="form-control form-control-sm d-none" name="short_name" form="{{ form_id }}" value="{{ classroom.short_name or '' }}" data-classroom-edit aria-label="Краткое название кабинета">
+            </td>
+            <td class="registry-cell-center">
+              <span data-classroom-view>{{ classroom.capacity or '—' }}</span>
+              <input class="form-control form-control-sm d-none" name="capacity" form="{{ form_id }}" type="number" min="1" value="{{ classroom.capacity or '' }}" data-classroom-edit aria-label="Вместимость кабинета">
+            </td>
+            <td class="registry-cell-clip" title="{{ classroom.teacher.fio if classroom.teacher else 'Не закреплён' }}">
+              <span data-classroom-view>{{ classroom.teacher.fio if classroom.teacher else '—' }}</span>
+              <select class="form-select form-select-sm d-none" name="teacher_user_id" form="{{ form_id }}" data-classroom-edit aria-label="Педагог кабинета">
+                <option value="">Не закреплён</option>
+                {% for teacher in teachers %}
+                  <option value="{{ teacher.id }}" {% if classroom.teacher_user_id == teacher.id %}selected{% endif %}>{{ teacher.fio or teacher.username }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="registry-cell-center">
+              <span data-classroom-view class="classroom-status {% if not classroom.is_active %}is-inactive{% endif %}">{{ 'Активен' if classroom.is_active else 'Неактивен' }}</span>
+              <select class="form-select form-select-sm d-none" name="is_active" form="{{ form_id }}" data-classroom-edit aria-label="Статус кабинета">
+                <option value="1" {% if classroom.is_active %}selected{% endif %}>Активен</option>
+                <option value="" {% if not classroom.is_active %}selected{% endif %}>Неактивен</option>
+              </select>
+            </td>
+            <td class="registry-cell-center">
+              <form id="{{ form_id }}" method="post" action="{{ url_for('children.classrooms_update', classroom_id=classroom.id) }}"></form>
+              <div class="registry-row-actions" data-classroom-view-actions>
+                <button class="btn btn-outline-secondary registry-row-action" type="button" data-classroom-edit-button title="Изменить" aria-label="Изменить кабинет {{ classroom.name }}"><i class="bi bi-pencil"></i></button>
+                <form method="post" action="{{ url_for('children.classrooms_delete', classroom_id=classroom.id) }}" onsubmit="return confirm('Удалить кабинет {{ classroom.name }}?');">
+                  <button class="btn btn-outline-danger registry-row-action" title="Удалить" aria-label="Удалить кабинет {{ classroom.name }}"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+              <div class="registry-row-actions d-none" data-classroom-edit-actions>
+                <button class="btn btn-primary registry-row-action" type="submit" form="{{ form_id }}" title="Сохранить" aria-label="Сохранить кабинет"><i class="bi bi-check-lg"></i></button>
+                <button class="btn btn-outline-secondary registry-row-action" type="button" data-classroom-cancel title="Отмена" aria-label="Отменить изменения"><i class="bi bi-x-lg"></i></button>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="registry-empty-row">Для выбранного здания кабинеты ещё не добавлены.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/classrooms_registry.js') }}?v=20260818_1" defer></script>
+{% endblock %}

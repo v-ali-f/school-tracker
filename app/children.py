@@ -129,6 +129,7 @@ from app.services.education_activity_service import (
 from .models import (
     AcademicYear,
     Building,
+    SchoolClassroom,
     User,
     Role,
     UserRole,
@@ -159,6 +160,12 @@ from .models import (
     TariffVersion,
 )
 from app.services.teaching_group_service import current_population_snapshot
+from app.services.teacher_mcko_registry_service import (
+    teacher_professional_roster,
+)
+from app.services.population_snapshot_sync_service import (
+    sync_school_class_structure,
+)
 from app.utils.building_matrix_tones import (
     BUILDING_MATRIX_TONE_CHOICES,
     building_matrix_tone,
@@ -3022,6 +3029,7 @@ def update_class(class_id: int):
     wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     old_teacher_user_id = c.teacher_user_id
+    old_structure = (c.name, c.grade, c.building_id)
 
     max_students = request.form.get("max_students", type=int)
     if max_students is None or max_students < 1:
@@ -3096,6 +3104,8 @@ def update_class(class_id: int):
 
     try:
         db.session.flush()
+        if old_structure != (c.name, c.grade, c.building_id):
+            sync_school_class_structure(db.session, c)
         _sync_class_teacher_role(old_teacher_user_id)
         _sync_class_teacher_role(c.teacher_user_id)
         db.session.commit()
@@ -6532,12 +6542,160 @@ def buildings_update(building_id: int):
 def buildings_delete(building_id: int):
     b = Building.query.get_or_404(building_id)
 
+    if SchoolClassroom.query.filter_by(building_id=b.id).first() is not None:
+        flash(
+            "Сначала удалите кабинеты, относящиеся к этому зданию.",
+            "danger",
+        )
+        return redirect(url_for("children.buildings_registry"))
+
     SchoolClass.query.filter_by(building_id=b.id).update({"building_id": None})
     db.session.delete(b)
     db.session.commit()
 
     flash("Здание удалено", "success")
     return redirect(url_for("children.buildings_registry"))
+
+
+# =========================================================
+# CLASSROOMS
+# =========================================================
+def _classroom_redirect(building_id=None):
+    return redirect(url_for(
+        "children.classrooms_registry",
+        building_id=building_id or "",
+    ))
+
+
+def _classroom_form_values():
+    building_id = request.form.get("building_id", type=int)
+    teacher_user_id = request.form.get("teacher_user_id", type=int)
+    name = (request.form.get("name") or "").strip()
+    short_name = (request.form.get("short_name") or "").strip() or None
+    capacity_text = (request.form.get("capacity") or "").strip()
+    capacity = None
+    if capacity_text:
+        try:
+            capacity = int(capacity_text)
+        except ValueError:
+            capacity = 0
+    return {
+        "building_id": building_id,
+        "teacher_user_id": teacher_user_id,
+        "name": name,
+        "short_name": short_name,
+        "capacity": capacity,
+        "is_active": request.form.get("is_active") == "1",
+    }
+
+
+def _classroom_form_error(values):
+    if not values["building_id"] or db.session.get(
+        Building, values["building_id"]
+    ) is None:
+        return "Выберите здание."
+    if not values["name"]:
+        return "Укажите название или номер кабинета."
+    if values["capacity"] is not None and values["capacity"] <= 0:
+        return "Вместимость кабинета должна быть больше нуля."
+    if values["teacher_user_id"] and db.session.get(
+        User, values["teacher_user_id"]
+    ) is None:
+        return "Выбранный педагог не найден."
+    return None
+
+
+@children_bp.route("/classrooms")
+@require_roles("ADMIN")
+def classrooms_registry():
+    selected_building_id = request.args.get("building_id", type=int)
+    buildings = Building.query.order_by(Building.name.asc()).all()
+    query = SchoolClassroom.query.options(
+        joinedload(SchoolClassroom.building),
+        joinedload(SchoolClassroom.teacher),
+    )
+    if selected_building_id:
+        query = query.filter(
+            SchoolClassroom.building_id == selected_building_id
+        )
+    classrooms = query.join(
+        Building,
+        Building.id == SchoolClassroom.building_id,
+    ).order_by(
+        Building.name.asc(),
+        SchoolClassroom.name.asc(),
+    ).all()
+    teachers_by_id, _, _ = teacher_professional_roster()
+    teachers = sorted(
+        teachers_by_id.values(),
+        key=lambda item: (item.fio or item.username).casefold(),
+    )
+    return render_template(
+        "classrooms_list.html",
+        buildings=buildings,
+        classrooms=classrooms,
+        teachers=teachers,
+        selected_building_id=selected_building_id,
+    )
+
+
+@children_bp.route("/classrooms/new", methods=["POST"])
+@require_roles("ADMIN")
+def classrooms_new():
+    values = _classroom_form_values()
+    error = _classroom_form_error(values)
+    if error:
+        flash(error, "danger")
+        return _classroom_redirect(values["building_id"])
+    db.session.add(SchoolClassroom(**values))
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "В этом здании уже есть кабинет с таким названием либо "
+            "за педагогом уже закреплён кабинет.",
+            "danger",
+        )
+    else:
+        flash("Кабинет добавлен.", "success")
+    return _classroom_redirect(values["building_id"])
+
+
+@children_bp.route("/classrooms/<int:classroom_id>/update", methods=["POST"])
+@require_roles("ADMIN")
+def classrooms_update(classroom_id):
+    classroom = SchoolClassroom.query.get_or_404(classroom_id)
+    values = _classroom_form_values()
+    error = _classroom_form_error(values)
+    if error:
+        flash(error, "danger")
+        return _classroom_redirect(values["building_id"])
+    for field, value in values.items():
+        setattr(classroom, field, value)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "В этом здании уже есть кабинет с таким названием либо "
+            "за педагогом уже закреплён кабинет.",
+            "danger",
+        )
+    else:
+        flash("Кабинет сохранён.", "success")
+    return _classroom_redirect(values["building_id"])
+
+
+@children_bp.route("/classrooms/<int:classroom_id>/delete", methods=["POST"])
+@require_roles("ADMIN")
+def classrooms_delete(classroom_id):
+    classroom = SchoolClassroom.query.get_or_404(classroom_id)
+    building_id = classroom.building_id
+    db.session.delete(classroom)
+    db.session.commit()
+    flash("Кабинет удалён.", "success")
+    return _classroom_redirect(building_id)
 
 
 # =========================================================
