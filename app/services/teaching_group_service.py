@@ -466,6 +466,16 @@ def reconcile_group_population_links(
         else:
             db.session.delete(approval)
 
+    # Class links now point at the new snapshot. Keep the denormalized
+    # building on groups, needs and inherited assignments aligned with those
+    # current classes; otherwise the workload building filter uses stale data.
+    db.session.flush()
+    from app.services.population_snapshot_sync_service import (
+        sync_teaching_group_buildings,
+    )
+
+    sync_teaching_group_buildings(db.session, changed_groups)
+
     for group_id, details in changed_groups.items():
         group = db.session.get(TeachingGroup, group_id)
         if group.composition_mode == "PERSONAL":

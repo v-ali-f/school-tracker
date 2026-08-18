@@ -3,6 +3,7 @@ from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
+from xml.etree import ElementTree
 
 import pytest
 from openpyxl import load_workbook
@@ -51,10 +52,14 @@ from app.models import (
     WorkloadSourceTransition,
     Subject,
     SchoolClass,
+    SchoolClassroom,
 )
 from app.services.education_plan_service import (
     ensure_draft_tariff_version,
     plan_scope_code,
+)
+from app.services.asc_timetable_export_service import (
+    build_asc_timetable_xml,
 )
 from app.services.workload_distribution_service import (
     WorkloadDistributionError,
@@ -2150,6 +2155,131 @@ def test_workspace_export_and_compact_hours(
     assert "spreadsheetml.sheet" in export.content_type
 
 
+def test_workspace_exports_distributed_workload_for_asc_timetables(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        context = _distribution_context(admin_id)
+        _generate(context, admin_id)
+        need = WorkloadNeed.query.one()
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name = "Иванова"
+        teacher.first_name = "Мария"
+        teacher.middle_name = "Петровна"
+        activity = EducationActivity.query.one()
+        activity.short_name = "Мат."
+        db.session.add(SchoolClassroom(
+            building_id=context["building_id"],
+            name="Кабинет математики 201",
+            short_name="201",
+            capacity=30,
+            teacher_user_id=teacher_id,
+            is_active=True,
+        ))
+        db.session.add(_assignment(need, teacher_id, "5"))
+        db.session.commit()
+    login(admin_id)
+
+    workspace = client.get(
+        "/workload/assignments/workspace",
+        query_string={"version_id": context["version_id"]},
+    )
+    assert "Для aSc" in workspace.get_data(as_text=True)
+    assert "Сначала выберите здание" in workspace.get_data(as_text=True)
+
+    missing_building_export = client.get(
+        "/workload/assignments/workspace/export.asc.xml",
+        query_string={"version_id": context["version_id"]},
+    )
+    assert missing_building_export.status_code == 400
+
+    workspace = client.get(
+        "/workload/assignments/workspace",
+        query_string={
+            "version_id": context["version_id"],
+            "building_id": context["building_id"],
+        },
+    )
+    assert "/workload/assignments/workspace/export.asc.xml" in (
+        workspace.get_data(as_text=True)
+    )
+
+    export = client.get(
+        "/workload/assignments/workspace/export.asc.xml",
+        query_string={
+            "version_id": context["version_id"],
+            "building_id": context["building_id"],
+        },
+    )
+
+    assert export.status_code == 200
+    assert export.content_type.startswith("application/xml")
+    assert "Altair_workload_aSc_2026-2027_building-" in (
+        export.headers["Content-Disposition"]
+    )
+    root = ElementTree.fromstring(export.data)
+    assert root.tag == "timetable"
+    assert "groupstype1" in root.attrib["options"]
+    assert "groupstype2" not in root.attrib["options"]
+    teacher = root.find("./teachers/teacher")
+    assert teacher is not None
+    assert teacher.attrib["name"] == "Иванова Мария Петровна"
+    subject = root.find("./subjects/subject")
+    assert subject is not None
+    assert subject.attrib["name"] == "Математика"
+    assert subject.attrib["short"] == "Мат."
+    classroom = root.find("./classrooms/classroom")
+    assert classroom is not None
+    assert classroom.attrib["name"] == "Кабинет математики 201"
+    assert classroom.attrib["short"] == "201"
+    assert classroom.attrib["capacity"] == "30"
+    assert "classroomids" not in teacher.attrib
+    school_class = root.find("./classes/class")
+    assert school_class is not None
+    assert school_class.attrib["name"] == "5А"
+    group = root.find("./groups/group")
+    assert group is not None
+    assert group.attrib["name"] == "Группа 1"
+    lesson = root.find("./lessons/lesson")
+    assert lesson is not None
+    assert lesson.attrib["id"].startswith("altair_lesson_")
+    assert lesson.attrib["periodspercard"] == "1"
+    assert lesson.attrib["periodsperweek"] == "5"
+    assert lesson.attrib["teacherids"] == teacher.attrib["id"]
+    assert lesson.attrib["classroomids"] == classroom.attrib["id"]
+    assert lesson.attrib["subjectid"] == subject.attrib["id"]
+    assert lesson.attrib["groupids"] == group.attrib["id"]
+    assert lesson.attrib["classids"] == school_class.attrib["id"]
+    assert group.attrib["classid"] == school_class.attrib["id"]
+
+    with app.app_context():
+        SchoolClassroom.query.delete()
+        EducationActivity.query.one().short_name = None
+        db.session.commit()
+    export_without_room = client.get(
+        "/workload/assignments/workspace/export.asc.xml",
+        query_string={
+            "version_id": context["version_id"],
+            "building_id": context["building_id"],
+        },
+    )
+    fallback_root = ElementTree.fromstring(export_without_room.data)
+    assert fallback_root.find("./classrooms/classroom") is None
+    assert (
+        fallback_root.find("./lessons/lesson")
+        .attrib["classroomids"]
+    ) == ""
+    assert fallback_root.find("./subjects/subject").attrib["short"] == (
+        "Математика"
+    )
+
+
 def test_workspace_paginates_five_teachers_by_default(
     app,
     client,
@@ -2314,6 +2444,146 @@ def test_metagroup_display_lists_its_combined_classes():
 
     assert teaching_group_class_label(group) == "5А, 5Б"
     assert teaching_group_assignment_label(group) == "Метагруппа: 5А + 5Б"
+
+
+def test_asc_export_keeps_metagroup_classes_and_teacherless_vacancy():
+    def source_group(class_id, class_name):
+        snapshot_class = SimpleNamespace(
+            id=class_id,
+            source_school_class_id=class_id,
+            name_snapshot=class_name,
+        )
+        return SimpleNamespace(
+            group_type="SUBGROUP",
+            name=f"{class_name}, группа 1",
+            source_plan_line_id=12,
+            source_classes=[SimpleNamespace(
+                population_snapshot_class=snapshot_class,
+            )],
+        )
+
+    group = SimpleNamespace(
+        id=45,
+        group_type="METAGROUP",
+        name="Метагруппа английского языка",
+        source_plan_line_id=12,
+        metagroup_sources=[
+            SimpleNamespace(source_group=source_group(51, "5А")),
+            SimpleNamespace(source_group=source_group(52, "5Б")),
+        ],
+    )
+    activity = SimpleNamespace(
+        id=8,
+        name="Английский язык",
+        short_name="Англ.",
+        code="ENGLISH",
+    )
+    need = SimpleNamespace(
+        teaching_group=group,
+        education_activity=activity,
+    )
+    vacancy = SimpleNamespace(
+        status="DRAFT",
+        weekly_hours=Decimal("2.5"),
+        workload_need=need,
+        employee=None,
+    )
+
+    root = ElementTree.fromstring(build_asc_timetable_xml([vacancy]))
+
+    classes = root.findall("./classes/class")
+    assert [item.attrib["name"] for item in classes] == ["5А", "5Б"]
+    group_nodes = root.findall("./groups/group")
+    assert len(group_nodes) == 2
+    assert {item.attrib["classid"] for item in group_nodes} == {
+        "altair_class_51",
+        "altair_class_52",
+    }
+    lesson = root.find("./lessons/lesson")
+    assert lesson is not None
+    assert lesson.attrib["teacherids"] == ""
+    assert lesson.attrib["periodsperweek"] == "2.5"
+    assert lesson.attrib["classids"] == (
+        "altair_class_51,altair_class_52"
+    )
+    assert set(lesson.attrib["groupids"].split(",")) == {
+        item.attrib["id"] for item in group_nodes
+    }
+
+
+def test_asc_export_splits_senior_class_by_curriculum_for_metagroup():
+    snapshot_class = SimpleNamespace(
+        id=61,
+        source_school_class_id=41,
+        name_snapshot="11И",
+        grade_snapshot=11,
+    )
+
+    def source_group(group_id, plan_id, plan_name):
+        plan = SimpleNamespace(
+            id=plan_id,
+            name=plan_name,
+            profile_name=None,
+            root_plan=None,
+        )
+        return SimpleNamespace(
+            id=group_id,
+            group_type="CLASS",
+            name=f"11И · {plan_name}",
+            source_plan_line_id=group_id + 100,
+            source_plan_line=SimpleNamespace(education_plan=plan),
+            source_classes=[SimpleNamespace(
+                population_snapshot_class=snapshot_class,
+            )],
+        )
+
+    group = SimpleNamespace(
+        id=347,
+        group_type="METAGROUP",
+        name="Алгебра · метагруппа 11-х классов",
+        source_plan_line_id=201,
+        metagroup_sources=[
+            SimpleNamespace(source_group=source_group(71, 24, "СОО")),
+            SimpleNamespace(
+                source_group=source_group(72, 33, "СОО (ест)")
+            ),
+        ],
+    )
+    activity = SimpleNamespace(
+        id=9,
+        name="Алгебра",
+        short_name="Алг.",
+        code="ALGEBRA",
+    )
+    assignment = SimpleNamespace(
+        status="DRAFT",
+        weekly_hours=Decimal("6"),
+        workload_need=SimpleNamespace(
+            teaching_group=group,
+            education_activity=activity,
+        ),
+        employee=None,
+    )
+
+    root = ElementTree.fromstring(build_asc_timetable_xml([assignment]))
+
+    classes = root.findall("./classes/class")
+    assert [item.attrib["name"] for item in classes] == [
+        "11И · СОО",
+        "11И · СОО (ест)",
+    ]
+    assert {item.attrib["id"] for item in classes} == {
+        "altair_class_41_plan_24",
+        "altair_class_41_plan_33",
+    }
+    group_nodes = root.findall("./groups/group")
+    assert len(group_nodes) == 2
+    lesson = root.find("./lessons/lesson")
+    assert lesson is not None
+    assert set(lesson.attrib["classids"].split(",")) == {
+        item.attrib["id"] for item in classes
+    }
+    assert lesson.attrib["groupids"] == ""
 
 
 def test_extracurricular_group_display_uses_composition_not_subject_name():

@@ -567,6 +567,7 @@ def build_workload_assignment_matrix(
     holder_totals=None,
     visible_holder_key=None,
     visible_holder_keys=None,
+    extra_snapshot_classes=(),
 ):
     needs = list(needs)
     assignments = list(assignments)
@@ -739,6 +740,24 @@ def build_workload_assignment_matrix(
         else:
             need_column_keys[need.id] = (column["key"],)
             columns_by_key.setdefault(column["key"], column)
+
+    # When a building is selected, keep classes without generated workload in
+    # the matrix as empty columns. Otherwise the building filter misleadingly
+    # looks as if those classes are missing from the registry.
+    represented_source_class_ids = {
+        column.get("source_school_class_id")
+        for column in columns_by_key.values()
+        if column.get("source_school_class_id") is not None
+    }
+    for snapshot_class in extra_snapshot_classes or ():
+        source_school_class_id = (
+            getattr(snapshot_class, "source_school_class_id", None)
+            or snapshot_class.id
+        )
+        if source_school_class_id in represented_source_class_ids:
+            continue
+        direct_column = _column_from_source(snapshot_class, None)
+        columns_by_key.setdefault(direct_column["key"], direct_column)
 
     class_plan_counts = defaultdict(set)
     for column in columns_by_key.values():

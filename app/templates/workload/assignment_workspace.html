@@ -61,6 +61,34 @@
     >
       <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Скачать Excel
     </a>
+    {% if selected_building_id %}
+      <a
+        class="btn btn-outline-secondary btn-sm"
+        href="{{ url_for(
+          'workload.assignment_workspace_export_asc',
+          version_id=selected_version_id,
+          view=view_mode,
+          department_id=selected_department_id or '',
+          building_id=selected_building_id,
+          education_level=selected_education_levels,
+          grade=selected_grades,
+          subject_id=selected_subject_ids,
+          teacher_query=selected_teacher_query
+        ) }}"
+        title="Импорт: Файл → Импорт → aSc Timetables XML"
+      >
+        <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Для aSc
+      </a>
+    {% else %}
+      <button
+        class="btn btn-outline-secondary btn-sm"
+        type="button"
+        disabled
+        title="Сначала выберите здание"
+      >
+        <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Для aSc
+      </button>
+    {% endif %}
     {% endif %}
   </div>
 </div>
@@ -197,7 +225,9 @@
     </div>
 
     <div class="workload-filter-field workload-filter-field--building">
-      <label for="workspace-building">Здание</label>
+      <label for="workspace-building">
+        Здание{% if selected_version %} · классы {{ selected_version.tariff_cycle.academic_year.name }}{% endif %}
+      </label>
       <select class="form-select form-select-sm" id="workspace-building" name="building_id" data-workload-filter-auto>
         <option value="">Все здания</option>
         {% for item in buildings %}
@@ -299,6 +329,11 @@
 {% else %}
 <div class="workload-matrix-toolbar">
   <div class="workload-matrix-totals">
+    {% if selected_building %}
+    <span class="badge rounded-pill text-bg-primary">
+      <i class="bi bi-buildings me-1" aria-hidden="true"></i>{{ selected_building.short_name or selected_building.name }} · {{ selected_building_class_count }} кл.
+    </span>
+    {% endif %}
     <span>План <strong>{{ matrix.total_weekly|compact_decimal }}</strong></span>
     <span>Назначено <strong data-workload-total-allocated>{{ matrix.total_allocated|compact_decimal }}</strong></span>
     <span class="{% if matrix.total_remaining > 0 %}has-remaining{% endif %}">

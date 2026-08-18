@@ -3153,6 +3153,42 @@ def test_population_registry_detects_building_change_without_count_change(
         snapshot_id = _snapshot(user_id, context["version_id"])
         version = db.session.get(TariffVersion, context["version_id"])
         snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = PopulationSnapshotClass.query.filter_by(
+            population_snapshot_id=snapshot_id,
+            name_snapshot="5А",
+        ).one()
+        group = _ready_source_group(
+            context,
+            snapshot_class,
+            user_id=user_id,
+            suffix="SNAPSHOT_BUILDING_SYNC",
+        )
+        db.session.commit()
+        generate_plan_needs(version, user_id=user_id)
+        need = WorkloadNeed.query.filter_by(
+            teaching_group_id=group.id,
+        ).one()
+        assignment = WorkloadAssignment(
+            tariff_version_id=version.id,
+            workload_need_id=need.id,
+            employee_user_id=user_id,
+            position_code="TEACHER",
+            position_title="Учитель",
+            building_id=need.building_id,
+            assignment_kind="MAIN",
+            date_from=need.date_from,
+            date_to=need.date_to,
+            weekly_hours=need.weekly_hours,
+            annual_hours=need.annual_hours,
+            status="DRAFT",
+            created_by_user_id=user_id,
+            updated_by_user_id=user_id,
+        )
+        db.session.add(assignment)
+        db.session.commit()
+        group_id = group.id
+        need_id = need.id
+        assignment_id = assignment.id
 
         initial_status = population_registry_status(version, snapshot)
         assert initial_status["is_stale"] is False
@@ -3194,10 +3230,129 @@ def test_population_registry_detects_building_change_without_count_change(
         )
         assert refreshed_class.building_id == second_building.id
         assert refreshed_class.building_name_snapshot == "ВЗ"
+        assert db.session.get(TeachingGroup, group_id).building_id == (
+            second_building.id
+        )
+        assert db.session.get(WorkloadNeed, need_id).building_id == (
+            second_building.id
+        )
+        assert db.session.get(WorkloadAssignment, assignment_id).building_id == (
+            second_building.id
+        )
         assert population_registry_status(
             version,
             refreshed_snapshot,
         )["is_stale"] is False
+
+
+def test_class_registry_building_change_updates_draft_workload_immediately(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot_class = PopulationSnapshotClass.query.filter_by(
+            population_snapshot_id=snapshot_id,
+            name_snapshot="5А",
+        ).one()
+        group = _ready_source_group(
+            context,
+            snapshot_class,
+            user_id=user_id,
+            suffix="BUILDING_SYNC",
+        )
+        db.session.commit()
+        version = db.session.get(TariffVersion, context["version_id"])
+        generate_plan_needs(version, user_id=user_id)
+        second_building = Building(
+            name="Новый корпус",
+            short_name="НК",
+        )
+        db.session.add(second_building)
+        db.session.commit()
+        school_class = db.session.get(
+            SchoolClass,
+            snapshot_class.source_school_class_id,
+        )
+        class_id = school_class.id
+        group_id = group.id
+        second_building_id = second_building.id
+
+    login(user_id)
+    response = client.post(
+        f"/classes/{class_id}/update",
+        data={
+            "name": "5А",
+            "max_students": "25",
+            "applications_count": "0",
+            "building_id": str(second_building_id),
+            "teacher_user_id": "",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        refreshed_class = PopulationSnapshotClass.query.filter_by(
+            population_snapshot_id=snapshot_id,
+            source_school_class_id=class_id,
+        ).one()
+        refreshed_group = db.session.get(TeachingGroup, group_id)
+        need = WorkloadNeed.query.filter_by(
+            teaching_group_id=group_id
+        ).one()
+        assert refreshed_class.building_id == second_building_id
+        assert refreshed_class.building_name_snapshot == "НК"
+        assert refreshed_group.building_id == second_building_id
+        assert need.building_id == second_building_id
+
+
+def test_workload_matrix_keeps_classes_without_workload_as_empty_columns(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = PopulationSnapshotClass.query.filter_by(
+            population_snapshot_id=snapshot_id,
+            name_snapshot="5А",
+        ).one()
+        group = _ready_source_group(
+            context,
+            snapshot_class,
+            user_id=user_id,
+            suffix="EMPTY_COLUMN",
+        )
+        db.session.commit()
+        version = db.session.get(TariffVersion, context["version_id"])
+        generate_plan_needs(version, user_id=user_id)
+        need = WorkloadNeed.query.filter_by(
+            teaching_group_id=group.id
+        ).one()
+
+        matrix = build_workload_assignment_matrix(
+            [need],
+            [],
+            extra_snapshot_classes=snapshot.classes,
+        )
+
+        assert {item["label"] for item in matrix["class_groups"]} == {
+            "5А",
+            "5Б",
+        }
+        empty_column = next(
+            item for item in matrix["columns"] if item["label"] == "5Б"
+        )
+        assert empty_column["planned"] == Decimal("0")
 
 
 def test_class_plan_can_be_overridden_for_one_student(

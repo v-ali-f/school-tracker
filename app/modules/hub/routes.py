@@ -715,6 +715,7 @@ def _theme_configs():
                 {"title": "Реестр предметов", "description": "Единый каталог учебных предметов и видов образовательной деятельности.", "endpoint": "children.subjects_registry", "roles_any": ["ADMIN"]},
                 {"title": "Реестр олимпиадных предметов", "description": "Сопоставление олимпиадных предметов с единым каталогом и кафедрами.", "endpoint": "olympiads.settings", "roles_any": ["ADMIN"]},
                 {"title": "Реестр зданий", "description": "Здания, адреса, краткие названия и оформление матриц.", "endpoint": "children.buildings_registry", "roles_any": ["ADMIN"]},
+                {"title": "Реестр кабинетов", "description": "Кабинеты по зданиям и закрепление кабинетов за педагогами для aSc Расписание.", "endpoint": "children.classrooms_registry", "roles_any": ["ADMIN"]},
                 {"title": "Ученики", "description": "Основной реестр детей по школе.", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "description": "Карточка зачисления нового ученика.", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
                 {"title": "Движение", "description": "Переводы, переходы и архивирование.", "endpoint": "transfers.index", "roles_any": ["ADMIN"]},

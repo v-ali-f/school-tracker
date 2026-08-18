@@ -36,6 +36,7 @@ from app.models import (
     OrganizationSettings,
     PopulationSnapshotClass,
     SchoolClass,
+    SchoolClassroom,
     TariffCycle,
     TariffCalculationRun,
     TariffLine,
@@ -52,6 +53,9 @@ from app.models import (
     WORKLOAD_NEED_STATUS_LABELS,
     WorkloadAssignment,
     WorkloadNeed,
+)
+from app.services.asc_timetable_export_service import (
+    build_asc_timetable_xml,
 )
 from app.services.workload_distribution_service import (
     WorkloadDistributionError,
@@ -2254,6 +2258,25 @@ def register_assignment_routes(workload_bp):
                 for teacher_id, teacher in matrix_teachers.items()
                 if teacher_id in visible_teacher_ids
             }
+        extra_snapshot_classes = []
+        if building_id is not None and snapshot is not None:
+            extra_snapshot_classes = [
+                item
+                for item in snapshot.classes
+                if item.building_id == building_id
+                and (
+                    not education_levels
+                    or any(
+                        item.grade_snapshot
+                        in EDUCATION_LEVEL_GRADES[level]
+                        for level in education_levels
+                    )
+                )
+                and (
+                    not grades
+                    or item.grade_snapshot in grades
+                )
+            ]
         matrix = build_workload_assignment_matrix(
             needs,
             matrix_assignments,
@@ -2272,6 +2295,7 @@ def register_assignment_routes(workload_bp):
             visible_holder_keys=(
                 None if fragment_holder_key else page_holder_keys
             ),
+            extra_snapshot_classes=extra_snapshot_classes,
         )
         if department_id is not None:
             # Department plan indicators and the unassigned-hours dialog stay
@@ -2354,6 +2378,10 @@ def register_assignment_routes(workload_bp):
             list_assignments
         )
         departments, buildings = _scope_options()
+        selected_building = next(
+            (item for item in buildings if item.id == building_id),
+            None,
+        )
         filter_classes = list(snapshot.classes) if snapshot else []
         workspace_scope = resolve_workload_scope(current_user)
         if not workspace_scope.unrestricted:
@@ -2400,6 +2428,8 @@ def register_assignment_routes(workload_bp):
             view_mode=view_mode,
             selected_department_id=department_id,
             selected_building_id=building_id,
+            selected_building=selected_building,
+            selected_building_class_count=len(extra_snapshot_classes),
             selected_education_levels=sorted(education_levels),
             selected_grades=sorted(grades),
             selected_teacher_query=teacher_query,
@@ -3613,6 +3643,123 @@ def register_assignment_routes(workload_bp):
         )
         return _workspace_redirect()
 
+    @workload_bp.get("/assignments/workspace/export.asc.xml")
+    @login_required
+    def assignment_workspace_export_asc():
+        _require_assignments_read()
+        version_id = request.args.get("version_id", type=int)
+        version = _draft_versions_query().filter(
+            TariffVersion.id == version_id
+        ).first_or_404()
+        view_mode = (request.args.get("view") or "all").strip().lower()
+        department_id = (
+            request.args.get("department_id", type=int)
+            if view_mode == "department"
+            else None
+        )
+        education_levels = _workspace_selected_levels(request.args)
+        grades = _workspace_selected_grades(request.args)
+        selected_subject_ids = _workspace_selected_subject_ids(request.args)
+        building_id = request.args.get("building_id", type=int)
+        if building_id is None:
+            abort(
+                400,
+                description="Для выгрузки aSc сначала выберите здание.",
+            )
+        building = db.session.get(Building, building_id)
+        if building is None:
+            abort(404)
+        teacher_query = " ".join(
+            (request.args.get("teacher_query") or "").split()
+        )[:160]
+        snapshot, _, plan_matrices = _workspace_plan_context(
+            version,
+            education_levels=education_levels,
+            grades=grades,
+            building_id=building_id,
+        )
+        needs_query = _scoped_need_query().filter(
+            WorkloadNeed.tariff_version_id == version.id,
+            WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
+        )
+        if selected_subject_ids:
+            needs_query = needs_query.filter(
+                WorkloadNeed.education_activity_id.in_(
+                    selected_subject_ids
+                )
+            )
+        if education_levels or grades:
+            visible_group_ids = _workspace_matrix_group_ids(plan_matrices)
+            needs_query = (
+                needs_query.filter(
+                    WorkloadNeed.teaching_group_id.in_(visible_group_ids)
+                )
+                if visible_group_ids else needs_query.filter(db.false())
+            )
+        needs = _filter_workspace_needs(
+            needs_query.all(),
+            department_id=department_id,
+            building_id=building_id,
+            education_levels=education_levels,
+            grades=grades,
+            subject_ids=selected_subject_ids,
+            population_snapshot_id=(snapshot.id if snapshot else None),
+        )
+        need_ids = [item.id for item in needs]
+        assignments = (
+            WorkloadAssignment.query
+            .options(joinedload(WorkloadAssignment.employee))
+            .filter(
+                WorkloadAssignment.workload_need_id.in_(need_ids),
+                WorkloadAssignment.status != "CANCELLED",
+            )
+            .all()
+            if need_ids else []
+        )
+        needs_by_id = {item.id: item for item in needs}
+        for assignment in assignments:
+            set_committed_value(
+                assignment,
+                "workload_need",
+                needs_by_id[assignment.workload_need_id],
+            )
+        if view_mode == "vacancies":
+            assignments = [
+                assignment for assignment in assignments
+                if assignment.assignment_kind == "VACANCY"
+            ]
+        normalized_teacher_query = _workspace_search_text(teacher_query)
+        if normalized_teacher_query:
+            assignments = [
+                assignment for assignment in assignments
+                if normalized_teacher_query in _workspace_search_text(
+                    _workspace_assignment_holder_label(assignment)
+                )
+            ]
+
+        classrooms = SchoolClassroom.query.filter(
+            SchoolClassroom.building_id == building_id,
+            SchoolClassroom.is_active.is_(True),
+        ).order_by(SchoolClassroom.name.asc()).all()
+        stream = BytesIO(build_asc_timetable_xml(
+            assignments,
+            classrooms=classrooms,
+        ))
+        building_label = "_".join(
+            (building.short_name or building.name).split()
+        ).replace("/", "-")[:50]
+        return send_file(
+            stream,
+            as_attachment=True,
+            download_name=(
+                "Altair_workload_aSc_"
+                f"{version.tariff_cycle.academic_year.name.replace('/', '-')}"
+                f"_building-{building.id}_{building_label}"
+                ".xml"
+            ),
+            mimetype="application/xml",
+        )
+
     @workload_bp.get("/assignments/workspace/export.xlsx")
     @login_required
     def assignment_workspace_export():
@@ -3656,7 +3803,7 @@ def register_assignment_routes(workload_bp):
                     selected_subject_ids
                 )
             )
-        if education_levels or grades or building_id is not None:
+        if education_levels or grades:
             visible_group_ids = _workspace_matrix_group_ids(plan_matrices)
             needs_query = (
                 needs_query.filter(

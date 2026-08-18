@@ -1,0 +1,50 @@
+.classrooms-registry-hint {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  color: #69758a;
+  font-size: 11px;
+}
+
+.classrooms-registry-table {
+  min-width: 920px;
+}
+
+.classrooms-registry-table .classroom-add-row td {
+  padding: 3px 4px;
+  background: #f4f8fd;
+  border-bottom-color: #b9cbe0;
+}
+
+.classrooms-registry-table .form-control-sm,
+.classrooms-registry-table .form-select-sm {
+  min-height: 25px;
+  height: 25px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.classrooms-registry-table tr.is-editing > td {
+  height: 31px;
+  padding: 2px 4px;
+  background: #fff9e8;
+}
+
+.classroom-status {
+  display: inline-block;
+  color: #207344;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.classroom-status.is-inactive {
+  color: #8a94a5;
+}
+
+@media (max-width: 767.98px) {
+  .classrooms-registry-hint {
+    min-height: auto;
+  }
+}
