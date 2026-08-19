@@ -2817,6 +2817,77 @@ def test_generating_needs_materializes_default_one_group(
         assert WorkloadNeed.query.one().teaching_group_id == group.id
 
 
+def test_default_group_roster_sync_replaces_overlapping_members(
+    app,
+    make_user,
+):
+    user_id = make_user("ADMIN")
+    with app.app_context():
+        context = _group_context(user_id)
+        snapshot_id = _snapshot(user_id, context["version_id"])
+        snapshot = db.session.get(PopulationSnapshot, snapshot_id)
+        snapshot_class = (
+            PopulationSnapshotClass.query
+            .filter_by(
+                population_snapshot_id=snapshot_id,
+                name_snapshot="5А",
+            )
+            .one()
+        )
+        line = db.session.get(
+            EducationPlanLine,
+            context["plan_line_id"],
+        )
+        original_ids = [
+            item.id for item in snapshot_class.enrollments
+        ]
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            set(original_ids),
+            user_id=user_id,
+        )
+        generate_plan_needs(
+            db.session.get(TariffVersion, context["version_id"]),
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        child = _child("Добавленный", "Ученик")
+        added = PopulationSnapshotEnrollment(
+            population_snapshot_class_id=snapshot_class.id,
+            source_child_id=child.id,
+            fio_snapshot="Добавленный Ученик",
+            status_snapshot="ACTIVE",
+        )
+        db.session.add(added)
+        db.session.flush()
+        desired_ids = {original_ids[-1], added.id}
+        replace_plan_binding_members(
+            line.education_plan,
+            snapshot_class,
+            desired_ids,
+            user_id=user_id,
+        )
+
+        created = materialize_default_teaching_groups(
+            version=db.session.get(
+                TariffVersion,
+                context["version_id"],
+            ),
+            snapshot=snapshot,
+            plans=[line.education_plan],
+            user_id=user_id,
+        )
+        db.session.commit()
+
+        assert created == 0
+        assert {
+            member.snapshot_enrollment_id
+            for member in TeachingGroup.query.one().members
+        } == desired_ids
+
+
 def test_generating_needs_includes_all_plan_subjects_for_empty_class(
     app,
     make_user,

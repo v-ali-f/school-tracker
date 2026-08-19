@@ -1021,6 +1021,12 @@ def materialize_default_teaching_groups(
                             if current_member_ids != member_ids:
                                 for member in list(group.members):
                                     db.session.delete(member)
+                                # Flush removals before re-adding the desired
+                                # roster. Some pupils remain in both the old
+                                # and new sets; without this ordering the ORM
+                                # may INSERT first and hit the unique period
+                                # constraint for an existing membership.
+                                db.session.flush()
                                 for member_id in sorted(member_ids):
                                     db.session.add(TeachingGroupMember(
                                         teaching_group_id=group.id,
