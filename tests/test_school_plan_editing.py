@@ -43,6 +43,16 @@ def test_editor_can_save_event_twice_with_same_responsible_group(
         event_id = event.id
         assert [link.form_value for link in event.group_links] == ["role:TEACHER"]
 
+    index_response = client.get(
+        f"/school-plan/?period={date.today().strftime('%Y-%m')}"
+    )
+    assert index_response.status_code == 200
+    index_html = index_response.get_data(as_text=True)
+    assert 'aria-label="Изменить мероприятие"' in index_html
+    assert 'aria-label="Отменить мероприятие"' in index_html
+    assert ">Изменить</a>" not in index_html
+    assert ">Отменить</button>" not in index_html
+
     edit_response = client.post(
         f"/school-plan/{event_id}/edit",
         data=_event_form_data(direction_id, "Обновлённое название"),

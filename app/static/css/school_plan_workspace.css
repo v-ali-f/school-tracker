@@ -201,7 +201,10 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
 .sp-event-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: #687891; font-size: 9px; }
 .sp-event-meta span { display: inline-flex; align-items: center; gap: 4px; }
 .sp-event-actions { display: flex; gap: 5px; padding: 10px 12px; }
+.sp-event-actions form { margin: 0; }
 .sp-event-actions .btn { min-height: 30px !important; padding: 0 9px !important; border-radius: 8px !important; font-size: 9px !important; }
+.sp-event-actions .sp-event-action-icon { width: 30px; min-width: 30px !important; height: 30px; display: grid !important; place-items: center; padding: 0 !important; font-size: 12px !important; line-height: 1; }
+.sp-event-action-icon i { display: block; margin: 0; line-height: 1; }
 .sp-empty { padding: 70px 20px; border: 1px solid var(--sp-border); border-radius: 12px; color: #718099; background: #fff; text-align: center; }
 
 .sp-side-card { margin-bottom: 10px; padding: 14px; border: 1px solid var(--sp-border); border-radius: 12px; background: #fff; box-shadow: 0 5px 18px rgba(31,62,104,.04); }

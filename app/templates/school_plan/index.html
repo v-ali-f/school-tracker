@@ -1,6 +1,6 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы{% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260921_10">{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260921_11">{% endblock %}
 {% block breadcrumb %}{% endblock %}
 {% block content %}
 <div class="sp-workspace" id="schoolPlanWorkspace">
@@ -103,8 +103,8 @@
                 <div class="sp-event-meta"><span><i class="bi bi-people"></i>{{ event.display_audience }}</span><span><i class="bi bi-person"></i>{{ event.display_responsible or 'Ответственный не указан' }}</span></div>
               </div>
               <div class="sp-event-actions">
-                {% if can_manage %}<a class="btn btn-outline-primary" href="{{ url_for('school_plan.edit', event_id=event.id, return_period=selected_period) }}"><i class="bi bi-pencil me-1"></i>Изменить</a>{% else %}<a class="btn btn-outline-secondary" href="{{ url_for('school_plan.view', event_id=event.id) }}">Открыть</a>{% endif %}
-                {% if can_manage and not event.is_archived %}<form method="post" action="{{ url_for('school_plan.archive', event_id=event.id) }}" onsubmit="return confirm('Отменить мероприятие и перенести его в архив?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ selected_period }}"><button class="btn btn-outline-danger" type="submit"><i class="bi bi-x-circle me-1"></i>Отменить</button></form>{% elif can_manage %}<form method="post" action="{{ url_for('school_plan.restore', event_id=event.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ selected_period }}"><button class="btn btn-outline-success" type="submit"><i class="bi bi-arrow-counterclockwise me-1"></i>Вернуть</button></form>{% endif %}
+                {% if can_manage %}<a class="btn btn-outline-primary sp-event-action-icon" href="{{ url_for('school_plan.edit', event_id=event.id, return_period=selected_period) }}" title="Изменить мероприятие" aria-label="Изменить мероприятие"><i class="bi bi-pencil"></i></a>{% else %}<a class="btn btn-outline-secondary" href="{{ url_for('school_plan.view', event_id=event.id) }}">Открыть</a>{% endif %}
+                {% if can_manage and not event.is_archived %}<form method="post" action="{{ url_for('school_plan.archive', event_id=event.id) }}" onsubmit="return confirm('Отменить мероприятие и перенести его в архив?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ selected_period }}"><button class="btn btn-outline-danger sp-event-action-icon" type="submit" title="Отменить мероприятие" aria-label="Отменить мероприятие"><i class="bi bi-x-circle"></i></button></form>{% elif can_manage %}<form method="post" action="{{ url_for('school_plan.restore', event_id=event.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ selected_period }}"><button class="btn btn-outline-success sp-event-action-icon" type="submit" title="Вернуть мероприятие" aria-label="Вернуть мероприятие"><i class="bi bi-arrow-counterclockwise"></i></button></form>{% endif %}
               </div>
             </article>
             {% endfor %}
