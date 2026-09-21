@@ -675,17 +675,38 @@ def create_metagroup(
     return metagroup
 
 
-def delete_metagroup(group):
+def delete_metagroup(group, *, user_id=None):
     if group.group_type != "METAGROUP":
         raise GroupValidationError("Выбранная группа не является метагруппой.")
     if group.tariff_version.status != "DRAFT":
         raise GroupValidationError(
             "Метагруппу можно удалить только в рабочей версии."
         )
-    if WorkloadNeed.query.filter_by(teaching_group_id=group.id).first():
+    needs = WorkloadNeed.query.filter_by(
+        teaching_group_id=group.id,
+    ).all()
+    need_ids = [need.id for need in needs]
+    if need_ids and WorkloadAssignment.query.filter(
+        WorkloadAssignment.workload_need_id.in_(need_ids),
+        WorkloadAssignment.status != "CANCELLED",
+    ).first():
         raise GroupValidationError(
-            "По метагруппе уже сформирована нагрузка."
+            "По метагруппе ещё назначена нагрузка. "
+            "Сначала снимите назначение педагога."
         )
+    # The PLAN need is generated automatically together with a metagroup and
+    # is not itself a teacher assignment.  Keep it as a detached historical
+    # record, but release the foreign key before deleting the group.  The
+    # caller regenerates active needs for the original source groups.
+    for need in needs:
+        need.teaching_group_id = None
+        if need.status != "CANCELLED":
+            need.status = "CANCELLED"
+            need.revision = (need.revision or 0) + 1
+        if user_id is not None:
+            need.updated_by_user_id = user_id
+    if needs:
+        db.session.flush()
     db.session.delete(group)
 
 

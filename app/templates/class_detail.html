@@ -25,6 +25,9 @@
     <a href="{{ url_for('children.list_children', class_id=school_class.id) }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-funnel me-1"></i>В реестре учеников
     </a>
+    <a href="{{ url_for('children.class_list_export', class_id=school_class.id) }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-file-earmark-excel me-1"></i>Выгрузить список
+    </a>
     <a href="{{ url_for('children.classes_registry') }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left me-1"></i>Все классы
     </a>

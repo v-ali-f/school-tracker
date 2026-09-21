@@ -3,16 +3,19 @@ from app.models import SchoolPlanCategory, SchoolPlanDirection
 
 
 DEFAULT_DIRECTIONS = [
-    ('study', 'Учебная часть', '#2563eb', '#ffffff', 10),
+    ('quality', 'Качество образования', '#2563eb', '#ffffff', 10),
     ('upbringing', 'Воспитательная работа', '#16a34a', '#ffffff', 20),
-    ('control', 'Контрольные работы', '#f59e0b', '#111827', 30),
-    ('mcko', 'МЦКО', '#9f1239', '#ffffff', 40),
-    ('diagnostics', 'Диагностики', '#7c3aed', '#ffffff', 50),
-    ('exams', 'Экзамены', '#dc2626', '#ffffff', 60),
-    ('olympiads', 'Олимпиады', '#0f766e', '#ffffff', 70),
-    ('methodical', 'Методическая работа', '#475569', '#ffffff', 80),
-    ('parents', 'Работа с родителями', '#0ea5e9', '#ffffff', 90),
-    ('admin', 'Административные мероприятия', '#334155', '#ffffff', 100),
+    ('methodical', 'Методическая работа', '#7c3aed', '#ffffff', 30),
+    ('parents', 'Работа с родителями', '#0ea5e9', '#ffffff', 40),
+    ('safety', 'Безопасность и профилактика', '#dc2626', '#ffffff', 50),
+    ('development', 'Развитие школьной среды', '#0f766e', '#ffffff', 60),
+    ('admin', 'Организационно-управленческая работа', '#475569', '#ffffff', 70),
+    ('study', 'Учебная часть', '#1d4ed8', '#ffffff', 80),
+    ('control', 'Контрольные работы', '#f59e0b', '#111827', 90),
+    ('mcko', 'МЦКО', '#9f1239', '#ffffff', 100),
+    ('diagnostics', 'Диагностики', '#6d28d9', '#ffffff', 110),
+    ('exams', 'Экзамены', '#b91c1c', '#ffffff', 120),
+    ('olympiads', 'Олимпиады', '#047857', '#ffffff', 130),
 ]
 
 DEFAULT_CATEGORIES = [

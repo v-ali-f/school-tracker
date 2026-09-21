@@ -59,7 +59,7 @@
 {% block head_extra %}{% endblock %}
 </head>
 
-<body class="{% if current_user.is_authenticated %}portal-authenticated{% endif %}">
+<body class="{% if current_user.is_authenticated %}portal-authenticated{% endif %} {% if request.endpoint == 'school_plan.index' %}school-plan-modern-shell{% endif %}">
 {% set role_labels = {
   'ADMIN': 'Администратор',
   'DIRECTOR': 'Директор',

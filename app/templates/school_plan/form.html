@@ -1,133 +1,351 @@
 {% extends 'layout.html' %}
 {% block title %}{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}{% endblock %}
 {% block content %}
-<div class="page-head mb-3">
-  <div>
-    <div class="page-title">{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}</div>
-    <div class="page-sub">Базовая карточка события плана работы школы.</div>
+<div class="container py-3" style="max-width:980px">
+  <div class="page-head mb-3">
+    <div>
+      <div class="page-title">{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}</div>
+      <div class="page-sub">Только основные сведения для плана работы школы.</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.index', period=return_period or (event.start_date.strftime('%Y-%m') if event.start_date else none)) }}">К плану</a>
   </div>
-  <div class="page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.index') }}"><i class="bi bi-table me-1"></i>К реестру</a>
-  </div>
+
+  {% set selected_direction = request.form.get('direction_id', event.direction_id|string if event.direction_id else '') %}
+  <form method="post" class="card soft-card" id="schoolPlanForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="return_period" value="{{ return_period }}">
+    <div class="card-body p-3 p-md-4">
+      <div class="row g-4">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Название мероприятия <span class="text-danger">*</span></label>
+          <input class="form-control form-control-lg" name="title" maxlength="255" required value="{{ request.form.get('title', event.title or '') }}" placeholder="Например: Педагогический совет">
+        </div>
+
+        <div class="col-12">
+          <div class="fw-semibold mb-2">Когда проводится</div>
+          <div class="btn-group" role="group" aria-label="Один день или период">
+            <input class="btn-check" type="radio" name="date_mode" id="dateSingle" value="single" {% if date_mode == 'single' %}checked{% endif %}>
+            <label class="btn btn-outline-primary" for="dateSingle">Один день</label>
+            <input class="btn-check" type="radio" name="date_mode" id="datePeriod" value="period" {% if date_mode == 'period' %}checked{% endif %}>
+            <label class="btn btn-outline-primary" for="datePeriod">Период</label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" id="startDateLabel">{{ 'Дата начала' if date_mode == 'period' else 'Дата' }} <span class="text-danger">*</span></label>
+          <input class="form-control" type="date" name="start_date" required value="{{ request.form.get('start_date', event.start_date.isoformat() if event.start_date else '') }}">
+        </div>
+        <div class="col-md-6 {% if date_mode != 'period' %}d-none{% endif %}" id="endDateWrap">
+          <label class="form-label fw-semibold">Дата окончания <span class="text-danger">*</span></label>
+          <input class="form-control" type="date" name="end_date" value="{{ request.form.get('end_date', event.end_date.isoformat() if event.end_date and event.end_date != event.start_date else '') }}">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Направление деятельности <span class="text-danger">*</span></label>
+          <select class="form-select" name="direction_id" id="directionSelect" required>
+            <option value="">Выберите направление</option>
+            {% for row in directions %}<option value="{{ row.id }}" {% if selected_direction == row.id|string %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
+            <option value="other" {% if selected_direction == 'other' %}selected{% endif %}>Иное направление…</option>
+          </select>
+          <div class="mt-2 {% if selected_direction != 'other' %}d-none{% endif %}" id="directionOtherWrap">
+            <input class="form-control" name="direction_other" maxlength="120" value="{{ request.form.get('direction_other', '') }}" placeholder="Введите название направления">
+            <div class="form-text">Новое направление сохранится в каталоге и появится в списке.</div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Ответственные за мероприятие</label>
+          <div class="form-text mb-2">В первую очередь выберите должность или кафедру. При необходимости добавьте конкретного сотрудника.</div>
+          <details class="border rounded-3 bg-white" id="responsibleGroupPicker" open>
+            <summary class="p-3 d-flex justify-content-between align-items-center" style="cursor:pointer">
+              <span id="responsibleGroupSummary">Выбрать должности или кафедры</span><i class="bi bi-chevron-down"></i>
+            </summary>
+            <div class="border-top p-3">
+              <div class="small fw-semibold text-muted text-uppercase mb-2">Должности</div>
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input responsible-group-check" type="checkbox" name="responsible_groups" value="special:class_teachers" {% if 'special:class_teachers' in selected_responsible_groups %}checked{% endif %}>
+                    <span class="form-check-label">Классные руководители</span>
+                  </label>
+                </div>
+                {% for code, label in position_options %}
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input responsible-group-check" type="checkbox" name="responsible_groups" value="role:{{ code }}" {% if 'role:' ~ code in selected_responsible_groups %}checked{% endif %}>
+                    <span class="form-check-label">{{ label }}</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+              {% if departments %}
+              <div class="small fw-semibold text-muted text-uppercase mb-2">Кафедры</div>
+              <div class="row g-2">
+                {% for department in departments %}
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input responsible-group-check" type="checkbox" name="responsible_groups" value="department:{{ department.id }}" {% if 'department:' ~ department.id in selected_responsible_groups %}checked{% endif %}>
+                    <span class="form-check-label">Кафедра «{{ department.name }}»</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </details>
+          <details class="border rounded-3 bg-white mt-2" id="responsiblePersonPicker">
+            <summary class="p-3 d-flex justify-content-between align-items-center" style="cursor:pointer">
+              <span id="responsiblePersonSummary">Добавить конкретного сотрудника по ФИО</span><i class="bi bi-chevron-down"></i>
+            </summary>
+            <div class="border-top p-3">
+              <input class="form-control form-control-sm mb-3" type="search" id="responsibleSearch" placeholder="Найти сотрудника…">
+              <div class="row g-2" style="max-height:280px;overflow:auto">
+                {% for row in users %}
+                <div class="col-md-6 responsible-row" data-search="{{ (row.fio or row.username)|lower }}">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input responsible-check" type="checkbox" name="responsible_user_ids" value="{{ row.id }}" {% if row.id in selected_responsible_ids %}checked{% endif %}>
+                    <span class="form-check-label">{{ row.fio or row.username }}</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </details>
+          <input class="form-control mt-2" name="responsible_other" maxlength="255" value="{{ request.form.get('responsible_other', event.responsible_text or '') }}" placeholder="Другая должность или ответственный (необязательно)">
+        </div>
+
+        <div class="col-12">
+          <div class="fw-semibold mb-2">Для кого проводится</div>
+          <div class="d-flex flex-wrap gap-3 mb-3">
+            <label class="form-check"><input class="form-check-input audience-scope" type="radio" name="audience_scope" value="school" {% if audience_scope == 'school' %}checked{% endif %}> <span class="form-check-label">Вся школа</span></label>
+            <label class="form-check"><input class="form-check-input audience-scope" type="radio" name="audience_scope" value="students" {% if audience_scope == 'students' %}checked{% endif %}> <span class="form-check-label">Обучающиеся</span></label>
+            <label class="form-check"><input class="form-check-input audience-scope" type="radio" name="audience_scope" value="staff" {% if audience_scope == 'staff' %}checked{% endif %}> <span class="form-check-label">Сотрудники</span></label>
+          </div>
+
+          <div id="studentAudience" class="{% if audience_scope != 'students' %}d-none{% endif %}">
+            <div class="d-flex flex-wrap gap-3 mb-2">
+              <label class="form-check"><input class="form-check-input student-target-mode" type="radio" name="student_target_mode" value="all" {% if student_target_mode == 'all' %}checked{% endif %}> <span class="form-check-label">Все обучающиеся</span></label>
+              <label class="form-check"><input class="form-check-input student-target-mode" type="radio" name="student_target_mode" value="selected" {% if student_target_mode == 'selected' %}checked{% endif %}> <span class="form-check-label">Параллели и отдельные классы</span></label>
+            </div>
+          </div>
+
+          <details class="border rounded-3 bg-white {% if audience_scope != 'students' or student_target_mode != 'selected' %}d-none{% endif %}" id="classPicker">
+            <summary class="p-3 d-flex justify-content-between align-items-center" style="cursor:pointer">
+              <span id="classSummary">Выбрать параллели или классы</span><i class="bi bi-chevron-down"></i>
+            </summary>
+            <div class="border-top p-3">
+              <div class="small text-muted mb-3">Отметьте всю параллель либо раскройте её состав и оставьте только нужные классы.</div>
+              {% if class_buildings %}
+              <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Цвета корпусов">
+                {% for building in class_buildings %}
+                <span class="badge rounded-pill border" style="background:color-mix(in srgb, {{ building_colors[building.id] }} 12%, white);color:#1e293b;border-color:{{ building_colors[building.id] }} !important">
+                  <span class="d-inline-block rounded-circle me-1" style="width:8px;height:8px;background:{{ building_colors[building.id] }}"></span>{{ building.short_name or building.name }}
+                </span>
+                {% endfor %}
+              </div>
+              {% endif %}
+              <div class="accordion" id="classGroups">
+                {% for group in class_groups %}
+                {% set grade_key = group.grade|string if group.grade is not none else 'other' %}
+                <div class="accordion-item">
+                  <h2 class="accordion-header d-flex align-items-center px-3">
+                    {% if group.grade is not none %}<input class="form-check-input grade-check me-2" type="checkbox" name="target_grades" value="{{ group.grade }}" data-grade="{{ grade_key }}" {% if group.grade in selected_grades %}checked{% endif %} aria-label="Выбрать {{ group.label }}">{% endif %}
+                    <button class="accordion-button collapsed px-1" type="button" data-bs-toggle="collapse" data-bs-target="#grade{{ grade_key }}">{{ group.label }} <span class="text-muted ms-2">({{ group.classes|length }})</span></button>
+                  </h2>
+                  <div id="grade{{ grade_key }}" class="accordion-collapse collapse" data-bs-parent="#classGroups">
+                    <div class="accordion-body row g-2">
+                      {% for school_class in group.classes %}
+                      <div class="col-6 col-md-4 col-lg-3">
+                        {% set building_color = building_colors.get(school_class.building_id, '#94a3b8') %}
+                        <label class="form-check border rounded-3 p-2 ps-5 h-100" style="border-left:4px solid {{ building_color }} !important;background:color-mix(in srgb, {{ building_color }} 8%, white)">
+                          <input class="form-check-input class-check" type="checkbox" name="target_class_ids" value="{{ school_class.id }}" data-grade="{{ grade_key }}" {% if group.grade in selected_grades or school_class.id in selected_class_ids %}checked{% endif %}>
+                          <span class="form-check-label fw-semibold">{{ school_class.name }}</span>
+                          {% if school_class.building %}<span class="d-block small text-muted">{{ school_class.building.short_name or school_class.building.name }}</span>{% endif %}
+                        </label>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% else %}<div class="text-muted">Активные классы не найдены.</div>{% endfor %}
+              </div>
+            </div>
+          </details>
+
+          <details class="border rounded-3 bg-white {% if audience_scope != 'staff' %}d-none{% endif %}" id="staffPicker" {% if audience_scope == 'staff' %}open{% endif %}>
+            <summary class="p-3 d-flex justify-content-between align-items-center" style="cursor:pointer">
+              <span id="staffSummary">Выбрать сотрудников</span><i class="bi bi-chevron-down"></i>
+            </summary>
+            <div class="border-top p-3">
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input audience-group-check staff-all-check" type="checkbox" name="audience_groups" value="special:all_staff" {% if 'special:all_staff' in selected_audience_groups %}checked{% endif %}>
+                    <span class="form-check-label fw-semibold">Все сотрудники школы</span>
+                  </label>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input audience-group-check staff-detail-check" type="checkbox" name="audience_groups" value="special:class_teachers" {% if 'special:class_teachers' in selected_audience_groups %}checked{% endif %}>
+                    <span class="form-check-label">Классные руководители</span>
+                  </label>
+                </div>
+              </div>
+              <div class="small fw-semibold text-muted text-uppercase mb-2">По должностям</div>
+              <div class="row g-2 mb-3">
+                {% for code, label in position_options %}
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input audience-group-check staff-detail-check" type="checkbox" name="audience_groups" value="role:{{ code }}" {% if 'role:' ~ code in selected_audience_groups %}checked{% endif %}>
+                    <span class="form-check-label">{{ label }}</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+              {% if departments %}
+              <div class="small fw-semibold text-muted text-uppercase mb-2">По кафедрам</div>
+              <div class="row g-2">
+                {% for department in departments %}
+                <div class="col-md-6">
+                  <label class="form-check border rounded-3 p-2 ps-5 h-100">
+                    <input class="form-check-input audience-group-check staff-detail-check" type="checkbox" name="audience_groups" value="department:{{ department.id }}" {% if 'department:' ~ department.id in selected_audience_groups %}checked{% endif %}>
+                    <span class="form-check-label">Кафедра «{{ department.name }}»</span>
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </details>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Примечание <span class="fw-normal text-muted">(необязательно)</span></label>
+          <textarea class="form-control" name="description" rows="3" placeholder="Краткие организационные сведения">{{ request.form.get('description', event.description or '') }}</textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-white d-flex flex-wrap gap-2 p-3 p-md-4">
+      <button class="btn btn-primary" type="submit">Сохранить мероприятие</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index', period=return_period or (event.start_date.strftime('%Y-%m') if event.start_date else none)) }}">Отмена</a>
+      {% if event.id %}<button class="btn btn-outline-danger ms-md-auto" type="submit" form="deleteSchoolPlanEventForm"><i class="bi bi-trash me-1"></i>Удалить мероприятие</button>{% endif %}
+    </div>
+  </form>
+  {% if event.id %}<form method="post" id="deleteSchoolPlanEventForm" action="{{ url_for('school_plan.delete', event_id=event.id) }}" onsubmit="return confirm('Удалить мероприятие без возможности восстановления?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ return_period }}"></form>{% endif %}
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById('schoolPlanForm');
+  const endWrap = document.getElementById('endDateWrap');
+  const endInput = endWrap.querySelector('input');
+  const startLabel = document.getElementById('startDateLabel');
+  function refreshDateMode() {
+    const period = form.querySelector('[name="date_mode"]:checked').value === 'period';
+    endWrap.classList.toggle('d-none', !period);
+    endInput.required = period;
+    if (!period) endInput.value = '';
+    startLabel.innerHTML = (period ? 'Дата начала' : 'Дата') + ' <span class="text-danger">*</span>';
+  }
+  form.querySelectorAll('[name="date_mode"]').forEach(el => el.addEventListener('change', refreshDateMode));
 
-<form method="post" class="card card-body shadow-sm">
-  <div class="row g-3">
-    <div class="col-md-8">
-      <label class="form-label">Название</label>
-      <input class="form-control" name="title" value="{{ event.title or '' }}" required>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Краткое название</label>
-      <input class="form-control" name="short_title" value="{{ event.short_title or '' }}">
-    </div>
-    <div class="col-12">
-      <label class="form-label">Описание</label>
-      <textarea class="form-control" name="description" rows="3">{{ event.description or '' }}</textarea>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Дата начала</label>
-      <input class="form-control" type="date" name="start_date" value="{{ event.start_date.isoformat() if event.start_date else '' }}" required>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Дата окончания</label>
-      <input class="form-control" type="date" name="end_date" value="{{ event.end_date.isoformat() if event.end_date else '' }}">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Тип периода</label>
-      <select class="form-select" name="period_type">
-        {% for value, title in period_choices %}<option value="{{ value }}" {% if (event.period_type or 'day') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Учебный год</label>
-      <select class="form-select" name="academic_year_id">
-        <option value="">Не указан</option>
-        {% for row in years %}<option value="{{ row.id }}" {% if event.academic_year_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
-      </select>
-    </div>
+  const direction = document.getElementById('directionSelect');
+  const directionOther = document.getElementById('directionOtherWrap');
+  function refreshDirection() {
+    const isOther = direction.value === 'other';
+    directionOther.classList.toggle('d-none', !isOther);
+    directionOther.querySelector('input').required = isOther;
+  }
+  direction.addEventListener('change', refreshDirection);
 
-    <div class="col-md-4">
-      <label class="form-label">Направление</label>
-      <select class="form-select" name="direction_id">
-        <option value="">Не выбрано</option>
-        {% for row in directions %}<option value="{{ row.id }}" {% if event.direction_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Категория</label>
-      <select class="form-select" name="category_id">
-        <option value="">Не выбрано</option>
-        {% for row in categories %}<option value="{{ row.id }}" {% if event.category_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Уровень видимости</label>
-      <select class="form-select" name="visibility_level">
-        {% for value, title in visibility_choices %}<option value="{{ value }}" {% if (event.visibility_level or 'school') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
-      </select>
-    </div>
+  const responsibleGroupChecks = Array.from(document.querySelectorAll('.responsible-group-check'));
+  const responsibleChecks = Array.from(document.querySelectorAll('.responsible-check'));
+  function refreshResponsibleSummary() {
+    const groups = responsibleGroupChecks.filter(el => el.checked).length;
+    const people = responsibleChecks.filter(el => el.checked).length;
+    document.getElementById('responsibleGroupSummary').textContent = groups ? `Выбрано должностей и кафедр: ${groups}` : 'Выбрать должности или кафедры';
+    document.getElementById('responsiblePersonSummary').textContent = people ? `Выбрано сотрудников по ФИО: ${people}` : 'Добавить конкретного сотрудника по ФИО';
+  }
+  responsibleGroupChecks.forEach(el => el.addEventListener('change', refreshResponsibleSummary));
+  responsibleChecks.forEach(el => el.addEventListener('change', refreshResponsibleSummary));
+  document.getElementById('responsibleSearch').addEventListener('input', function () {
+    const query = this.value.trim().toLowerCase();
+    document.querySelectorAll('.responsible-row').forEach(row => row.classList.toggle('d-none', query && !row.dataset.search.includes(query)));
+  });
 
-    <div class="col-md-4">
-      <label class="form-label">Здание</label>
-      <select class="form-select" name="building_id">
-        <option value="">Не выбрано</option>
-        {% for row in buildings %}<option value="{{ row.id }}" {% if event.building_id == row.id %}selected{% endif %}>{{ row.short_name or row.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Класс</label>
-      <select class="form-select" name="class_id">
-        <option value="">Не выбрано</option>
-        {% for row in classes %}<option value="{{ row.id }}" {% if event.class_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Место проведения</label>
-      <input class="form-control" name="location" value="{{ event.location or '' }}">
-    </div>
+  const classPicker = document.getElementById('classPicker');
+  const studentAudience = document.getElementById('studentAudience');
+  const staffPicker = document.getElementById('staffPicker');
+  const gradeChecks = Array.from(document.querySelectorAll('.grade-check'));
+  const classChecks = Array.from(document.querySelectorAll('.class-check'));
+  const audienceGroupChecks = Array.from(document.querySelectorAll('.audience-group-check'));
+  const staffAllCheck = document.querySelector('.staff-all-check');
+  const staffDetailChecks = Array.from(document.querySelectorAll('.staff-detail-check'));
+  function refreshAudience() {
+    const scope = form.querySelector('[name="audience_scope"]:checked').value;
+    const isStudents = scope === 'students';
+    const isStaff = scope === 'staff';
+    const studentTarget = form.querySelector('[name="student_target_mode"]:checked').value;
+    const isClasses = isStudents && studentTarget === 'selected';
+    studentAudience.classList.toggle('d-none', !isStudents);
+    classPicker.classList.toggle('d-none', !isClasses);
+    staffPicker.classList.toggle('d-none', !isStaff);
+    if (isClasses) classPicker.open = true;
+    if (isStaff) staffPicker.open = true;
+  }
+  function refreshStaffSelection() {
+    if (staffAllCheck.checked) {
+      staffDetailChecks.forEach(el => { el.checked = false; el.disabled = true; });
+    } else {
+      staffDetailChecks.forEach(el => { el.disabled = false; });
+    }
+    const count = audienceGroupChecks.filter(el => el.checked).length;
+    document.getElementById('staffSummary').textContent = count ? `Выбрано групп сотрудников: ${count}` : 'Выбрать сотрудников';
+  }
+  function refreshClassSummary() {
+    const grades = gradeChecks.filter(el => el.checked).length;
+    const classes = classChecks.filter(el => el.checked && !gradeChecks.some(g => g.checked && g.dataset.grade === el.dataset.grade)).length;
+    const parts = [];
+    if (grades) parts.push(`параллелей: ${grades}`);
+    if (classes) parts.push(`отдельных классов: ${classes}`);
+    document.getElementById('classSummary').textContent = parts.length ? `Выбрано — ${parts.join(', ')}` : 'Выбрать параллели или классы';
+  }
+  gradeChecks.forEach(grade => grade.addEventListener('change', function () {
+    classChecks.filter(el => el.dataset.grade === grade.dataset.grade).forEach(el => { el.checked = grade.checked; });
+    grade.indeterminate = false;
+    refreshClassSummary();
+  }));
+  classChecks.forEach(item => item.addEventListener('change', function () {
+    const grade = gradeChecks.find(el => el.dataset.grade === item.dataset.grade);
+    if (grade) {
+      const siblings = classChecks.filter(el => el.dataset.grade === item.dataset.grade);
+      const checked = siblings.filter(el => el.checked).length;
+      grade.checked = checked === siblings.length;
+      grade.indeterminate = checked > 0 && checked < siblings.length;
+    }
+    refreshClassSummary();
+  }));
+  form.querySelectorAll('[name="audience_scope"], [name="student_target_mode"]').forEach(el => el.addEventListener('change', refreshAudience));
+  staffAllCheck.addEventListener('change', refreshStaffSelection);
+  staffDetailChecks.forEach(el => el.addEventListener('change', function () {
+    if (el.checked) staffAllCheck.checked = false;
+    refreshStaffSelection();
+  }));
 
-    <div class="col-md-4">
-      <label class="form-label">Ответственный сотрудник</label>
-      <select class="form-select" name="responsible_user_id">
-        <option value="">Не выбран</option>
-        {% for row in users %}<option value="{{ row.id }}" {% if event.responsible_user_id == row.id %}selected{% endif %}>{{ row.fio or row.username }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Ответственный текстом</label>
-      <input class="form-control" name="responsible_text" value="{{ event.responsible_text or '' }}">
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Участники</label>
-      <input class="form-control" name="participants" value="{{ event.participants or '' }}">
-    </div>
+  gradeChecks.forEach(grade => {
+    if (!grade.checked) {
+      const siblings = classChecks.filter(el => el.dataset.grade === grade.dataset.grade);
+      const checked = siblings.filter(el => el.checked).length;
+      grade.indeterminate = checked > 0 && checked < siblings.length;
+    }
+  });
 
-    <div class="col-md-3">
-      <label class="form-label">Статус</label>
-      <select class="form-select" name="status">
-        {% for value, title in status_choices %}<option value="{{ value }}" {% if (event.status or 'planned') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Важность</label>
-      <select class="form-select" name="priority">
-        {% for value, title in priority_choices %}<option value="{{ value }}" {% if (event.priority or 'normal') == value %}selected{% endif %}>{{ title }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Цвет события</label>
-      <input class="form-control form-control-color" type="color" name="color" value="{{ event.effective_color if event.id else '#2563eb' }}">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Цвет текста</label>
-      <input class="form-control form-control-color" type="color" name="text_color" value="{{ event.effective_text_color if event.id else '#ffffff' }}">
-    </div>
-  </div>
-
-  <div class="mt-4 d-flex gap-2">
-    <button class="btn btn-primary" type="submit">Сохранить</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index') }}">Отмена</a>
-  </div>
-</form>
+  refreshDateMode();
+  refreshDirection();
+  refreshResponsibleSummary();
+  refreshAudience();
+  refreshStaffSelection();
+  refreshClassSummary();
+})();
+</script>
 {% endblock %}

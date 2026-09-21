@@ -1,0 +1,86 @@
+<div class="workload-list-summary" aria-label="Итоги нагрузки по видам деятельности">
+  {% for plan_kind in ['CURRICULUM', 'EXTRACURRICULAR', 'ADDITIONAL_EDUCATION'] %}
+  <div>
+    <span>{{ list_plan_kind_labels[plan_kind] }}</span>
+    <strong>{{ workload_class_list.totals.get(plan_kind, 0)|compact_decimal }}</strong>
+    <small>ч/нед.</small>
+  </div>
+  {% endfor %}
+  <div class="is-total">
+    <span>Всего</span>
+    <strong>{{ workload_class_list.total|compact_decimal }}</strong>
+    <small>ч/нед.</small>
+  </div>
+</div>
+
+{% if workload_class_list.blocks %}
+<div class="workload-teacher-list workload-class-list">
+  {% for block in workload_class_list.blocks %}
+  <section class="workload-teacher-list__card">
+    <header>
+      <div>
+        <strong><i class="bi bi-building me-1" aria-hidden="true"></i>{{ block.label }}</strong>
+      </div>
+      <span>Всего: <strong>{{ block.total|compact_decimal }}</strong> ч/нед.</span>
+    </header>
+    <div class="workload-teacher-list__table-wrap">
+      <table class="workload-teacher-list__table">
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Предмет</th>
+            <th>Педагог</th>
+            <th>Часы</th>
+            <th>Группа / весь класс</th>
+            <th>Здание</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set counter = namespace(value=1) %}
+          {% for section in block.sections %}
+          <tr class="workload-teacher-list__section">
+            <th colspan="6">{{ section.label }}</th>
+          </tr>
+            {% for row in section.rows %}
+          <tr>
+            <td>{{ counter.value }}</td>
+            <td><strong>{{ row.subject_name }}</strong></td>
+            <td>
+              {% if row.teacher_id %}
+              <a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher_id, academic_year_id=selected_version.tariff_cycle.academic_year_id) }}">{{ row.teacher_label }}</a>
+              {% else %}
+              <span><i class="bi bi-briefcase me-1" aria-hidden="true"></i>{{ row.teacher_label }}</span>
+              {% endif %}
+            </td>
+            <td class="is-hours">{{ row.hours|compact_decimal }}</td>
+            <td>{{ row.group_label }}</td>
+            <td>{{ row.building_label }}</td>
+          </tr>
+              {% set counter.value = counter.value + 1 %}
+            {% endfor %}
+          <tr class="workload-teacher-list__section-total">
+            <td colspan="3">Итого: {{ section.label }}</td>
+            <td class="is-hours">{{ section.total|compact_decimal }}</td>
+            <td colspan="2"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="3">Всего по классу / группе</th>
+            <th class="is-hours">{{ block.total|compact_decimal }}</th>
+            <th colspan="2"></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="workload-matrix-empty">
+  <i class="bi bi-buildings" aria-hidden="true"></i>
+  <strong>По выбранным условиям назначенной нагрузки нет</strong>
+  <span>Измените фильтры или вернитесь к матрице для распределения часов.</span>
+</div>
+{% endif %}

@@ -3,6 +3,24 @@ from datetime import datetime
 from app.core.extensions import db
 
 
+school_classroom_teacher = db.Table(
+    "school_classroom_teacher",
+    db.Column(
+        "classroom_id",
+        db.Integer,
+        db.ForeignKey("school_classroom.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column(
+        "teacher_user_id",
+        db.Integer,
+        db.ForeignKey("user.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    ),
+)
+
+
 class SchoolClassroom(db.Model):
     """A physical classroom and its optional teacher assignment."""
 
@@ -56,6 +74,29 @@ class SchoolClassroom(db.Model):
         foreign_keys=[teacher_user_id],
         backref=db.backref("assigned_classrooms", lazy=True),
     )
+    teachers = db.relationship(
+        "User",
+        secondary=school_classroom_teacher,
+        backref=db.backref("shared_classrooms", lazy=True),
+        lazy="selectin",
+    )
+
+    @property
+    def assigned_teachers(self):
+        """Return all linked teachers, including legacy single-room data."""
+        result = list(self.teachers or ())
+        if self.teacher is not None and all(
+            item.id != self.teacher.id for item in result
+        ):
+            result.append(self.teacher)
+        return sorted(
+            result,
+            key=lambda item: (item.fio or item.username).casefold(),
+        )
+
+    @property
+    def assigned_teacher_ids(self):
+        return [item.id for item in self.assigned_teachers]
 
     __table_args__ = (
         db.CheckConstraint(
@@ -67,12 +108,7 @@ class SchoolClassroom(db.Model):
             "name",
             name="uq_school_classroom_building_name",
         ),
-        db.UniqueConstraint(
-            "building_id",
-            "teacher_user_id",
-            name="uq_school_classroom_teacher_building",
-        ),
     )
 
 
-__all__ = ["SchoolClassroom"]
+__all__ = ["SchoolClassroom", "school_classroom_teacher"]

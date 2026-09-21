@@ -90,6 +90,34 @@ class SchoolPlanEvent(db.Model):
     school_class = db.relationship('SchoolClass', foreign_keys=[class_id])
     created_by = db.relationship('User', foreign_keys=[created_by_user_id])
     updated_by = db.relationship('User', foreign_keys=[updated_by_user_id])
+    responsible_links = db.relationship(
+        'SchoolPlanEventResponsible',
+        backref='event',
+        lazy='select',
+        cascade='all, delete-orphan',
+        order_by='SchoolPlanEventResponsible.sort_order',
+    )
+    target_grade_links = db.relationship(
+        'SchoolPlanEventGrade',
+        backref='event',
+        lazy='select',
+        cascade='all, delete-orphan',
+        order_by='SchoolPlanEventGrade.grade',
+    )
+    target_class_links = db.relationship(
+        'SchoolPlanEventClass',
+        backref='event',
+        lazy='select',
+        cascade='all, delete-orphan',
+        order_by='SchoolPlanEventClass.sort_order',
+    )
+    group_links = db.relationship(
+        'SchoolPlanEventGroup',
+        backref='event',
+        lazy='select',
+        cascade='all, delete-orphan',
+        order_by='SchoolPlanEventGroup.sort_order',
+    )
 
     @property
     def display_title(self):
@@ -103,7 +131,40 @@ class SchoolPlanEvent(db.Model):
 
     @property
     def display_responsible(self):
-        return self.responsible_text or (self.responsible_user.fio if self.responsible_user else '')
+        names = [
+            link.label
+            for link in self.group_links
+            if link.purpose == 'responsible' and link.label
+        ]
+        names.extend(
+            link.user.fio or link.user.username
+            for link in self.responsible_links
+            if link.user
+        )
+        if not names and self.responsible_user:
+            names.append(self.responsible_user.fio or self.responsible_user.username)
+        if self.responsible_text and self.responsible_text not in names:
+            names.append(self.responsible_text)
+        return '; '.join(names)
+
+    @property
+    def display_audience(self):
+        labels = [
+            link.label
+            for link in self.group_links
+            if link.purpose == 'audience' and link.label
+        ]
+        labels.extend(f'{link.grade}-е классы' for link in self.target_grade_links)
+        labels.extend(
+            link.school_class.name
+            for link in self.target_class_links
+            if link.school_class
+        )
+        if labels:
+            return ', '.join(labels)
+        if self.school_class:
+            return self.school_class.name
+        return 'Вся школа'
 
     @property
     def effective_color(self):
@@ -115,3 +176,145 @@ class SchoolPlanEvent(db.Model):
 
     def __repr__(self):
         return f'<SchoolPlanEvent {self.title}>'
+
+
+class SchoolPlanEventResponsible(db.Model):
+    __tablename__ = 'school_plan_event_responsible'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey('school_plan_event.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('event_id', 'user_id', name='uq_school_plan_event_responsible'),
+        db.Index('ix_sp_event_responsible_link_event', 'event_id'),
+        db.Index('ix_sp_event_responsible_link_user', 'user_id'),
+    )
+
+
+class SchoolPlanEventGrade(db.Model):
+    __tablename__ = 'school_plan_event_grade'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey('school_plan_event.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    grade = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.CheckConstraint('grade BETWEEN 1 AND 11', name='ck_school_plan_event_grade_range'),
+        db.UniqueConstraint('event_id', 'grade', name='uq_school_plan_event_grade'),
+        db.Index('ix_sp_event_grade_link_event', 'event_id'),
+        db.Index('ix_sp_event_grade_link_grade', 'grade'),
+    )
+
+
+class SchoolPlanEventClass(db.Model):
+    __tablename__ = 'school_plan_event_class'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey('school_plan_event.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    class_id = db.Column(
+        db.Integer,
+        db.ForeignKey('school_class.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    school_class = db.relationship('SchoolClass', foreign_keys=[class_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('event_id', 'class_id', name='uq_school_plan_event_class'),
+        db.Index('ix_sp_event_class_link_event', 'event_id'),
+        db.Index('ix_sp_event_class_link_class', 'class_id'),
+    )
+
+
+class SchoolPlanEventGroup(db.Model):
+    __tablename__ = 'school_plan_event_group'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey('school_plan_event.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    purpose = db.Column(db.String(20), nullable=False)
+    group_type = db.Column(db.String(30), nullable=False)
+    group_key = db.Column(db.String(80), nullable=False, default='')
+    label = db.Column(db.String(255), nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    @property
+    def form_value(self):
+        return f'{self.group_type}:{self.group_key}'
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "purpose IN ('audience', 'responsible')",
+            name='ck_school_plan_event_group_purpose',
+        ),
+        db.UniqueConstraint(
+            'event_id',
+            'purpose',
+            'group_type',
+            'group_key',
+            name='uq_school_plan_event_group',
+        ),
+        db.Index('ix_sp_event_group_link_event', 'event_id'),
+        db.Index('ix_sp_event_group_purpose_type', 'purpose', 'group_type'),
+    )
+
+
+class SchoolPlanEditorAccess(db.Model):
+    __tablename__ = 'school_plan_editor_access'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    granted_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id'),
+        nullable=True,
+    )
+    is_enabled = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True,
+        server_default='true',
+    )
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    granted_by = db.relationship('User', foreign_keys=[granted_by_user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', name='uq_school_plan_editor_access_user'
+        ),
+        db.Index('ix_sp_editor_access_user', 'user_id'),
+    )

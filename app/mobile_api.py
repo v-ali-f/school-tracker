@@ -11,6 +11,7 @@ from sqlalchemy import bindparam, or_, text
 from app.auth import _client_ip, _login_is_blocked, _record_failed_login, _reset_failed_login
 from app.children import INCIDENT_CATEGORIES
 from app.core.extensions import csrf, db
+from app.core.access_control import is_user_account_enabled
 from app.models import (
     AcademicYear,
     Appeal,
@@ -159,7 +160,7 @@ def _mobile_user_from_any_token():
     except (BadSignature, SignatureExpired):
         return None
     user = db.session.get(User, data.get("user_id"))
-    if not user or getattr(user, "is_active_user", True) is False:
+    if not is_user_account_enabled(user):
         return None
     if data.get("password") != (user.password_hash or "")[-24:]:
         return None
@@ -327,7 +328,7 @@ def _user_from_mobile_token():
     except (BadSignature, SignatureExpired):
         return None
     user = db.session.get(User, data.get("user_id"))
-    if not user or getattr(user, "is_active_user", True) is False:
+    if not is_user_account_enabled(user):
         return None
     if data.get("password") != (user.password_hash or "")[-24:]:
         return None
@@ -648,7 +649,7 @@ def login():
         _record_failed_login(ip)
         return _json_error("Неверный логин или пароль.", 401, "invalid_credentials")
 
-    if getattr(user, "is_active_user", True) is False:
+    if not is_user_account_enabled(user):
         return _json_error("Пользователь отключен.", 403, "inactive_user")
 
     _reset_failed_login(ip)

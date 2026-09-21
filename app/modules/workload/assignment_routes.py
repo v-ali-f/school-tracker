@@ -83,12 +83,15 @@ from app.services.workload_assignment_matrix_service import (
     LIST_PLAN_KIND_LABELS,
     PLAN_KIND_LABELS,
     PLAN_KIND_ORDER,
+    activity_matches_department,
+    build_workload_assignment_class_list,
     build_workload_assignment_list,
     build_workload_assignment_matrix,
     need_education_level,
     need_grades,
     need_matches_department,
     need_population_snapshot_ids,
+    need_snapshot_class_ids,
     need_plan_kind,
 )
 from app.services.teaching_group_matrix_service import (
@@ -124,6 +127,7 @@ WORKSPACE_FILTER_FIELDS = (
     "building_id",
     "education_level",
     "grade",
+    "snapshot_class_id",
     "subject_id",
     "teacher_query",
     "presentation",
@@ -359,6 +363,50 @@ def _workspace_selected_subject_ids(source):
     return result
 
 
+def _workspace_snapshot_class_options(
+    snapshot,
+    *,
+    building_id=None,
+    education_levels=None,
+    grades=None,
+    allowed_building_ids=None,
+):
+    selected_levels = set(education_levels or ())
+    selected_grades = set(grades or ())
+    options = []
+    for snapshot_class in snapshot.classes if snapshot else ():
+        if (
+            allowed_building_ids is not None
+            and snapshot_class.building_id not in allowed_building_ids
+        ):
+            continue
+        if (
+            building_id is not None
+            and snapshot_class.building_id != building_id
+        ):
+            continue
+        if (
+            selected_levels
+            and not any(
+                snapshot_class.grade_snapshot
+                in EDUCATION_LEVEL_GRADES[level]
+                for level in selected_levels
+            )
+        ):
+            continue
+        if (
+            selected_grades
+            and snapshot_class.grade_snapshot not in selected_grades
+        ):
+            continue
+        options.append(snapshot_class)
+    return sorted(options, key=lambda item: (
+        item.grade_snapshot or 99,
+        (item.name_snapshot or "").casefold(),
+        item.id,
+    ))
+
+
 def _workspace_state(version_id):
     key = f"workload_matrix_state_{version_id}"
     state = session.get(key)
@@ -433,6 +481,10 @@ def _filter_workspace_needs(
         selected_levels.add(education_level)
     if grade:
         selected_grades.add(grade)
+    target_department = (
+        db.session.get(Department, department_id)
+        if department_id else None
+    )
     result = []
     for need in needs:
         if (
@@ -466,7 +518,11 @@ def _filter_workspace_needs(
             need_grades(need)
         ):
             continue
-        if not need_matches_department(need, department_id):
+        if not need_matches_department(
+            need,
+            department_id,
+            target_department=target_department,
+        ):
             continue
         result.append(need)
     return result
@@ -700,12 +756,14 @@ def _workspace_department_holder_keys(
     assignments,
     needs_by_id,
     department_id,
+    *,
+    target_department=None,
 ):
     """Return holders belonging to a department by curriculum workload.
 
     Extracurricular and additional-education rows are intentionally ignored
-    when department membership is established.  Once a holder qualifies, the
-    workspace can display all of that holder's workload.
+    when department membership is established. Displayed needs are scoped
+    separately so another department's rows and class columns stay hidden.
     """
     if not department_id:
         return None
@@ -717,7 +775,11 @@ def _workspace_department_holder_keys(
             or need_plan_kind(need) != "CURRICULUM"
             or _workspace_search_text(need.education_activity.name)
             in DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES
-            or not need_matches_department(need, department_id)
+            or not need_matches_department(
+                need,
+                department_id,
+                target_department=target_department,
+            )
         ):
             continue
         holder_keys.add(_workspace_assignment_holder_key(assignment))
@@ -728,6 +790,9 @@ def _workspace_state_department_holder_keys(
     rows,
     activities_by_id,
     department_id,
+    *,
+    grades=None,
+    target_department=None,
 ):
     """Apply the same department rule to unsaved workspace holder rows."""
     if not department_id:
@@ -741,9 +806,11 @@ def _workspace_state_department_holder_keys(
             activity is None
             or _workspace_search_text(activity.name)
             in DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES
-            or not any(
-                link.is_active and link.department_id == department_id
-                for link in activity.department_links
+            or not activity_matches_department(
+                activity,
+                grades,
+                department_id,
+                target_department=target_department,
             )
         ):
             continue
@@ -831,20 +898,25 @@ def _workspace_subject_filter_options(version):
 
 def _workspace_plan_subject_options(plan_matrices, department_id=None):
     options = {}
+    target_department = (
+        db.session.get(Department, department_id)
+        if department_id else None
+    )
     for matrix in plan_matrices:
         for section in matrix.get("sections", []):
             for row in section["rows"]:
                 activity = row["activity"]
-                links = [
-                    link for link in activity.department_links
-                    if link.is_active
-                ]
                 if (
                     department_id
-                    and links
-                    and not any(
-                        link.department_id == department_id
-                        for link in links
+                    and not activity_matches_department(
+                        activity,
+                        {
+                            cell["snapshot_class"].grade_snapshot
+                            for cell in row.get("cells", {}).values()
+                            if cell.get("snapshot_class") is not None
+                        },
+                        department_id,
+                        target_department=target_department,
                     )
                 ):
                     continue
@@ -1271,15 +1343,24 @@ def _teacher_rows(assignments):
     return sorted(rows, key=lambda row: row["employee"].fio.lower())
 
 
-def _build_workload_list_workbook(workload_list, *, title):
+def _build_workload_list_workbook(
+    workload_list,
+    *,
+    title,
+    presentation_mode="list",
+):
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "Нагрузка списком"
+    class_view = presentation_mode == "classes"
+    sheet.title = (
+        "Нагрузка по классам"
+        if class_view else "Нагрузка списком"
+    )
     sheet.sheet_view.showGridLines = False
     columns = [
         "№",
         "Предмет",
-        "Класс",
+        "Педагог" if class_view else "Класс",
         "Часы",
         "Группа / весь класс",
         "Здание",
@@ -1332,7 +1413,10 @@ def _build_workload_list_workbook(workload_list, *, title):
                 sheet.append([
                     number,
                     row["subject_name"],
-                    row["class_label"],
+                    (
+                        row["teacher_label"]
+                        if class_view else row["class_label"]
+                    ),
                     float(row["hours"]),
                     row["group_label"],
                     row["building_label"],
@@ -1351,7 +1435,12 @@ def _build_workload_list_workbook(workload_list, *, title):
                 cell.font = Font(bold=True)
                 cell.fill = total_fill
         total_row = sheet.max_row + 1
-        sheet.cell(total_row, 1, "Всего у преподавателя")
+        sheet.cell(
+            total_row,
+            1,
+            "Всего по классу / группе"
+            if class_view else "Всего у преподавателя",
+        )
         sheet.merge_cells(
             start_row=total_row,
             start_column=1,
@@ -1714,10 +1803,16 @@ def register_assignment_routes(workload_bp):
             (request.args.get("teacher_query") or "").split()
         )[:160]
         presentation_mode = (
-            "list"
-            if (request.args.get("presentation") or "").strip().lower()
-            == "list"
-            else "matrix"
+            request.args.get("presentation") or "matrix"
+        ).strip().lower()
+        if presentation_mode not in {"matrix", "list", "classes"}:
+            presentation_mode = "matrix"
+        if presentation_mode == "classes":
+            education_levels = set()
+            grades = grades if len(grades) == 1 else set()
+        selected_snapshot_class_id = (
+            request.args.get("snapshot_class_id", type=int)
+            if presentation_mode == "classes" and grades else None
         )
         fragment_holder_key = (
             request.args.get("fragment_holder_key") or ""
@@ -1767,6 +1862,22 @@ def register_assignment_routes(workload_bp):
             building_id=building_id,
             include_matrices=False,
         )
+        workspace_scope = resolve_workload_scope(current_user)
+        class_filter_options = _workspace_snapshot_class_options(
+            snapshot,
+            building_id=building_id,
+            education_levels=education_levels,
+            grades=grades,
+            allowed_building_ids=(
+                None
+                if workspace_scope.unrestricted
+                else set(workspace_scope.building_ids)
+            ),
+        )
+        if selected_snapshot_class_id not in {
+            item.id for item in class_filter_options
+        }:
+            selected_snapshot_class_id = None
         if can_update and selected_version is not None:
             try:
                 _ensure_workspace_plan_needs(
@@ -1881,9 +1992,6 @@ def register_assignment_routes(workload_bp):
                 effective_subject_ids.intersection(fragment_activity_ids)
                 if effective_subject_ids else fragment_activity_ids
             )
-        # Department view first determines holder membership from every
-        # curriculum assignment in the version.  Subject filtering is applied
-        # only afterwards to the displayed workload.
         if effective_subject_ids and department_id is None:
             query = query.filter(
                 WorkloadNeed.education_activity_id.in_(
@@ -1904,6 +2012,7 @@ def register_assignment_routes(workload_bp):
                 )
                 if visible_group_ids else query.filter(db.false())
             )
+        workspace_bound_plan_ids = _workspace_bound_plan_ids(snapshot)
         version_needs = query.order_by(
             WorkloadNeed.status.asc(),
             WorkloadNeed.education_activity_id.asc(),
@@ -1911,14 +2020,44 @@ def register_assignment_routes(workload_bp):
         version_needs_by_id = {item.id: item for item in version_needs}
         needs = _filter_workspace_needs(
             version_needs,
-            department_id=None,
+            department_id=department_id,
             building_id=building_id,
             education_levels=education_levels,
             grades=grades,
             subject_ids=selected_subject_ids,
             population_snapshot_id=(snapshot.id if snapshot else None),
-            bound_plan_ids_by_class=_workspace_bound_plan_ids(snapshot),
+            bound_plan_ids_by_class=workspace_bound_plan_ids,
         )
+        if selected_snapshot_class_id is not None:
+            needs = [
+                need
+                for need in needs
+                if selected_snapshot_class_id
+                in need_snapshot_class_ids(need)
+            ]
+        # Matrix rows already exclude needs from a plan that is no longer
+        # bound to its class.  Totals must use the same current-plan scope;
+        # otherwise an assignment left on the previous plan disappears from
+        # the matrix but continues to inflate teacher and subject totals.
+        current_version_needs = (
+            _scoped_need_query()
+            .filter(
+                WorkloadNeed.tariff_version_id == selected_version.id,
+                WorkloadNeed.status.in_(
+                    ("OPEN", "PARTIAL", "COVERED", "OVERALLOCATED")
+                ),
+            )
+            .all()
+            if selected_version is not None else []
+        )
+        current_version_need_ids = {
+            item.id
+            for item in _filter_workspace_needs(
+                current_version_needs,
+                population_snapshot_id=(snapshot.id if snapshot else None),
+                bound_plan_ids_by_class=workspace_bound_plan_ids,
+            )
+        }
         all_assignments_query = (
             WorkloadAssignment.query
             .join(
@@ -1932,7 +2071,11 @@ def register_assignment_routes(workload_bp):
                 WorkloadNeed.tariff_version_id == (
                     selected_version.id if selected_version is not None else -1
                 ),
+                WorkloadNeed.status != "CANCELLED",
                 WorkloadAssignment.status != "CANCELLED",
+                WorkloadAssignment.workload_need_id.in_(
+                    current_version_need_ids
+                ),
             )
         )
         assignment_scope = resolve_workload_scope(current_user)
@@ -1976,6 +2119,10 @@ def register_assignment_routes(workload_bp):
             all_assignments,
             version_needs_by_id,
             department_id,
+            target_department=(
+                db.session.get(Department, department_id)
+                if department_id else None
+            ),
         )
         if department_holder_keys is not None:
             department_holder_keys.update(
@@ -1983,6 +2130,20 @@ def register_assignment_routes(workload_bp):
                     state["rows"],
                     activities,
                     department_id,
+                    grades=(
+                        set(grades)
+                        if grades else (
+                            set().union(*(
+                                EDUCATION_LEVEL_GRADES[level]
+                                for level in education_levels
+                            ))
+                            if education_levels else set(range(1, 12))
+                        )
+                    ),
+                    target_department=(
+                        db.session.get(Department, department_id)
+                        if department_id else None
+                    ),
                 )
             )
             persisted_holder_keys = {
@@ -2037,7 +2198,11 @@ def register_assignment_routes(workload_bp):
                 needs_by_id[assignment.workload_need_id],
             )
         holder_totals = defaultdict(Decimal)
-        for assignment in all_assignments:
+        holder_total_assignments = (
+            matrix_assignments
+            if department_id is not None else all_assignments
+        )
+        for assignment in holder_total_assignments:
             holder_key = (
                 ("vacancy", assignment.position_code)
                 if assignment.assignment_kind == "VACANCY"
@@ -2168,7 +2333,7 @@ def register_assignment_routes(workload_bp):
                     f"vacancy:{vacancy['key']}",
                     vacancy["label"],
                 )
-        if presentation_mode == "list":
+        if presentation_mode in {"list", "classes"}:
             assigned_holder_keys = {
                 (
                     f"vacancy:{assignment.position_code}"
@@ -2296,18 +2461,34 @@ def register_assignment_routes(workload_bp):
                 None if fragment_holder_key else page_holder_keys
             ),
             extra_snapshot_classes=extra_snapshot_classes,
+            visible_snapshot_class_ids=(
+                (
+                    set().union(*(
+                        need_snapshot_class_ids(need)
+                        for need in needs
+                    ))
+                    if needs else set()
+                )
+                if department_id is not None else None
+            ),
         )
         if department_id is not None:
             # Department plan indicators and the unassigned-hours dialog stay
-            # scoped to curriculum subjects of the selected department, even
-            # though every workload row of matching holders is displayed.
+            # scoped to curriculum subjects of the selected department.
             department_summary_need_ids = {
                 need.id
                 for need in needs
                 if need_plan_kind(need) == "CURRICULUM"
                 and _workspace_search_text(need.education_activity.name)
                 not in DEPARTMENT_NEUTRAL_CURRICULUM_ACTIVITY_NAMES
-                and need_matches_department(need, department_id)
+                and need_matches_department(
+                    need,
+                    department_id,
+                    target_department=db.session.get(
+                        Department,
+                        department_id,
+                    ),
+                )
             }
             department_summary_needs = [
                 need
@@ -2330,8 +2511,16 @@ def register_assignment_routes(workload_bp):
                 ),
                 ZERO,
             )
-            matrix["total_remaining"] = (
+            department_balance = (
                 matrix["total_weekly"] - matrix["total_allocated"]
+            )
+            matrix["total_remaining"] = max(
+                department_balance,
+                ZERO,
+            )
+            matrix["total_excess"] = max(
+                -department_balance,
+                ZERO,
             )
             matrix["unassigned_items"] = [
                 item
@@ -2377,13 +2566,15 @@ def register_assignment_routes(workload_bp):
         workload_list_summary = build_workload_assignment_list(
             list_assignments
         )
+        workload_class_list = build_workload_assignment_class_list(
+            list_assignments
+        )
         departments, buildings = _scope_options()
         selected_building = next(
             (item for item in buildings if item.id == building_id),
             None,
         )
         filter_classes = list(snapshot.classes) if snapshot else []
-        workspace_scope = resolve_workload_scope(current_user)
         if not workspace_scope.unrestricted:
             allowed_building_ids = set(workspace_scope.building_ids)
             filter_classes = [
@@ -2432,6 +2623,8 @@ def register_assignment_routes(workload_bp):
             selected_building_class_count=len(extra_snapshot_classes),
             selected_education_levels=sorted(education_levels),
             selected_grades=sorted(grades),
+            selected_snapshot_class_id=selected_snapshot_class_id,
+            class_filter_options=class_filter_options,
             selected_teacher_query=teacher_query,
             presentation_mode=presentation_mode,
             selected_subject_ids=sorted(selected_subject_ids),
@@ -2452,6 +2645,7 @@ def register_assignment_routes(workload_bp):
             ),
             workload_list=workload_list,
             workload_list_summary=workload_list_summary,
+            workload_class_list=workload_class_list,
             list_plan_kind_labels=LIST_PLAN_KIND_LABELS,
             holder_filter_options=holder_filter_options,
             level_counts=level_counts,
@@ -3782,10 +3976,16 @@ def register_assignment_routes(workload_bp):
             (request.args.get("teacher_query") or "").split()
         )[:160]
         presentation_mode = (
-            "list"
-            if (request.args.get("presentation") or "").strip().lower()
-            == "list"
-            else "matrix"
+            request.args.get("presentation") or "matrix"
+        ).strip().lower()
+        if presentation_mode not in {"matrix", "list", "classes"}:
+            presentation_mode = "matrix"
+        if presentation_mode == "classes":
+            education_levels = set()
+            grades = grades if len(grades) == 1 else set()
+        selected_snapshot_class_id = (
+            request.args.get("snapshot_class_id", type=int)
+            if presentation_mode == "classes" and grades else None
         )
         snapshot, _, plan_matrices = _workspace_plan_context(
             version,
@@ -3793,6 +3993,22 @@ def register_assignment_routes(workload_bp):
             grades=grades,
             building_id=building_id,
         )
+        export_scope = resolve_workload_scope(current_user)
+        class_filter_options = _workspace_snapshot_class_options(
+            snapshot,
+            building_id=building_id,
+            education_levels=education_levels,
+            grades=grades,
+            allowed_building_ids=(
+                None
+                if export_scope.unrestricted
+                else set(export_scope.building_ids)
+            ),
+        )
+        if selected_snapshot_class_id not in {
+            item.id for item in class_filter_options
+        }:
+            selected_snapshot_class_id = None
         needs_query = _scoped_need_query().filter(
                 WorkloadNeed.tariff_version_id == version.id,
                 WorkloadNeed.status.in_(("OPEN", "PARTIAL", "COVERED")),
@@ -3820,6 +4036,13 @@ def register_assignment_routes(workload_bp):
             subject_ids=selected_subject_ids,
             population_snapshot_id=(snapshot.id if snapshot else None),
         )
+        if selected_snapshot_class_id is not None:
+            needs = [
+                need
+                for need in needs
+                if selected_snapshot_class_id
+                in need_snapshot_class_ids(need)
+            ]
         need_ids = [item.id for item in needs]
         assignments = (
             WorkloadAssignment.query
@@ -3851,14 +4074,23 @@ def register_assignment_routes(workload_bp):
                     _workspace_assignment_holder_label(assignment)
                 )
             ]
-        if presentation_mode == "list":
-            workload_list = build_workload_assignment_list(assignments)
+        if presentation_mode in {"list", "classes"}:
+            workload_list = (
+                build_workload_assignment_class_list(assignments)
+                if presentation_mode == "classes"
+                else build_workload_assignment_list(assignments)
+            )
             workbook = _build_workload_list_workbook(
                 workload_list,
                 title=(
-                    "Нагрузка педагогов · "
+                    (
+                        "Нагрузка по классам · "
+                        if presentation_mode == "classes"
+                        else "Нагрузка педагогов · "
+                    ) +
                     f"{version.tariff_cycle.academic_year.name}"
                 ),
+                presentation_mode=presentation_mode,
             )
             stream = BytesIO()
             workbook.save(stream)
@@ -3867,7 +4099,11 @@ def register_assignment_routes(workload_bp):
                 stream,
                 as_attachment=True,
                 download_name=(
-                    "Altair_workload_list_"
+                    (
+                        "Altair_workload_by_classes_"
+                        if presentation_mode == "classes"
+                        else "Altair_workload_list_"
+                    ) +
                     f"{version.tariff_cycle.academic_year.name.replace('/', '-')}"
                     ".xlsx"
                 ),
@@ -4027,6 +4263,11 @@ def register_assignment_routes(workload_bp):
         query = WorkloadAssignment.query.filter(
             WorkloadAssignment.employee_user_id == user_id,
             WorkloadAssignment.status != "CANCELLED",
+        ).join(
+            WorkloadNeed,
+            WorkloadNeed.id == WorkloadAssignment.workload_need_id,
+        ).filter(
+            WorkloadNeed.status != "CANCELLED",
         )
         if not scope.unrestricted:
             need_ids = [

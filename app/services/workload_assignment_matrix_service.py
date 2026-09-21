@@ -70,11 +70,32 @@ def need_plan_kind(need):
 
 def need_grades(need):
     group = need.teaching_group
+    source_groups = (
+        teaching_group_source_groups(group)
+        if group is not None and getattr(group, "group_type", None)
+        else ([group] if group is not None else [])
+    )
     return {
         item.population_snapshot_class.grade_snapshot
-        for item in (group.source_classes if group else [])
+        for source_group in source_groups
+        for item in (getattr(source_group, "source_classes", None) or [])
         if item.population_snapshot_class is not None
         and item.population_snapshot_class.grade_snapshot is not None
+    }
+
+
+def need_snapshot_class_ids(need):
+    group = need.teaching_group
+    source_groups = (
+        teaching_group_source_groups(group)
+        if group is not None and getattr(group, "group_type", None)
+        else ([group] if group is not None else [])
+    )
+    return {
+        item.population_snapshot_class_id
+        for source_group in source_groups
+        for item in (getattr(source_group, "source_classes", None) or [])
+        if item.population_snapshot_class_id is not None
     }
 
 
@@ -95,14 +116,118 @@ def need_population_snapshot_ids(need):
     }
 
 
-def need_matches_department(need, department_id):
+def _department_category(department):
+    if department is None:
+        return None
+    code = " ".join((getattr(department, "code", None) or "").split())
+    if code:
+        return code.casefold()
+    name = " ".join(
+        (getattr(department, "name", None) or "")
+        .casefold()
+        .replace("ё", "е")
+        .split()
+    )
+    if "начал" in name:
+        return "primary"
+    if "математ" in name:
+        return "math"
+    if "словес" in name or "русск" in name:
+        return "philology"
+    if "иностран" in name:
+        return "foreign_language"
+    if "эстет" in name:
+        return "art"
+    if "физическ" in name or "спорт" in name:
+        return "sport"
+    return None
+
+
+def activity_matches_department(
+    activity,
+    grades,
+    department_id,
+    *,
+    direct_department=None,
+    direct_department_id=None,
+    target_department=None,
+):
+    """Match a subject to a department with the primary-grade override.
+
+    Mathematics and philology in grades 1–4 belong to the primary-school
+    department.  Specialist subjects keep their normal department across all
+    grades, so art, music and foreign languages are not moved to primary.
+    """
     if not department_id:
         return True
-    if need.department_id == department_id:
+
+    active_departments = [
+        getattr(link, "department", None)
+        for link in (getattr(activity, "department_links", None) or [])
+        if link.is_active and getattr(link, "department", None) is not None
+    ]
+    departments = list(active_departments)
+    if direct_department is not None:
+        departments.append(direct_department)
+    department_ids = {
+        department.id
+        for department in departments
+        if getattr(department, "id", None) is not None
+    }
+    department_ids.update(
+        link.department_id
+        for link in (getattr(activity, "department_links", None) or [])
+        if link.is_active and getattr(link, "department_id", None) is not None
+    )
+    if direct_department_id is not None:
+        department_ids.add(direct_department_id)
+    direct_match = department_id in department_ids
+    if target_department is None:
+        target_department = next(
+            (
+                department
+                for department in departments
+                if getattr(department, "id", None) == department_id
+            ),
+            None,
+        )
+
+    grade_values = {int(value) for value in (grades or ()) if value}
+    if not grade_values:
+        return direct_match
+    has_primary_grades = bool(grade_values.intersection(range(1, 5)))
+    has_other_grades = bool(grade_values - set(range(1, 5)))
+    target_category = _department_category(target_department)
+    source_categories = {
+        _department_category(department) for department in departments
+    }
+    rerouted_from = {"math", "philology"}
+
+    if target_category in rerouted_from and direct_match:
+        return has_other_grades
+    if target_category == "primary":
+        return direct_match or (
+            has_primary_grades
+            and bool(source_categories.intersection(rerouted_from))
+        )
+    return direct_match
+
+
+def need_matches_department(
+    need,
+    department_id,
+    *,
+    target_department=None,
+):
+    if not department_id:
         return True
-    return any(
-        link.is_active and link.department_id == department_id
-        for link in need.education_activity.department_links
+    return activity_matches_department(
+        need.education_activity,
+        need_grades(need),
+        department_id,
+        direct_department=getattr(need, "department", None),
+        direct_department_id=getattr(need, "department_id", None),
+        target_department=target_department,
     )
 
 
@@ -146,7 +271,12 @@ def build_workload_assignment_list(assignments, *, visible_holder_keys=None):
     )
 
     for assignment in assignments:
-        if assignment.status == "CANCELLED":
+        need = assignment.workload_need
+        if (
+            assignment.status == "CANCELLED"
+            or need is None
+            or getattr(need, "status", None) == "CANCELLED"
+        ):
             continue
         is_vacancy = assignment.assignment_kind == "VACANCY"
         holder_key = (
@@ -159,7 +289,6 @@ def build_workload_assignment_list(assignments, *, visible_holder_keys=None):
         if not is_vacancy and assignment.employee is None:
             continue
 
-        need = assignment.workload_need
         plan_kind = need_plan_kind(need)
         hours = Decimal(assignment.weekly_hours or ZERO)
         block = blocks_by_holder.setdefault(holder_key, {
@@ -208,6 +337,107 @@ def build_workload_assignment_list(assignments, *, visible_holder_keys=None):
             PLAN_KIND_ORDER.get(row["plan_kind"], 99),
             _class_sort_key(row["class_label"]),
             row["subject_name"].casefold(),
+            row["group_label"].casefold(),
+            row["assignment"].id,
+        ))
+        block["sections"] = [
+            {
+                "plan_kind": plan_kind,
+                "label": LIST_PLAN_KIND_LABELS.get(
+                    plan_kind,
+                    PLAN_KIND_LABELS.get(plan_kind, plan_kind),
+                ),
+                "rows": [
+                    row for row in block["rows"]
+                    if row["plan_kind"] == plan_kind
+                ],
+                "total": block["totals"].get(plan_kind, ZERO),
+            }
+            for plan_kind in sorted(
+                PLAN_KIND_ORDER,
+                key=lambda item: PLAN_KIND_ORDER[item],
+            )
+            if block["totals"].get(plan_kind, ZERO) > ZERO
+        ]
+
+    return {
+        "blocks": blocks,
+        "totals": overall_totals,
+        "total": sum(overall_totals.values(), ZERO),
+    }
+
+
+def build_workload_assignment_class_list(assignments):
+    """Build a compact class-by-class view of assigned weekly hours."""
+    blocks_by_class = {}
+    overall_totals = {
+        plan_kind: ZERO for plan_kind in PLAN_KIND_ORDER
+    }
+
+    for assignment in assignments:
+        need = assignment.workload_need
+        if (
+            assignment.status == "CANCELLED"
+            or need is None
+            or getattr(need, "status", None) == "CANCELLED"
+        ):
+            continue
+        is_vacancy = assignment.assignment_kind == "VACANCY"
+        if not is_vacancy and assignment.employee is None:
+            continue
+
+        plan_kind = need_plan_kind(need)
+        hours = Decimal(assignment.weekly_hours or ZERO)
+        class_names = tuple(_list_class_names(need.teaching_group))
+        class_key = class_names or ("Без класса",)
+        class_label = " + ".join(class_key)
+        block = blocks_by_class.setdefault(class_key, {
+            "class_names": class_names,
+            "label": class_label,
+            "rows": [],
+            "totals": {
+                item: ZERO for item in PLAN_KIND_ORDER
+            },
+            "total": ZERO,
+        })
+        building_names = _list_building_names(need)
+        block["rows"].append({
+            "assignment": assignment,
+            "teacher_id": assignment.employee_user_id,
+            "is_vacancy": is_vacancy,
+            "teacher_label": (
+                assignment.position_title or "Вакансия"
+                if is_vacancy else assignment.employee.fio
+            ),
+            "plan_kind": plan_kind,
+            "plan_kind_label": LIST_PLAN_KIND_LABELS.get(
+                plan_kind,
+                PLAN_KIND_LABELS.get(plan_kind, plan_kind),
+            ),
+            "subject_name": need.education_activity.name,
+            "hours": hours,
+            "group_label": _group_label(need.teaching_group),
+            "building_label": ", ".join(building_names) or "—",
+        })
+        block["totals"][plan_kind] = (
+            block["totals"].get(plan_kind, ZERO) + hours
+        )
+        block["total"] += hours
+        overall_totals[plan_kind] = (
+            overall_totals.get(plan_kind, ZERO) + hours
+        )
+
+    blocks = sorted(
+        blocks_by_class.values(),
+        key=lambda item: tuple(
+            _class_sort_key(name) for name in item["class_names"]
+        ) if item["class_names"] else ((99, "без класса"),),
+    )
+    for block in blocks:
+        block["rows"].sort(key=lambda row: (
+            PLAN_KIND_ORDER.get(row["plan_kind"], 99),
+            row["subject_name"].casefold(),
+            row["teacher_label"].casefold(),
             row["group_label"].casefold(),
             row["assignment"].id,
         ))
@@ -568,12 +798,17 @@ def build_workload_assignment_matrix(
     visible_holder_key=None,
     visible_holder_keys=None,
     extra_snapshot_classes=(),
+    visible_snapshot_class_ids=None,
 ):
     needs = list(needs)
     assignments = list(assignments)
     visible_holder_keys = (
         set(visible_holder_keys)
         if visible_holder_keys is not None else None
+    )
+    visible_snapshot_class_ids = (
+        set(visible_snapshot_class_ids)
+        if visible_snapshot_class_ids is not None else None
     )
 
     def holder_is_visible(holder_key):
@@ -593,6 +828,11 @@ def build_workload_assignment_matrix(
     for plan_matrix in plan_matrices:
         for class_group in plan_matrix.get("class_groups", []):
             snapshot_class = class_group["snapshot_class"]
+            if (
+                visible_snapshot_class_ids is not None
+                and snapshot_class.id not in visible_snapshot_class_ids
+            ):
+                continue
             for source_column in class_group["columns"]:
                 if source_column["is_unassigned"] or source_column["plan"] is None:
                     continue
@@ -750,6 +990,11 @@ def build_workload_assignment_matrix(
         if column.get("source_school_class_id") is not None
     }
     for snapshot_class in extra_snapshot_classes or ():
+        if (
+            visible_snapshot_class_ids is not None
+            and snapshot_class.id not in visible_snapshot_class_ids
+        ):
+            continue
         source_school_class_id = (
             getattr(snapshot_class, "source_school_class_id", None)
             or snapshot_class.id
@@ -776,7 +1021,12 @@ def build_workload_assignment_matrix(
     assignments_by_need = defaultdict(list)
     allocated_by_need = defaultdict(Decimal)
     for assignment in assignments:
-        if assignment.status == "CANCELLED":
+        need = assignment.workload_need
+        if (
+            assignment.status == "CANCELLED"
+            or need is None
+            or getattr(need, "status", None) == "CANCELLED"
+        ):
             continue
         assignments_by_need[assignment.workload_need_id].append(assignment)
         allocated_by_need[assignment.workload_need_id] += Decimal(
@@ -790,7 +1040,12 @@ def build_workload_assignment_matrix(
     global_holder_totals.update(holder_totals or {})
     global_subject_totals = defaultdict(Decimal)
     for assignment in total_assignments:
-        if assignment.status == "CANCELLED":
+        need = assignment.workload_need
+        if (
+            assignment.status == "CANCELLED"
+            or need is None
+            or getattr(need, "status", None) == "CANCELLED"
+        ):
             continue
         holder_key = (
             ("vacancy", assignment.position_code)
@@ -1081,6 +1336,7 @@ def build_workload_assignment_matrix(
         (allocated_by_need[need.id] for need in needs),
         ZERO,
     )
+    total_balance = total_weekly - total_allocated
     unassigned_items = []
     for need in needs:
         planned = Decimal(need.weekly_hours or ZERO)
@@ -1134,18 +1390,22 @@ def build_workload_assignment_matrix(
         "teacher_count": len(blocks_by_teacher),
         "total_weekly": total_weekly,
         "total_allocated": total_allocated,
-        "total_remaining": total_weekly - total_allocated,
+        "total_remaining": max(total_balance, ZERO),
+        "total_excess": max(-total_balance, ZERO),
         "unassigned_items": unassigned_items,
     }
 
 
 __all__ = [
     "LIST_PLAN_KIND_LABELS",
+    "activity_matches_department",
+    "build_workload_assignment_class_list",
     "build_workload_assignment_list",
     "build_workload_assignment_matrix",
     "need_education_level",
     "need_grades",
     "need_matches_department",
     "need_population_snapshot_ids",
+    "need_snapshot_class_ids",
     "need_plan_kind",
 ]

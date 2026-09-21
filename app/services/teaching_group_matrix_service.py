@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from math import ceil
@@ -182,6 +183,11 @@ def build_teaching_group_matrix(
                     and group_count > 1
                     and not needs_composition
                 )
+                composition_complete = bool(
+                    group_count > 1
+                    and groups
+                    and not needs_composition
+                )
                 cell.update({
                     "group_count": group_count,
                     "group_ids": tuple(group.id for group in groups),
@@ -190,6 +196,7 @@ def build_teaching_group_matrix(
                     ),
                     "is_configured": bool(groups),
                     "needs_composition": needs_composition,
+                    "composition_complete": composition_complete,
                     "composition_approval": approval,
                     "composition_approved": composition_approved,
                 })
@@ -538,6 +545,54 @@ def build_group_composition_workspace(matrix):
     }
     teacher_names_by_group = _group_teacher_names(group_ids)
     items = []
+    # A 10th/11th class can study under several curriculum plans.  Put that
+    # roster decision next to ordinary group composition so a class teacher
+    # can say which pupils belong to each plan before subject groups and
+    # metagroups consume those rosters.
+    profile_columns_by_class = defaultdict(list)
+    for column in matrix["columns"]:
+        if column["is_unassigned"] or not column.get("is_profile_column"):
+            continue
+        profile_columns_by_class[column["snapshot_class"].id].append(column)
+    for profile_columns in profile_columns_by_class.values():
+        if len(profile_columns) <= 1:
+            continue
+        snapshot_class = profile_columns[0]["snapshot_class"]
+        plans = [column["plan"] for column in profile_columns]
+        enrollments = sorted(
+            snapshot_class.enrollments,
+            key=lambda item: item.fio_snapshot.casefold(),
+        )
+        assignment_by_member_id = {}
+        for column in profile_columns:
+            for member_id in column["member_ids"]:
+                assignment_by_member_id[member_id] = column["plan"].id
+        plan_sizes = {
+            plan.id: sum(
+                1
+                for plan_id in assignment_by_member_id.values()
+                if plan_id == plan.id
+            )
+            for plan in plans
+        }
+        assigned_count = len(assignment_by_member_id)
+        items.append({
+            "item_type": "PLAN_BINDING",
+            "key": f"plans-class-{snapshot_class.id}",
+            "snapshot_class": snapshot_class,
+            "plans": plans,
+            "enrollments": enrollments,
+            "assignment_by_member_id": assignment_by_member_id,
+            "plan_sizes": plan_sizes,
+            "assigned_count": assigned_count,
+            "student_count": len(enrollments),
+            "complete": (
+                assigned_count == len(enrollments)
+                and bool(enrollments)
+                and all(plan_sizes[plan.id] > 0 for plan in plans)
+            ),
+            "composition_approved": False,
+        })
     for section in matrix["sections"]:
         for row in section["rows"]:
             for column in matrix["columns"]:
@@ -591,6 +646,7 @@ def build_group_composition_workspace(matrix):
                     )
                 }, key=str.casefold))
                 items.append({
+                    "item_type": "GROUP",
                     "key": (
                         f"line-{cell['line'].id}-"
                         f"class-{column['snapshot_class'].id}"
@@ -622,8 +678,17 @@ def build_group_composition_workspace(matrix):
     items.sort(key=lambda item: (
         item["snapshot_class"].grade_snapshot or 0,
         item["snapshot_class"].name_snapshot.casefold(),
-        item["plan"].name.casefold(),
-        item["activity"].name.casefold(),
+        0 if item["item_type"] == "PLAN_BINDING" else 1,
+        (
+            ""
+            if item["item_type"] == "PLAN_BINDING"
+            else item["plan"].name.casefold()
+        ),
+        (
+            ""
+            if item["item_type"] == "PLAN_BINDING"
+            else item["activity"].name.casefold()
+        ),
     ))
     return {
         "items": items,
@@ -796,14 +861,13 @@ def replace_group_composition_assignments(
     assignments,
     *,
     user_id,
-    allow_with_workload=False,
 ):
     groups = list(item["groups"])
     if not groups:
         raise GroupValidationError("Учебные группы не найдены.")
-    if groups[0].tariff_version.groups_editing_status != "EDITING":
+    if groups[0].tariff_version.status != "DRAFT":
         raise GroupValidationError(
-            "Изменение групп закрыто. Нажмите «Внести изменения»."
+            "Версия учебного года уже закрыта для изменения."
         )
     if any(
         not group.code.startswith(AUTO_GROUP_CODE_PREFIX)
@@ -813,19 +877,6 @@ def replace_group_composition_assignments(
             "Состав можно менять только у групп, созданных из матрицы."
         )
     group_ids = {group.id for group in groups}
-    if (
-        not allow_with_workload
-        and WorkloadAssignment.query
-        .join(WorkloadNeed)
-        .filter(
-            WorkloadNeed.teaching_group_id.in_(group_ids),
-            WorkloadAssignment.status != "CANCELLED",
-        )
-        .first()
-    ):
-        raise GroupValidationError(
-            "По группам уже назначена нагрузка. Сначала отмените её."
-        )
     eligible_ids = {
         enrollment.id for enrollment in item["enrollments"]
     }
@@ -942,6 +993,7 @@ def materialize_default_teaching_groups(
             ).append(group)
     academic_year = version.tariff_cycle.academic_year
     created = 0
+    synchronized_groups = []
     matrix_data = None
     if matrices is None:
         target_lines = (
@@ -1071,6 +1123,7 @@ def materialize_default_teaching_groups(
                                         "plan_id": column["plan"].id,
                                     },
                                 )
+                                synchronized_groups.append(group)
                         continue
                     is_full_class = member_ids == {
                         item.id for item in snapshot_class.enrollments
@@ -1132,6 +1185,15 @@ def materialize_default_teaching_groups(
                     )
                     existing_groups_by_key[key] = [group]
                     created += 1
+                    synchronized_groups.append(group)
+    if synchronized_groups:
+        db.session.flush()
+        for group in synchronized_groups:
+            db.session.expire(group, ["members"])
+        _sync_metagroups_for_sources(
+            synchronized_groups,
+            user_id=user_id,
+        )
     return created
 
 

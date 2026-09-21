@@ -1679,6 +1679,8 @@ def update_child_profile(child_id: int):
     child.first_name = (request.form.get("first_name") or "").strip()
     child.middle_name = (request.form.get("middle_name") or "").strip() or None
     child.birth_date = parse_date(request.form.get("birth_date"))
+    gender = (request.form.get("gender") or "").strip().upper()
+    child.gender = gender if gender in {"М", "Ж"} else None
     child.reg_address = (request.form.get("reg_address") or "").strip() or None
     child.notes = (request.form.get("notes") or "").strip() or None
     child.education_form = request.form.get("education_form") or None
@@ -3429,6 +3431,77 @@ def class_detail(class_id):
         ),
         student_return_args=student_return_args,
     )
+
+
+@children_bp.route("/classes/<int:class_id>/export.xlsx")
+@login_required
+def class_list_export(class_id: int):
+    """Excel-выгрузка списка активных учеников класса."""
+    if not has_permission("children_registry_view"):
+        abort(403)
+
+    school_class = SchoolClass.query.get_or_404(class_id)
+    if (
+        should_limit_children_to_own_class()
+        and school_class.teacher_user_id != current_user.id
+    ):
+        abort(403)
+
+    students = (
+        Child.query
+        .join(ChildEnrollment, ChildEnrollment.child_id == Child.id)
+        .filter(
+            ChildEnrollment.school_class_id == school_class.id,
+            ChildEnrollment.status == "ACTIVE",
+            ChildEnrollment.ended_at.is_(None),
+            Child.status == "ACTIVE",
+            ~_active_expel_exists(Child.id),
+        )
+        .order_by(
+            Child.last_name.asc(),
+            Child.first_name.asc(),
+            Child.middle_name.asc(),
+        )
+        .all()
+    )
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = (f"Класс {school_class.name}" or f"Класс {class_id}")[:31]
+    worksheet.merge_cells("A1:C1")
+    worksheet["A1"] = f"Список класса {school_class.name}"
+    worksheet["A2"] = "Учебный год"
+    worksheet["B2"] = (
+        school_class.academic_year.name
+        if school_class.academic_year
+        else ""
+    )
+    worksheet["A3"] = "Классный руководитель"
+    worksheet["B3"] = (
+        school_class.teacher_user.fio
+        if school_class.teacher_user
+        else ""
+    )
+    worksheet.append([])
+    worksheet.append(["№", "ФИО", "Дата рождения"])
+
+    for index, child in enumerate(students, start=1):
+        worksheet.append([
+            index,
+            child.fio,
+            child.birth_date.strftime("%d.%m.%Y") if child.birth_date else "",
+        ])
+
+    worksheet.append([])
+    worksheet.append(["", f"Всего учеников: {len(students)}"])
+    worksheet.freeze_panes = "A6"
+    worksheet.auto_filter.ref = f"A5:C{max(5, 5 + len(students))}"
+    worksheet.column_dimensions["A"].width = 7
+    worksheet.column_dimensions["B"].width = 42
+    worksheet.column_dimensions["C"].width = 18
+
+    filename = f"class_list_{school_class.name or class_id}.xlsx"
+    return _xlsx_response(workbook, filename)
 
 
 @children_bp.route("/classes/new", methods=["POST"])
@@ -6569,7 +6642,17 @@ def _classroom_redirect(building_id=None):
 
 def _classroom_form_values():
     building_id = request.form.get("building_id", type=int)
-    teacher_user_id = request.form.get("teacher_user_id", type=int)
+    teacher_user_ids = []
+    raw_teacher_ids = request.form.getlist("teacher_user_ids")
+    if not raw_teacher_ids:
+        raw_teacher_ids = request.form.getlist("teacher_user_id")
+    for raw_teacher_id in raw_teacher_ids:
+        try:
+            teacher_user_id = int(raw_teacher_id)
+        except (TypeError, ValueError):
+            continue
+        if teacher_user_id not in teacher_user_ids:
+            teacher_user_ids.append(teacher_user_id)
     name = (request.form.get("name") or "").strip()
     short_name = (request.form.get("short_name") or "").strip() or None
     capacity_text = (request.form.get("capacity") or "").strip()
@@ -6581,7 +6664,7 @@ def _classroom_form_values():
             capacity = 0
     return {
         "building_id": building_id,
-        "teacher_user_id": teacher_user_id,
+        "teacher_user_ids": teacher_user_ids,
         "name": name,
         "short_name": short_name,
         "capacity": capacity,
@@ -6598,11 +6681,33 @@ def _classroom_form_error(values):
         return "Укажите название или номер кабинета."
     if values["capacity"] is not None and values["capacity"] <= 0:
         return "Вместимость кабинета должна быть больше нуля."
-    if values["teacher_user_id"] and db.session.get(
-        User, values["teacher_user_id"]
-    ) is None:
-        return "Выбранный педагог не найден."
+    if values["teacher_user_ids"]:
+        existing_teacher_ids = {
+            item.id
+            for item in User.query.filter(
+                User.id.in_(values["teacher_user_ids"])
+            ).all()
+        }
+        if existing_teacher_ids != set(values["teacher_user_ids"]):
+            return "Один из выбранных педагогов не найден."
     return None
+
+
+def _apply_classroom_form_values(classroom, values):
+    teacher_ids = values["teacher_user_ids"]
+    for field, value in values.items():
+        if field != "teacher_user_ids":
+            setattr(classroom, field, value)
+    teachers_by_id = {
+        item.id: item
+        for item in User.query.filter(User.id.in_(teacher_ids)).all()
+    } if teacher_ids else {}
+    classroom.teachers = [
+        teachers_by_id[teacher_id]
+        for teacher_id in teacher_ids
+        if teacher_id in teachers_by_id
+    ]
+    classroom.teacher_user_id = teacher_ids[0] if teacher_ids else None
 
 
 @children_bp.route("/classrooms")
@@ -6613,6 +6718,7 @@ def classrooms_registry():
     query = SchoolClassroom.query.options(
         joinedload(SchoolClassroom.building),
         joinedload(SchoolClassroom.teacher),
+        selectinload(SchoolClassroom.teachers),
     )
     if selected_building_id:
         query = query.filter(
@@ -6647,14 +6753,15 @@ def classrooms_new():
     if error:
         flash(error, "danger")
         return _classroom_redirect(values["building_id"])
-    db.session.add(SchoolClassroom(**values))
+    classroom = SchoolClassroom()
+    _apply_classroom_form_values(classroom, values)
+    db.session.add(classroom)
     try:
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
         flash(
-            "В этом здании уже есть кабинет с таким названием либо "
-            "за педагогом уже закреплён кабинет.",
+            "В этом здании уже есть кабинет с таким названием.",
             "danger",
         )
     else:
@@ -6671,15 +6778,13 @@ def classrooms_update(classroom_id):
     if error:
         flash(error, "danger")
         return _classroom_redirect(values["building_id"])
-    for field, value in values.items():
-        setattr(classroom, field, value)
+    _apply_classroom_form_values(classroom, values)
     try:
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
         flash(
-            "В этом здании уже есть кабинет с таким названием либо "
-            "за педагогом уже закреплён кабинет.",
+            "В этом здании уже есть кабинет с таким названием.",
             "danger",
         )
     else:

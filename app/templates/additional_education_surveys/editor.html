@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Настройка формы' if survey else 'Новая форма' }} — {{ org_name }}{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="page-head">
+    <div>
+      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / <a href="{{ url_for('additional_education_surveys.index') }}" class="text-decoration-none text-muted">Формы сбора</a> / {{ 'Настройка' if survey else 'Новая' }}</nav>
+      <h1 class="page-title">{{ 'Настройка формы' if survey else 'Новая форма' }}</h1>
+    </div>
+    <div class="page-actions d-flex gap-2">
+      {% if survey %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('additional_education_surveys.sharing', survey_id=survey.id) }}"><i class="bi bi-people me-1"></i>Доступ</a><a class="btn btn-outline-primary btn-sm" href="{{ url_for('additional_education_surveys.results', survey_id=survey.id) }}">Результаты ({{ survey.submissions.count() }})</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('additional_education_surveys.index') }}">К списку</a>
+    </div>
+  </div>
+
+  {% if survey %}
+  <div class="card soft-card mb-3"><div class="card-body">
+    <label class="form-label fw-semibold">Открытая ссылка</label>
+    <div class="input-group">
+      <input class="form-control" id="publicUrl" value="{{ public_url }}" readonly>
+      <button class="btn btn-outline-secondary" type="button" id="copyPublicUrl"><i class="bi bi-copy me-1"></i>Копировать</button>
+      <a class="btn btn-outline-primary" href="{{ public_url }}" target="_blank" rel="noopener">Открыть</a>
+    </div>
+    <div class="form-text">Эту ссылку можно отправить участникам. Вход в систему для заполнения не нужен.</div>
+  </div></div>
+  {% endif %}
+
+  {% if locked %}
+  <div class="alert alert-warning"><i class="bi bi-lock me-1"></i>У формы уже есть ответы. Тексты и порядок вопросов заблокированы, чтобы ранее собранные результаты не исказились. Название, описание, короткую ссылку и приём ответов менять можно.</div>
+  {% endif %}
+
+  <form method="post" class="card soft-card" id="surveyEditor">
+    <div class="card-body">
+      <div class="row g-3 mb-4">
+        <div class="col-12"><label class="form-label">Название формы <span class="text-danger">*</span></label><input class="form-control" name="title" maxlength="255" required value="{{ survey.title if survey else request.form.get('title', '') }}"></div>
+        <div class="col-12"><label class="form-label">Описание для педагога</label><textarea class="form-control" name="description" rows="3">{{ survey.description if survey else request.form.get('description', '') }}</textarea></div>
+        <div class="col-md-6">
+          <label class="form-label">Короткое имя ссылки</label>
+          <div class="input-group"><span class="input-group-text">/s/</span><input class="form-control" name="short_code" maxlength="40" pattern="[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?" placeholder="например, dopobr" value="{{ request.form.get('short_code', survey.short_code if survey and survey.short_code else '') }}"></div>
+          <div class="form-text">От 3 до 40 латинских букв, цифр или дефисов. Поле можно оставить пустым.</div>
+        </div>
+        <div class="col-12"><label class="form-check form-switch"><input class="form-check-input" type="checkbox" name="is_published" value="1" {% if (survey and survey.is_published) or (not survey and request.form.get('is_published') == '1') %}checked{% endif %}><span class="form-check-label">Открыть приём ответов по ссылке</span></label></div>
+      </div>
+
+      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+        <div><h2 class="h5 mb-0">Вопросы</h2><div class="small text-muted">Обязательность настраивается отдельно для каждого вопроса.</div></div>
+        {% if not locked %}<button class="btn btn-outline-primary btn-sm" type="button" id="addQuestion"><i class="bi bi-plus-lg me-1"></i>Добавить вопрос</button>{% endif %}
+      </div>
+
+      <div id="questionList" class="d-grid gap-3">
+      {% if editor_questions %}
+        {% set editor_questions = editor_questions %}
+      {% elif survey %}
+        {% set editor_questions = survey.questions %}
+      {% else %}
+        {% set editor_questions = [] %}
+      {% endif %}
+      {% for question in editor_questions %}
+        <div class="border rounded-4 p-3 question-row bg-light-subtle">
+          <div class="d-flex justify-content-between align-items-center mb-2"><strong class="question-number">Вопрос {{ loop.index }}</strong>{% if not locked %}<button class="btn btn-sm btn-outline-danger remove-question" type="button" title="Удалить"><i class="bi bi-trash"></i></button>{% endif %}</div>
+          <div class="row g-2">
+            <div class="col-lg-8"><label class="form-label">Текст вопроса</label><input class="form-control" name="question_label[]" maxlength="500" required value="{{ question.label }}" {% if locked %}disabled{% endif %}></div>
+            <div class="col-lg-4"><label class="form-label">Тип ответа</label><select class="form-select question-type" name="question_type[]" {% if locked %}disabled{% endif %}>{% for value, label in field_types.items() %}<option value="{{ value }}" {% if question.field_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+            <div class="col-lg-8"><label class="form-label">Подсказка</label><input class="form-control" name="question_help[]" maxlength="500" value="{{ question.help_text or '' }}" {% if locked %}disabled{% endif %}></div>
+            <div class="col-lg-4 d-flex align-items-end pb-2"><label class="form-check"><input class="form-check-input question-required" type="checkbox" name="question_required" value="{{ loop.index0 }}" {% if question.is_required %}checked{% endif %} {% if locked %}disabled{% endif %}><span class="form-check-label">Обязательный вопрос</span></label></div>
+            <div class="col-12 options-wrap {% if question.field_type not in ['choice', 'multiple_choice', 'choice_other'] %}d-none{% endif %}"><label class="form-label">Варианты ответа — по одному на строке</label><textarea class="form-control" rows="3" name="question_options[]" {% if locked %}disabled{% endif %}>{{ question.options|join('\n') }}</textarea></div>
+            {% if locked %}<input type="hidden" name="question_label[]" value="{{ question.label }}"><input type="hidden" name="question_type[]" value="{{ question.field_type }}"><input type="hidden" name="question_help[]" value="{{ question.help_text or '' }}"><input type="hidden" name="question_options[]" value="{{ question.options|join('\n') }}">{% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="border rounded-4 p-3 question-row bg-light-subtle">
+          <div class="d-flex justify-content-between align-items-center mb-2"><strong class="question-number">Вопрос 1</strong><button class="btn btn-sm btn-outline-danger remove-question" type="button" title="Удалить"><i class="bi bi-trash"></i></button></div>
+          <div class="row g-2">
+            <div class="col-lg-8"><label class="form-label">Текст вопроса</label><input class="form-control" name="question_label[]" maxlength="500" required></div>
+            <div class="col-lg-4"><label class="form-label">Тип ответа</label><select class="form-select question-type" name="question_type[]">{% for value, label in field_types.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+            <div class="col-lg-8"><label class="form-label">Подсказка</label><input class="form-control" name="question_help[]" maxlength="500"></div>
+            <div class="col-lg-4 d-flex align-items-end pb-2"><label class="form-check"><input class="form-check-input question-required" type="checkbox" name="question_required" value="0"><span class="form-check-label">Обязательный вопрос</span></label></div>
+            <div class="col-12 options-wrap d-none"><label class="form-label">Варианты ответа — по одному на строке</label><textarea class="form-control" rows="3" name="question_options[]"></textarea></div>
+          </div>
+        </div>
+      {% endfor %}
+      </div>
+    </div>
+    <div class="card-footer bg-white d-flex gap-2"><button class="btn btn-primary">Сохранить форму</button><a class="btn btn-outline-secondary" href="{{ url_for('additional_education_surveys.index') }}">Отмена</a></div>
+  </form>
+</div>
+
+<template id="questionTemplate">
+  <div class="border rounded-4 p-3 question-row bg-light-subtle">
+    <div class="d-flex justify-content-between align-items-center mb-2"><strong class="question-number"></strong><button class="btn btn-sm btn-outline-danger remove-question" type="button" title="Удалить"><i class="bi bi-trash"></i></button></div>
+    <div class="row g-2">
+      <div class="col-lg-8"><label class="form-label">Текст вопроса</label><input class="form-control" name="question_label[]" maxlength="500" required></div>
+      <div class="col-lg-4"><label class="form-label">Тип ответа</label><select class="form-select question-type" name="question_type[]">{% for value, label in field_types.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-lg-8"><label class="form-label">Подсказка</label><input class="form-control" name="question_help[]" maxlength="500"></div>
+      <div class="col-lg-4 d-flex align-items-end pb-2"><label class="form-check"><input class="form-check-input question-required" type="checkbox" name="question_required"><span class="form-check-label">Обязательный вопрос</span></label></div>
+      <div class="col-12 options-wrap d-none"><label class="form-label">Варианты ответа — по одному на строке</label><textarea class="form-control" rows="3" name="question_options[]"></textarea></div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const list = document.getElementById('questionList');
+  const template = document.getElementById('questionTemplate');
+  function refresh() {
+    const rows = Array.from(list.querySelectorAll('.question-row'));
+    rows.forEach(function (row, index) {
+      row.querySelector('.question-number').textContent = 'Вопрос ' + (index + 1);
+      const required = row.querySelector('.question-required');
+      if (required) required.value = String(index);
+      const remove = row.querySelector('.remove-question');
+      if (remove) remove.disabled = rows.length === 1;
+    });
+  }
+  function refreshOptions(row) {
+    const type = row.querySelector('.question-type').value;
+    row.querySelector('.options-wrap').classList.toggle('d-none', !['choice', 'multiple_choice', 'choice_other'].includes(type));
+  }
+  list.addEventListener('change', function (event) {
+    if (event.target.classList.contains('question-type')) refreshOptions(event.target.closest('.question-row'));
+  });
+  list.addEventListener('click', function (event) {
+    const remove = event.target.closest('.remove-question');
+    if (remove && list.querySelectorAll('.question-row').length > 1) { remove.closest('.question-row').remove(); refresh(); }
+  });
+  const add = document.getElementById('addQuestion');
+  if (add) add.addEventListener('click', function () {
+    list.appendChild(template.content.cloneNode(true));
+    refresh();
+    list.lastElementChild.querySelector('input').focus();
+  });
+  const copy = document.getElementById('copyPublicUrl');
+  if (copy) copy.addEventListener('click', async function () {
+    const input = document.getElementById('publicUrl');
+    try { await navigator.clipboard.writeText(input.value); copy.innerHTML = '<i class="bi bi-check-lg me-1"></i>Скопировано'; }
+    catch (error) { input.select(); document.execCommand('copy'); }
+  });
+  refresh();
+})();
+</script>
+{% endblock %}

@@ -458,7 +458,16 @@
                      value="{{ child.birth_date.strftime('%Y-%m-%d') if child.birth_date else '' }}">
             </div>
 
-           <div class="col-md-6">
+            <div class="col-md-4">
+              <label class="form-label">Пол</label>
+              <select class="form-select" name="gender">
+                <option value="">— не указан —</option>
+                <option value="М" {% if (child.gender or '')|upper == 'М' %}selected{% endif %}>Мужской</option>
+                <option value="Ж" {% if (child.gender or '')|upper == 'Ж' %}selected{% endif %}>Женский</option>
+              </select>
+            </div>
+
+           <div class="col-md-4">
   <label class="form-label">Форма обучения</label>
   <select class="form-select" name="education_form">
     <option value="">—</option>
@@ -506,7 +515,7 @@
 </div>
 
 {# ===== СОЦИАЛЬНЫЙ ПАСПОРТ ===== #}
-{% if can_view_social and has_social_info %}
+{% if can_view_social and (has_social_info or can_edit_social) %}
 <div class="card mb-3 child-profile-section">
   <div class="card-header d-flex justify-content-between align-items-center">
     <b>Социальный паспорт</b>
@@ -641,6 +650,8 @@
       </div>
       {% endif %}
     </div>
+    {% elif can_edit_social %}
+      <div class="text-muted">Данные социального паспорта пока не заполнены.</div>
     {% endif %}
 
     {% if can_edit_social %}

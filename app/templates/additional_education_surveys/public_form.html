@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ survey.title }} — {{ org_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{--survey-blue:#174ea6;--survey-bg:#f4f7fb}body{font-family:Manrope,sans-serif;background:var(--survey-bg);color:#182230}.survey-shell{max-width:820px}.survey-brand{font-weight:700;color:var(--survey-blue);letter-spacing:.01em}.survey-emblem{width:58px;height:58px;object-fit:contain}.survey-card{border:0;border-radius:20px;box-shadow:0 12px 40px rgba(26,54,93,.08)}.survey-accent{height:7px;background:linear-gradient(90deg,#174ea6,#43a3ef);border-radius:20px 20px 0 0}.question-card{border:1px solid #dfe7f1;border-radius:16px;padding:1.15rem;background:#fff}.form-control,.form-select{border-radius:10px;border-color:#cbd7e6}.btn-primary{background:#174ea6;border-color:#174ea6;border-radius:11px;padding:.7rem 1.4rem}.required-mark{color:#c9362b}.honeypot{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important}
+  </style>
+</head>
+<body>
+<main class="container survey-shell py-4 py-md-5">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    {% if org_emblem_url or org_logo_url %}<img class="survey-emblem" src="{{ org_emblem_url or org_logo_url }}" alt="Эмблема {{ org_name }}">{% endif %}
+    <div><div class="survey-brand">{{ org_name }}</div><div class="small text-muted">Открытая форма сбора</div></div>
+  </div>
+  <div class="survey-card bg-white overflow-hidden">
+    <div class="survey-accent"></div>
+    <div class="p-3 p-md-5">
+      <h1 class="h3 fw-bold mb-2">{{ survey.title }}</h1>
+      {% if survey.description %}<p class="text-muted mb-2" style="white-space:pre-wrap">{{ survey.description }}</p>{% endif %}
+      <div class="small text-muted mb-4"><span class="required-mark">*</span> — обязательный вопрос</div>
+      <div class="alert alert-light border small">Указанные сведения и документы будут доступны владельцу формы и сотрудникам, которым он предоставил доступ.</div>
+
+      {% if errors %}<div class="alert alert-danger" role="alert">Проверьте отмеченные поля и отправьте форму ещё раз.{% if errors.get('files') %}<div class="mt-1">{{ errors.get('files') }}</div>{% endif %}</div>{% endif %}
+      <form method="post" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="honeypot" aria-hidden="true"><label>Не заполняйте это поле<input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <div class="d-grid gap-3">
+        {% for question in survey.questions %}
+          {% set key = 'answer_' ~ question.id %}
+          <div class="question-card {% if errors.get(question.id) %}border-danger{% endif %}">
+            <label class="form-label fw-semibold" id="{{ key }}_label" for="{{ key }}">{{ loop.index }}. {{ question.label }} {% if question.is_required %}<span class="required-mark">*</span>{% endif %}</label>
+            {% if question.help_text %}<div class="small text-muted mb-2">{{ question.help_text }}</div>{% endif %}
+            {% if question.field_type == 'long_text' %}
+              <textarea class="form-control" id="{{ key }}" name="{{ key }}" rows="4" maxlength="10000" {% if question.is_required %}required{% endif %}>{{ request.form.get(key, '') }}</textarea>
+            {% elif question.field_type == 'number' %}
+              <input class="form-control" id="{{ key }}" name="{{ key }}" type="number" min="0" step="1" value="{{ request.form.get(key, '') }}" {% if question.is_required %}required{% endif %}>
+            {% elif question.field_type == 'date' %}
+              <input class="form-control" id="{{ key }}" name="{{ key }}" type="date" value="{{ request.form.get(key, '') }}" {% if question.is_required %}required{% endif %}>
+            {% elif question.field_type == 'choice' %}
+              <div class="d-grid gap-2" role="group" aria-labelledby="{{ key }}_label">
+                {% for option in question.options %}
+                <label class="form-check border rounded-3 px-3 py-2"><input class="form-check-input ms-0 me-2" type="radio" name="{{ key }}" value="{{ option }}" {% if request.form.get(key) == option %}checked{% endif %}>{{ option }}</label>
+                {% endfor %}
+              </div>
+            {% elif question.field_type == 'multiple_choice' %}
+              {% set selected_options = request.form.getlist(key) %}
+              <div class="d-grid gap-2" role="group" aria-labelledby="{{ key }}_label">
+                {% for option in question.options %}
+                <label class="form-check border rounded-3 px-3 py-2"><input class="form-check-input ms-0 me-2" type="checkbox" name="{{ key }}" value="{{ option }}" {% if option in selected_options %}checked{% endif %}>{{ option }}</label>
+                {% endfor %}
+              </div>
+              <div class="form-text">Можно выбрать несколько вариантов.</div>
+            {% elif question.field_type == 'yes_no' %}
+              <div class="d-flex flex-wrap gap-2" role="group" aria-labelledby="{{ key }}_label">
+                {% for option in ['Да', 'Нет'] %}
+                <label class="form-check border rounded-3 px-3 py-2 flex-grow-1"><input class="form-check-input ms-0 me-2" type="radio" name="{{ key }}" value="{{ option }}" {% if request.form.get(key) == option %}checked{% endif %}>{{ option }}</label>
+                {% endfor %}
+              </div>
+            {% elif question.field_type == 'choice_other' %}
+              <select class="form-select js-choice-other" id="{{ key }}" name="{{ key }}" {% if question.is_required %}required{% endif %}>
+                <option value="">Выберите вариант</option>
+                {% for option in question.options %}<option value="{{ option }}" {% if request.form.get(key) == option %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                <option value="__other__" {% if request.form.get(key) == '__other__' %}selected{% endif %}>Иной вариант</option>
+              </select>
+              <input class="form-control mt-2 other-answer {% if request.form.get(key) != '__other__' %}d-none{% endif %}" name="answer_other_{{ question.id }}" value="{{ request.form.get('answer_other_' ~ question.id, '') }}" placeholder="Укажите иной вариант" maxlength="500">
+            {% elif question.field_type == 'file' %}
+              <input class="form-control" id="{{ key }}" name="{{ key }}" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.jpg,.jpeg,.png" {% if question.is_required %}required{% endif %}>
+              <div class="form-text">До 5 файлов, до {{ max_file_size_mb }} МБ каждый. Допустимые типы: {{ allowed_extensions }}.</div>
+            {% else %}
+              <input class="form-control" id="{{ key }}" name="{{ key }}" type="text" maxlength="10000" value="{{ request.form.get(key, '') }}" {% if question.is_required %}required{% endif %}>
+            {% endif %}
+            {% if errors.get(question.id) %}<div class="text-danger small mt-2">{{ errors.get(question.id) }}</div>{% endif %}
+          </div>
+        {% endfor %}
+        </div>
+        <button class="btn btn-primary mt-4" type="submit">Отправить ответы</button>
+        <div class="small text-muted mt-3">Перед отправкой убедитесь, что сведения указаны верно.</div>
+      </form>
+    </div>
+  </div>
+</main>
+<script>
+document.querySelectorAll('.js-choice-other').forEach(function (select) {
+  select.addEventListener('change', function () {
+    const other = select.parentElement.querySelector('.other-answer');
+    if (!other) return;
+    const visible = select.value === '__other__';
+    other.classList.toggle('d-none', !visible);
+    other.required = visible;
+    if (visible) other.focus();
+  });
+});
+</script>
+</body>
+</html>

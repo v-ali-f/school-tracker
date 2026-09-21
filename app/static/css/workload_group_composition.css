@@ -236,6 +236,10 @@
   width: 86px;
 }
 
+.group-composition-table thead th:not(:first-child):not(.group-composition-table__unassigned) {
+  width: 140px;
+}
+
 .group-composition-table thead span,
 .group-composition-table thead small {
   display: block;
@@ -245,6 +249,14 @@
   margin-top: 2px;
   color: #7a869b;
   font-size: 9px;
+}
+
+.group-composition-table thead .group-composition-table__teacher {
+  min-height: 22px;
+  color: #35445f;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .group-composition-table tbody th {

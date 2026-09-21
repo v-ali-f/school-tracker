@@ -8,6 +8,21 @@ from app.modules.workload.access import can_access_workload_module
 hub_bp = Blueprint("hub", __name__, url_prefix="/hub")
 
 
+def _collection_forms_visible():
+    from app.additional_education_surveys import can_access_collection_forms
+
+    return can_access_collection_forms(current_user)
+
+
+def _school_plan_visible():
+    try:
+        from app.services.school_plan_access import can_fill_school_plan
+
+        return can_fill_school_plan(current_user)
+    except Exception:
+        return False
+
+
 ICON_MAP = {
     "Инциденты": ("bi-shield-exclamation", "accent-dark"),
     "Травмы": ("bi-heart-pulse", "accent-orange"),
@@ -48,6 +63,7 @@ ICON_MAP = {
     "План работы школы": ("bi-calendar-week", "accent-blue"),
     "База знаний": ("bi-book-half", "accent-blue"),
     "Доп. образование": ("bi-mortarboard", "accent-blue"),
+    "Формы сбора": ("bi-ui-checks", "accent-blue"),
     "Задачи и поручения": ("bi-check2-square", "accent-blue"),
     "Обращения": ("bi-inbox", "accent-orange"),
     "Ознакомления": ("bi-file-earmark-check", "accent-green"),
@@ -485,6 +501,12 @@ def _main_page_config():
                 "roles_any": ["ADMIN", "METHODIST", "DIRECTOR", "DEPUTY_DIRECTOR", "DEPARTMENT_HEAD"],
             },
             {
+                "title": "Формы сбора",
+                "description": "Личные публичные формы, ответы, документы и совместный доступ к результатам.",
+                "endpoint": "additional_education_surveys.index",
+                "visible_if": lambda: _collection_forms_visible(),
+            },
+            {
                 "title": "Диагностики МЦКО",
                 "description": "Сессии, импорт результатов, аналитика и привязка к учителям.",
                 "endpoint": "hub.diagnostics",
@@ -545,9 +567,9 @@ def _main_page_config():
             },
             {
                 "title": "План работы школы",
-                "description": "Школьный план мероприятий по дням, периодам, зданиям и классам.",
+                "description": "Мероприятия по датам, направлениям, классам и группам сотрудников.",
                 "endpoint": "school_plan.index",
-                "roles_any": ["ADMIN", "METHODIST", "DEPUTY_DIRECTOR", "SOCIAL_PEDAGOG"],
+                "visible_if": _school_plan_visible,
             },
             {
                 "title": "База знаний",
@@ -1032,6 +1054,8 @@ def _filter_page_sections_by_modules(page, module_codes):
     def keep(item):
         endpoint = item.get("endpoint")
         if endpoint == "hub.classroom" and _class_teacher_context() is not None:
+            return True
+        if endpoint == "school_plan.index" and _school_plan_visible():
             return True
         module_key = endpoint_to_module.get(endpoint)
         if not module_key:

@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+{% block title %}Доступ к результатам — {{ org_name }}{% endblock %}
+{% block content %}
+<div class="container py-3" style="max-width:920px">
+  <div class="page-head">
+    <div>
+      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / <a href="{{ url_for('additional_education_surveys.index') }}" class="text-decoration-none text-muted">Формы сбора</a> / Доступ</nav>
+      <h1 class="page-title">Доступ к результатам</h1>
+      <div class="page-sub">{{ survey.title }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('additional_education_surveys.results', survey_id=survey.id) }}">К результатам</a>
+  </div>
+
+  <div class="alert alert-light border">
+    Выбранные сотрудники смогут просматривать ответы, скачивать Excel и приложенные документы. Изменять, публиковать или удалять форму сможет только её владелец.
+  </div>
+
+  <form method="post" class="card soft-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card-body">
+      <label class="form-label fw-semibold" for="userSearch">Найти сотрудника</label>
+      <input class="form-control mb-3" id="userSearch" type="search" placeholder="ФИО, логин или роль" autocomplete="off">
+      <div class="border rounded-3 overflow-auto" style="max-height:480px">
+        <div class="list-group list-group-flush" id="userList">
+        {% for user in users %}
+          {% set user_name = user.fio or user.username %}
+          <label class="list-group-item d-flex align-items-center gap-3 user-row" data-search="{{ (user_name ~ ' ' ~ user.username ~ ' ' ~ (user.role or ''))|lower }}">
+            <input class="form-check-input flex-shrink-0" type="checkbox" name="user_ids" value="{{ user.id }}" {% if user.id in selected_user_ids %}checked{% endif %}>
+            <span class="flex-grow-1"><span class="fw-semibold d-block">{{ user_name }}</span><span class="small text-muted">{{ user.username }} · {{ user.role or 'роль не указана' }}</span></span>
+          </label>
+        {% else %}
+          <div class="text-center text-muted p-4">Нет доступных сотрудников.</div>
+        {% endfor %}
+        </div>
+      </div>
+      <div class="form-text mt-2">Чтобы сотрудник мог открыть раздел, его роли также нужен доступ к модулю «Формы сбора» в настройках ролей.</div>
+    </div>
+    <div class="card-footer bg-white d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Сохранить доступ</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('additional_education_surveys.results', survey_id=survey.id) }}">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const input = document.getElementById('userSearch');
+  const rows = Array.from(document.querySelectorAll('.user-row'));
+  input.addEventListener('input', function () {
+    const query = input.value.trim().toLocaleLowerCase('ru');
+    rows.forEach(function (row) {
+      row.classList.toggle('d-none', query && !row.dataset.search.includes(query));
+    });
+  });
+})();
+</script>
+{% endblock %}

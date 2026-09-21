@@ -10,6 +10,7 @@ from openpyxl import load_workbook, Workbook
 from .models import User, PageVisit
 from app.models_legacy import Role, UserRole
 from app.core.extensions import db
+from app.core.pagination import paginate_list, resolve_pagination
 from .roles import require_roles
 from app.utils.user_matching import find_existing_user, normalize_fio, potential_duplicate_groups
 
@@ -37,6 +38,16 @@ ROLE_LABELS = {
     "ASSISTANT": "Ассистент",
     "SENIOR_EDUCATOR": "Старший воспитатель",
     "EDUCATOR": "Воспитатель",
+    "DEPUTY_DIRECTOR": "Заместитель директора",
+    "DEPARTMENT_HEAD": "Руководитель кафедры",
+    "HR_SPECIALIST": "Специалист по кадрам",
+    "ECONOMIST": "Экономист",
+    "AUDITOR": "Проверяющий",
+    "SECRETARY": "Секретарь",
+    "SECRETARY_ACADEMIC": "Секретарь учебной части",
+    "PEDAGOG_ORGANIZER": "Педагог-организатор",
+    "SPECIALIST": "Специалист",
+    "SUPPORT": "Техническая поддержка",
 }
 RUSSIAN_ROLE_MAP = {
     "администратор": "ADMIN",
@@ -259,14 +270,39 @@ def _snapshot_user(row_log: UserImportRow, user: User):
 def users_list():
     status = (request.args.get("status") or "active").lower()
     q = (request.args.get("q") or "").strip().lower()
+    selected_role = (request.args.get("role") or "").strip().upper()
     query = User.query
 
     if status == "archived":
-        query = query.filter(User.employment_status.in_(["DISMISSED", "ARCHIVED"]))
+        query = query.filter(
+            or_(
+                User.employment_status.in_(["DISMISSED", "ARCHIVED"]),
+                User.archived_at.isnot(None),
+            )
+        )
+    elif status == "disabled":
+        query = query.filter(
+            ~User.employment_status.in_(["DISMISSED", "ARCHIVED"]),
+            User.archived_at.is_(None),
+            User.is_active_user.is_(False),
+        )
     elif status == "all":
         pass
     else:
-        query = query.filter(~User.employment_status.in_(["DISMISSED", "ARCHIVED"]))
+        status = "active"
+        query = query.filter(
+            User.employment_status == "ACTIVE",
+            User.archived_at.is_(None),
+            User.is_active_user.is_(True),
+        )
+
+    if selected_role:
+        query = query.filter(
+            or_(
+                User.role == selected_role,
+                User.roles.any(Role.code == selected_role),
+            )
+        )
 
     if q:
         query = query.filter(
@@ -275,14 +311,69 @@ def users_list():
                 db.func.lower(db.func.coalesce(User.first_name, "")).contains(q),
                 db.func.lower(db.func.coalesce(User.middle_name, "")).contains(q),
                 db.func.lower(User.username).contains(q),
+                db.func.lower(db.func.coalesce(User.email, "")).contains(q),
+                db.func.lower(db.func.coalesce(User.phone, "")).contains(q),
             )
         )
 
-    users = query.order_by(User.last_name.asc(), User.first_name.asc(), User.username.asc()).all()
+    all_role_codes = set(ROLE_OPTIONS)
+    all_role_codes.update(
+        code for (code,) in db.session.query(User.role).distinct().all() if code
+    )
+    role_catalog = {item.code: item.name for item in Role.query.order_by(Role.name.asc()).all()}
+    all_role_codes.update(role_catalog)
+    role_options = [
+        {
+            "code": code,
+            "label": ROLE_LABELS.get(code, role_catalog.get(code, code)),
+        }
+        for code in sorted(
+            all_role_codes,
+            key=lambda value: ROLE_LABELS.get(value, role_catalog.get(value, value)).lower(),
+        )
+    ]
+
+    ordered_users = query.order_by(
+        User.last_name.asc(), User.first_name.asc(), User.username.asc()
+    ).all()
+    page, per_page = resolve_pagination(default_per_page=30)
+    users, pagination = paginate_list(ordered_users, page=page, per_page=per_page)
+
+    archived_filter = or_(
+        User.employment_status.in_(["DISMISSED", "ARCHIVED"]),
+        User.archived_at.isnot(None),
+    )
+    summary = {
+        "total": User.query.count(),
+        "active": User.query.filter(
+            User.employment_status == "ACTIVE",
+            User.archived_at.is_(None),
+            User.is_active_user.is_(True),
+        ).count(),
+        "archived": User.query.filter(archived_filter).count(),
+        "disabled": User.query.filter(
+            ~User.employment_status.in_(["DISMISSED", "ARCHIVED"]),
+            User.archived_at.is_(None),
+            User.is_active_user.is_(False),
+        ).count(),
+    }
     recent_imports = UserImportSession.query.order_by(UserImportSession.imported_at.desc()).limit(10).all()
     unmatched_count = ServiceImportUnmatchedStaff.query.filter_by(status="NEW").count()
     duplicate_groups = potential_duplicate_groups()
-    return render_template("users_list.html", users=users, status=status, q=q, recent_imports=recent_imports, role_labels=ROLE_LABELS, unmatched_count=unmatched_count, duplicate_groups_count=len(duplicate_groups))
+    return render_template(
+        "users_list.html",
+        users=users,
+        status=status,
+        q=q,
+        selected_role=selected_role,
+        role_options=role_options,
+        recent_imports=recent_imports,
+        role_labels={**role_catalog, **ROLE_LABELS},
+        unmatched_count=unmatched_count,
+        duplicate_groups_count=len(duplicate_groups),
+        summary=summary,
+        pagination=pagination,
+    )
 
 
 @users_bp.route("/admin/users/activity")

@@ -1,6 +1,8 @@
-(() => {
+window.initWorkloadPlanMatrix = () => {
   const matrix = document.querySelector("[data-plan-matrix]");
   if (!matrix) return;
+  if (matrix.dataset.planMatrixInitialized === "1") return;
+  matrix.dataset.planMatrixInitialized = "1";
 
   const scrollStorageKey = `workload-plan-matrix-scroll:${window.location.pathname}`;
   const savedPosition = window.sessionStorage.getItem(scrollStorageKey);
@@ -30,20 +32,6 @@
     window.setTimeout(restorePosition, 80);
     window.setTimeout(restorePosition, 220);
   }
-  document.querySelectorAll("[data-plan-row-reorder]").forEach((form) => {
-    form.addEventListener("submit", () => {
-      const targetRow = form.closest("[data-matrix-row]");
-      window.sessionStorage.setItem(
-        scrollStorageKey,
-        JSON.stringify({
-          scrollY: window.scrollY,
-          rowTop: targetRow?.getBoundingClientRect().top ?? null,
-          activityId: form.elements.education_activity_id?.value ?? "",
-        }),
-      );
-    });
-  });
-
   const matrixViewStorageKey = "workload-plan-matrix-view";
   const viewButtons = Array.from(
     document.querySelectorAll("[data-plan-matrix-view-option]"),
@@ -667,5 +655,131 @@
     });
   });
 
+  const flushPendingSaves = async () => {
+    const allForms = [...standardForms(), ...periodForms()];
+    allForms.forEach((form) => {
+      window.clearTimeout(saveTimers.get(form));
+    });
+    standardForms().forEach((form) => {
+      enqueueSave(form, saveStandardForm);
+    });
+    periodForms().forEach((form) => {
+      enqueueSave(form, savePeriodForm);
+    });
+    await saveQueue;
+    if (allForms.some((form) => form.classList.contains("is-save-error"))) {
+      throw new Error(
+        "Сначала исправьте значения часов, которые не удалось сохранить.",
+      );
+    }
+  };
+
+  const showStructuralMessage = (canvas, message) => {
+    if (!message) return;
+    const notice = document.createElement("div");
+    notice.className = "alert alert-success py-2";
+    notice.setAttribute("role", "status");
+    notice.textContent = message;
+    canvas.prepend(notice);
+    window.setTimeout(() => notice.remove(), 3000);
+  };
+
+  const replaceCanvas = async (payload, position) => {
+    const response = await fetch(payload.refresh_url, {
+      credentials: "same-origin",
+      headers: {
+        Accept: "text/html",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Не удалось обновить матрицу учебного плана.");
+    }
+    const responseDocument = new DOMParser().parseFromString(
+      await response.text(),
+      "text/html",
+    );
+    const nextCanvas = responseDocument.querySelector("#workload-main-canvas");
+    const currentCanvas = document.querySelector("#workload-main-canvas");
+    if (!nextCanvas || !currentCanvas) {
+      throw new Error("Сервер не вернул обновлённую матрицу.");
+    }
+    currentCanvas.replaceChildren(
+      ...Array.from(nextCanvas.childNodes).map((node) => (
+        document.importNode(node, true)
+      )),
+    );
+    window.history.replaceState({}, "", payload.refresh_url);
+    window.initWorkloadPlanMatrix();
+    showStructuralMessage(currentCanvas, payload.message);
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo(0, Number(position.scrollY) || 0);
+      if (!position.activityId || !Number.isFinite(position.rowTop)) return;
+      const activityInput = currentCanvas.querySelector(
+        `[data-plan-row-reorder] input[name="education_activity_id"]`
+        + `[value="${position.activityId}"]`,
+      );
+      const targetRow = activityInput?.closest("[data-matrix-row]");
+      if (targetRow) {
+        window.scrollBy(
+          0,
+          targetRow.getBoundingClientRect().top - position.rowTop,
+        );
+      }
+    });
+  };
+
+  const submitStructuralForm = async (form) => {
+    if (form.dataset.submitting === "1") return;
+    form.dataset.submitting = "1";
+    const submitButton = form.querySelector("button[type='submit']");
+    const targetRow = form.closest("[data-matrix-row]");
+    const position = {
+      scrollY: window.scrollY,
+      rowTop: targetRow?.getBoundingClientRect().top ?? null,
+      activityId: form.elements.education_activity_id?.value ?? "",
+    };
+    submitButton?.setAttribute("disabled", "disabled");
+    form.setAttribute("aria-busy", "true");
+    try {
+      await flushPendingSaves();
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      const payload = await responsePayload(response);
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Не удалось изменить учебный план.");
+      }
+      updateRevisions(payload.revision);
+      await replaceCanvas(payload, position);
+    } catch (error) {
+      window.alert(error.message);
+      form.dataset.submitting = "0";
+      form.removeAttribute("aria-busy");
+      submitButton?.removeAttribute("disabled");
+    }
+  };
+
+  document.querySelector(".workload-matrix-add-row")
+    ?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitStructuralForm(event.currentTarget);
+    });
+  document.querySelectorAll("[data-plan-row-reorder]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitStructuralForm(form);
+    });
+  });
+
   recalculateMatrix();
-})();
+};
+
+window.initWorkloadPlanMatrix();
