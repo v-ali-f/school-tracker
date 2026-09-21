@@ -1129,6 +1129,27 @@ def _group_links_from_form(name, purpose, allowed_specials=()):
     ]
 
 
+def _sync_event_links(collection, desired_links, identity_fields, update_fields=()):
+    """Synchronize event child rows without recreating unchanged unique keys."""
+    existing_by_identity = {
+        tuple(getattr(link, field) for field in identity_fields): link
+        for link in collection
+    }
+    synchronized = []
+    for desired_link in desired_links:
+        identity = tuple(
+            getattr(desired_link, field) for field in identity_fields
+        )
+        current_link = existing_by_identity.pop(identity, None)
+        if current_link is None:
+            current_link = desired_link
+        else:
+            for field in update_fields:
+                setattr(current_link, field, getattr(desired_link, field))
+        synchronized.append(current_link)
+    collection[:] = synchronized
+
+
 def _apply_event_form(event):
     title = (request.form.get('title') or '').strip()
     if not title:
@@ -1257,20 +1278,42 @@ def _apply_event_form(event):
     event.end_date = end_date
     event.period_type = 'range' if end_date else 'day'
     event.direction = direction
-    event.responsible_links = [
+    responsible_links = [
         SchoolPlanEventResponsible(user_id=user.id, sort_order=index)
         for index, user in enumerate(responsible_users)
     ]
+    _sync_event_links(
+        event.responsible_links,
+        responsible_links,
+        identity_fields=('user_id',),
+        update_fields=('sort_order',),
+    )
     event.responsible_user_id = responsible_users[0].id if responsible_users else None
     event.responsible_text = responsible_other or None
-    event.group_links = responsible_group_links + audience_group_links
-    event.target_grade_links = [
+    _sync_event_links(
+        event.group_links,
+        responsible_group_links + audience_group_links,
+        identity_fields=('purpose', 'group_type', 'group_key'),
+        update_fields=('label', 'sort_order'),
+    )
+    target_grade_links = [
         SchoolPlanEventGrade(grade=grade) for grade in sorted(selected_grades)
     ]
-    event.target_class_links = [
+    _sync_event_links(
+        event.target_grade_links,
+        target_grade_links,
+        identity_fields=('grade',),
+    )
+    target_class_links = [
         SchoolPlanEventClass(class_id=row.id, sort_order=index)
         for index, row in enumerate(selected_classes)
     ]
+    _sync_event_links(
+        event.target_class_links,
+        target_class_links,
+        identity_fields=('class_id',),
+        update_fields=('sort_order',),
+    )
 
     if audience_scope in {'school', 'staff'}:
         event.visibility_level = 'school'
