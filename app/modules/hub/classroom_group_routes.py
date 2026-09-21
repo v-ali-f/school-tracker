@@ -217,7 +217,6 @@ def register_classroom_group_routes(hub_bp):
                 item,
                 _composition_assignments(item),
                 user_id=current_user.id,
-                allow_with_workload=True,
             )
             db.session.commit()
         except GroupValidationError as exc:

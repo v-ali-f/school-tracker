@@ -35,6 +35,9 @@ WORKLOAD_WRITE_PERMISSIONS = frozenset({
     "workload.calculate",
     "workload.documents.generate",
 })
+WORKLOAD_EDITOR_READ_PERMISSIONS = frozenset({
+    "workload.read",
+})
 
 
 def _assigned_role_codes(user) -> set[str]:
@@ -115,6 +118,11 @@ def is_workload_global_editor(user) -> bool:
 def can_use_workload_permission(permission_code: str, user) -> bool:
     if not can_access_workload_module(user):
         return False
+    if (
+        permission_code in WORKLOAD_EDITOR_READ_PERMISSIONS
+        and is_workload_global_editor(user)
+    ):
+        return True
     if permission_code in WORKLOAD_WRITE_PERMISSIONS:
         if is_workload_global_editor(user):
             return True

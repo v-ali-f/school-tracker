@@ -36,6 +36,7 @@ DEFAULT_MODULES = [
     ("documents", "Документы"),
     ("analytics", "Аналитика"),
     ("workload", "Учебные планы и нагрузка"),
+    ("collection_forms", "Формы сбора"),
 ]
 
 DEFAULT_QUICK_LINKS = [
@@ -71,6 +72,7 @@ MODULE_DESCRIPTIONS = {
     "documents": "Загруженные файлы и документы учеников",
     "analytics": "Аналитические отчёты и сводные данные",
     "workload": "Учебные планы, распределение нагрузки и тарификация",
+    "collection_forms": "Создание публичных форм, сбор ответов и совместный доступ к результатам",
 }
 
 # Описания быстрых кнопок
@@ -111,6 +113,7 @@ MODULE_DEFAULT_ROLES = {
         "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST",
         "DEPARTMENT_HEAD", "HR_SPECIALIST", "ECONOMIST", "AUDITOR", "TEACHER",
     },
+    "collection_forms": {"ADMIN", "DIRECTOR", "METHODIST"},
 }
 
 

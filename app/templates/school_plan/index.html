@@ -1,51 +1,134 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260918_8">{% endblock %}
+{% block breadcrumb %}{% endblock %}
 {% block content %}
-<div class="page-head mb-3">
-  <div>
-    <div class="page-title">План работы школы</div>
-    <div class="page-sub">Реестр мероприятий с фильтрами, поиском и адресной видимостью.</div>
-  </div>
-  {% if can_manage %}
-  <div class="page-actions">
-    <a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.create') }}"><i class="bi bi-plus-lg me-1"></i>Добавить мероприятие</a>
-  </div>
-  {% endif %}
-</div>
-{% include 'school_plan/_nav.html' %}
-{% include 'school_plan/_filters.html' %}
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table align-middle mb-0">
-      <thead>
-        <tr>
-          <th>Дата</th><th>Мероприятие</th><th>Направление</th><th>Категория</th><th>Ответственный</th><th>Видимость</th><th>Статус</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for event in events %}
-        <tr {% if event.is_archived %}class="table-light"{% endif %}>
-          <td class="text-nowrap">{{ event.display_period }}</td>
-          <td>
-            <div class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('school_plan.view', event_id=event.id) }}">{{ event.title }}</a></div>
-            <div class="small text-muted">
-              {% if event.building %}{{ event.building.short_name or event.building.name }}{% endif %}
-              {% if event.school_class %} · {{ event.school_class.name }}{% endif %}
-              {% if event.location %} · {{ event.location }}{% endif %}
-            </div>
-          </td>
-          <td>{% if event.direction %}<span class="badge" style="background: {{ event.direction.color or '#475569' }}; color: {{ event.direction.text_color or '#fff' }};">{{ event.direction.name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
-          <td>{% if event.category %}<span class="badge" style="background: {{ event.category.color or '#334155' }}; color: {{ event.category.text_color or '#fff' }};">{{ event.category.name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
-          <td>{{ event.display_responsible or '—' }}</td>
-          <td>{{ visibility_titles.get(event.visibility_level, event.visibility_level) }}</td>
-          <td>{{ status_titles.get(event.status, event.status) }}</td>
-          <td class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('school_plan.view', event_id=event.id) }}">Открыть</a></td>
-        </tr>
-        {% else %}
-        <tr><td colspan="8" class="text-center text-muted py-4">Мероприятия пока не найдены.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="sp-workspace" id="schoolPlanWorkspace">
+  <input class="sp-menu-toggle" id="schoolPlanMenuToggle" type="checkbox" aria-hidden="true">
+  <aside class="sp-sidebar" id="schoolPlanSidebar">
+    <div class="sp-brand-row">
+      <a class="sp-brand" href="{{ url_for('main.dashboard') }}">
+        <span class="sp-brand-marks"><img class="sp-altair-mark" src="{{ altair_icon_url }}" alt="Альтаир">{% if org_logo_url %}<img class="sp-org-mark" src="{{ org_logo_url }}" alt="Эмблема {{ org_short_name }}">{% endif %}</span>
+        <span class="sp-brand-copy"><strong>{{ app_system_name }}</strong><span>{{ org_short_name }}</span></span>
+      </a>
+      <label class="sp-sidebar-close" for="schoolPlanMenuToggle" role="button" tabindex="0" aria-label="Закрыть меню"><i class="bi bi-x-lg"></i></label>
+    </div>
+    <div class="sp-sidebar-scroll">
+      <a class="sp-nav-link" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house-door"></i><span>Главная</span></a>
+      <a class="sp-nav-link is-active" href="{{ url_for('school_plan.index') }}"><i class="bi bi-calendar3"></i><span>План работы</span></a>
+      {% if plan_sidebar_daily_actions %}<div class="sp-sidebar-label">Ежедневная работа</div>{% endif %}
+      {% for item in plan_sidebar_daily_actions %}<a class="sp-nav-link" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-lightning-charge' }}"></i><span>{{ item.title }}</span></a>{% endfor %}
+      {% if plan_sidebar_sections %}<div class="sp-sidebar-label">Разделы и сервисы</div>{% endif %}
+      {% for item in plan_sidebar_sections %}<a class="sp-nav-link" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-grid' }}"></i><span>{{ item.title }}</span></a>{% endfor %}
+      {% if plan_sidebar_service_actions %}<div class="sp-sidebar-label">Служебные действия</div>{% endif %}
+      {% for item in plan_sidebar_service_actions %}<a class="sp-nav-link" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i><span>{{ item.title }}</span></a>{% endfor %}
+    </div>
+    <div class="sp-sidebar-footer"><a class="sp-nav-link" href="{{ url_for('main.dashboard') }}"><i class="bi bi-arrow-left-circle"></i><span>Вернуться на главную</span></a></div>
+  </aside>
+  <label class="sp-sidebar-overlay" for="schoolPlanMenuToggle" aria-label="Закрыть меню"></label>
+
+  <main class="sp-main">
+    <header class="sp-topbar">
+      <div class="d-flex align-items-center gap-2">
+        <label class="btn sp-mobile-menu" for="schoolPlanMenuToggle" role="button" tabindex="0" aria-label="Показать или скрыть боковое меню" aria-controls="schoolPlanSidebar"><i class="bi bi-list"></i><span>Меню</span></label>
+        <div class="sp-topbar-context"><strong>Рабочее пространство</strong>Планирование мероприятий школы</div>
+      </div>
+      <div class="sp-topbar-actions">
+        <a class="sp-topbar-icon" href="{{ url_for('main.dashboard') }}" title="Главная"><i class="bi bi-house-door"></i></a>
+        <a class="sp-topbar-icon position-relative" href="{{ url_for('tasks.my_tasks') }}" title="Задачи"><i class="bi bi-bell"></i>{% if bell_unread_total %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ bell_unread_total }}</span>{% endif %}</a>
+        <a class="sp-profile" href="{{ url_for('auth.profile_settings') }}"><span class="sp-profile-avatar">{{ (current_user.first_name or current_user.username or 'П')[:1] }}{{ (current_user.last_name or '')[:1] }}</span><span class="sp-profile-copy"><strong>{{ current_user.fio or current_user.username }}</strong><span>{{ role_labels.get(current_user.role, current_user.role) }}</span></span></a>
+        <a class="sp-topbar-icon" href="{{ url_for('auth.logout') }}" title="Выйти"><i class="bi bi-box-arrow-right"></i></a>
+      </div>
+    </header>
+
+    <div class="sp-content">
+      <div class="sp-page-head">
+        <div><h1 class="sp-title">План работы школы</h1><div class="sp-subtitle">{{ month_title }} {{ year }} · мероприятий: {{ events|length }}</div></div>
+        <div class="sp-page-actions">
+          <a class="btn btn-outline-secondary sp-round-button" href="{{ url_for('school_plan.index', period=prev_period) }}" title="Предыдущий месяц"><i class="bi bi-chevron-left"></i></a>
+          <a class="btn btn-outline-secondary sp-round-button" href="{{ url_for('school_plan.index', period=next_period) }}" title="Следующий месяц"><i class="bi bi-chevron-right"></i></a>
+          {% if can_manage %}<a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.create', date=selected_period ~ '-01', return_period=selected_period) }}"><i class="bi bi-plus-lg me-1"></i>Добавить мероприятие</a>{% endif %}
+        </div>
+      </div>
+
+      <div class="sp-viewbar">
+        <div class="sp-tabs">
+          <a class="sp-tab is-active" href="{{ url_for('school_plan.index', period=selected_period) }}"><i class="bi bi-list-ul"></i>План</a>
+          <a class="sp-tab" href="{{ url_for('school_plan.month_view', period=selected_period) }}"><i class="bi bi-calendar3"></i>Календарь</a>
+          {% if can_manage_editors %}<a class="sp-tab" href="{{ url_for('school_plan.editors') }}"><i class="bi bi-person-gear"></i>Ответственные</a>{% endif %}
+        </div>
+        <div class="sp-export-actions">
+          <a class="btn btn-outline-success btn-sm" href="{{ url_for('school_plan.export_xlsx', **current_args) }}"><i class="bi bi-file-earmark-excel"></i></a>
+          <a class="btn btn-outline-danger btn-sm" href="{{ url_for('school_plan.export_pdf', **current_args) }}"><i class="bi bi-file-earmark-pdf"></i></a>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.print_view_export', **current_args) }}" target="_blank"><i class="bi bi-printer"></i></a>
+        </div>
+      </div>
+
+      <div class="sp-summary-grid">
+        <div class="sp-summary-card"><span class="sp-summary-icon"><i class="bi bi-calendar3"></i></span><span><span>Всего в месяце</span><strong>{{ plan_summary.total }}</strong></span></div>
+        <div class="sp-summary-card"><span class="sp-summary-icon"><i class="bi bi-clock"></i></span><span><span>На этой неделе</span><strong>{{ plan_summary.this_week }}</strong></span></div>
+        <div class="sp-summary-card"><span class="sp-summary-icon"><i class="bi bi-view-list"></i></span><span><span>Длительные</span><strong>{{ plan_summary.long }}</strong></span></div>
+        <div class="sp-summary-card is-cancelled"><span class="sp-summary-icon"><i class="bi bi-x-circle"></i></span><span><span>Отменённые</span><strong>{{ plan_summary.cancelled }}</strong></span></div>
+      </div>
+
+      <form class="sp-filter-panel" method="get">
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-lg-3"><label class="form-label">Месяц</label><select class="form-select" name="period">{% for item in month_options %}<option value="{{ item.value }}" {% if selected_period == item.value %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></div>
+          <div class="col-6 col-lg-3"><label class="form-label">Направление</label><select class="form-select" name="direction_id"><option value="">Все направления</option>{% for row in directions %}<option value="{{ row.id }}" {% if request.args.get('direction_id')|int == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+          <div class="col-12 col-lg-4"><label class="form-label">Поиск</label><input class="form-control" type="search" name="q" value="{{ request.args.get('q','') }}" placeholder="Название, ответственный или примечание"></div>
+          <div class="col-8 col-lg-1">{% if can_manage %}<label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="show_archived" value="1" {% if request.args.get('show_archived') == '1' %}checked{% endif %}><span class="form-check-label small">Архив</span></label>{% endif %}</div>
+          <div class="col-4 col-lg-1 d-flex gap-1"><button class="btn btn-primary flex-grow-1" title="Применить"><i class="bi bi-funnel"></i></button><a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index', period=selected_period) }}" title="Сбросить"><i class="bi bi-x-lg"></i></a></div>
+        </div>
+      </form>
+
+      <div class="sp-plan-layout">
+        <section class="sp-agenda" aria-label="Лента мероприятий">
+          {% for group in agenda_groups %}
+          <div class="sp-week">
+            <div class="sp-week-head"><strong>{{ group.label }}</strong><span>{{ group.events|length }} {{ 'мероприятие' if group.events|length == 1 else 'мероприятия' if group.events|length in [2,3,4] else 'мероприятий' }}</span></div>
+            {% for event in group.events %}
+            {% set event_color = event.direction.color if event.direction and event.direction.color else '#1673ec' %}
+            {% set visible_event_start = month_start if event.start_date < month_start else event.start_date %}
+            {% set event_finish = event.end_date or event.start_date %}
+            {% set visible_event_end = month_end if event_finish > month_end else event_finish %}
+            <article class="sp-event">
+              <div class="sp-event-date" style="--event-color:{{ event_color }}">
+                <strong>{% if visible_event_end != visible_event_start %}{{ visible_event_start.day }}–{{ visible_event_end.day }}{% else %}{{ '%02d'|format(visible_event_start.day) }}{% endif %}</strong>
+                <span>{{ month_titles_genitive[visible_event_start.month]|upper }} · {{ weekday_short_titles[visible_event_start.weekday()] }}</span>
+                {% if event.end_date and event.end_date != event.start_date %}<em>{{ event.display_period }}</em>{% endif %}
+              </div>
+              <div class="sp-event-body">
+                <div class="sp-event-title-row"><a class="sp-event-title" href="{{ url_for('school_plan.view', event_id=event.id) }}">{{ event.title }}</a>{% if event.direction %}<span class="sp-direction-badge" style="--badge-color:{{ event.direction.color or '#526176' }};--badge-text:{{ event.direction.text_color or '#fff' }}">{{ event.direction.name }}</span>{% endif %}</div>
+                <div class="sp-event-meta"><span><i class="bi bi-people"></i>{{ event.display_audience }}</span><span><i class="bi bi-person"></i>{{ event.display_responsible or 'Ответственный не указан' }}</span></div>
+              </div>
+              <div class="sp-event-actions">
+                {% if can_manage %}<a class="btn btn-outline-primary" href="{{ url_for('school_plan.edit', event_id=event.id, return_period=selected_period) }}"><i class="bi bi-pencil me-1"></i>Изменить</a>{% else %}<a class="btn btn-outline-secondary" href="{{ url_for('school_plan.view', event_id=event.id) }}">Открыть</a>{% endif %}
+                {% if can_manage and not event.is_archived %}<form method="post" action="{{ url_for('school_plan.archive', event_id=event.id) }}" onsubmit="return confirm('Отменить мероприятие и перенести его в архив?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ selected_period }}"><button class="btn btn-outline-danger" type="submit"><i class="bi bi-x-circle me-1"></i>Отменить</button></form>{% elif can_manage %}<form method="post" action="{{ url_for('school_plan.restore', event_id=event.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ selected_period }}"><button class="btn btn-outline-success" type="submit"><i class="bi bi-arrow-counterclockwise me-1"></i>Вернуть</button></form>{% endif %}
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}<div class="sp-empty"><i class="bi bi-calendar2-x fs-3 d-block mb-2"></i>На выбранный месяц мероприятий нет.</div>{% endfor %}
+        </section>
+
+        <aside class="sp-aside">
+          <div class="sp-side-card">
+            <div class="sp-side-card-title"><span>{{ month_title }} {{ year }}</span><span><a href="{{ url_for('school_plan.index', period=prev_period) }}"><i class="bi bi-chevron-left"></i></a> <a href="{{ url_for('school_plan.index', period=next_period) }}"><i class="bi bi-chevron-right"></i></a></span></div>
+            <table class="sp-mini-calendar"><thead><tr>{% for title in weekday_short_titles %}<th>{{ title }}</th>{% endfor %}</tr></thead><tbody>{% for week in calendar_weeks %}<tr>{% for day in week %}<td class="{% if not day.in_month %}is-outside{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.events %}has-events{% endif %}">{{ day.date.day }}{% if day.events %}<span class="sp-calendar-dots">{% for event in day.events[:3] %}<span class="sp-calendar-dot" style="--dot-color:{{ event.direction.color if event.direction and event.direction.color else '#1673ec' }}"></span>{% endfor %}</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+          </div>
+          <div class="sp-side-card">
+            <div class="sp-side-card-title">Направления</div>
+            {% for row in direction_legend %}<div class="sp-legend-row"><span class="sp-legend-color" style="--legend-color:{{ row.direction.color or '#526176' }}"></span><span title="{{ row.direction.name }}">{{ row.direction.name }}</span><strong>{{ row.count }}</strong></div>{% else %}<div class="small text-muted">В выбранном месяце направлений нет.</div>{% endfor %}
+          </div>
+          {% if upcoming_event %}<div class="sp-side-card sp-next-card">
+            <div class="sp-side-card-title"><span><i class="bi bi-calendar-event me-1 text-primary"></i>Ближайшее мероприятие</span></div>
+            {% set upcoming_visible_start = month_start if upcoming_event.start_date < month_start else upcoming_event.start_date %}
+            <div class="sp-next-event"><div class="sp-next-date"><strong>{{ '%02d'|format(upcoming_visible_start.day) }}</strong><span>{{ month_titles_genitive[upcoming_visible_start.month]|upper }}</span></div><div class="sp-next-body"><strong>{{ upcoming_event.title }}</strong><span>{{ upcoming_event.display_audience }}</span><span>{{ upcoming_event.display_responsible or 'Ответственный не указан' }}</span></div></div>
+            <a class="sp-next-link" href="{{ url_for('school_plan.view', event_id=upcoming_event.id) }}">Перейти к мероприятию <i class="bi bi-arrow-right"></i></a>
+          </div>{% endif %}
+        </aside>
+      </div>
+    </div>
+  </main>
 </div>
 {% endblock %}

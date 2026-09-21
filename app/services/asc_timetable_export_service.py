@@ -266,12 +266,18 @@ def build_asc_timetable_xml(assignments, classrooms=()):
         },
     )
 
-    classroom_id_by_teacher_id = {}
+    classroom_ids_by_teacher_id = defaultdict(list)
     for classroom in active_classrooms:
+        teacher_ids = {
+            teacher.id
+            for teacher in getattr(classroom, "teachers", ()) or ()
+        }
         if classroom.teacher_user_id is not None:
-            classroom_id_by_teacher_id[
-                f"altair_teacher_{classroom.teacher_user_id}"
-            ] = f"altair_classroom_{classroom.id}"
+            teacher_ids.add(classroom.teacher_user_id)
+        for teacher_user_id in teacher_ids:
+            classroom_ids_by_teacher_id[
+                f"altair_teacher_{teacher_user_id}"
+            ].append(f"altair_classroom_{classroom.id}")
 
     teachers_node = ElementTree.SubElement(
         root,
@@ -432,9 +438,8 @@ def build_asc_timetable_xml(assignments, classrooms=()):
             ),
             "subjectid": subject_id,
             "teacherids": teacher_id,
-            "classroomids": classroom_id_by_teacher_id.get(
-                teacher_id,
-                "",
+            "classroomids": ",".join(
+                classroom_ids_by_teacher_id.get(teacher_id, ())
             ),
             "periodspercard": "1",
             "periodsperweek": _decimal_text(hours),

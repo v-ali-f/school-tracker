@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% block title %}Результаты формы — {{ org_name }}{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="page-head">
+    <div>
+      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / <a href="{{ url_for('additional_education_surveys.index') }}" class="text-decoration-none text-muted">Формы сбора</a> / Результаты</nav>
+      <h1 class="page-title">{{ survey.title }}</h1>
+      <div class="page-sub">Получено ответов: {{ submissions|length }}{% if not is_owner and survey.created_by %} · Владелец: {{ survey.created_by.fio or survey.created_by.username }}{% endif %}</div>
+    </div>
+    <div class="page-actions d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-success btn-sm" href="{{ url_for('additional_education_surveys.export_results', survey_id=survey.id) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+      {% if is_owner %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('additional_education_surveys.sharing', survey_id=survey.id) }}"><i class="bi bi-people me-1"></i>Доступ</a><a class="btn btn-outline-primary btn-sm" href="{{ url_for('additional_education_surveys.edit', survey_id=survey.id) }}">Изменить</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('additional_education_surveys.index') }}">К списку</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-sm-4"><div class="card soft-card h-100"><div class="card-body"><div class="small text-muted">Всего ответов</div><div class="display-6 fw-semibold">{{ submissions|length }}</div></div></div></div>
+    <div class="col-sm-8"><div class="card soft-card h-100"><div class="card-body"><div class="d-flex justify-content-between gap-2"><div class="small text-muted">Открытая ссылка</div><span class="badge text-bg-{{ 'success' if survey.is_published else 'secondary' }}">{{ 'Открыта' if survey.is_published else 'Закрыта' }}</span></div><div class="input-group input-group-sm mt-2"><input class="form-control" value="{{ public_url }}" readonly id="resultPublicUrl"><button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('resultPublicUrl').value)"><i class="bi bi-copy"></i></button></div></div></div></div>
+  </div>
+
+  <div class="card soft-card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>№</th><th>Получен</th>{% for question in survey.questions[:3] %}<th>{{ question.label }}</th>{% endfor %}<th class="text-end">Действие</th></tr></thead>
+        <tbody>
+        {% for submission in submissions %}
+          {% set answer_map = submission.answers_by_question_id %}
+          <tr>
+            <td>{{ loop.revindex }}</td>
+            <td class="text-nowrap">{{ submission.submitted_at.strftime('%d.%m.%Y %H:%M') }}</td>
+            {% for question in survey.questions[:3] %}{% set answer = answer_map.get(question.id) %}<td style="min-width:180px;white-space:pre-wrap">{% if answer and question.field_type == 'file' %}{{ answer.attachments|length }} файл(а){% else %}{{ (answer.value_text if answer else '') or '—' }}{% endif %}</td>{% endfor %}
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('additional_education_surveys.submission_detail', survey_id=survey.id, submission_id=submission.id) }}">Открыть полностью</a></td>
+          </tr>
+        {% else %}<tr><td colspan="{{ 4 + survey.questions[:3]|length }}" class="text-center text-muted py-5">Ответов пока нет.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

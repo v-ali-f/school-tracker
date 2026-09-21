@@ -41,6 +41,8 @@ def create_app():
 
     register_context_processors(app, has_permission, build_menu_flags)
     register_blueprints(app)
+    from app.core.access_control import init_user_access_guard
+    init_user_access_guard(app)
 
     register_cli(app)
 

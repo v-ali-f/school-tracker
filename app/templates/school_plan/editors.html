@@ -1,0 +1,123 @@
+{% extends 'layout.html' %}
+{% block title %}Ответственные за ведение плана{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_editors.css') }}?v=20260917_1">
+{% endblock %}
+{% block content %}
+<div class="dashboard-shell zone-page zone-slate school-plan-editors-page">
+  <div class="classic-page-header mb-3 zone-header zone-slate">
+    <div>
+      <div class="section-overline">План работы школы</div>
+      <h1 class="dashboard-title mb-1">Ответственные за ведение плана</h1>
+      <div class="text-muted classic-hero-note">Назначение и отзыв доступа к созданию и редактированию мероприятий.</div>
+    </div>
+    <div class="school-plan-editor-header-actions">
+      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('school_plan.index') }}"><i class="bi bi-arrow-left"></i> К плану</a>
+    </div>
+  </div>
+
+  {% include 'school_plan/_nav.html' %}
+
+  <div class="school-plan-editor-summary mb-3">
+    <div class="school-plan-editor-summary-item"><span>Всего имеют доступ</span><strong>{{ editor_summary.total }}</strong></div>
+    <div class="school-plan-editor-summary-item is-manual"><span>Назначены вручную</span><strong>{{ editor_summary.assigned }}</strong></div>
+    <div class="school-plan-editor-summary-item is-role"><span>Доступ по роли</span><strong>{{ editor_summary.role }}</strong></div>
+    <div class="school-plan-editor-summary-item is-protected"><span>Защищённый доступ</span><strong>{{ editor_summary.protected }}</strong></div>
+  </div>
+
+  <div class="registry-filter-panel">
+    <div class="school-plan-editor-search-wrap">
+      <label class="form-label" for="editorSearch">Добавить ответственного</label>
+      <div class="school-plan-editor-search-note">Начните вводить ФИО, логин или должность. Полный список сотрудников сразу не показывается. Доступно для назначения: {{ editor_summary.available }}.</div>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input class="form-control" type="search" id="editorSearch" autocomplete="off" placeholder="Например: Иванов, методист или ivanov…" aria-controls="editorSearchResults">
+      </div>
+      <div class="school-plan-editor-search-results d-none" id="editorSearchResults" aria-live="polite">
+        {% for user in available_users %}
+        <form method="post" class="school-plan-editor-search-result editor-search-result d-none" data-search="{{ ((user.fio or '') ~ ' ' ~ user.username ~ ' ' ~ (role_labels.get(user.role, user.role) or ''))|lower }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="add">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <div class="school-plan-editor-search-result__name" title="{{ user.fio or user.username }}">{{ user.fio or user.username }}</div>
+          <div class="school-plan-editor-search-result__meta" title="{{ role_labels.get(user.role, user.role or 'Должность не указана') }} · {{ user.username }}">{{ role_labels.get(user.role, user.role or 'Должность не указана') }} · {{ user.username }}</div>
+          <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-person-plus me-1"></i>Назначить</button>
+        </form>
+        {% endfor %}
+        <div class="school-plan-editor-search-message d-none" id="editorSearchEmpty">Совпадений не найдено.</div>
+        <div class="school-plan-editor-search-message d-none" id="editorSearchHint">Введите не менее двух символов.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="registry-mobile-scroll-hint"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card">
+    <div class="registry-table-scroll" tabindex="0" aria-label="Назначенные ответственные за ведение плана">
+      <table class="registry-matrix registry-matrix-wide">
+        <colgroup><col style="width:25%"><col style="width:15%"><col style="width:18%"><col style="width:25%"><col style="width:10%"><col style="width:7%"></colgroup>
+        <thead><tr><th>Сотрудник</th><th>Логин</th><th>Должность</th><th>Основание доступа</th><th>Назначен</th><th>Действия</th></tr></thead>
+        <tbody>
+        {% for entry in assignments %}
+          <tr>
+            <td class="registry-cell-clip" title="{{ entry.user.fio or entry.user.username }}"><strong>{{ entry.user.fio or entry.user.username }}</strong></td>
+            <td class="registry-cell-clip" title="{{ entry.user.username }}">{{ entry.user.username }}</td>
+            <td class="registry-cell-clip" title="{{ role_labels.get(entry.user.role, entry.user.role or '') }}">{{ role_labels.get(entry.user.role, entry.user.role or '—') }}</td>
+            <td>
+              {% if entry.source == 'protected' %}<span class="school-plan-access-badge school-plan-access-protected">Защищённый доступ директора</span>
+              {% elif entry.source == 'role' %}<span class="school-plan-access-badge school-plan-access-role">Доступ по роли</span>
+              {% else %}<span class="school-plan-access-badge school-plan-access-manual">Назначен вручную</span>{% endif %}
+              {% if entry.access and entry.access.granted_by %}<div class="small text-muted mt-1 registry-cell-clip" title="Кем назначен: {{ entry.access.granted_by.fio or entry.access.granted_by.username }}">Кем: {{ entry.access.granted_by.fio or entry.access.granted_by.username }}</div>{% endif %}
+            </td>
+            <td class="registry-cell-center registry-cell-nowrap">{{ entry.access.created_at.strftime('%d.%m.%Y') if entry.access and entry.access.created_at else '—' }}</td>
+            <td>
+              <div class="registry-row-actions">
+              {% if entry.can_remove %}
+                <form method="post" onsubmit="return confirm('Снять доступ к ведению плана у этого сотрудника?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="user_id" value="{{ entry.user.id }}">
+                  <button class="btn btn-outline-danger registry-row-action" type="submit" title="Снять доступ" aria-label="Снять доступ"><i class="bi bi-person-dash"></i></button>
+                </form>
+              {% else %}<span class="text-muted" title="Защищённый доступ нельзя отозвать"><i class="bi bi-lock"></i></span>{% endif %}
+              </div>
+            </td>
+          </tr>
+        {% else %}<tr><td class="registry-empty-row" colspan="6">Дополнительные ответственные пока не назначены.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="school-plan-editor-help"><i class="bi bi-info-circle me-1"></i> Администраторы, заместители директора и методисты отображаются с пометкой «Доступ по роли». Директор может снять им доступ и при необходимости назначить снова через поиск. Доступ директора защищён от случайного отключения.</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const search = document.getElementById('editorSearch');
+  const results = document.getElementById('editorSearchResults');
+  const rows = Array.from(document.querySelectorAll('.editor-search-result'));
+  const empty = document.getElementById('editorSearchEmpty');
+  const hint = document.getElementById('editorSearchHint');
+
+  function refreshResults() {
+    const query = search.value.trim().toLowerCase();
+    results.classList.remove('d-none');
+    let visible = 0;
+    rows.forEach(row => {
+      const show = query.length >= 2 && visible < 8 && row.dataset.search.includes(query);
+      row.classList.toggle('d-none', !show);
+      if (show) visible += 1;
+    });
+    hint.classList.toggle('d-none', query.length >= 2);
+    empty.classList.toggle('d-none', query.length < 2 || visible > 0);
+    if (!query) results.classList.add('d-none');
+  }
+
+  search.addEventListener('input', refreshResults);
+  document.addEventListener('click', function (event) {
+    if (!results.contains(event.target) && event.target !== search) results.classList.add('d-none');
+  });
+})();
+</script>
+{% endblock %}

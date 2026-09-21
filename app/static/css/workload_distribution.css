@@ -408,6 +408,11 @@
   color: #a22d2d;
 }
 
+.workload-matrix-totals .has-overallocated,
+.workload-matrix-totals .has-overallocated strong {
+  color: #a22d2d;
+}
+
 .workload-unassigned-link {
   padding: 0;
   display: inline-flex;

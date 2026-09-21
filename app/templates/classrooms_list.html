@@ -35,7 +35,7 @@
     <div class="col-12 col-md-8">
       <div class="classrooms-registry-hint">
         <i class="bi bi-info-circle me-1"></i>
-        Один кабинет педагога на здание. Без привязки кабинет в занятии aSc останется пустым.
+        Можно закрепить несколько педагогов за одним кабинетом и несколько кабинетов за педагогом. Все привязанные кабинеты попадут в aSc.
       </div>
     </div>
   </div>
@@ -80,8 +80,7 @@
           <td><input class="form-control form-control-sm" name="short_name" form="classroom-add-form" placeholder="Кратко" aria-label="Краткое название нового кабинета"></td>
           <td><input class="form-control form-control-sm" name="capacity" form="classroom-add-form" type="number" min="1" placeholder="—" aria-label="Вместимость нового кабинета"></td>
           <td>
-            <select class="form-select form-select-sm" name="teacher_user_id" form="classroom-add-form" aria-label="Педагог нового кабинета">
-              <option value="">Не закреплён</option>
+            <select class="form-select form-select-sm" name="teacher_user_ids" form="classroom-add-form" aria-label="Педагоги нового кабинета" multiple size="3">
               {% for teacher in teachers %}<option value="{{ teacher.id }}">{{ teacher.fio or teacher.username }}</option>{% endfor %}
             </select>
           </td>
@@ -119,12 +118,11 @@
               <span data-classroom-view>{{ classroom.capacity or '—' }}</span>
               <input class="form-control form-control-sm d-none" name="capacity" form="{{ form_id }}" type="number" min="1" value="{{ classroom.capacity or '' }}" data-classroom-edit aria-label="Вместимость кабинета">
             </td>
-            <td class="registry-cell-clip" title="{{ classroom.teacher.fio if classroom.teacher else 'Не закреплён' }}">
-              <span data-classroom-view>{{ classroom.teacher.fio if classroom.teacher else '—' }}</span>
-              <select class="form-select form-select-sm d-none" name="teacher_user_id" form="{{ form_id }}" data-classroom-edit aria-label="Педагог кабинета">
-                <option value="">Не закреплён</option>
+            <td class="registry-cell-clip" title="{{ classroom.assigned_teachers|map(attribute='fio')|join(', ') or 'Не закреплён' }}">
+              <span data-classroom-view>{{ classroom.assigned_teachers|map(attribute='fio')|join(', ') or '—' }}</span>
+              <select class="form-select form-select-sm d-none" name="teacher_user_ids" form="{{ form_id }}" data-classroom-edit aria-label="Педагоги кабинета" multiple size="4">
                 {% for teacher in teachers %}
-                  <option value="{{ teacher.id }}" {% if classroom.teacher_user_id == teacher.id %}selected{% endif %}>{{ teacher.fio or teacher.username }}</option>
+                  <option value="{{ teacher.id }}" {% if teacher.id in classroom.assigned_teacher_ids %}selected{% endif %}>{{ teacher.fio or teacher.username }}</option>
                 {% endfor %}
               </select>
             </td>

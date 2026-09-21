@@ -5,7 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_class_plan_matrix.css') }}?v=20260801_7">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260804_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260824_1">
 {% endblock %}
 
 {% block workspace_content %}
@@ -13,10 +13,9 @@
   <header class="class-plan-heading">
     <div>
       <h2>Состав учебных групп</h2>
-      <p>Распределение учеников только по предметам, для которых задано деление</p>
+      <p>Распределение учеников можно менять независимо от структуры групп и назначенной педагогической нагрузки</p>
     </div>
   </header>
-  {% include "workload/_groups_editing_controls.html" %}
 
   <div class="class-plan-toolbar group-composition-toolbar">
     <form method="get" action="{{ url_for('workload.group_composition') }}" data-composition-filters>
@@ -91,7 +90,7 @@
   <div class="class-plan-empty">Нет учебного года с рабочей версией.</div>
   {% elif not composition['items'] %}
   <div class="class-plan-empty">
-    В выбранном уровне пока нет предметов с делением на две или более группы.
+    В выбранном уровне пока нет предметов с делением или классов с несколькими учебными планами.
   </div>
   {% else %}
   <div class="group-composition-layout">
@@ -109,11 +108,18 @@
         >
           <span class="group-composition-list__title">
             <strong>{{ item.snapshot_class.name_snapshot }}</strong>
-            <span>{{ item.activity.name }}</span>
+            <span>{% if item.item_type == 'PLAN_BINDING' %}Распределение по УП{% else %}{{ item.activity.name }}{% endif %}</span>
           </span>
+          {% if item.item_type == 'PLAN_BINDING' %}
+          <small title="{{ item.plans|map(attribute='name')|join(', ') }}">{{ item.plans|map(attribute='name')|join(' · ') }}</small>
+          {% else %}
           <small title="{{ item.plan.name }}">{{ item.plan.name }}</small>
-          <span class="group-composition-list__progress {% if item.composition_approved %}is-complete{% endif %}">
-            {% if item.composition_approved %}
+          {% endif %}
+          <span
+            class="group-composition-list__progress {% if item.complete %}is-complete{% endif %}"
+            title="{% if item.composition_approved %}Согласовано классным руководителем{% elif item.complete %}Все ученики распределены{% else %}Распределено {{ item.assigned_count }} из {{ item.student_count }}{% endif %}"
+          >
+            {% if item.complete %}
               <i class="bi bi-check2" aria-hidden="true"></i>
             {% else %}
               {{ item.assigned_count }}/{{ item.student_count }}
@@ -128,12 +134,19 @@
       {% if selected_item %}
       <header class="group-composition-editor__head">
         <div>
+          {% if selected_item.item_type == 'PLAN_BINDING' %}
+          <h3>{{ selected_item.snapshot_class.name_snapshot }} · Учебные планы</h3>
+          <p>Укажите, по какому учебному плану занимается каждый ученик</p>
+          {% else %}
           <h3>{{ selected_item.snapshot_class.name_snapshot }} · {{ selected_item.activity.name }}</h3>
           <p>{{ selected_item.plan.name }} · {{ selected_item.groups|length }} группы</p>
+          {% endif %}
         </div>
-        <span class="group-composition-editor__status {% if selected_item.composition_approved %}is-complete{% endif %}" data-composition-summary>
+        <span class="group-composition-editor__status {% if selected_item.complete %}is-complete{% endif %}" data-composition-summary>
           {% if selected_item.composition_approved %}
             Согласовано классным руководителем
+          {% elif selected_item.complete %}
+            Все ученики распределены
           {% else %}
             {{ selected_item.assigned_count }} из {{ selected_item.student_count }}
           {% endif %}
@@ -151,6 +164,7 @@
         {% if selected_grade %}<input type="hidden" name="grade" value="{{ selected_grade }}">{% endif %}
         {% if selected_building_id %}<input type="hidden" name="building_id" value="{{ selected_building_id }}">{% endif %}
         <input type="hidden" name="item_key" value="{{ selected_item.key }}">
+        <input type="hidden" name="item_type" value="{{ selected_item.item_type }}">
 
         <div class="group-composition-actions">
           <button class="btn btn-outline-secondary btn-sm" type="button" data-distribute-in-order {% if not can_update %}disabled{% endif %}>
@@ -178,12 +192,28 @@
               <tr>
                 <th>Ученик</th>
                 <th class="group-composition-table__unassigned">Не назначен</th>
+                {% if selected_item.item_type == 'PLAN_BINDING' %}
+                {% for plan in selected_item.plans %}
+                <th>
+                  <span>{{ plan.profile_name or plan.name }}</span>
+                  <small data-group-size="{{ plan.id }}">{{ selected_item.plan_sizes[plan.id] }} уч.</small>
+                </th>
+                {% endfor %}
+                {% else %}
                 {% for group in selected_item.groups %}
                 <th>
                   <span>{{ loop.index }} группа</span>
+                  {% set teacher_names = selected_item.teacher_names_by_group[group.id] %}
+                  <small
+                    class="group-composition-table__teacher"
+                    title="{{ teacher_names|join(', ') if teacher_names else 'Педагог не назначен' }}"
+                  >
+                    {{ teacher_names|join(', ') if teacher_names else 'Педагог не назначен' }}
+                  </small>
                   <small data-group-size="{{ group.id }}">{{ selected_item.group_sizes[group.id] }} уч.</small>
                 </th>
                 {% endfor %}
+                {% endif %}
               </tr>
             </thead>
             <tbody>
@@ -204,6 +234,23 @@
                     <span>—</span>
                   </label>
                 </td>
+                {% if selected_item.item_type == 'PLAN_BINDING' %}
+                {% for plan in selected_item.plans %}
+                <td>
+                  <label title="{{ plan.name }}">
+                    <input
+                      type="radio"
+                      name="member_{{ enrollment.id }}"
+                      value="{{ plan.id }}"
+                      data-group-option="{{ plan.id }}"
+                      {% if assigned_group_id == plan.id %}checked{% endif %}
+                      {% if not can_update %}disabled{% endif %}
+                    >
+                    <span class="group-composition-choice" aria-hidden="true">✓</span>
+                  </label>
+                </td>
+                {% endfor %}
+                {% else %}
                 {% for group in selected_item.groups %}
                 <td>
                   <label title="{{ loop.index }} группа">
@@ -219,6 +266,7 @@
                   </label>
                 </td>
                 {% endfor %}
+                {% endif %}
               </tr>
               {% endfor %}
             </tbody>

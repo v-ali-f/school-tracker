@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import User
 from .core.extensions import db
+from .core.access_control import is_user_account_enabled
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -75,6 +76,11 @@ def login():
             flash("Неверный логин или пароль", "danger")
             return render_template("login.html")
 
+        if not is_user_account_enabled(user):
+            current_app.logger.info("LOGIN: inactive user rejected: %s (ip=%s)", username, ip)
+            flash("Учётная запись отключена. Обратитесь к администратору.", "danger")
+            return render_template("login.html"), 403
+
         _reset_failed_login(ip)
 
         try:
@@ -129,7 +135,7 @@ def forgot_password():
 
         user = User.query.filter_by(username=username).first()
         email = (getattr(user, "email", None) or "").strip().lower() if user else ""
-        if not user or not _password_reset_allowed_email(email):
+        if not user or not is_user_account_enabled(user) or not _password_reset_allowed_email(email):
             current_app.logger.info("FORGOT_PW: rejected for username=%s (user=%s, email_ok=%s)", username, bool(user), bool(_password_reset_allowed_email(email)))
             if _RESET_EMAIL_DOMAIN:
                 msg = f"Восстановление пароля недоступно: у этой учётной записи нет почты {_RESET_EMAIL_DOMAIN}. Обратитесь к администратору."
@@ -187,7 +193,7 @@ def reset_password(token: str):
         return redirect(url_for("auth.forgot_password"))
 
     user = User.query.get(prt.user_id)
-    if not user or not getattr(user, "is_active_user", True):
+    if not is_user_account_enabled(user):
         flash("Учётная запись недоступна.", "danger")
         return redirect(url_for("auth.login"))
 

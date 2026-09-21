@@ -149,7 +149,6 @@ def _synchronize_full_assignment(
         item
         for item in need.assignments
         if item.status != "CANCELLED"
-        and item.assignment_kind != "VACANCY"
     ]
     if len(active) != 1:
         return False
@@ -797,13 +796,16 @@ def teacher_totals(assignments):
         "TOTAL": ZERO,
     }
     for assignment in assignments:
+        need = assignment.workload_need
         if (
             assignment.status == "CANCELLED"
             or assignment.assignment_kind == "VACANCY"
+            or need is None
+            or getattr(need, "status", None) == "CANCELLED"
         ):
             continue
         kind = (
-            assignment.workload_need.teaching_group
+            need.teaching_group
             .source_plan_line.education_plan.plan_kind
         )
         hours = Decimal(assignment.weekly_hours or ZERO)

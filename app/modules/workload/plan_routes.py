@@ -1229,10 +1229,20 @@ def register_plan_routes(workload_bp):
             db.session.commit()
         except PlanValidationError as exc:
             db.session.rollback()
+            if _is_matrix_ajax_request():
+                return jsonify({"ok": False, "error": str(exc)}), 422
             flash(str(exc), "danger")
             selected_line_id = None
         except IntegrityError:
             db.session.rollback()
+            if _is_matrix_ajax_request():
+                return jsonify({
+                    "ok": False,
+                    "error": (
+                        "Не удалось добавить предмет "
+                        "из-за конфликта данных."
+                    ),
+                }), 409
             flash(
                 "Не удалось добавить предмет из-за конфликта данных.",
                 "danger",
@@ -1240,6 +1250,20 @@ def register_plan_routes(workload_bp):
             selected_line_id = None
         else:
             selected_line_id = created_lines[0].id
+            if _is_matrix_ajax_request():
+                return jsonify({
+                    "ok": True,
+                    "revision": plan.revision,
+                    "message": (
+                        f"Предмет «{activity.name}» добавлен "
+                        "для всех параллелей."
+                    ),
+                    "refresh_url": url_for(
+                        "workload.plan_matrix",
+                        plan_id=plan.id,
+                        selected_line_id=selected_line_id,
+                    ),
+                })
             flash(
                 f"Предмет «{activity.name}» добавлен для всех параллелей.",
                 "success",
@@ -1716,8 +1740,21 @@ def register_plan_routes(workload_bp):
             db.session.commit()
         except PlanValidationError as exc:
             db.session.rollback()
+            if _is_matrix_ajax_request():
+                return jsonify({"ok": False, "error": str(exc)}), 422
             flash(str(exc), "danger")
         else:
+            if _is_matrix_ajax_request():
+                return jsonify({
+                    "ok": True,
+                    "revision": plan.revision,
+                    "message": "Порядок предметов сохранён.",
+                    "refresh_url": url_for(
+                        "workload.plan_matrix",
+                        plan_id=plan.id,
+                        part=plan.plan_kind,
+                    ),
+                })
             flash("Порядок предметов сохранён.", "success")
         return redirect(
             url_for(

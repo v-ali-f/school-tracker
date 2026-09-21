@@ -58,9 +58,14 @@ from app.services.class_plan_matrix_service import (
     EDUCATION_LEVEL_LABELS,
     snapshot_building_options,
 )
+from app.services.education_plan_binding_service import (
+    PlanBindingValidationError,
+    replace_class_plan_assignments,
+)
 from app.services.teaching_group_matrix_service import (
     build_group_composition_workspace,
     build_teaching_group_matrix,
+    materialize_default_teaching_groups,
     replace_group_composition_assignments,
     replace_teaching_group_count,
 )
@@ -760,6 +765,15 @@ def register_group_routes(workload_bp):
         context.update({
             "composition": composition,
             "selected_item": selected_item,
+            "can_update": bool(
+                context["selected_version"]
+                and context["selected_version"].status == "DRAFT"
+                and is_feature_enabled(WORKLOAD_WRITE)
+                and can_use_workload_permission(
+                    "workload.groups.update",
+                    current_user,
+                )
+            ),
         })
         return render_template(
             "workload/group_composition.html",
@@ -795,21 +809,46 @@ def register_group_routes(workload_bp):
             abort(404)
         assignments = {}
         for enrollment in selected_item["enrollments"]:
-            group_id = request.form.get(
+            target_id = request.form.get(
                 f"member_{enrollment.id}",
                 type=int,
             )
-            if group_id is not None:
-                assignments[enrollment.id] = group_id
+            if target_id is not None:
+                assignments[enrollment.id] = target_id
         try:
-            _require_version_groups_editable(version)
-            result = replace_group_composition_assignments(
-                selected_item,
-                assignments,
-                user_id=current_user.id,
-            )
+            if selected_item["item_type"] == "PLAN_BINDING":
+                replace_class_plan_assignments(
+                    selected_item["snapshot_class"],
+                    selected_item["plans"],
+                    assignments,
+                    user_id=current_user.id,
+                )
+                db.session.flush()
+                materialize_default_teaching_groups(
+                    version=version,
+                    snapshot=context["snapshot"],
+                    plans=context["plans"],
+                    user_id=current_user.id,
+                )
+                result = {
+                    "complete": (
+                        len(assignments)
+                        == len(selected_item["enrollments"])
+                        and bool(selected_item["enrollments"])
+                        and len(set(assignments.values()))
+                        == len(selected_item["plans"])
+                    ),
+                    "assigned_count": len(assignments),
+                    "student_count": len(selected_item["enrollments"]),
+                }
+            else:
+                result = replace_group_composition_assignments(
+                    selected_item,
+                    assignments,
+                    user_id=current_user.id,
+                )
             db.session.commit()
-        except GroupValidationError as exc:
+        except (GroupValidationError, PlanBindingValidationError) as exc:
             db.session.rollback()
             if (
                 request.headers.get("X-Requested-With")
@@ -1027,7 +1066,7 @@ def register_group_routes(workload_bp):
                 link.source_group.source_plan_line_id
                 for link in group.metagroup_sources
             }
-            delete_metagroup(group)
+            delete_metagroup(group, user_id=current_user.id)
             generate_plan_needs(
                 version,
                 user_id=current_user.id,

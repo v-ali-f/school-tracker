@@ -9,7 +9,7 @@
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.month_view', month=prev_month, year=prev_year) }}"><i class="bi bi-chevron-left me-1"></i>Предыдущий</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.month_view', month=next_month, year=next_year) }}">Следующий<i class="bi bi-chevron-right ms-1"></i></a>
-    {% if can_manage %}<a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.create') }}"><i class="bi bi-plus-lg me-1"></i>Добавить</a>{% endif %}
+    {% if can_manage %}<a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.create', date=selected_period ~ '-01', return_period=selected_period) }}"><i class="bi bi-plus-lg me-1"></i>Добавить</a>{% endif %}
   </div>
 </div>
 {% include 'school_plan/_nav.html' %}

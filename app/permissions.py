@@ -43,11 +43,11 @@ PERMISSIONS = {
     },
 
     "social_passport_view": {
-        ADMIN, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG
+        ADMIN, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG, METHODIST
     },
 
     "social_passport_edit": {
-        ADMIN, CLASS_TEACHER, SOCIAL_PEDAGOG
+        ADMIN, CLASS_TEACHER, SOCIAL_PEDAGOG, METHODIST
     },
 
     "comment_add": {
@@ -378,6 +378,15 @@ def is_admin(user=None) -> bool:
 # PERMISSION CHECK
 # =========================================================
 def has_permission(permission_code: str, user=None) -> bool:
+    user = user or current_user
+    if permission_code == "incident_add":
+        return bool(
+            user
+            and getattr(user, "is_authenticated", False)
+            and getattr(user, "is_active_user", False)
+            and getattr(user, "employment_status", None) == "ACTIVE"
+            and getattr(user, "archived_at", None) is None
+        )
     allowed_roles = PERMISSIONS.get(permission_code, set())
     user_codes = _user_role_codes(user)
     return bool(allowed_roles.intersection(user_codes))
@@ -495,6 +504,9 @@ def can_edit_social_passport(child, user=None) -> bool:
         return True
 
     if has_role(SOCIAL_PEDAGOG, user=user):
+        return True
+
+    if has_role(METHODIST, user=user):
         return True
 
     return False

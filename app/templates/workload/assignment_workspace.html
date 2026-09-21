@@ -18,6 +18,9 @@
   {% for grade in selected_grades %}
   <input type="hidden" name="grade" value="{{ grade }}">
   {% endfor %}
+  {% if selected_snapshot_class_id %}
+  <input type="hidden" name="snapshot_class_id" value="{{ selected_snapshot_class_id }}">
+  {% endif %}
   {% for subject_id in selected_subject_ids %}
   <input type="hidden" name="subject_id" value="{{ subject_id }}">
   {% endfor %}
@@ -30,7 +33,7 @@
 <div class="page-head mb-3">
   <div>
     <div class="page-title">Распределение нагрузки</div>
-    <div class="page-sub">{% if presentation_mode == 'list' %}Нагрузка каждого педагога по предметам, классам и группам{% else %}Одна матрица для учебного плана, внеурочной деятельности и дополнительного образования{% endif %}</div>
+    <div class="page-sub">{% if presentation_mode == 'list' %}Нагрузка каждого педагога по предметам, классам и группам{% elif presentation_mode == 'classes' %}Назначенная нагрузка по каждому классу, предметам, педагогам и группам{% else %}Одна матрица для учебного плана, внеурочной деятельности и дополнительного образования{% endif %}</div>
   </div>
   <div class="page-actions">
     {% if selected_version %}
@@ -43,6 +46,10 @@
         class="btn btn-outline-primary {% if presentation_mode == 'list' %}active{% endif %}"
         href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='list', holder_page_size=holder_page_size) }}"
       ><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Списком</a>
+      <a
+        class="btn btn-outline-primary {% if presentation_mode == 'classes' %}active{% endif %}"
+        href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view=view_mode, department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, snapshot_class_id=selected_snapshot_class_id or '', subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation='classes', holder_page_size=holder_page_size) }}"
+      ><i class="bi bi-buildings me-1" aria-hidden="true"></i>По классам</a>
     </div>
     <a
       class="btn btn-outline-secondary btn-sm"
@@ -54,6 +61,7 @@
         building_id=selected_building_id or '',
         education_level=selected_education_levels,
         grade=selected_grades,
+        snapshot_class_id=selected_snapshot_class_id or '',
         subject_id=selected_subject_ids,
         teacher_query=selected_teacher_query,
         presentation=presentation_mode
@@ -181,6 +189,7 @@
       </select>
     </div>
 
+    {% if presentation_mode != 'classes' %}
     <div class="workload-filter-field workload-filter-field--levels">
       <span class="workload-filter-label">Уровень образования</span>
       <nav class="class-plan-levels" aria-label="Уровень образования">
@@ -203,8 +212,18 @@
         {% endfor %}
       </nav>
     </div>
+    {% endif %}
 
     <div class="workload-filter-field workload-filter-field--grades">
+      {% if presentation_mode == 'classes' %}
+      <label for="workspace-grade">Параллель</label>
+      <select class="form-select form-select-sm" id="workspace-grade" name="grade" data-workload-filter-auto>
+        <option value="">Все параллели</option>
+        {% for number in level_grades %}
+        <option value="{{ number }}" {% if number in selected_grades %}selected{% endif %}>{{ number }}-я параллель</option>
+        {% endfor %}
+      </select>
+      {% else %}
       <span class="workload-filter-label">Параллель</span>
       <nav class="class-plan-grades" aria-label="Параллель">
         <button
@@ -222,8 +241,20 @@
         </label>
         {% endfor %}
       </nav>
+      {% endif %}
     </div>
 
+    {% if presentation_mode == 'classes' %}
+    <div class="workload-filter-field workload-filter-field--class">
+      <label for="workspace-snapshot-class">Класс</label>
+      <select class="form-select form-select-sm" id="workspace-snapshot-class" name="snapshot_class_id" data-workload-filter-auto {% if not selected_grades %}disabled{% endif %}>
+        <option value="">{% if selected_grades %}Все классы параллели{% else %}Сначала выберите параллель{% endif %}</option>
+        {% for item in class_filter_options if selected_grades %}
+        <option value="{{ item.id }}" {% if item.id == selected_snapshot_class_id %}selected{% endif %}>{{ item.name_snapshot }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <div class="workload-filter-field workload-filter-field--building">
       <label for="workspace-building">
         Здание{% if selected_version %} · классы {{ selected_version.tariff_cycle.academic_year.name }}{% endif %}
@@ -241,9 +272,9 @@
     <div class="workload-filter-field workload-filter-field--view">
       <span class="workload-filter-label">Вид нагрузки</span>
       <nav class="workload-view-tabs" aria-label="Вид нагрузки">
-        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation=presentation_mode, holder_page_size=holder_page_size) }}">Вся нагрузка</a>
-        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation=presentation_mode, holder_page_size=holder_page_size) }}">По кафедре</a>
-        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, subject_id=selected_subject_ids, presentation=presentation_mode, holder_page_size=holder_page_size) }}">Вакансии</a>
+        <a class="{% if view_mode == 'all' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='all', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, snapshot_class_id=selected_snapshot_class_id or '', subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation=presentation_mode, holder_page_size=holder_page_size) }}">Вся нагрузка</a>
+        <a class="{% if view_mode == 'department' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='department', department_id=selected_department_id or '', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, snapshot_class_id=selected_snapshot_class_id or '', subject_id=selected_subject_ids, teacher_query=selected_teacher_query, presentation=presentation_mode, holder_page_size=holder_page_size) }}">По кафедре</a>
+        <a class="{% if view_mode == 'vacancies' %}is-active{% endif %}" href="{{ url_for('workload.assignment_workspace', version_id=selected_version_id, view='vacancies', building_id=selected_building_id or '', education_level=selected_education_levels, grade=selected_grades, snapshot_class_id=selected_snapshot_class_id or '', subject_id=selected_subject_ids, presentation=presentation_mode, holder_page_size=holder_page_size) }}">Вакансии</a>
       </nav>
     </div>
     <div class="workload-filter-field workload-filter-field--subjects">
@@ -313,6 +344,7 @@
       </select>
     </div>
     {% endif %}
+    {% if presentation_mode != 'classes' %}
     <div class="workload-filter-field workload-filter-field--page-size">
       <label for="workspace-holder-page-size">Педагогов на странице</label>
       <select class="form-select form-select-sm" id="workspace-holder-page-size" name="holder_page_size" data-workload-filter-auto>
@@ -321,11 +353,14 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
   </div>
 </form>
 
 {% if presentation_mode == 'list' %}
   {% include "workload/_assignment_workspace_list.html" %}
+{% elif presentation_mode == 'classes' %}
+  {% include "workload/_assignment_workspace_classes.html" %}
 {% else %}
 <div class="workload-matrix-toolbar">
   <div class="workload-matrix-totals">
@@ -338,6 +373,13 @@
     <span>Назначено <strong data-workload-total-allocated>{{ matrix.total_allocated|compact_decimal }}</strong></span>
     <span class="{% if matrix.total_remaining > 0 %}has-remaining{% endif %}">
       Осталось <strong data-workload-total-remaining>{{ matrix.total_remaining|compact_decimal }}</strong>
+    </span>
+    <span
+      class="has-overallocated"
+      data-workload-total-excess-wrap
+      {% if matrix.total_excess <= 0 %}hidden{% endif %}
+    >
+      Превышение <strong data-workload-total-excess>{{ matrix.total_excess|compact_decimal }}</strong>
     </span>
     {% if matrix.unassigned_items %}
     <button
@@ -1474,7 +1516,7 @@
     });
     if (!response.ok) throw new Error("Не удалось обновить матрицу нагрузки.");
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
-    ["allocated", "remaining"].forEach((totalKind) => {
+    ["allocated", "remaining", "excess"].forEach((totalKind) => {
       const selector = `[data-workload-total-${totalKind}]`;
       const currentTotal = document.querySelector(selector);
       const refreshedTotal = page.querySelector(selector);
@@ -1482,6 +1524,15 @@
         currentTotal.textContent = refreshedTotal.textContent;
       }
     });
+    const currentExcessWrap = document.querySelector(
+      "[data-workload-total-excess-wrap]"
+    );
+    const refreshedExcessWrap = page.querySelector(
+      "[data-workload-total-excess-wrap]"
+    );
+    if (currentExcessWrap && refreshedExcessWrap) {
+      currentExcessWrap.hidden = refreshedExcessWrap.hidden;
+    }
     if (holderKey) {
       const selector = `[data-workload-holder-row="${holderKey}"]`;
       const currentRows = Array.from(current.querySelectorAll(selector));

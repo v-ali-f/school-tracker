@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+{% block title %}Ответ на форму — {{ org_name }}{% endblock %}
+{% block content %}
+<div class="container py-3" style="max-width:960px">
+  <div class="page-head">
+    <div><nav class="small mb-1 text-muted"><a href="{{ url_for('additional_education_surveys.results', survey_id=survey.id) }}" class="text-decoration-none text-muted">Результаты формы</a> / Ответ</nav><h1 class="page-title">Ответ от {{ submission.submitted_at.strftime('%d.%m.%Y %H:%M') }}</h1><div class="page-sub">{{ survey.title }}</div></div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('additional_education_surveys.results', survey_id=survey.id) }}">К результатам</a>
+  </div>
+  <div class="card soft-card"><div class="card-body d-grid gap-4">
+    {% for question in survey.questions %}
+      {% set answer = answers.get(question.id) %}
+      <section>
+        <div class="small text-muted mb-1">{{ loop.index }}. {{ question.label }}</div>
+        {% if question.field_type == 'file' %}
+          {% if answer and answer.attachments %}<div class="d-flex flex-wrap gap-2">{% for attachment in answer.attachments %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('additional_education_surveys.download_attachment', attachment_id=attachment.id) }}"><i class="bi bi-paperclip me-1"></i>{{ attachment.original_filename }} <span class="text-muted">({{ '%.1f'|format(attachment.file_size / 1024 / 1024) }} МБ)</span></a>{% endfor %}</div>{% else %}<div>—</div>{% endif %}
+        {% else %}<div class="fw-semibold" style="white-space:pre-wrap">{{ (answer.value_text if answer else '') or '—' }}</div>{% endif %}
+      </section>
+    {% endfor %}
+  </div></div>
+</div>
+{% endblock %}
