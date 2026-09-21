@@ -111,7 +111,7 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
 .sp-nav-link.is-active i { color: #0b5fea; }
 
 .sp-sidebar-footer { padding: 10px; border-top: 1px solid #edf2f8; }
-.sp-sidebar-close { display: none; }
+body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !important; }
 
 .sp-main { width: calc(100% - var(--sp-sidebar-width)); max-width: none !important; min-height: 100vh; margin-left: var(--sp-sidebar-width); transition: width .2s ease, margin-left .2s ease; }
 
@@ -146,9 +146,15 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
 .sp-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .sp-title { margin: 0; color: #10234a; font-size: 26px; line-height: 1.2; font-weight: 600; }
 .sp-subtitle { margin-top: 4px; color: var(--sp-muted); font-size: 12px; }
-.sp-page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
-.sp-round-button { width: 34px; min-width: 34px !important; height: 34px; display: grid !important; place-items: center; padding: 0 !important; border-radius: 50% !important; }
-.sp-topbar-icon i, .sp-round-button i, .sp-export-actions .btn i { display: block; margin: 0 !important; line-height: 1; }
+.sp-topbar-icon i, .sp-export-actions .btn i { display: block; margin: 0 !important; line-height: 1; }
+
+.sp-commandbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 10px; border: 1px solid var(--sp-border); border-radius: 14px; background: #fff; box-shadow: 0 5px 18px rgba(31,62,104,.04); }
+.sp-period-navigation { min-width: 0; display: grid; grid-template-columns: auto minmax(150px,auto) auto; align-items: center; overflow: hidden; border: 1px solid #d7e3f1; border-radius: 10px; background: #f8fbff; }
+.sp-period-step { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; color: #315377; font-size: 11px; font-weight: 650; text-decoration: none; transition: color .15s ease, background .15s ease; }
+.sp-period-step:hover { color: #075fcf; background: #edf5ff; }
+.sp-current-period { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 15px; border-right: 1px solid #d7e3f1; border-left: 1px solid #d7e3f1; color: #102f5f; background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.sp-current-period i { color: #1673ec; }
+.sp-add-event { min-height: 42px !important; display: inline-flex !important; align-items: center; justify-content: center; gap: 7px; padding-right: 17px !important; padding-left: 17px !important; border-radius: 10px !important; font-size: 12px !important; font-weight: 650 !important; white-space: nowrap; box-shadow: 0 6px 14px rgba(22,115,236,.2); }
 
 .sp-viewbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .sp-tabs { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--sp-border); border-radius: 999px; background: #fff; }
@@ -223,7 +229,7 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
   .sp-side-card { margin-bottom: 0; }
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 767.98px) {
   .sp-sidebar { transform: translateX(-100%); }
   .sp-sidebar.is-open,
   .sp-menu-toggle:checked ~ .sp-sidebar { transform: translateX(0); }
@@ -231,16 +237,15 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
   .sp-brand { width: 100%; padding-right: 0; }
   .sp-main { width: 100%; margin-left: 0; }
   .sp-menu-toggle:checked ~ .sp-main .sp-mobile-menu { display: none !important; }
-  .sp-sidebar-close { position: static !important; width: 34px; height: 34px; display: grid; place-items: center; margin: 0; padding: 0; border: 1px solid #dfe8f3; border-radius: 50%; color: #5d6f88; background: #f7f9fc; box-shadow: 0 2px 8px rgba(30,55,90,.05); cursor: pointer; z-index: 2; }
+  body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { position: static !important; width: 34px; height: 34px; display: grid !important; place-items: center; margin: 0; padding: 0; border: 1px solid #dfe8f3; border-radius: 50%; color: #5d6f88; background: #f7f9fc; box-shadow: 0 2px 8px rgba(30,55,90,.05); cursor: pointer; z-index: 2; }
   .sp-sidebar-overlay { position: fixed; inset: 0; z-index: 1035; display: none; background: rgba(12,31,59,.35); }
   .sp-sidebar-overlay.is-open,
   .sp-menu-toggle:checked ~ .sp-sidebar-overlay { display: block; }
-  .sp-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .sp-aside { grid-template-columns: 1fr; }
 }
 
-@media (min-width: 992px) {
-  .sp-sidebar-close { display: none !important; }
+@media (min-width: 768px) {
+  body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !important; }
   .sp-sidebar { transform: none !important; }
   .sp-menu-toggle:checked ~ .sp-sidebar { transform: translateX(-100%) !important; }
   .sp-menu-toggle:checked ~ .sp-main { width: 100%; margin-left: 0; }
@@ -254,12 +259,14 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
   .sp-profile-copy { display: none; }
   .sp-content { padding: 13px 10px 78px; }
   .sp-page-head { align-items: stretch; flex-direction: column; }
-  .sp-page-actions { justify-content: flex-start; }
   .sp-title { font-size: 22px; }
+  .sp-commandbar { align-items: stretch; flex-direction: column; }
+  .sp-period-navigation { width: 100%; grid-template-columns: 42px minmax(0,1fr) 42px; }
+  .sp-period-step { padding: 0; }
+  .sp-period-step span { display: none; }
+  .sp-add-event { width: 100%; }
   .sp-viewbar { align-items: flex-start; flex-direction: column; }
-  .sp-summary-grid { grid-template-columns: 1fr 1fr; }
-  .sp-summary-card { min-height: 68px; padding: 10px; }
-  .sp-summary-icon { width: 34px; height: 34px; }
+  .sp-summary-grid { display: none; }
   .sp-event { grid-template-columns: 75px minmax(0,1fr); }
   .sp-event-actions { grid-column: 1 / -1; justify-content: flex-end; padding: 7px 10px; border-top: 1px solid #edf2f7; }
   .sp-event-body { padding: 10px 13px; }
@@ -267,7 +274,6 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
 }
 
 @media (max-width: 430px) {
-  .sp-summary-grid { grid-template-columns: 1fr; }
   .sp-tabs { width: 100%; overflow-x: auto; }
   .sp-tab { white-space: nowrap; }
   .sp-export-actions { display: none; }
