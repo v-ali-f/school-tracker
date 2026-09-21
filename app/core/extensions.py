@@ -29,6 +29,6 @@ def _sqlite_unicode_lower(dbapi_connection, connection_record):
 
 def init_extensions(app):
     db.init_app(app)
-    migrate.init_app(app, db)
+    migrate.init_app(app, db, directory="migrations/alembic")
     login_manager.init_app(app)
     csrf.init_app(app)
