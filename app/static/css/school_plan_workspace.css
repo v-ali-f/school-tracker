@@ -148,12 +148,21 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
 .sp-subtitle { margin-top: 4px; color: var(--sp-muted); font-size: 12px; }
 .sp-topbar-icon i, .sp-export-actions .btn i { display: block; margin: 0 !important; line-height: 1; }
 
-.sp-commandbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 10px; border: 1px solid var(--sp-border); border-radius: 14px; background: #fff; box-shadow: 0 5px 18px rgba(31,62,104,.04); }
-.sp-period-navigation { min-width: 0; display: grid; grid-template-columns: auto minmax(150px,auto) auto; align-items: center; overflow: hidden; border: 1px solid #d7e3f1; border-radius: 10px; background: #f8fbff; }
+.sp-commandbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; border: 1px solid var(--sp-border); border-radius: 14px; background: #fff; box-shadow: 0 5px 18px rgba(31,62,104,.04); }
+.sp-period-navigation { min-width: 0; display: grid; grid-template-columns: auto minmax(142px,auto) auto; align-items: center; overflow: hidden; flex: 0 0 auto; border: 1px solid #d7e3f1; border-radius: 10px; background: #f8fbff; }
 .sp-period-step { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; color: #315377; font-size: 11px; font-weight: 650; text-decoration: none; transition: color .15s ease, background .15s ease; }
 .sp-period-step:hover { color: #075fcf; background: #edf5ff; }
-.sp-current-period { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 15px; border-right: 1px solid #d7e3f1; border-left: 1px solid #d7e3f1; color: #102f5f; background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.sp-current-period { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; border-right: 1px solid #d7e3f1; border-left: 1px solid #d7e3f1; color: #102f5f; background: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .sp-current-period i { color: #1673ec; }
+.sp-current-period select { width: auto; max-width: 130px; margin: 0; padding: 0 20px 0 0; border: 0; outline: 0; color: #102f5f; background-color: transparent; font: inherit; cursor: pointer; box-shadow: none; }
+.sp-command-filters { min-width: 0; display: flex; align-items: center; gap: 7px; flex: 1 1 auto; }
+.sp-command-field { position: relative; min-width: 0; display: block; margin: 0; }
+.sp-command-field > i { position: absolute; top: 50%; left: 11px; z-index: 1; color: #71839c; font-size: 12px; transform: translateY(-50%); pointer-events: none; }
+.sp-command-field .form-select, .sp-command-field .form-control { min-height: 40px; margin: 0; padding-left: 31px; border-color: #d7e3f1; border-radius: 10px; color: #314966; background-color: #fff; font-size: 11px; }
+.sp-direction-field { flex: 0 1 210px; }
+.sp-search-field { flex: 1 1 230px; }
+.sp-archive-filter { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0 4px; color: #52657f; font-size: 10px; white-space: nowrap; cursor: pointer; }
+.sp-filter-apply, .sp-filter-reset { width: 40px; min-width: 40px !important; height: 40px; display: grid !important; place-items: center; padding: 0 !important; border-radius: 10px !important; }
 .sp-add-event { min-height: 42px !important; display: inline-flex !important; align-items: center; justify-content: center; gap: 7px; padding-right: 17px !important; padding-left: 17px !important; border-radius: 10px !important; font-size: 12px !important; font-weight: 650 !important; white-space: nowrap; box-shadow: 0 6px 14px rgba(22,115,236,.2); }
 
 .sp-viewbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
@@ -171,10 +180,6 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
 .sp-summary-card > span:not(.sp-summary-icon) { display: block; min-width: 0; }
 .sp-summary-card > span:not(.sp-summary-icon) > span { display: block; color: #718099; font-size: 10px; }
 .sp-summary-card > span:not(.sp-summary-icon) > strong { display: block; margin-top: 1px; color: #10234a; font-size: 22px; line-height: 1; font-weight: 650; }
-
-.sp-filter-panel { margin-bottom: 12px; padding: 10px; border: 1px solid var(--sp-border); border-radius: 12px; background: #fff; box-shadow: 0 5px 18px rgba(31,62,104,.04); }
-.sp-filter-panel .form-label { margin-bottom: 3px; color: #74839a; font-size: 9px; font-weight: 600; }
-.sp-filter-panel .form-control, .sp-filter-panel .form-select, .sp-filter-panel .btn { min-height: 34px; font-size: 11px; }
 
 .sp-plan-layout { display: grid; grid-template-columns: minmax(0, 1fr) 292px; align-items: start; gap: 12px; }
 .sp-agenda { min-width: 0; }
@@ -224,6 +229,9 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
 .sp-sidebar-overlay { display: none; }
 
 @media (max-width: 1199.98px) {
+  .sp-commandbar { flex-wrap: wrap; }
+  .sp-command-filters { order: 3; flex-basis: 100%; }
+  .sp-add-event { margin-left: auto; }
   .sp-plan-layout { grid-template-columns: 1fr; }
   .sp-aside { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
   .sp-side-card { margin-bottom: 0; }
@@ -264,7 +272,12 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
   .sp-period-navigation { width: 100%; grid-template-columns: 42px minmax(0,1fr) 42px; }
   .sp-period-step { padding: 0; }
   .sp-period-step span { display: none; }
-  .sp-add-event { width: 100%; }
+  .sp-current-period select { max-width: none; }
+  .sp-command-filters { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) 40px 40px; order: initial; }
+  .sp-direction-field, .sp-search-field { width: 100%; }
+  .sp-direction-field, .sp-search-field { grid-column: 1 / -1; }
+  .sp-archive-filter { grid-column: 1; }
+  .sp-add-event { width: 100%; margin-left: 0; }
   .sp-viewbar { align-items: flex-start; flex-direction: column; }
   .sp-summary-grid { display: none; }
   .sp-event { grid-template-columns: 75px minmax(0,1fr); }

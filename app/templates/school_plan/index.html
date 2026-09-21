@@ -1,6 +1,6 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы{% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260921_9">{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260921_10">{% endblock %}
 {% block breadcrumb %}{% endblock %}
 {% block content %}
 <div class="sp-workspace" id="schoolPlanWorkspace">
@@ -46,14 +46,21 @@
         <div><h1 class="sp-title">План работы школы</h1><div class="sp-subtitle">{{ month_title }} {{ year }} · мероприятий: {{ events|length }}</div></div>
       </div>
 
-      <div class="sp-commandbar" aria-label="Управление планом">
+      <form class="sp-commandbar" id="schoolPlanFilters" method="get" aria-label="Управление планом">
         <nav class="sp-period-navigation" aria-label="Переключение месяцев">
           <a class="sp-period-step" href="{{ url_for('school_plan.index', period=prev_period) }}" title="Открыть предыдущий месяц"><i class="bi bi-arrow-left"></i><span>Предыдущий</span></a>
-          <span class="sp-current-period"><i class="bi bi-calendar3"></i><span>{{ month_title }} {{ year }}</span></span>
+          <label class="sp-current-period" for="schoolPlanPeriod"><i class="bi bi-calendar3"></i><span class="visually-hidden">Месяц</span><select id="schoolPlanPeriod" name="period" aria-label="Месяц">{% for item in month_options %}<option value="{{ item.value }}" {% if selected_period == item.value %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></label>
           <a class="sp-period-step" href="{{ url_for('school_plan.index', period=next_period) }}" title="Открыть следующий месяц"><span>Следующий</span><i class="bi bi-arrow-right"></i></a>
         </nav>
+        <div class="sp-command-filters">
+          <label class="sp-command-field sp-direction-field"><span class="visually-hidden">Направление</span><i class="bi bi-tag"></i><select class="form-select" name="direction_id" aria-label="Направление"><option value="">Все направления</option>{% for row in directions %}<option value="{{ row.id }}" {% if request.args.get('direction_id')|int == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></label>
+          <label class="sp-command-field sp-search-field"><span class="visually-hidden">Поиск</span><i class="bi bi-search"></i><input class="form-control" type="search" name="q" value="{{ request.args.get('q','') }}" placeholder="Поиск по плану"></label>
+          {% if can_manage %}<label class="sp-archive-filter"><input class="form-check-input" type="checkbox" name="show_archived" value="1" {% if request.args.get('show_archived') == '1' %}checked{% endif %}><span>Архив</span></label>{% endif %}
+          <button class="btn btn-outline-primary sp-filter-apply" type="submit" title="Применить фильтры"><i class="bi bi-funnel"></i><span class="visually-hidden">Применить фильтры</span></button>
+          <a class="btn btn-outline-secondary sp-filter-reset" href="{{ url_for('school_plan.index', period=selected_period) }}" title="Сбросить фильтры"><i class="bi bi-x-lg"></i><span class="visually-hidden">Сбросить фильтры</span></a>
+        </div>
         {% if can_manage %}<a class="btn btn-primary sp-add-event" href="{{ url_for('school_plan.create', date=selected_period ~ '-01', return_period=selected_period) }}"><i class="bi bi-plus-lg"></i><span>Добавить мероприятие</span></a>{% endif %}
-      </div>
+      </form>
 
       <div class="sp-viewbar">
         <div class="sp-tabs">
@@ -74,16 +81,6 @@
         <div class="sp-summary-card"><span class="sp-summary-icon"><i class="bi bi-view-list"></i></span><span><span>Длительные</span><strong>{{ plan_summary.long }}</strong></span></div>
         <div class="sp-summary-card is-cancelled"><span class="sp-summary-icon"><i class="bi bi-x-circle"></i></span><span><span>Отменённые</span><strong>{{ plan_summary.cancelled }}</strong></span></div>
       </div>
-
-      <form class="sp-filter-panel" id="schoolPlanFilters" method="get">
-        <div class="row g-2 align-items-end">
-          <div class="col-6 col-lg-3"><label class="form-label" for="schoolPlanPeriod">Месяц</label><select class="form-select" id="schoolPlanPeriod" name="period" aria-describedby="schoolPlanPeriodHint">{% for item in month_options %}<option value="{{ item.value }}" {% if selected_period == item.value %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select><span class="visually-hidden" id="schoolPlanPeriodHint">После выбора план откроется автоматически</span></div>
-          <div class="col-6 col-lg-3"><label class="form-label">Направление</label><select class="form-select" name="direction_id"><option value="">Все направления</option>{% for row in directions %}<option value="{{ row.id }}" {% if request.args.get('direction_id')|int == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
-          <div class="col-12 col-lg-4"><label class="form-label">Поиск</label><input class="form-control" type="search" name="q" value="{{ request.args.get('q','') }}" placeholder="Название, ответственный или примечание"></div>
-          <div class="col-8 col-lg-1">{% if can_manage %}<label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="show_archived" value="1" {% if request.args.get('show_archived') == '1' %}checked{% endif %}><span class="form-check-label small">Архив</span></label>{% endif %}</div>
-          <div class="col-4 col-lg-1 d-flex gap-1"><button class="btn btn-primary flex-grow-1" title="Применить"><i class="bi bi-funnel"></i></button><a class="btn btn-outline-secondary" href="{{ url_for('school_plan.index', period=selected_period) }}" title="Сбросить"><i class="bi bi-x-lg"></i></a></div>
-        </div>
-      </form>
 
       <div class="sp-plan-layout">
         <section class="sp-agenda" aria-label="Лента мероприятий">
