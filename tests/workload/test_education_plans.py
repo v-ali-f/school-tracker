@@ -1344,7 +1344,7 @@ def test_matrix_can_reorder_subject_rows(
     assert "Переместить «Биология» ниже".encode() in matrix_response.data
     assert "Переместить «Математика» выше".encode() in matrix_response.data
     assert b"data-plan-row-reorder" in matrix_response.data
-    assert b"workload_plan_matrix.js?v=20260804_7" in matrix_response.data
+    assert b"workload_plan_matrix.js?v=20260819_8" in matrix_response.data
 
 
 def test_matrix_preserves_only_significant_decimal_places(
