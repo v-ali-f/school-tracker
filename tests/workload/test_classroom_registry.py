@@ -2,7 +2,7 @@ from app.core.extensions import db
 from app.models import Building, SchoolClassroom, User
 
 
-def test_admin_manages_teacher_classrooms_per_building(
+def test_admin_manages_shared_teacher_classrooms(
     app,
     client,
     make_user,
@@ -29,7 +29,7 @@ def test_admin_manages_teacher_classrooms_per_building(
             "name": "Кабинет 201",
             "short_name": "201",
             "capacity": "30",
-            "teacher_user_id": teacher_id,
+            "teacher_user_ids": [teacher_id],
             "is_active": "1",
         },
         follow_redirects=True,
@@ -42,36 +42,38 @@ def test_admin_manages_teacher_classrooms_per_building(
     )
     assert "data-classroom-edit-button" in created.get_data(as_text=True)
 
-    duplicate_teacher = client.post(
+    same_building = client.post(
         "/classrooms/new",
         data={
             "building_id": first_id,
             "name": "Кабинет 202",
-            "teacher_user_id": teacher_id,
+            "teacher_user_ids": [teacher_id],
             "is_active": "1",
         },
         follow_redirects=True,
     )
-    assert "за педагогом уже закреплён кабинет" in (
-        duplicate_teacher.get_data(as_text=True)
-    )
+    assert "Кабинет добавлен" in same_building.get_data(as_text=True)
 
     second_building = client.post(
         "/classrooms/new",
         data={
             "building_id": second_id,
             "name": "Кабинет 101",
-            "teacher_user_id": teacher_id,
+            "teacher_user_ids": [teacher_id],
             "is_active": "1",
         },
         follow_redirects=True,
     )
     assert "Кабинет добавлен" in second_building.get_data(as_text=True)
     with app.app_context():
-        rooms = SchoolClassroom.query.filter_by(
-            teacher_user_id=teacher_id
-        ).all()
+        rooms = (
+            SchoolClassroom.query
+            .filter(SchoolClassroom.teachers.any(User.id == teacher_id))
+            .all()
+        )
+        assert len(rooms) == 3
         assert {item.building_id for item in rooms} == {
             first_id,
             second_id,
         }
+        assert all(teacher_id in item.assigned_teacher_ids for item in rooms)
