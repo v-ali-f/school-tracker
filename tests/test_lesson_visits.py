@@ -144,6 +144,20 @@ def test_future_visit_date_is_rejected(app, client, make_user, login):
         assert LessonVisit.query.count() == 0
 
 
+def test_lesson_visit_registry_and_form_use_shared_workspace(client, make_user, login):
+    methodist_id = make_user("METHODIST")
+    login(methodist_id)
+
+    for path in ("/lesson-visits/", "/lesson-visits/new"):
+        response = client.get(path)
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert 'class="sp-workspace ws-workspace"' in html
+        assert "workspace_ui.css" in html
+        assert "lesson_visits.css" in html
+        assert "Посещение уроков" in html
+
+
 def test_dashboard_menu_places_lesson_visits_between_control_works_and_olympiads(
     app,
     client,

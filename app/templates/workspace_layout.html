@@ -34,7 +34,7 @@
 
       {% if ws.get('sidebar_sections') %}<div class="sp-sidebar-label">Разделы и сервисы</div>{% endif %}
       {% for item in ws.get('sidebar_sections', []) %}
-      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.registries' and (ws_endpoint == 'children.list_children' or ws_endpoint.startswith('children.registry_'))) %}
+      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.attendance' and ws_endpoint.startswith('attendance.')) or (item.endpoint == 'hub.registries' and (ws_endpoint == 'children.list_children' or ws_endpoint.startswith('children.registry_'))) %}
       <a class="sp-nav-link {% if item_active %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-grid' }}"></i><span>{{ item.title }}</span></a>
       {% endfor %}
 

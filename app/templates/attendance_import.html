@@ -1,5 +1,5 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "attendance_workspace.html" %}
+{% block attendance_content %}
 <div class="page-head mb-3">
   <div>
     <div class="page-title">Импорт отчёта посещаемости</div>
@@ -40,7 +40,7 @@
         <div class="col-12">
           <label class="form-label">Учебные дни месяца</label>
           <div class="small text-muted mb-2">Отметьте только те дни, которые нужно учитывать в процентах посещаемости. Выходные и дни допзанятий можно снять.</div>
-          <div class="border rounded p-3" style="max-height:280px; overflow:auto;">
+          <div class="border rounded p-3 attendance-scroll-panel attendance-school-days">
             <div class="row row-cols-2 row-cols-md-3 g-2">
               {% for day in school_days %}
                 <div class="col">

@@ -25,6 +25,18 @@ from app.services.attendance_stats_service import (
 attendance_bp = Blueprint("attendance", __name__, url_prefix="/attendance")
 
 
+@attendance_bp.context_processor
+def attendance_workspace_context():
+    """Provide the shared portal shell to every attendance screen."""
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Посещаемость",
+        "workspace_context_subtitle": "Пропуска, опоздания, аналитика и импорт КПП",
+    }
+
+
 class AttendanceLate(db.Model):
     __tablename__ = "attendance_late"
 
