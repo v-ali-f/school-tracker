@@ -1,18 +1,6 @@
-{% extends "layout.html" %}
-{% block breadcrumb %}
-<nav class="app-breadcrumb" aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    {% if can('incident_registry_view') %}
-      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_registry') }}">Реестр инцидентов</a></li>
-    {% else %}
-      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Мои заявки</a></li>
-    {% endif %}
-    <li class="breadcrumb-item active">История инцидента #{{ incident.id }}</li>
-  </ol>
-</nav>
-{% endblock %}
-{% block content %}
+{% extends "incidents_workspace.html" %}
+{% block breadcrumb %}{% endblock %}
+{% block incidents_content %}
 
 <div class="page-head mb-3">
   <div>
@@ -36,9 +24,9 @@
 <div class="card">
   <div class="card-body">
     {% if incident.description %}
-    <div class="mb-3 p-3" style="background:#f8f9fa;border-radius:8px;">
+    <div class="incident-description mb-3">
       <div class="small fw-semibold text-muted mb-1">Описание</div>
-      <div style="white-space:pre-wrap;">{{ incident.description }}</div>
+      <div>{{ incident.description }}</div>
     </div>
     {% endif %}
 
@@ -62,31 +50,12 @@
           <div class="small text-muted">
             {% if ev.actor %}{{ ev.actor.fio }}{% endif %}
           </div>
-          <div class="mt-1" style="white-space:pre-wrap;">{{ ev.text }}</div>
+          <div class="timeline-event-text">{{ ev.text }}</div>
         </div>
       </div>
       {% endfor %}
     </div>
   </div>
 </div>
-
-<style>
-.timeline { position: relative; padding-left: 24px; }
-.timeline::before {
-  content: ""; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #dee2e6;
-}
-.timeline-item { position: relative; padding: 6px 0 16px 12px; }
-.timeline-dot {
-  position: absolute; left: -21px; top: 8px; width: 14px; height: 14px;
-  border-radius: 50%; background: #adb5bd; border: 2px solid #fff;
-}
-.timeline-created   .timeline-dot { background: #6c757d; }
-.timeline-note      .timeline-dot { background: #0d6efd; }
-.timeline-status    .timeline-dot { background: #ffc107; }
-.timeline-assignment .timeline-dot { background: #6f42c1; }
-.timeline-content {
-  background: #f8f9fa; border-radius: 8px; padding: 8px 12px;
-}
-</style>
 
 {% endblock %}

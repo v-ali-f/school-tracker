@@ -1,18 +1,6 @@
-{% extends "layout.html" %}
-{% block breadcrumb %}
-<nav class="app-breadcrumb" aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    {% if can('incident_registry_view') %}
-      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_registry') }}">Реестр инцидентов</a></li>
-    {% else %}
-      <li class="breadcrumb-item"><a href="{{ url_for('children.incidents_my') }}">Мои заявки</a></li>
-    {% endif %}
-    <li class="breadcrumb-item active">Редактировать инцидент</li>
-  </ol>
-</nav>
-{% endblock %}
-{% block content %}
+{% extends "incidents_workspace.html" %}
+{% block breadcrumb %}{% endblock %}
+{% block incidents_content %}
 
 <div class="page-head mb-3">
   <div>

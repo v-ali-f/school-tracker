@@ -1,0 +1,109 @@
+.incident-workspace {
+  width: 100%;
+  min-width: 0;
+  color: var(--sp-text);
+}
+
+.incident-section-tabs {
+  display: flex;
+  gap: 5px;
+  margin: 0 0 14px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+  scrollbar-width: thin;
+}
+
+.incident-section-tab {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  color: #5c6879;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.incident-section-tab:hover {
+  color: var(--sp-accent);
+  background: #f5f7fa;
+}
+
+.incident-section-tab.is-active {
+  color: #fff;
+  background: var(--sp-accent);
+}
+
+body.school-plan-modern-shell .ws-content .incident-workspace .card {
+  border: 1px solid var(--sp-border) !important;
+  border-radius: 13px !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .incident-workspace .form-label {
+  margin-bottom: 5px;
+  color: #526176;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+body.school-plan-modern-shell .ws-content .incident-workspace .form-control,
+body.school-plan-modern-shell .ws-content .incident-workspace .form-select {
+  min-height: 38px;
+  border-color: #dfe4eb;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.incident-workspace .incident-description {
+  padding: 13px;
+  border: 1px solid #edf0f4;
+  border-radius: 10px;
+  background: #f8f9fb;
+  white-space: pre-wrap;
+}
+
+.incident-workspace .timeline {
+  position: relative;
+  padding-left: 24px;
+}
+
+.incident-workspace .timeline::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: 2px;
+  background: #dee2e6;
+  content: "";
+}
+
+.incident-workspace .timeline-item { position: relative; padding: 6px 0 16px 12px; }
+.incident-workspace .timeline-dot { position: absolute; top: 8px; left: -21px; width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; background: #adb5bd; }
+.incident-workspace .timeline-created .timeline-dot { background: #6c757d; }
+.incident-workspace .timeline-note .timeline-dot { background: #0d6efd; }
+.incident-workspace .timeline-status .timeline-dot { background: #ffc107; }
+.incident-workspace .timeline-assignment .timeline-dot { background: #6f42c1; }
+.incident-workspace .timeline-content { padding: 9px 12px; border: 1px solid #edf0f4; border-radius: 9px; background: #f8f9fb; }
+.incident-workspace .timeline-event-text { margin-top: 4px; white-space: pre-wrap; }
+
+@media (max-width: 767.98px) {
+  .incident-section-tab { flex: 0 0 auto; }
+
+  body.school-plan-modern-shell .ws-content .incident-workspace .page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .incident-workspace .page-actions .btn { width: 100%; }
+}

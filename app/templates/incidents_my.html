@@ -1,13 +1,6 @@
-{% extends "workspace_layout.html" %}
-{% block breadcrumb %}
-<nav class="app-breadcrumb" aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item active">{% if is_admin_view %}Инциденты{% else %}Мои заявки{% endif %}</li>
-  </ol>
-</nav>
-{% endblock %}
-{% block workspace_content %}
+{% extends "incidents_workspace.html" %}
+{% block breadcrumb %}{% endblock %}
+{% block incidents_content %}
 
 <style>
   .inc-hero { background:#fff; border:1px solid #e9ecef; border-radius:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }

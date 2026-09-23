@@ -1,12 +1,12 @@
-<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
-  <div class="btn-group btn-group-sm">
-    <a class="btn {% if active_view == 'list' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.index') }}">План по месяцам</a>
-    <a class="btn {% if active_view == 'month' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.month_view') }}">Календарь</a>
-    {% if can_manage_editors %}<a class="btn {% if active_view == 'editors' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('school_plan.editors') }}"><i class="bi bi-person-gear me-1"></i>Ответственные за план</a>{% endif %}
+<div class="sp-viewbar school-plan-section-nav">
+  <div class="sp-tabs">
+    <a class="sp-tab {% if active_view == 'list' %}is-active{% endif %}" href="{{ url_for('school_plan.index') }}"><i class="bi bi-list-ul"></i>План</a>
+    <a class="sp-tab {% if active_view == 'month' %}is-active{% endif %}" href="{{ url_for('school_plan.month_view') }}"><i class="bi bi-calendar3"></i>Календарь</a>
+    {% if can_manage_editors %}<a class="sp-tab {% if active_view == 'editors' %}is-active{% endif %}" href="{{ url_for('school_plan.editors') }}"><i class="bi bi-person-gear"></i>Ответственные</a>{% endif %}
   </div>
-  {% if active_view != 'editors' %}<div class="d-flex flex-wrap gap-2">
-    <a class="btn btn-outline-success btn-sm" href="{{ url_for('school_plan.export_xlsx', **current_args) }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
-    <a class="btn btn-outline-danger btn-sm" href="{{ url_for('school_plan.export_pdf', **current_args) }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.print_view_export', **current_args) }}" target="_blank"><i class="bi bi-printer me-1"></i>Печать</a>
+  {% if active_view != 'editors' %}<div class="sp-export-actions">
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('school_plan.export_xlsx', **current_args) }}" title="Excel"><i class="bi bi-file-earmark-excel"></i></a>
+    <a class="btn btn-outline-danger btn-sm" href="{{ url_for('school_plan.export_pdf', **current_args) }}" title="PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.print_view_export', **current_args) }}" target="_blank" title="Печать"><i class="bi bi-printer"></i></a>
   </div>{% endif %}
 </div>

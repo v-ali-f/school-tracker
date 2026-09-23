@@ -173,3 +173,27 @@
   .sp-tab { white-space: nowrap; }
   .sp-export-actions { display: none; }
 }
+/* Shared interactive shell for every school-plan view. */
+.school-plan-workspace-page {
+  width: 100%;
+  min-width: 0;
+  color: var(--sp-text);
+}
+
+.school-plan-workspace-page > .page-head { margin-bottom: 14px !important; }
+.school-plan-workspace-page > .card,
+.school-plan-workspace-page > .row .card,
+.school-plan-workspace-page > form.card { border: 1px solid var(--sp-border) !important; border-radius: 13px !important; box-shadow: var(--sp-shadow) !important; }
+.school-plan-workspace-page .table-responsive { border-radius: 12px; }
+.school-plan-workspace-page .table thead th { color: #5f6b7c; background: #f8f9fb !important; font-size: 10px; white-space: nowrap; }
+.school-plan-workspace-page .table tbody td { color: #344054; font-size: 11px; }
+
+@media (max-width: 767.98px) {
+  .school-plan-workspace-page > .page-head .page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .school-plan-workspace-page > .page-head .page-actions .btn { width: 100%; }
+}

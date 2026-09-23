@@ -4075,6 +4075,8 @@ def _incident_workspace_navigation():
 _REGISTRY_WORKSPACE_ENDPOINTS = {
     "children.list_children",
     "children.contingent",
+    "children.classes_registry",
+    "children.comments_registry",
     "children.registry_vshu",
     "children.registry_ovz",
     "children.registry_az",
@@ -4083,10 +4085,26 @@ _REGISTRY_WORKSPACE_ENDPOINTS = {
     "children.registry_kdn",
 }
 
+_INCIDENT_WORKSPACE_ENDPOINTS = {
+    "children.incident_new",
+    "children.incident_edit",
+    "children.incident_timeline",
+    "children.incidents_my",
+    "children.incidents_registry",
+    "children.incidents_dashboard",
+}
+
 
 @children_bp.context_processor
 def _registry_workspace_context():
-    """Supply the shared role-aware shell only to migrated registry pages."""
+    """Supply the shared role-aware shell to migrated registry and incident pages."""
+    if request.endpoint in _INCIDENT_WORKSPACE_ENDPOINTS:
+        return {
+            "workspace_nav": _incident_workspace_navigation(),
+            "workspace_context_title": "Инциденты",
+            "workspace_context_subtitle": "Регистрация, сопровождение и аналитика событий",
+        }
+
     if request.endpoint not in _REGISTRY_WORKSPACE_ENDPOINTS:
         return {}
 

@@ -4,7 +4,23 @@ from app.core.extensions import db
 from app.models import Task
 
 
-@pytest.mark.parametrize("path", ("/tasks/my", "/tasks/new"))
+@pytest.mark.parametrize(
+    "path",
+    (
+        "/tasks/my",
+        "/tasks/created",
+        "/tasks/overdue",
+        "/tasks/archive",
+        "/tasks/new",
+        "/tasks/batch/new",
+        "/tasks/notifications",
+        "/tasks/settings",
+        "/tasks/email-log",
+        "/tasks/templates",
+        "/tasks/templates/new",
+        "/tasks/analytics",
+    ),
+)
 def test_task_pages_use_shared_workspace_shell(client, make_user, login, path):
     login(make_user("ADMIN"))
 
@@ -17,6 +33,7 @@ def test_task_pages_use_shared_workspace_shell(client, make_user, login, path):
     assert "workspace_ui.css" in html
     assert "tasks_workspace.css" in html
     assert "Поручения, сроки и совместная работа" in html
+    assert 'class="task-section-tabs"' in html
 
 
 def test_task_card_uses_shared_workspace_shell(app, client, make_user, login):

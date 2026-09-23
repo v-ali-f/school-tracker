@@ -471,12 +471,18 @@ def _school_plan_sidebar_context():
 
     return {
         'workspace_nav': home_context,
-        'workspace_context_title': 'Рабочее пространство',
+        'workspace_context_title': 'План работы школы',
         'workspace_context_subtitle': 'Планирование мероприятий школы',
         'plan_sidebar_daily_actions': unique_items(page.get('quick_actions')),
         'plan_sidebar_sections': unique_items(page.get('secondary_sections')),
         'plan_sidebar_service_actions': unique_items(page.get('admin_sections')),
     }
+
+
+@school_plan_bp.context_processor
+def _school_plan_workspace_context_processor():
+    """Use the shared portal shell on every interactive school-plan page."""
+    return _school_plan_sidebar_context()
 
 
 

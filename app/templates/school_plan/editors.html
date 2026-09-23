@@ -1,10 +1,9 @@
-{% extends 'workspace_layout.html' %}
+{% extends 'school_plan/workspace.html' %}
 {% block title %}Ответственные за ведение плана{% endblock %}
-{% block workspace_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260923_3">
+{% block school_plan_head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_editors.css') }}?v=20260923_2">
 {% endblock %}
-{% block workspace_content %}
+{% block school_plan_content %}
 <section class="school-plan-editors-page">
   <div class="sp-page-head school-plan-editors-head">
     <div>

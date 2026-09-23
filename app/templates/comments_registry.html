@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260923_2">{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page comments-workspace-page">
 <div class="page-head">
   <div>
     <h1 class="page-title">Реестр комментариев</h1>
@@ -63,5 +65,6 @@
       </tbody>
     </table>
   </div>
+</div>
 </div>
 {% endblock %}

@@ -1,0 +1,17 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/incidents_workspace.css') }}?v=20260923_1">
+{% block incidents_head_extra %}{% endblock %}
+{% endblock %}
+{% block workspace_content %}
+{% set incident_endpoint = request.endpoint or '' %}
+<div class="incident-workspace">
+  <nav class="incident-section-tabs" aria-label="Разделы инцидентов">
+    {% if can('incident_add') %}<a class="incident-section-tab {% if incident_endpoint == 'children.incident_new' %}is-active{% endif %}" href="{{ url_for('children.incident_new') }}"><i class="bi bi-plus-circle"></i><span>Добавить</span></a>{% endif %}
+    <a class="incident-section-tab {% if incident_endpoint == 'children.incidents_my' %}is-active{% endif %}" href="{{ url_for('children.incidents_my') }}"><i class="bi bi-person-check"></i><span>Мои заявки</span></a>
+    {% if can('incident_registry_view') %}<a class="incident-section-tab {% if incident_endpoint in ['children.incidents_registry', 'children.incident_edit', 'children.incident_timeline'] %}is-active{% endif %}" href="{{ url_for('children.incidents_registry') }}"><i class="bi bi-table"></i><span>Реестр</span></a>{% endif %}
+    {% if can('incident_dashboard_view') %}<a class="incident-section-tab {% if incident_endpoint == 'children.incidents_dashboard' %}is-active{% endif %}" href="{{ url_for('children.incidents_dashboard') }}"><i class="bi bi-bar-chart"></i><span>Аналитика</span></a>{% endif %}
+  </nav>
+  {% block incidents_content %}{% endblock %}
+</div>
+{% endblock %}

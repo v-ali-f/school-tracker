@@ -32,6 +32,8 @@ def current_year(app):
         "/registry/enrolled",
         "/registry/expelled",
         "/registry/kdn",
+        "/classes",
+        "/comments/registry",
     ),
 )
 def test_registry_pages_use_shared_workspace_shell(
@@ -54,4 +56,7 @@ def test_registry_pages_use_shared_workspace_shell(
         assert "hub_workspace.css" in html
     else:
         assert "registries_workspace.css" in html
-    assert "Основные реестры" in html or "Контингент школы" in html
+    assert (
+        "Основные реестры" in html
+        or "Контингент школы" in html
+    )

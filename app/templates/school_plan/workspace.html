@@ -1,0 +1,10 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260923_4">
+{% block school_plan_head_extra %}{% endblock %}
+{% endblock %}
+{% block workspace_content %}
+<div class="school-plan-workspace-page">
+  {% block school_plan_content %}{% endblock %}
+</div>
+{% endblock %}
