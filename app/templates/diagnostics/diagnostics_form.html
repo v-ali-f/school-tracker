@@ -1,5 +1,5 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "diagnostics/diagnostics_workspace.html" %}
+{% block assessment_content %}
 {% set is_edit = session_obj is not none %}
 <div class="page-head">
   <div class="page-title">{{ 'Редактировать диагностику' if is_edit else 'Новая диагностика' }}</div>

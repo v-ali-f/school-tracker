@@ -1,0 +1,15 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/assessment_workspace.css') }}?v=20260923_1">{% endblock %}
+{% block workspace_content %}
+<div class="assessment-workspace assessment-olympiad-workspace">
+  <nav class="assessment-tabs" aria-label="Разделы олимпиад">
+    <a class="assessment-tab{% if request.endpoint == 'olympiads.registry' %} is-active{% endif %}" href="{{ url_for('olympiads.registry') }}"><i class="bi bi-trophy"></i><span>Реестр</span></a>
+    <a class="assessment-tab{% if request.endpoint == 'olympiads.analytics' %} is-active{% endif %}" href="{{ url_for('olympiads.analytics') }}"><i class="bi bi-bar-chart"></i><span>Аналитика</span></a>
+    {% if can_olympiad_edit %}<a class="assessment-tab{% if request.endpoint == 'olympiads.teacher_binding' %} is-active{% endif %}" href="{{ url_for('olympiads.teacher_binding') }}"><i class="bi bi-person-check"></i><span>Учителя</span></a>{% endif %}
+    <a class="assessment-tab{% if request.endpoint == 'olympiads.department_registry' %} is-active{% endif %}" href="{{ url_for('olympiads.department_registry') }}"><i class="bi bi-diagram-3"></i><span>Кафедры</span></a>
+    {% if can_olympiad_import %}<a class="assessment-tab{% if request.endpoint in ['olympiads.import_view', 'olympiads.imports'] %} is-active{% endif %}" href="{{ url_for('olympiads.import_view') }}"><i class="bi bi-upload"></i><span>Импорт</span></a>{% endif %}
+    {% if can_olympiad_settings_manage %}<a class="assessment-tab{% if request.endpoint == 'olympiads.settings' %} is-active{% endif %}" href="{{ url_for('olympiads.settings') }}"><i class="bi bi-sliders"></i><span>Предметы</span></a>{% endif %}
+  </nav>
+  {% block assessment_content %}{% endblock %}
+</div>
+{% endblock %}
