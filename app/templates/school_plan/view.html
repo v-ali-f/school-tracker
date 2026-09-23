@@ -1,5 +1,6 @@
 {% extends 'workspace_layout.html' %}
 {% block title %}{{ event.title }}{% endblock %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260923_3">{% endblock %}
 {% block workspace_content %}
 <section class="sp-event-detail" aria-labelledby="eventTitle">
   <div class="sp-page-head sp-event-detail-head">

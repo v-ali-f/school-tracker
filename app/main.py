@@ -1,6 +1,6 @@
 from datetime import date, datetime, time, timedelta
 
-from flask import Blueprint, jsonify, make_response, redirect, render_template, url_for
+from flask import Blueprint, abort, jsonify, make_response, redirect, render_template, url_for
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_
 
@@ -100,6 +100,21 @@ def pwa_service_worker():
 @main_bp.route("/healthz")
 def healthz():
     return jsonify({"ok": True, "service": "school-tracker"})
+
+
+@main_bp.route("/design-system/")
+@login_required
+def design_system():
+    if getattr(current_user, "role", None) not in {"ADMIN", "DIRECTOR"}:
+        abort(403)
+    from app.modules.hub.routes import build_home_context
+
+    return render_template(
+        "design_system/index.html",
+        workspace_nav=build_home_context(),
+        workspace_context_title="Дизайн-система",
+        workspace_context_subtitle="Эталон компонентов портала",
+    )
 
 
 def _dashboard_stats():

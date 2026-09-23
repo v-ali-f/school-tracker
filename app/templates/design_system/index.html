@@ -1,0 +1,52 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, status_badge, metric, empty_state, filter_panel, card %}
+{% block title %}Компоненты интерфейса{% endblock %}
+{% block workspace_content %}
+<div class="ws-stack">
+  {% call page_header('Единая дизайн-система', 'Эталон общих элементов для новых и обновляемых страниц портала.', 'Служебная страница') %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house-door"></i>Главная</a>
+    <button class="btn btn-primary" type="button"><i class="bi bi-plus-lg"></i>Основное действие</button>
+  {% endcall %}
+
+  <div class="ws-metric-grid">
+    {{ metric('Всего записей', '128', 'bi-collection') }}
+    {{ metric('Выполнено', '94', 'bi-check2-circle', 'success') }}
+    {{ metric('Требует внимания', '21', 'bi-exclamation-triangle', 'warning') }}
+    {{ metric('Просрочено', '13', 'bi-x-circle', 'danger') }}
+  </div>
+
+  {% call card('Кнопки и статусы', 'Единые состояния используются во всех рабочих реестрах.') %}
+    <div class="ws-stack">
+      <div class="ws-inline">
+        <button class="btn btn-primary" type="button">Сохранить</button>
+        <button class="btn btn-outline-primary" type="button">Открыть</button>
+        <button class="btn btn-outline-secondary" type="button">Отмена</button>
+        <button class="btn btn-outline-secondary ws-icon-button" type="button" aria-label="Дополнительные действия"><i class="bi bi-three-dots"></i></button>
+      </div>
+      <div class="ws-inline">
+        {{ status_badge('Информация', 'info', 'bi-info-circle') }}
+        {{ status_badge('Готово', 'success', 'bi-check-circle') }}
+        {{ status_badge('Нужна проверка', 'warning', 'bi-clock') }}
+        {{ status_badge('Требует внимания', 'danger', 'bi-exclamation-circle') }}
+      </div>
+    </div>
+  {% endcall %}
+
+  {% call filter_panel() %}
+    <div class="ws-filter-grid">
+      <label><span class="ws-field-label">Поиск</span><input class="form-control" placeholder="Название или сотрудник"></label>
+      <label><span class="ws-field-label">Раздел</span><select class="form-select"><option>Все разделы</option><option>Учебная работа</option></select></label>
+      <label><span class="ws-field-label">Дата с</span><input class="form-control" type="date"></label>
+      <label><span class="ws-field-label">Статус</span><select class="form-select"><option>Все статусы</option><option>Готово</option></select></label>
+      <div class="ws-filter-actions"><button class="btn btn-primary" type="button"><i class="bi bi-search"></i>Найти</button><button class="btn btn-outline-secondary ws-icon-button" type="button" aria-label="Сбросить"><i class="bi bi-x-lg"></i></button></div>
+    </div>
+  {% endcall %}
+
+  <div class="ws-component-grid">
+    <div class="ws-notice"><i class="bi bi-info-circle"></i><span>Информационное сообщение с пояснением для пользователя.</span></div>
+    <div class="ws-notice is-success"><i class="bi bi-check-circle"></i><span>Операция завершена успешно.</span></div>
+    <div class="ws-notice is-warning"><i class="bi bi-exclamation-triangle"></i><span>Перед продолжением нужна проверка.</span></div>
+  </div>
+
+  {{ empty_state('Данных пока нет', 'Измените фильтры или создайте первую запись.', 'bi-folder2-open') }}
+{% endblock %}

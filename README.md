@@ -55,6 +55,8 @@ python run.py
 
 Актуальный аудит и поэтапный план перехода на единый интерфейс находятся в
 [`docs/UNIFIED_PORTAL_MIGRATION_PLAN.md`](docs/UNIFIED_PORTAL_MIGRATION_PLAN.md).
+Правила и готовые компоненты описаны в
+[`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md).
 
 ## Flask CLI
 
