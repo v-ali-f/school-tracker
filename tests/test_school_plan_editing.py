@@ -4,6 +4,28 @@ from app.core.extensions import db
 from app.models import SchoolPlanDirection, SchoolPlanEvent
 
 
+def test_all_school_plan_views_use_shared_workspace(client, make_user, login):
+    login(make_user(role="ADMIN"))
+
+    for path in (
+        "/school-plan/",
+        "/school-plan/week",
+        "/school-plan/month",
+        "/school-plan/day",
+        "/school-plan/weeks",
+        "/school-plan/new",
+        "/school-plan/editors",
+        "/school-plan/legend",
+    ):
+        response = client.get(path)
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert 'class="sp-workspace ws-workspace"' in html
+        assert "workspace_ui.css" in html
+        assert "school_plan_workspace.css" in html
+        assert "План работы школы" in html
+
+
 def _event_form_data(direction_id, title, start_time=""):
     data = {
         "title": title,

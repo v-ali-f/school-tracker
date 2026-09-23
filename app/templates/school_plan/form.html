@@ -1,7 +1,6 @@
-{% extends 'workspace_layout.html' %}
+{% extends 'school_plan/workspace.html' %}
 {% block title %}{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}{% endblock %}
-{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260923_3">{% endblock %}
-{% block workspace_content %}
+{% block school_plan_content %}
 <section class="sp-plan-form-page">
   <div class="sp-page-head sp-plan-form-head">
     <div>

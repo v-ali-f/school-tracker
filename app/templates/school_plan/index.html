@@ -1,50 +1,7 @@
-{% extends 'layout.html' %}
+{% extends 'school_plan/workspace.html' %}
 {% block title %}План работы школы{% endblock %}
-{% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_3">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260923_3">
-{% endblock %}
 {% block breadcrumb %}{% endblock %}
-{% block content %}
-<div class="sp-workspace" id="schoolPlanWorkspace">
-  <input class="sp-menu-toggle" id="schoolPlanMenuToggle" type="checkbox" aria-hidden="true">
-  <aside class="sp-sidebar" id="schoolPlanSidebar">
-    <div class="sp-brand-row">
-      <a class="sp-brand" href="{{ url_for('main.dashboard') }}">
-        <span class="sp-brand-marks"><img class="sp-altair-mark" src="{{ altair_icon_url }}" alt="Альтаир">{% if org_logo_url %}<img class="sp-org-mark" src="{{ org_logo_url }}" alt="Эмблема {{ org_short_name }}">{% endif %}</span>
-        <span class="sp-brand-copy"><strong>{{ app_system_name }}</strong><span>{{ org_short_name }}</span></span>
-      </a>
-      <label class="sp-sidebar-close" for="schoolPlanMenuToggle" role="button" tabindex="0" aria-label="Закрыть меню"><i class="bi bi-x-lg"></i></label>
-    </div>
-    <div class="sp-sidebar-scroll">
-      <a class="sp-nav-link" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house-door"></i><span>Главная</span></a>
-      <a class="sp-nav-link is-active" href="{{ url_for('school_plan.index') }}"><i class="bi bi-calendar3"></i><span>План работы</span></a>
-      {% if plan_sidebar_daily_actions %}<div class="sp-sidebar-label">Ежедневная работа</div>{% endif %}
-      {% for item in plan_sidebar_daily_actions %}<a class="sp-nav-link" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-lightning-charge' }}"></i><span>{{ item.title }}</span></a>{% endfor %}
-      {% if plan_sidebar_sections %}<div class="sp-sidebar-label">Разделы и сервисы</div>{% endif %}
-      {% for item in plan_sidebar_sections %}<a class="sp-nav-link" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-grid' }}"></i><span>{{ item.title }}</span></a>{% endfor %}
-      {% if plan_sidebar_service_actions %}<div class="sp-sidebar-label">Служебные действия</div>{% endif %}
-      {% for item in plan_sidebar_service_actions %}<a class="sp-nav-link" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i><span>{{ item.title }}</span></a>{% endfor %}
-    </div>
-    <div class="sp-sidebar-footer"><a class="sp-nav-link" href="{{ url_for('main.dashboard') }}"><i class="bi bi-arrow-left-circle"></i><span>Вернуться на главную</span></a></div>
-  </aside>
-  <label class="sp-sidebar-overlay" for="schoolPlanMenuToggle" aria-label="Закрыть меню"></label>
-
-  <main class="sp-main">
-    <header class="sp-topbar">
-      <div class="d-flex align-items-center gap-2">
-        <label class="btn sp-mobile-menu" for="schoolPlanMenuToggle" role="button" tabindex="0" aria-label="Показать или скрыть боковое меню" aria-controls="schoolPlanSidebar"><i class="bi bi-list"></i><span>Меню</span></label>
-        <div class="sp-topbar-context"><strong>Рабочее пространство</strong>Планирование мероприятий школы</div>
-      </div>
-      <div class="sp-topbar-actions">
-        <a class="sp-topbar-icon" href="{{ url_for('main.dashboard') }}" title="Главная"><i class="bi bi-house-door"></i></a>
-        <a class="sp-topbar-icon position-relative" href="{{ url_for('tasks.my_tasks') }}" title="Задачи"><i class="bi bi-bell"></i>{% if bell_unread_total %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ bell_unread_total }}</span>{% endif %}</a>
-        <a class="sp-profile" href="{{ url_for('auth.profile_settings') }}"><span class="sp-profile-avatar">{{ (current_user.first_name or current_user.username or 'П')[:1] }}{{ (current_user.last_name or '')[:1] }}</span><span class="sp-profile-copy"><strong>{{ current_user.fio or current_user.username }}</strong><span>{{ role_labels.get(current_user.role, current_user.role) }}</span></span></a>
-        <a class="sp-topbar-icon" href="{{ url_for('auth.logout') }}" title="Выйти"><i class="bi bi-box-arrow-right"></i></a>
-      </div>
-    </header>
-
-    <div class="sp-content">
+{% block school_plan_content %}
       <div class="sp-page-head">
         <div><h1 class="sp-title">План работы школы</h1><div class="sp-subtitle">{{ month_title }} {{ year }} · мероприятий: {{ events|length }}</div></div>
       </div>
@@ -133,9 +90,6 @@
           </div>{% endif %}
         </aside>
       </div>
-    </div>
-  </main>
-</div>
 {% endblock %}
 {% block scripts %}
 <script>

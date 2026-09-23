@@ -1,0 +1,18 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tasks_workspace.css') }}?v=20260923_3">
+{% block tasks_head_extra %}{% endblock %}
+{% endblock %}
+{% block workspace_content %}
+{% set task_endpoint = request.endpoint or '' %}
+<div class="task-workspace-page task-section-page">
+  <nav class="task-section-tabs" aria-label="Разделы задач">
+    <a class="task-section-tab {% if task_endpoint == 'tasks.my_tasks' %}is-active{% endif %}" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-check2-square"></i><span>Мои задачи</span></a>
+    <a class="task-section-tab {% if task_endpoint == 'tasks.created_by_me' %}is-active{% endif %}" href="{{ url_for('tasks.created_by_me') }}"><i class="bi bi-send"></i><span>Поставленные</span></a>
+    <a class="task-section-tab {% if task_endpoint == 'tasks.overdue_tasks' %}is-active{% endif %}" href="{{ url_for('tasks.overdue_tasks') }}"><i class="bi bi-exclamation-circle"></i><span>Просроченные</span></a>
+    <a class="task-section-tab {% if task_endpoint == 'tasks.notifications' %}is-active{% endif %}" href="{{ url_for('tasks.notifications') }}"><i class="bi bi-bell"></i><span>Уведомления</span></a>
+    <a class="task-section-tab {% if task_endpoint == 'tasks.analytics' %}is-active{% endif %}" href="{{ url_for('tasks.analytics') }}"><i class="bi bi-bar-chart"></i><span>Аналитика</span></a>
+  </nav>
+  {% block tasks_content %}{% endblock %}
+</div>
+{% endblock %}

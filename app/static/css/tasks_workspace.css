@@ -4,6 +4,50 @@
   color: var(--sp-text);
 }
 
+.task-section-tabs {
+  display: flex;
+  gap: 5px;
+  margin: 0 0 14px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+  scrollbar-width: thin;
+}
+
+.task-section-tab {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  color: #5c6879;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.task-section-tab:hover { color: var(--sp-accent); background: #f5f7fa; }
+.task-section-tab.is-active { color: #fff; background: var(--sp-accent); }
+
+.task-section-page > .page-head { margin-bottom: 14px; }
+.task-section-page > .card,
+.task-section-page > form.card { border: 1px solid var(--sp-border); border-radius: 13px; box-shadow: var(--sp-shadow); }
+.task-section-page > .card .card-body,
+.task-section-page > form.card { padding: 15px; }
+.task-section-page .form-label { margin-bottom: 5px; color: #526176; font-size: 11px; font-weight: 600; }
+.task-section-page .form-control,
+.task-section-page .form-select { min-height: 38px; border-color: #dfe4eb; border-radius: 9px; font-size: 12px; }
+.task-section-page .table thead th { color: #5f6b7c; background: #f8f9fb; font-size: 10px; white-space: nowrap; }
+.task-section-page .table tbody td { color: #344054; font-size: 11px; vertical-align: middle; }
+.task-settings-card { max-width: 760px; }
+
 body.school-plan-modern-shell .ws-content .task-workspace-page .tasks-title {
   margin: 0 !important;
   color: var(--sp-heading) !important;
@@ -151,6 +195,15 @@ body.school-plan-modern-shell .ws-content .task-form-page .picker-card {
 }
 
 @media (max-width: 767.98px) {
+  .task-section-tab { flex: 0 0 auto; }
+
+  .task-section-page > .page-head .page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .task-section-page > .page-head .page-actions .btn { width: 100%; }
   body.school-plan-modern-shell .ws-content .task-workspace-page .tasks-title {
     font-size: 22px !important;
   }
