@@ -1,5 +1,5 @@
 {% extends "workspace_layout.html" %}
-{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
 {% block workspace_content %}
 <div class="cw-workspace-page cw-journal-page">
 <div class="page-head">
@@ -12,6 +12,7 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_registry', **request.args.to_dict(flat=True)) }}">К реестру</a>
   </div>
 </div>
+{% with cw_active='journal' %}{% include 'control_works/_workspace_nav.html' %}{% endwith %}
 
 <form method="get" class="card mb-3 cw-filter-card">
   <div class="card-body">

@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-report-page">
 <div class="page-head">
   <div>
     <div class="page-title">Отчёт по контрольной работе</div>
@@ -231,4 +233,5 @@
   </div>
 </div>
 {% endif %}
+</div>
 {% endblock %}

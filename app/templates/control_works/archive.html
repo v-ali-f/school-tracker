@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-archive-page">
 <div class="page-head">
   <div>
     <div class="page-title">Архив контрольных работ</div>
@@ -10,8 +12,9 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_archive_pdf', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id) }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
   </div>
 </div>
+{% with cw_active='archive' %}{% include 'control_works/_workspace_nav.html' %}{% endwith %}
 
-<div class="card mb-3"><div class="card-body">
+<div class="card mb-3 cw-filter-card"><div class="card-body">
   <form method="get" class="row g-2 align-items-end">
     <div class="col-md-3">
       <label class="form-label mb-1">Учебный год</label>
@@ -168,5 +171,6 @@
       </table>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}

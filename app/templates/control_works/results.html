@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-results-page">
 <div class="page-head">
   <div>
     <div class="page-title">Заполнение результатов</div>
@@ -59,6 +61,7 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('control_works.view_control_work', work_id=work.id) }}">Назад</a>
   </div>
 </form>
+</div>
 <script>
 (function(){
   const isDictation = {{ 'true' if is_dictation else 'false' }};
