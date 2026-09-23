@@ -1,7 +1,7 @@
 {% extends "workspace_layout.html" %}
 {% block title %}{{ 'Редактирование' if visit.id else 'Новое посещение' }} · Посещение уроков{% endblock %}
 {% block workspace_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_3">
 {% endblock %}
 {% block workspace_content %}
 {% set saved = visit.checklist or {} %}

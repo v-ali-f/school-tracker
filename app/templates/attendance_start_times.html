@@ -1,5 +1,5 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "attendance_workspace.html" %}
+{% block attendance_content %}
 <div class="page-head mb-3">
   <div>
     <div class="page-title">Начало занятий</div>
@@ -45,7 +45,7 @@
           </div>
           <div class="col-12">
             <label class="form-label">Классы правила</label>
-            <div class="border rounded p-2" style="max-height: 260px; overflow:auto;">
+            <div class="border rounded p-2 attendance-scroll-panel attendance-class-list">
               {% for grade, grade_classes in classes_by_grade|dictsort %}
               <div class="small fw-semibold text-muted mb-1">{{ grade }} параллель</div>
               <div class="mb-2">

@@ -403,6 +403,6 @@
   .lv-detail-meta .card-body { gap: 8px; }
   .lv-meta-topic { grid-column: auto; }
   .lv-result-row { grid-template-columns: 1fr; gap: 3px; }
-  .lv-form-actions { position: sticky; z-index: 10; bottom: 0; margin: 10px -12px -12px; padding: 10px 12px; border-top: 1px solid var(--sp-border); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); }
+  .lv-form-actions { position: sticky; z-index: 10; bottom: 0; margin: 10px -10px -10px; padding: 10px 12px; border-top: 1px solid var(--sp-border); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); }
   .lv-form-actions .btn { flex: 1; }
 }

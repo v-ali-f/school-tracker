@@ -1,0 +1,33 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance_workspace.css') }}?v=20260923_1">
+{% endblock %}
+{% block workspace_content %}
+{% set attendance_endpoint = request.endpoint or '' %}
+<div class="attendance-workspace">
+  <nav class="attendance-tabs" aria-label="Разделы посещаемости">
+    <a class="attendance-tab {% if attendance_endpoint in ['attendance.passes_registry', 'attendance.new_pass'] %}is-active{% endif %}" href="{{ url_for('attendance.passes_registry') }}">
+      <i class="bi bi-person-vcard"></i><span>Пропуска</span>
+    </a>
+    {% if current_user.role in ['ADMIN', 'CLASS_TEACHER', 'SOCIAL_PEDAGOG'] %}
+    <a class="attendance-tab {% if attendance_endpoint == 'attendance.analytics' %}is-active{% endif %}" href="{{ url_for('attendance.analytics') }}">
+      <i class="bi bi-bar-chart"></i><span>Аналитика</span>
+    </a>
+    {% endif %}
+    {% if current_user.role == 'ADMIN' %}
+    <a class="attendance-tab {% if attendance_endpoint in ['attendance.import_view', 'attendance.imports_registry'] %}is-active{% endif %}" href="{{ url_for('attendance.import_view') }}">
+      <i class="bi bi-cloud-arrow-up"></i><span>Импорт</span>
+    </a>
+    <a class="attendance-tab {% if attendance_endpoint == 'attendance.schedule_rules' %}is-active{% endif %}" href="{{ url_for('attendance.schedule_rules') }}">
+      <i class="bi bi-clock"></i><span>Начало занятий</span>
+    </a>
+    {% endif %}
+    {% if current_user.role in ['ADMIN', 'KPP'] %}
+    <a class="attendance-tab {% if attendance_endpoint == 'attendance.kpp_screen' %}is-active{% endif %}" href="{{ url_for('attendance.kpp_screen') }}">
+      <i class="bi bi-shield-check"></i><span>КПП</span>
+    </a>
+    {% endif %}
+  </nav>
+  {% block attendance_content %}{% endblock %}
+</div>
+{% endblock %}

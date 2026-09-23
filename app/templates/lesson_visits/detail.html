@@ -1,7 +1,7 @@
 {% extends "workspace_layout.html" %}
 {% block title %}{{ visit.teacher.fio or visit.teacher.username }} · {{ visit.visit_date.strftime('%d.%m.%Y') }}{% endblock %}
 {% block workspace_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_3">
 {% endblock %}
 {% block workspace_content %}
 <div class="lesson-visits-page lv-detail-page">
