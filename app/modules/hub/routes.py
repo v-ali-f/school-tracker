@@ -839,76 +839,85 @@ def _theme_or_403(theme_key: str):
     return prepared
 
 
+def _render_theme_workspace(theme):
+    """Render every thematic hub through the shared workspace shell."""
+    return render_template(
+        "hub/theme_workspace_page.html",
+        theme=theme,
+        workspace_nav=build_home_context(),
+        workspace_context_title=theme.get("title") or "Раздел портала",
+        workspace_context_subtitle="Единая навигация по разделу",
+    )
+
+
+def _render_theme_key(theme_key: str):
+    return _render_theme_workspace(_theme_or_403(theme_key))
+
+
 @hub_bp.route("/management")
 @login_required
 def management():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("management"))
+    return _render_theme_key("management")
 
 
 @hub_bp.route("/academic")
 @login_required
 def academic():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("academic"))
+    return _render_theme_key("academic")
 
 
 @hub_bp.route("/contingent")
 @login_required
 def contingent():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("contingent"))
+    return _render_theme_key("contingent")
 
 
 @hub_bp.route("/incidents")
 @login_required
 def incidents():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("incidents"))
+    return _render_theme_key("incidents")
 
 
 @hub_bp.route("/departments")
 @login_required
 def departments():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("departments"))
+    return _render_theme_key("departments")
 
 
 @hub_bp.route("/diagnostics")
 @login_required
 def diagnostics():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("diagnostics"))
+    return _render_theme_key("diagnostics")
 
 
 @hub_bp.route("/attendance")
 @login_required
 def attendance():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("attendance"))
+    return _render_theme_key("attendance")
 
 
 @hub_bp.route("/registries")
 @login_required
 def registries():
-    return render_template(
-        "hub/theme_workspace_page.html",
-        theme=_theme_or_403("registries"),
-        workspace_nav=build_home_context(),
-        workspace_context_title="Основные реестры",
-        workspace_context_subtitle="Единая точка входа в реестры школы",
-    )
+    return _render_theme_key("registries")
 
 
 @hub_bp.route("/control-works")
 @login_required
 def control_works():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("control_works"))
+    return _render_theme_key("control_works")
 
 
 @hub_bp.route("/olympiads")
 @login_required
 def olympiads():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("olympiads"))
+    return _render_theme_key("olympiads")
 
 
 @hub_bp.route("/orders")
 @login_required
 def orders():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("orders"))
+    return _render_theme_key("orders")
 
 
 @hub_bp.route("/classroom")
@@ -958,13 +967,13 @@ def classroom():
             "building": school_class.building.name if school_class.building else "—",
             "student_count": student_count,
         }
-    return render_template("hub/theme_page.html", theme=theme)
+    return _render_theme_workspace(theme)
 
 
 @hub_bp.route("/admin")
 @login_required
 def admin():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("admin"))
+    return _render_theme_key("admin")
 
 
 def _class_teacher_context():

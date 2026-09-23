@@ -50,5 +50,8 @@ def test_registry_pages_use_shared_workspace_shell(
     assert 'class="sp-workspace ws-workspace"' in html
     assert 'id="workspaceSidebar"' in html
     assert "workspace_ui.css" in html
-    assert "registries_workspace.css" in html
+    if path == "/hub/registries":
+        assert "hub_workspace.css" in html
+    else:
+        assert "registries_workspace.css" in html
     assert "Основные реестры" in html or "Контингент школы" in html

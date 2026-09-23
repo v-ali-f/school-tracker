@@ -1,41 +1,63 @@
 {% extends "workspace_layout.html" %}
-{% from "components/workspace_ui.html" import page_header %}
-{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
+{% from "components/workspace_ui.html" import page_header, metric, empty_state %}
+{% block title %}{{ theme.title }}{% endblock %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/hub_workspace.css') }}?v=20260923_1">{% endblock %}
 {% block workspace_content %}
-{% macro workspace_card(item, fallback_icon='bi-folder2-open') %}
-  {% if item.url %}<a class="registry-hub-card" href="{{ item.url }}">{% else %}<div class="registry-hub-card">{% endif %}
-    <span class="registry-hub-card-icon"><i class="bi {{ item.icon or fallback_icon }}"></i></span>
-    <span class="registry-hub-card-copy">
+{% macro hub_card(item, fallback_icon='bi-folder2-open') %}
+  {% set tone = item.zone or theme.zone or 'blue' %}
+  {% if item.url %}<a class="hub-workspace-card is-{{ tone }}" href="{{ item.url }}">{% else %}<div class="hub-workspace-card is-{{ tone }} is-disabled">{% endif %}
+    <span class="hub-workspace-card-icon"><i class="bi {{ item.icon or fallback_icon }}"></i></span>
+    <span class="hub-workspace-card-copy">
       <strong>{{ item.title }}</strong>
-      <span>{{ item.description or '' }}</span>
+      {% if item.description %}<span>{{ item.description }}</span>{% endif %}
     </span>
-    {% if item.url %}<i class="bi bi-chevron-right registry-hub-card-arrow" aria-hidden="true"></i>{% endif %}
+    {% if item.url %}<i class="bi bi-chevron-right hub-workspace-card-arrow" aria-hidden="true"></i>{% endif %}
   {% if item.url %}</a>{% else %}</div>{% endif %}
 {% endmacro %}
 
-<div class="registry-workspace-page registry-hub-page">
-  {{ page_header(theme.title, theme.subtitle) }}
+<div class="hub-workspace-page">
+  {{ page_header(theme.title, theme.subtitle, 'Тематический раздел') }}
 
-  {% if theme.quick_actions %}
-  <section class="registry-hub-section">
-    <div class="registry-hub-section-head">
-      <h2>Частые переходы</h2>
-      <span>Основные действия раздела</span>
-    </div>
-    <div class="registry-hub-grid registry-hub-grid-compact">
-      {% for item in theme.quick_actions %}{{ workspace_card(item, 'bi-lightning-charge') }}{% endfor %}
+  {% if theme.classroom_class %}
+  <section class="hub-workspace-section" aria-labelledby="classroomSummaryTitle">
+    <header class="hub-workspace-section-head">
+      <div><span class="hub-workspace-kicker">Мой класс</span><h2 id="classroomSummaryTitle">{{ theme.classroom_class.name }}</h2></div>
+    </header>
+    <div class="ws-metric-grid hub-classroom-summary">
+      {{ metric('Классный руководитель', theme.classroom_class.teacher, 'bi-person-badge') }}
+      {{ metric('Здание', theme.classroom_class.building, 'bi-building') }}
+      {{ metric('Обучающихся', theme.classroom_class.student_count, 'bi-people', 'success') }}
     </div>
   </section>
   {% endif %}
 
-  <section class="registry-hub-section">
-    <div class="registry-hub-section-head">
-      <h2>Реестры и справочники</h2>
-      <span>Выберите нужный раздел для просмотра или редактирования</span>
+  {% if theme.summary_cards %}
+  <section class="hub-workspace-section" aria-labelledby="hubSummaryTitle">
+    <header class="hub-workspace-section-head"><div><h2 id="hubSummaryTitle">Сводка</h2><span>Ключевые показатели и рабочие блоки раздела</span></div></header>
+    <div class="hub-workspace-grid hub-workspace-grid-summary">
+      {% for item in theme.summary_cards %}{{ hub_card(item, 'bi-clipboard-data') }}{% endfor %}
     </div>
-    <div class="registry-hub-grid">
-      {% for item in theme.sections %}{{ workspace_card(item) }}{% endfor %}
+  </section>
+  {% endif %}
+
+  {% if theme.quick_actions %}
+  <section class="hub-workspace-section" aria-labelledby="hubQuickTitle">
+    <header class="hub-workspace-section-head"><div><h2 id="hubQuickTitle">Частые переходы</h2><span>Основные действия раздела</span></div></header>
+    <div class="hub-workspace-grid hub-workspace-grid-quick">
+      {% for item in theme.quick_actions %}{{ hub_card(item, 'bi-lightning-charge') }}{% endfor %}
     </div>
+  </section>
+  {% endif %}
+
+  <section class="hub-workspace-section" aria-labelledby="hubSectionsTitle">
+    <header class="hub-workspace-section-head"><div><h2 id="hubSectionsTitle">Разделы и инструменты</h2><span>Реестры, аналитика и рабочие страницы</span></div></header>
+    {% if theme.sections %}
+    <div class="hub-workspace-grid">
+      {% for item in theme.sections %}{{ hub_card(item) }}{% endfor %}
+    </div>
+    {% else %}
+      {{ empty_state('Доступных разделов пока нет', 'Состав раздела зависит от вашей роли и назначенных прав.', 'bi-grid') }}
+    {% endif %}
   </section>
 </div>
 {% endblock %}
