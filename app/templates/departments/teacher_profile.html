@@ -1,11 +1,10 @@
-{% extends "layout.html" %}
-{% block head_extra %}
-  {{ super() }}
+{% extends "departments/workspace.html" %}
+{% block departments_head_extra %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260810_3">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_profile_compact.css') }}?v=20260809_2">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
 {% endblock %}
-{% block content %}
+{% block departments_content %}
 <div class="teacher-profile-page">
 <div class="page-head mb-3">
   <div>

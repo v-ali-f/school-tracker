@@ -81,6 +81,18 @@ from app.utils.user_matching import find_existing_user
 departments_bp = Blueprint("departments", __name__, url_prefix="/departments")
 
 
+@departments_bp.context_processor
+def _departments_workspace_context():
+    """Provide the shared portal navigation for department workspaces."""
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Кафедры и кабинет педагога",
+        "workspace_context_subtitle": "Нагрузка, профессиональные сведения и аналитика",
+    }
+
+
 VALID_MARK_VALUES = {"2", "3", "4", "5"}
 
 def _safe_float(value):

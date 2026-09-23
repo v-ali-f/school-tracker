@@ -13,7 +13,11 @@
   'READY': 'Изменения сохранены',
   'LOCKED': 'Зафиксирован'
 } %}
-{% if workspace_endpoint.startswith('workload.plan_bindings_matrix') %}
+{% if workspace_endpoint.startswith('workload.catalog') %}
+  {% set workspace_mode = 'catalog' %}
+{% elif workspace_endpoint == 'workload.editor_access' %}
+  {% set workspace_mode = 'settings' %}
+{% elif workspace_endpoint.startswith('workload.plan_bindings_matrix') %}
   {% set workspace_mode = 'class_matrix' %}
 {% elif workspace_endpoint.startswith('workload.plan_bindings') %}
   {% set workspace_mode = 'bindings' %}
@@ -106,12 +110,18 @@
 
   <nav class="workload-mode-bar" aria-label="Режим рабочего пространства">
     {% if workspace_teacher_self_only %}
-    <a class="workload-mode is-active" href="{{ url_for('workload.workload_teacher_detail', user_id=current_user.id) }}">
+    <a class="workload-mode {% if workspace_mode != 'catalog' %}is-active{% endif %}" href="{{ url_for('workload.workload_teacher_detail', user_id=current_user.id) }}">
       <i class="bi bi-person-lines-fill" aria-hidden="true"></i><span>Моя нагрузка</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'catalog' %}is-active{% endif %}" href="{{ url_for('workload.catalog') }}">
+      <i class="bi bi-journal-text" aria-hidden="true"></i><span>Предметы и курсы</span>
     </a>
     {% else %}
     <a class="workload-mode {% if workspace_mode == 'hours' %}is-active{% endif %}" href="{{ url_for('workload.plans') }}">
       <i class="bi bi-table" aria-hidden="true"></i><span>Учебные планы</span>
+    </a>
+    <a class="workload-mode {% if workspace_mode == 'catalog' %}is-active{% endif %}" href="{{ url_for('workload.catalog') }}">
+      <i class="bi bi-journal-text" aria-hidden="true"></i><span>Предметы и курсы</span>
     </a>
     <a class="workload-mode {% if workspace_mode == 'bindings' %}is-active{% endif %}" href="{{ url_for('workload.plan_bindings') }}">
       <i class="bi bi-link-45deg" aria-hidden="true"></i><span>Привязка УП</span>
@@ -134,7 +144,7 @@
     {% endif %}
   </nav>
 
-  {% if workspace_mode not in ['hours', 'bindings', 'class_matrix', 'groups', 'group_composition', 'metagroups', 'workload'] %}
+  {% if workspace_mode not in ['hours', 'bindings', 'class_matrix', 'groups', 'group_composition', 'metagroups', 'workload', 'catalog', 'settings'] %}
   <section class="workload-indicators" aria-label="Состояние рабочего пространства">
     <div class="workload-indicator">
       <span class="workload-indicator__label">Нераспределено</span>

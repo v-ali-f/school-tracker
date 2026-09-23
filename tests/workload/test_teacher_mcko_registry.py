@@ -56,6 +56,13 @@ def test_admin_registry_lists_teacher_without_diagnostic_and_hub_link(
     assert "registry-table-scroll" in html
     assert "professional_registry.js" in html
     assert "Добавить результат" in html
+    assert 'class="sp-workspace ws-workspace"' in html
+    assert "departments_workspace.css" in html
+    assert 'class="departments-section-tabs"' in html
+
+    form = client.get("/professional-registers/mcko/new")
+    assert form.status_code == 200
+    assert 'class="sp-workspace ws-workspace"' in form.get_data(as_text=True)
 
 
 def test_deputy_creates_edits_and_archives_mcko_with_history(
