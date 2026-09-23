@@ -43,13 +43,18 @@ python run.py
 
 В репозитории есть два готовых варианта развертывания:
 
-- прямой внешний контур на одном сервере: [deploy/altair-school/README.md](/Users/aleksandr/Documents/Школьный портал/school-tracker/deploy/altair-school/README.md)
-- текущая схема `VPS -> WireGuard -> школьный сервер`: [deploy/altair-edu/README.md](/Users/aleksandr/Documents/Школьный портал/school-tracker/deploy/altair-edu/README.md)
+- прямой внешний контур на одном сервере: [deploy/altair-school/README.md](deploy/altair-school/README.md)
+- текущая схема `VPS -> WireGuard -> школьный сервер`: [deploy/altair-edu/README.md](deploy/altair-edu/README.md)
 
 Для текущего домена `altair-edu.ru` добавлены:
 
-- [deploy/altair-edu/nginx/altair-edu.ru.conf](/Users/aleksandr/Documents/Школьный портал/school-tracker/deploy/altair-edu/nginx/altair-edu.ru.conf)
-- [.env.production.example](/Users/aleksandr/Documents/Школьный портал/school-tracker/.env.production.example)
+- [deploy/altair-edu/nginx/altair-edu.ru.conf](deploy/altair-edu/nginx/altair-edu.ru.conf)
+- [.env.production.example](.env.production.example)
+
+## Развитие интерфейса
+
+Актуальный аудит и поэтапный план перехода на единый интерфейс находятся в
+[`docs/UNIFIED_PORTAL_MIGRATION_PLAN.md`](docs/UNIFIED_PORTAL_MIGRATION_PLAN.md).
 
 ## Flask CLI
 

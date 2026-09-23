@@ -59,7 +59,7 @@
 {% block head_extra %}{% endblock %}
 </head>
 
-<body class="{% if current_user.is_authenticated %}portal-authenticated{% endif %} {% if request.endpoint == 'school_plan.index' %}school-plan-modern-shell{% endif %}">
+<body class="{% if current_user.is_authenticated %}portal-authenticated{% endif %} {% if request.endpoint == 'school_plan.index' or use_workspace_shell|default(false) %}school-plan-modern-shell{% endif %}">
 {% set role_labels = {
   'ADMIN': 'Администратор',
   'DIRECTOR': 'Директор',
@@ -225,7 +225,7 @@
   </div>
 </nav>
 
-<div class="container my-4 {% if request.path == '/' or request.path.startswith('/documents/registers') %}portal-wide-container{% endif %} {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
+<div class="container my-4 {% if (request.path == '/' and not use_workspace_shell|default(false)) or request.path.startswith('/documents/registers') %}portal-wide-container{% endif %} {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
 
   {% block breadcrumb %}
   {% if auto_breadcrumbs %}

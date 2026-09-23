@@ -27,6 +27,18 @@ from app.services.org_settings_service import get_organization_header_lines, get
 control_bp = Blueprint("control_works", __name__, url_prefix="/control-works")
 
 
+@control_bp.context_processor
+def _control_works_workspace_context_processor():
+    """Shared role-aware shell for control-work pages."""
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Контрольные работы",
+        "workspace_context_subtitle": "Планирование, заполнение и анализ результатов",
+    }
+
+
 def _parse_date(value):
     value = (value or "").strip()
     if not value:

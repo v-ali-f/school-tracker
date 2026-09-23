@@ -4065,6 +4065,45 @@ def registry_expelled_export():
 # =========================================================
 # INCIDENTS
 # =========================================================
+def _incident_workspace_navigation():
+    """Role-aware navigation shared by all incident workspace pages."""
+    from app.modules.hub.routes import build_home_context
+
+    return build_home_context()
+
+
+_REGISTRY_WORKSPACE_ENDPOINTS = {
+    "children.list_children",
+    "children.contingent",
+    "children.registry_vshu",
+    "children.registry_ovz",
+    "children.registry_az",
+    "children.registry_enrolled",
+    "children.registry_expelled",
+    "children.registry_kdn",
+}
+
+
+@children_bp.context_processor
+def _registry_workspace_context():
+    """Supply the shared role-aware shell only to migrated registry pages."""
+    if request.endpoint not in _REGISTRY_WORKSPACE_ENDPOINTS:
+        return {}
+
+    is_contingent = request.endpoint == "children.contingent"
+    return {
+        "workspace_nav": _incident_workspace_navigation(),
+        "workspace_context_title": (
+            "Контингент школы" if is_contingent else "Основные реестры"
+        ),
+        "workspace_context_subtitle": (
+            "Сводные данные по классам и зданиям"
+            if is_contingent
+            else "Ученики, зачисление и движение контингента"
+        ),
+    }
+
+
 @children_bp.route("/incidents/new", methods=["GET", "POST"])
 @login_required
 def incident_new():
@@ -4121,6 +4160,9 @@ def incident_new():
                 participants = []
             return render_template(
                 "incident_new.html",
+                workspace_nav=_incident_workspace_navigation(),
+                workspace_context_title="Инциденты",
+                workspace_context_subtitle="Регистрация и сопровождение событий",
                 categories=INCIDENT_CATEGORIES,
                 preselected_student=None,
                 form_data={
@@ -4219,6 +4261,9 @@ def incident_new():
 
     return render_template(
         "incident_new.html",
+        workspace_nav=_incident_workspace_navigation(),
+        workspace_context_title="Инциденты",
+        workspace_context_subtitle="Регистрация и сопровождение событий",
         categories=INCIDENT_CATEGORIES,
         preselected_student=preselected_student,
         form_data=None,
@@ -5722,6 +5767,9 @@ def incidents_registry():
 
     return render_template(
         "incidents_registry.html",
+        workspace_nav=_incident_workspace_navigation(),
+        workspace_context_title="Инциденты",
+        workspace_context_subtitle="Единый реестр событий",
         title="Реестр инцидентов",
         rows=rows,
         groups=groups,
@@ -5924,6 +5972,9 @@ def incidents_my():
 
         return render_template(
             "incidents_my.html",
+            workspace_nav=_incident_workspace_navigation(),
+            workspace_context_title="Инциденты",
+            workspace_context_subtitle="Мои заявки и назначения",
             is_admin_view=False,
             user_tab=user_tab,
             user_counters=user_counters,
@@ -6216,6 +6267,9 @@ def incidents_my():
 
     return render_template(
         "incidents_my.html",
+        workspace_nav=_incident_workspace_navigation(),
+        workspace_context_title="Инциденты",
+        workspace_context_subtitle="Работа с обращениями и статусами",
         is_admin_view=True,
         is_social_view=is_social_view,
         rows=rows,
@@ -6519,6 +6573,9 @@ def incidents_dashboard_legacy():
 
     return render_template(
         "incidents_dashboard.html",
+        workspace_nav=_incident_workspace_navigation(),
+        workspace_context_title="Инциденты",
+        workspace_context_subtitle="Аналитика и оперативная сводка",
         title="Инциденты — дашборд",
         total_all=total_all,
         total_7=total_7,

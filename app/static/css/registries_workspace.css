@@ -1,0 +1,356 @@
+/* Shared visual layer for the student registers and contingent pages. */
+
+body.school-plan-modern-shell > .container.my-4.contingent-compact-container {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.registry-workspace-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.registry-workspace-page .page-head {
+  min-height: 48px;
+}
+
+.registry-workspace-page .page-actions .btn {
+  min-height: 34px;
+  padding: 7px 12px;
+}
+
+.registry-workspace-page .registry-filter-panel,
+.registry-workspace-page > form.row,
+.registry-workspace-page > .soft-card.mb-3 {
+  margin: 0 0 12px !important;
+  padding: 12px !important;
+  border: 1px solid var(--sp-border) !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+.registry-workspace-page > .soft-card.mb-3 {
+  padding: 0 !important;
+}
+
+.registry-workspace-page > .soft-card.mb-3 .card-body {
+  padding: 12px !important;
+}
+
+.registry-workspace-page .registry-filter-panel .form-label,
+.registry-workspace-page > .soft-card.mb-3 .form-label {
+  margin-bottom: 4px;
+  color: var(--sp-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.registry-workspace-page .registry-filter-panel .form-control,
+.registry-workspace-page .registry-filter-panel .form-select,
+.registry-workspace-page .registry-filter-panel .btn,
+.registry-workspace-page > .soft-card.mb-3 .form-control,
+.registry-workspace-page > .soft-card.mb-3 .form-select,
+.registry-workspace-page > .soft-card.mb-3 .btn,
+.movements-workspace-page > form .form-control,
+.movements-workspace-page > form .form-select,
+.movements-workspace-page > form .btn {
+  min-height: 34px;
+  font-size: 11px;
+}
+
+.registry-workspace-page .registry-matrix-card,
+.registry-workspace-page > .soft-card:not(.mb-3) {
+  overflow: hidden;
+  border: 1px solid var(--sp-border) !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+.registry-workspace-page table.registry-matrix,
+.registry-workspace-page .soft-card table,
+.movements-workspace-page table {
+  margin: 0;
+  color: #344054;
+  font-size: 11px;
+}
+
+.registry-workspace-page table.registry-matrix thead th,
+.registry-workspace-page .soft-card table thead th,
+.movements-workspace-page table thead th {
+  height: 38px;
+  padding: 8px 10px;
+  border-color: #e5eaf0 !important;
+  color: #667085;
+  background: #f8f9fb !important;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-transform: none;
+}
+
+.registry-workspace-page table.registry-matrix tbody td,
+.registry-workspace-page .soft-card table tbody td,
+.movements-workspace-page table tbody td {
+  min-height: 40px;
+  padding: 9px 10px;
+  border-color: #edf0f4 !important;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.registry-workspace-page table.registry-matrix tbody tr:nth-child(even) td,
+.registry-workspace-page .table-striped > tbody > tr:nth-of-type(odd) > *,
+.registry-workspace-page table.registry-matrix tbody tr:hover td,
+.registry-workspace-page .soft-card table tbody tr:hover td,
+.movements-workspace-page table tbody tr:hover td {
+  --bs-table-accent-bg: transparent;
+  background: #fbfcfd !important;
+}
+
+.registry-workspace-page table a:not(.btn),
+.movements-workspace-page table a:not(.btn) {
+  color: #315f9f;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.registry-workspace-page table a:not(.btn):hover,
+.movements-workspace-page table a:not(.btn):hover {
+  color: #244f8c;
+  text-decoration: underline;
+}
+
+.registry-workspace-page .registry-row-action {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.registry-workspace-page .registry-empty-row {
+  height: 120px;
+  color: var(--sp-muted);
+  text-align: center;
+}
+
+.registry-workspace-page .pagination {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+.registry-hub-section {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+}
+
+.registry-hub-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.registry-hub-section-head h2 {
+  margin: 0;
+  color: var(--sp-heading);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.registry-hub-section-head span {
+  color: var(--sp-muted);
+  font-size: 10px;
+}
+
+.registry-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.registry-hub-grid-compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.registry-hub-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 82px;
+  gap: 11px;
+  padding: 12px 34px 12px 12px;
+  border: 1px solid #e1e7ee;
+  border-radius: 11px;
+  color: inherit;
+  background: #fff;
+  text-decoration: none;
+  transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+
+a.registry-hub-card:hover {
+  border-color: #c8d6e7;
+  color: inherit;
+  background: #fafbfd;
+  transform: translateY(-1px);
+}
+
+.registry-hub-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 10px;
+  color: #526f97;
+  background: #edf3f8;
+  font-size: 15px;
+}
+
+.registry-hub-card-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.registry-hub-card-copy strong {
+  overflow: hidden;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+}
+
+.registry-hub-card-copy span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--sp-muted);
+  font-size: 9px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.registry-hub-card-arrow {
+  position: absolute;
+  right: 12px;
+  color: #a6b0bf;
+  font-size: 11px;
+}
+
+/* The contingent dashboard uses the same quieter, compact KPI language. */
+.contingent-workspace-page .cont-kpi {
+  gap: 10px !important;
+}
+
+.contingent-workspace-page .cont-kpi .kpi {
+  min-height: 82px !important;
+  padding: 13px 15px !important;
+  border-color: var(--sp-border) !important;
+  border-radius: 13px !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+.contingent-workspace-page .cont-kpi .kpi-label {
+  color: var(--sp-muted) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+}
+
+.contingent-workspace-page .cont-kpi .kpi-value {
+  color: #344054 !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+}
+
+.contingent-workspace-page .contingent-classes-table thead th {
+  color: #667085 !important;
+  background: #f8f9fb !important;
+  border-color: #dfe5ec !important;
+  font-size: 10px !important;
+  text-transform: none !important;
+}
+
+.contingent-workspace-page .contingent-classes-table tbody td {
+  border-color: #e5eaf0 !important;
+  color: #344054;
+  font-size: 11px !important;
+}
+
+@media (max-width: 767.98px) {
+  .registry-workspace-page .page-head {
+    min-height: 0;
+  }
+
+  .registry-workspace-page .page-actions {
+    width: 100%;
+  }
+
+  .registry-workspace-page .page-actions .btn {
+    flex: 1 1 140px;
+  }
+
+  .registry-workspace-page .registry-filter-panel,
+  .registry-workspace-page > form.row,
+  .registry-workspace-page > .soft-card.mb-3 .card-body {
+    padding: 10px !important;
+  }
+
+  .registry-workspace-page .registry-filter-panel > [class*="col-"],
+  .registry-workspace-page > form.row > [class*="col-"],
+  .registry-workspace-page > .soft-card.mb-3 form > [class*="col-"] {
+    width: 100%;
+  }
+
+  .registry-workspace-page > .soft-card.mb-3 form .d-flex,
+  .registry-workspace-page .registry-filter-panel .d-flex {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .registry-workspace-page .table-responsive {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contingent-workspace-page .cont-kpi {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .registry-hub-section {
+    padding: 12px;
+  }
+
+  .registry-hub-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .registry-hub-grid,
+  .registry-hub-grid-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .registry-hub-card {
+    min-height: 72px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .registry-hub-grid,
+  .registry-hub-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

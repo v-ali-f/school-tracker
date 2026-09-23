@@ -923,6 +923,18 @@ def _tasks_context_processor():
     }
 
 
+@tasks_bp.context_processor
+def _tasks_workspace_context_processor():
+    """Shared role-aware shell for the task workspace pages."""
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        'workspace_nav': build_home_context(),
+        'workspace_context_title': 'Задачи',
+        'workspace_context_subtitle': 'Поручения, сроки и совместная работа',
+    }
+
+
 @tasks_bp.route('/')
 @login_required
 def index():

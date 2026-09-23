@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+{% set use_workspace_shell = true %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_2">
+{% block workspace_head_extra %}{% endblock %}
+{% endblock %}
+{% block breadcrumb %}{% endblock %}
+{% block content %}
+{% set ws = workspace_nav|default({}, true) %}
+{% set ws_page = ws.get('page', {}) %}
+{% set ws_endpoint = request.endpoint or '' %}
+<div class="sp-workspace ws-workspace" id="workspaceShell">
+  <input class="sp-menu-toggle" id="workspaceMenuToggle" type="checkbox" aria-hidden="true">
+  <aside class="sp-sidebar" id="workspaceSidebar">
+    <div class="sp-brand-row">
+      <a class="sp-brand" href="{{ url_for('main.dashboard') }}">
+        <span class="sp-brand-marks"><img class="sp-altair-mark" src="{{ altair_icon_url }}" alt="Альтаир">{% if org_logo_url %}<img class="sp-org-mark" src="{{ org_logo_url }}" alt="Эмблема {{ org_short_name }}">{% endif %}</span>
+        <span class="sp-brand-copy"><strong>{{ app_system_name }}</strong><span>{{ org_short_name }}</span></span>
+      </a>
+      <label class="sp-sidebar-close" for="workspaceMenuToggle" role="button" tabindex="0" aria-label="Закрыть меню"><i class="bi bi-x-lg"></i></label>
+    </div>
+
+    <div class="sp-sidebar-scroll">
+      <a class="sp-nav-link {% if ws_endpoint == 'main.dashboard' %}is-active{% endif %}" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house-door"></i><span>Главная</span></a>
+      {% for item in ws_page.get('secondary_sections', []) if item.endpoint == 'school_plan.index' %}
+      <a class="sp-nav-link {% if ws_endpoint == item.endpoint or (item.endpoint == 'school_plan.index' and ws_endpoint.startswith('school_plan.')) %}is-active{% endif %}" href="{{ item.url }}"><i class="bi {{ item.icon or 'bi-calendar3' }}"></i><span>{{ item.title }}</span></a>
+      {% endfor %}
+
+      {% if ws.get('sidebar_daily_actions') %}<div class="sp-sidebar-label">Ежедневная работа</div>{% endif %}
+      {% for item in ws.get('sidebar_daily_actions', []) %}
+      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'children.incidents_dashboard' and (ws_endpoint.startswith('children.incidents_dashboard') or ws_endpoint.startswith('children.incidents_registry'))) or (item.endpoint == 'tasks.my_tasks' and ws_endpoint.startswith('tasks.')) %}
+      <a class="sp-nav-link {% if item_active %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-lightning-charge' }}"></i><span>{{ item.title }}</span></a>
+      {% endfor %}
+
+      {% if ws.get('sidebar_sections') %}<div class="sp-sidebar-label">Разделы и сервисы</div>{% endif %}
+      {% for item in ws.get('sidebar_sections', []) %}
+      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.registries' and (ws_endpoint == 'children.list_children' or ws_endpoint.startswith('children.registry_'))) %}
+      <a class="sp-nav-link {% if item_active %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-grid' }}"></i><span>{{ item.title }}</span></a>
+      {% endfor %}
+
+      {% if ws.get('show_admin_block') and (ws.get('sidebar_admin_actions') or current_user.role in ['ADMIN', 'DIRECTOR']) %}<div class="sp-sidebar-label">Служебные действия</div>{% endif %}
+      {% if ws.get('show_admin_block') and current_user.role in ['ADMIN', 'DIRECTOR'] %}
+      <a class="sp-nav-link" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders"></i><span>Настройка ролей</span></a>
+      <a class="sp-nav-link" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear"></i><span>Настройки почты</span></a>
+      {% endif %}
+      {% if ws.get('show_admin_block') %}{% for item in ws.get('sidebar_admin_actions', []) %}
+      <a class="sp-nav-link {% if ws_endpoint == item.endpoint %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i><span>{{ item.title }}</span></a>
+      {% endfor %}{% endif %}
+    </div>
+
+    <div class="sp-sidebar-footer">
+      <a class="sp-nav-link" href="{{ url_for('auth.profile_settings') }}"><i class="bi bi-person-circle"></i><span>Мой профиль</span></a>
+    </div>
+  </aside>
+  <label class="sp-sidebar-overlay" for="workspaceMenuToggle" aria-label="Закрыть меню"></label>
+
+  <main class="sp-main">
+    <header class="sp-topbar">
+      <div class="d-flex align-items-center gap-2">
+        <label class="btn sp-mobile-menu" for="workspaceMenuToggle" role="button" tabindex="0" aria-label="Показать или скрыть боковое меню" aria-controls="workspaceSidebar"><i class="bi bi-list"></i><span>Меню</span></label>
+        <div class="sp-topbar-context"><strong>{{ workspace_context_title|default('Рабочее пространство') }}</strong>{{ workspace_context_subtitle|default('Единый интерфейс портала') }}</div>
+      </div>
+      <div class="sp-topbar-actions">
+        <a class="sp-topbar-icon" href="{{ url_for('main.dashboard') }}" title="Главная" aria-label="Главная"><i class="bi bi-house-door"></i></a>
+        <a class="sp-topbar-icon position-relative" href="{{ url_for('tasks.my_tasks') }}" title="Задачи" aria-label="Задачи"><i class="bi bi-bell"></i>{% if bell_unread_total %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ bell_unread_total }}</span>{% endif %}</a>
+        <a class="sp-profile" href="{{ url_for('auth.profile_settings') }}"><span class="sp-profile-avatar">{{ (current_user.first_name or current_user.username or 'П')[:1] }}{{ (current_user.last_name or '')[:1] }}</span><span class="sp-profile-copy"><strong>{{ current_user.fio or current_user.username }}</strong><span>{{ role_labels.get(current_user.role, current_user.role) }}</span></span></a>
+        <a class="sp-topbar-icon" href="{{ url_for('auth.logout') }}" title="Выйти" aria-label="Выйти"><i class="bi bi-box-arrow-right"></i></a>
+      </div>
+    </header>
+
+    <div class="sp-content ws-content">
+      {% block workspace_content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}

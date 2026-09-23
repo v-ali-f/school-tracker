@@ -1,0 +1,103 @@
+{% extends "workspace_layout.html" %}
+{% block title %}{{ 'Редактирование' if visit.id else 'Новое посещение' }} · Посещение уроков{% endblock %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_2">
+{% endblock %}
+{% block workspace_content %}
+{% set saved = visit.checklist or {} %}
+<div class="lesson-visits-page lv-form-page">
+  <div class="page-head">
+    <div>
+      <a class="lv-back-link" href="{{ url_for('lesson_visits.detail', visit_id=visit.id) if visit.id else url_for('lesson_visits.index') }}"><i class="bi bi-arrow-left"></i> {{ 'К карте наблюдения' if visit.id else 'К реестру' }}</a>
+      <h1 class="page-title">{{ 'Редактирование карты' if visit.id else 'Новое посещение' }}</h1>
+      <div class="page-sub">Сначала выберите педагога — класс и предмет можно подставить из его нагрузки.</div>
+    </div>
+  </div>
+
+  <form method="post" id="lessonVisitForm" data-workload-url="{{ url_for('lesson_visits.teacher_workload', teacher_id=0) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="workload_assignment_id" id="workloadAssignmentId" value="{{ request.form.get('workload_assignment_id', visit.workload_assignment_id or '') }}">
+    <div class="lv-form-layout">
+      <aside class="card lv-lesson-card">
+        <div class="card-body">
+          <div class="lv-card-heading"><span class="lv-step">1</span><div><h2>Данные урока</h2><p>Основные сведения</p></div></div>
+          {% set selected_teacher_id = request.form.get('teacher_id') or (visit.teacher_id|string if visit.teacher_id else '') %}
+          <div class="lv-field"><label for="teacherSearch">Педагог <b>*</b></label>
+            <div class="lv-teacher-picker">
+              <div class="lv-teacher-input-wrap">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="teacherSearch" type="search" placeholder="Введите фамилию педагога" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="teacherResults" aria-expanded="false" required>
+                <button class="lv-teacher-clear" id="teacherClear" type="button" aria-label="Очистить выбранного педагога" hidden><i class="bi bi-x-lg"></i></button>
+              </div>
+              <input type="hidden" id="teacherSelect" name="teacher_id" value="{{ selected_teacher_id }}">
+              <div class="lv-teacher-results" id="teacherResults" role="listbox" hidden>
+                {% for teacher in teachers %}
+                <button class="lv-teacher-option" type="button" role="option" data-teacher-id="{{ teacher.id }}" data-teacher-name="{{ teacher.fio or teacher.username }}" aria-selected="{{ 'true' if selected_teacher_id|string == teacher.id|string else 'false' }}"><span>{{ teacher.fio or teacher.username }}</span><i class="bi bi-check2"></i></button>
+                {% endfor %}
+                <div class="lv-teacher-empty" id="teacherNoResults" hidden>Педагог не найден</div>
+              </div>
+              <small id="teacherHint">Начните вводить фамилию и выберите педагога из списка</small>
+            </div>
+          </div>
+          <label class="lv-field"><span>Дата посещения <b>*</b></span><input class="form-control" id="visitDate" type="date" name="visit_date" max="{{ today.isoformat() }}" value="{{ request.form.get('visit_date', visit.visit_date.isoformat() if visit.visit_date else today.isoformat()) }}" required></label>
+          <label class="lv-field" id="workloadField"><span>Из нагрузки педагога</span><select class="form-select" id="workloadSelect" disabled><option value="">Сначала выберите педагога</option></select><small id="workloadHint">Класс и предмет заполнятся автоматически</small></label>
+          <div class="lv-field-row">
+            <label class="lv-field"><span>Класс / группа <b>*</b></span><input class="form-control" id="className" name="class_name" value="{{ request.form.get('class_name', visit.class_name or '') }}" placeholder="Например, 7А" required></label>
+            <label class="lv-field"><span>Предмет <b>*</b></span><input class="form-control" id="subjectName" name="subject_name" value="{{ request.form.get('subject_name', visit.subject_name or '') }}" placeholder="Математика" required></label>
+          </div>
+          <label class="lv-field"><span>Тема урока <b>*</b></span><textarea class="form-control" name="topic" rows="3" placeholder="Тема по журналу или КТП" required>{{ request.form.get('topic', visit.topic or '') }}</textarea></label>
+        </div>
+      </aside>
+
+      <main class="lv-checklist-column">
+        <div class="card lv-checklist-card">
+          <div class="card-body">
+            <div class="lv-card-heading"><span class="lv-step">2</span><div><h2>Карта наблюдения</h2><p>Выберите один вариант, если не указано иное</p></div></div>
+            <div class="lv-checklist-grid">
+              {% for code, title, options, multiple in checklist_sections %}
+              {% set submitted_values = request.form.getlist('check_' ~ code) %}
+              {% set current = submitted_values if request.form else saved.get(code) %}
+              <fieldset class="lv-check-item" data-check-code="{{ code }}">
+                <legend>{{ loop.index }}. {{ title }}{% if multiple %}<small>можно несколько</small>{% endif %}</legend>
+                <div class="lv-choice-row">
+                  {% for value, label in options %}
+                  {% set checked = value in current if multiple and current else (current == value) %}
+                  <label class="lv-choice"><input type="{{ 'checkbox' if multiple else 'radio' }}" name="check_{{ code }}" value="{{ value }}" {% if checked %}checked{% endif %} {% if not multiple %}required{% endif %}><span>{{ label }}</span></label>
+                  {% endfor %}
+                </div>
+              </fieldset>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="card lv-feedback-card">
+          <div class="card-body">
+            <div class="lv-card-heading"><span class="lv-step">3</span><div><h2>Обратная связь</h2><p>Коротко и предметно</p></div></div>
+            <div class="lv-feedback-grid">
+              <label class="lv-field"><span>Сильные стороны урока <b>*</b></span><textarea class="form-control" name="strengths" rows="4" placeholder="Что удалось и стоит сохранить" required>{{ request.form.get('strengths', visit.strengths or '') }}</textarea></label>
+              <label class="lv-field"><span>Зоны роста <b>*</b></span><textarea class="form-control" name="growth_areas" rows="4" placeholder="Что можно улучшить; если нет — укажите это" required>{{ request.form.get('growth_areas', visit.growth_areas or '') }}</textarea></label>
+            </div>
+            {% set repeat_value = request.form.get('repeat_required', 'yes' if visit.repeat_required else ('no' if visit.id else '')) %}
+            <fieldset class="lv-followup">
+              <legend>Требуется повторное посещение?</legend>
+              <div class="lv-followup-options">
+                <label class="lv-followup-choice is-danger"><input type="radio" name="repeat_required" value="yes" {% if repeat_value == 'yes' %}checked{% endif %} required><span><i class="bi bi-arrow-repeat"></i><b>Да, требуется</b><small>Запись будет выделена красным в реестре</small></span></label>
+                <label class="lv-followup-choice is-success"><input type="radio" name="repeat_required" value="no" {% if repeat_value == 'no' %}checked{% endif %} required><span><i class="bi bi-check-circle"></i><b>Нет, не требуется</b><small>Запись будет отмечена зелёным</small></span></label>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div class="lv-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('lesson_visits.detail', visit_id=visit.id) if visit.id else url_for('lesson_visits.index') }}">Отмена</a>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> {{ 'Сохранить изменения' if visit.id else 'Сохранить посещение' }}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/lesson_visits.js') }}?v=20260923_2"></script>
+{% endblock %}

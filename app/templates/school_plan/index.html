@@ -1,6 +1,6 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы{% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260921_11">{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_2">{% endblock %}
 {% block breadcrumb %}{% endblock %}
 {% block content %}
 <div class="sp-workspace" id="schoolPlanWorkspace">
@@ -96,6 +96,7 @@
               <div class="sp-event-date" style="--event-color:{{ event_color }}">
                 <strong>{% if visible_event_end != visible_event_start %}{{ visible_event_start.day }}–{{ visible_event_end.day }}{% else %}{{ '%02d'|format(visible_event_start.day) }}{% endif %}</strong>
                 <span>{{ month_titles_genitive[visible_event_start.month]|upper }} · {{ weekday_short_titles[visible_event_start.weekday()] }}</span>
+                {% if event.start_time %}<em class="sp-event-time"><i class="bi bi-clock"></i>{{ event.display_time }}</em>{% endif %}
                 {% if event.end_date and event.end_date != event.start_date %}<em>{{ event.display_period }}</em>{% endif %}
               </div>
               <div class="sp-event-body">
@@ -124,7 +125,7 @@
           {% if upcoming_event %}<div class="sp-side-card sp-next-card">
             <div class="sp-side-card-title"><span><i class="bi bi-calendar-event me-1 text-primary"></i>Ближайшее мероприятие</span></div>
             {% set upcoming_visible_start = month_start if upcoming_event.start_date < month_start else upcoming_event.start_date %}
-            <div class="sp-next-event"><div class="sp-next-date"><strong>{{ '%02d'|format(upcoming_visible_start.day) }}</strong><span>{{ month_titles_genitive[upcoming_visible_start.month]|upper }}</span></div><div class="sp-next-body"><strong>{{ upcoming_event.title }}</strong><span>{{ upcoming_event.display_audience }}</span><span>{{ upcoming_event.display_responsible or 'Ответственный не указан' }}</span></div></div>
+            <div class="sp-next-event"><div class="sp-next-date"><strong>{{ '%02d'|format(upcoming_visible_start.day) }}</strong><span>{{ month_titles_genitive[upcoming_visible_start.month]|upper }}</span>{% if upcoming_event.start_time %}<em><i class="bi bi-clock"></i> {{ upcoming_event.display_time }}</em>{% endif %}</div><div class="sp-next-body"><strong>{{ upcoming_event.title }}</strong><span>{{ upcoming_event.display_audience }}</span><span>{{ upcoming_event.display_responsible or 'Ответственный не указан' }}</span></div></div>
             <a class="sp-next-link" href="{{ url_for('school_plan.view', event_id=upcoming_event.id) }}">Перейти к мероприятию <i class="bi bi-arrow-right"></i></a>
           </div>{% endif %}
         </aside>

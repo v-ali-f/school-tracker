@@ -1,22 +1,46 @@
-{% extends 'layout.html' %}
+{% extends 'workspace_layout.html' %}
 {% block title %}{{ event.title }}{% endblock %}
-{% block content %}
-<div class="container py-3" style="max-width:980px">
-  <div class="page-head mb-3">
-    <div><div class="page-title">{{ event.title }}</div><div class="page-sub">{{ event.display_period }}</div></div>
-    <div class="page-actions d-flex gap-2">
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.index', period=event.start_date.strftime('%Y-%m')) }}">К плану</a>
-      {% if can_manage %}<a class="btn btn-primary btn-sm" href="{{ url_for('school_plan.edit', event_id=event.id, return_period=event.start_date.strftime('%Y-%m')) }}"><i class="bi bi-pencil me-1"></i>Изменить</a>{% endif %}
+{% block workspace_content %}
+<section class="sp-event-detail" aria-labelledby="eventTitle">
+  <div class="sp-page-head sp-event-detail-head">
+    <div class="sp-event-detail-heading">
+      <a class="sp-detail-back" href="{{ url_for('school_plan.index', period=event.start_date.strftime('%Y-%m')) }}"><i class="bi bi-arrow-left"></i><span>План работы</span></a>
+      <h1 class="sp-title" id="eventTitle">{{ event.title }}</h1>
+      <div class="sp-subtitle"><i class="bi bi-calendar3"></i><span>{{ event.display_schedule }}</span></div>
     </div>
+    {% if can_manage %}
+    <a class="btn btn-primary sp-detail-edit" href="{{ url_for('school_plan.edit', event_id=event.id, return_period=event.start_date.strftime('%Y-%m')) }}"><i class="bi bi-pencil"></i><span>Изменить</span></a>
+    {% endif %}
   </div>
-  <div class="card soft-card"><div class="card-body p-3 p-md-4">
-    <div class="row g-4">
-      <div class="col-md-4"><div class="small text-muted mb-1">Направление</div>{% if event.direction %}<span class="badge rounded-pill fs-6" style="background:{{ event.direction.color or '#475569' }};color:{{ event.direction.text_color or '#fff' }}">{{ event.direction.name }}</span>{% else %}—{% endif %}</div>
-      <div class="col-md-4"><div class="small text-muted mb-1">Классы</div><div class="fw-semibold">{{ event.display_audience }}</div></div>
-      <div class="col-md-4"><div class="small text-muted mb-1">Ответственные</div><div class="fw-semibold">{{ event.display_responsible or '—' }}</div></div>
-      {% if event.description %}<div class="col-12"><div class="small text-muted mb-1">Примечание</div><div style="white-space:pre-wrap">{{ event.description }}</div></div>{% endif %}
-      <div class="col-12 small text-muted">Создал: {{ event.created_by.fio if event.created_by else '—' }}{% if event.created_at %} · {{ event.created_at.strftime('%d.%m.%Y %H:%M') }}{% endif %}</div>
+
+  <div class="sp-detail-card">
+    <div class="sp-detail-grid">
+      <div class="sp-detail-field">
+        <span class="sp-detail-label"><i class="bi bi-tag"></i>Направление</span>
+        <div class="sp-detail-value">
+          {% if event.direction %}<span class="sp-direction-badge" style="--badge-color:{{ event.direction.color or '#526176' }}">{{ event.direction.name }}</span>{% else %}<span class="sp-detail-empty">Не указано</span>{% endif %}
+        </div>
+      </div>
+      <div class="sp-detail-field">
+        <span class="sp-detail-label"><i class="bi bi-clock"></i>Время начала</span>
+        <div class="sp-detail-value">{{ event.display_time or 'Не указано' }}</div>
+      </div>
+      <div class="sp-detail-field">
+        <span class="sp-detail-label"><i class="bi bi-people"></i>Участники</span>
+        <div class="sp-detail-value">{{ event.display_audience }}</div>
+      </div>
+      <div class="sp-detail-field sp-detail-field-wide">
+        <span class="sp-detail-label"><i class="bi bi-person-check"></i>Ответственные</span>
+        <div class="sp-detail-value">{{ event.display_responsible or 'Не указаны' }}</div>
+      </div>
+      {% if event.description %}
+      <div class="sp-detail-field sp-detail-field-full">
+        <span class="sp-detail-label"><i class="bi bi-card-text"></i>Примечание</span>
+        <div class="sp-detail-value sp-detail-note">{{ event.description }}</div>
+      </div>
+      {% endif %}
     </div>
-  </div></div>
-</div>
+    <footer class="sp-detail-footer"><i class="bi bi-person"></i><span>Создал: {{ event.created_by.fio if event.created_by else '—' }}{% if event.created_at %} · {{ event.created_at.strftime('%d.%m.%Y %H:%M') }}{% endif %}</span></footer>
+  </div>
+</section>
 {% endblock %}

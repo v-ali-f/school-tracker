@@ -27,6 +27,7 @@
         <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
           <div class="p-3 rounded" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">
             <div class="fw-semibold">{{ event.display_title }}</div>
+            {% if event.start_time %}<div class="small opacity-75"><i class="bi bi-clock me-1"></i>{{ event.display_time }}</div>{% endif %}
             <div class="small opacity-75">{{ event.direction.name if event.direction else 'Без направления' }}</div>
             <div class="small opacity-75">{{ event.display_responsible or 'Без ответственного' }}</div>
           </div>

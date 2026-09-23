@@ -1,3 +1,8 @@
+.school-plan-editors-page { width: 100%; max-width: none; }
+.school-plan-editors-head { margin-bottom: 14px; }
+.school-plan-editors-head .sp-title { font-size: 28px; font-weight: 600; line-height: 1.25; }
+.school-plan-editors-tabs { margin-bottom: 12px; }
+
 .school-plan-editors-page .school-plan-editor-header-actions {
   display: flex;
   flex-wrap: wrap;
@@ -14,10 +19,10 @@
 .school-plan-editor-summary-item {
   min-height: 72px;
   padding: 12px 14px;
-  border: 1px solid #d6dfeb;
-  border-radius: 8px;
+  border: 1px solid #dfe6ee;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 5px 16px rgba(28, 55, 90, .05);
+  box-shadow: 0 4px 14px rgba(28, 55, 90, .04);
 }
 
 .school-plan-editor-summary-item span {
@@ -29,15 +34,22 @@
 .school-plan-editor-summary-item strong {
   display: block;
   margin-top: 2px;
-  color: #172b4d;
+  color: #344054;
   font-size: 24px;
   line-height: 1.15;
   font-weight: 600;
 }
 
-.school-plan-editor-summary-item.is-manual { border-left: 4px solid #3f8cff; }
-.school-plan-editor-summary-item.is-role { border-left: 4px solid #21a67a; }
-.school-plan-editor-summary-item.is-protected { border-left: 4px solid #8492a6; }
+.school-plan-editor-summary-item.is-manual { border-left: 3px solid #7da8e8; }
+.school-plan-editor-summary-item.is-role { border-left: 3px solid #75b69f; }
+.school-plan-editor-summary-item.is-protected { border-left: 3px solid #a4adba; }
+
+.school-plan-editors-page .registry-filter-panel,
+.school-plan-editors-page .registry-matrix-card { border-color: #dfe6ee; border-radius: 12px; box-shadow: 0 4px 14px rgba(28,55,90,.04); }
+.school-plan-editors-page .registry-filter-panel { padding: 14px; background: #fff; }
+.school-plan-editors-page .registry-matrix thead th { color: #607089; background: #f7f9fb; font-weight: 500; }
+.school-plan-editors-page .registry-matrix tbody td { color: #344054; font-weight: 400; }
+.school-plan-editors-page .registry-matrix tbody td strong { font-weight: 500; }
 
 .school-plan-editor-search-wrap {
   width: min(100%, 860px);
@@ -127,6 +139,7 @@
 }
 
 @media (max-width: 575.98px) {
+  .school-plan-editors-head .sp-title { font-size: 22px; }
   .school-plan-editor-summary { grid-template-columns: 1fr; }
   .school-plan-editor-search-result { grid-template-columns: 1fr auto; }
   .school-plan-editor-search-result__meta { grid-column: 1; }

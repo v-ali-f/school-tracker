@@ -1,0 +1,408 @@
+.lesson-visits-page {
+  --lv-danger: #b42318;
+  --lv-danger-bg: #fff1f0;
+  --lv-success: #18745b;
+  --lv-success-bg: #edf9f4;
+  width: 100%;
+  min-width: 0;
+}
+
+.lesson-visits-page .page-actions .btn {
+  min-height: 36px;
+  padding: 0 13px;
+  font-size: 11px;
+}
+
+.lv-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.lv-summary-item {
+  min-height: 68px;
+  padding: 11px 14px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+}
+
+.lv-summary-item span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sp-muted);
+  font-size: 10px;
+}
+
+.lv-summary-item strong {
+  color: var(--sp-heading);
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.lv-summary-item.is-danger { border-left: 3px solid #d15d55; }
+.lv-summary-item.is-success { border-left: 3px solid #5d9b87; }
+
+.lv-filter-card { margin-bottom: 12px; }
+.lv-filter-card .card-body { padding: 12px; }
+
+.lv-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(145px, 1fr)) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.lv-field {
+  display: block;
+  min-width: 0;
+  margin: 0;
+}
+
+.lv-field > span,
+.lv-field > label {
+  display: block;
+  margin-bottom: 5px;
+  color: #526176;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lv-field b { color: #b42318; }
+.lv-field small {
+  display: block;
+  margin-top: 5px;
+  color: var(--sp-muted);
+  font-size: 9px;
+}
+
+.lesson-visits-page .form-control,
+.lesson-visits-page .form-select {
+  min-height: 36px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 12px;
+}
+
+.lv-filter-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.lv-filter-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.lv-registry-card { overflow: hidden; }
+.lv-registry-table { min-width: 860px; }
+.lv-registry-table th { padding: 9px 12px !important; white-space: nowrap; }
+.lv-registry-table td {
+  padding: 10px 12px !important;
+  color: #475467;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.lv-registry-table tbody tr:hover { background: #fbfcfe; }
+.lv-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lv-teacher-link { color: #315f9f; font-size: 12px; font-weight: 600; text-decoration: none; }
+.lv-registry-table td strong { display: block; color: #344054; font-size: 11px; font-weight: 600; }
+.lv-topic { display: block; max-width: 380px; overflow: hidden; color: var(--sp-muted); text-overflow: ellipsis; white-space: nowrap; }
+
+.lv-repeat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lv-repeat-badge.is-required { border-color: #f4c7c3; color: var(--lv-danger); background: var(--lv-danger-bg); }
+.lv-repeat-badge.is-clear { border-color: #bfe3d5; color: var(--lv-success); background: var(--lv-success-bg); }
+.lv-repeat-badge-large { min-height: 36px; padding: 0 11px; font-size: 11px; }
+.lv-open-btn { width: 30px; height: 30px; padding: 0 !important; }
+
+.lv-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 210px;
+  color: var(--sp-muted);
+  text-align: center;
+}
+
+.lv-empty i { margin-bottom: 8px; color: #8aa0be; font-size: 25px; }
+.lv-empty strong { margin-bottom: 3px; color: var(--sp-heading) !important; font-size: 13px !important; }
+
+.lv-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+  color: #526f97;
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.lv-form-layout {
+  display: grid;
+  grid-template-columns: minmax(285px, .74fr) minmax(560px, 1.8fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.lv-lesson-card {
+  position: sticky;
+  top: 74px;
+}
+
+.lv-lesson-card .card-body,
+.lv-checklist-card .card-body,
+.lv-feedback-card .card-body { padding: 14px; }
+
+.lv-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 13px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.lv-step {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 26px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: #315f9f;
+  background: var(--sp-accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lv-card-heading h2 { margin: 0; color: var(--sp-heading); font-size: 14px; font-weight: 600; }
+.lv-card-heading p { margin: 1px 0 0; color: var(--sp-muted); font-size: 9px; }
+.lv-lesson-card .lv-field + .lv-field { margin-top: 10px; }
+
+.lv-teacher-picker { position: relative; }
+
+.lv-teacher-input-wrap { position: relative; }
+
+.lv-teacher-input-wrap > .bi-search {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 11px;
+  color: #7c899b;
+  font-size: 11px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.lv-teacher-input-wrap .form-control {
+  padding-right: 34px;
+  padding-left: 31px;
+}
+
+.lv-teacher-clear {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: #667085;
+  background: transparent;
+  font-size: 10px;
+  transform: translateY(-50%);
+}
+
+.lv-teacher-clear:hover { color: #344054; background: #eef2f7; }
+
+.lv-teacher-results {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% - 16px);
+  right: 0;
+  left: 0;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #d8e0ea;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(31, 50, 77, .16);
+}
+
+.lv-teacher-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 35px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  color: #344054;
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+}
+
+.lv-teacher-option:hover,
+.lv-teacher-option.is-active { color: #24538f; background: #edf4ff; }
+.lv-teacher-option i { visibility: hidden; color: #315f9f; }
+.lv-teacher-option[aria-selected="true"] i { visibility: visible; }
+.lv-teacher-empty { padding: 13px 9px; color: var(--sp-muted); font-size: 10px; text-align: center; }
+
+.lv-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.lv-checklist-column { display: grid; gap: 12px; min-width: 0; }
+.lv-checklist-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.lv-check-item {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+  background: #fcfdff;
+}
+
+.lv-check-item legend {
+  float: none;
+  width: auto;
+  margin: 0 0 7px;
+  padding: 0;
+  color: #344054;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lv-check-item legend small { margin-left: 4px; color: var(--sp-muted); font-size: 8px; font-weight: 500; }
+.lv-choice-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.lv-choice { margin: 0; cursor: pointer; }
+.lv-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.lv-choice span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid #dce3ec;
+  border-radius: 999px;
+  color: #526176;
+  background: #fff;
+  font-size: 9px;
+  font-weight: 500;
+  transition: .15s ease;
+}
+
+.lv-choice input:checked + span { border-color: #99b6df; color: #24538f; background: #edf4ff; box-shadow: inset 0 0 0 1px #c8d9f1; }
+.lv-choice input:focus-visible + span { outline: 2px solid #8fb2e4; outline-offset: 2px; }
+.lv-check-item.is-disabled { opacity: .48; }
+
+.lv-feedback-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lv-feedback-grid textarea { resize: vertical; }
+
+.lv-followup { margin: 13px 0 0; padding: 0; border: 0; }
+.lv-followup legend { margin-bottom: 7px; color: #344054; font-size: 11px; font-weight: 600; }
+.lv-followup-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lv-followup-choice { margin: 0; cursor: pointer; }
+.lv-followup-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.lv-followup-choice > span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 8px;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid #e1e6ed;
+  border-radius: 10px;
+  color: #526176;
+  background: #fff;
+}
+
+.lv-followup-choice i { grid-row: span 2; margin-top: 1px; font-size: 16px; }
+.lv-followup-choice b { color: #344054; font-size: 10px; }
+.lv-followup-choice small { color: var(--sp-muted); font-size: 8px; }
+.lv-followup-choice.is-danger input:checked + span { border-color: #e7aaa5; color: var(--lv-danger); background: var(--lv-danger-bg); }
+.lv-followup-choice.is-success input:checked + span { border-color: #91cbb6; color: var(--lv-success); background: var(--lv-success-bg); }
+
+.lv-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.lv-form-actions .btn { min-height: 36px; padding: 0 13px; font-size: 11px; }
+
+.lv-detail-meta { margin-bottom: 12px; }
+.lv-detail-meta .card-body { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 13px 15px; }
+.lv-detail-meta span { display: block; margin-bottom: 3px; color: var(--sp-muted); font-size: 9px; }
+.lv-detail-meta strong { display: block; color: #344054; font-size: 11px; font-weight: 600; }
+.lv-meta-topic { grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid #edf0f4; }
+
+.lv-detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, .8fr); align-items: start; gap: 12px; }
+.lv-detail-grid .section-title { margin: 0 0 11px; }
+.lv-results-list { border-top: 1px solid #edf0f4; }
+.lv-result-row { display: grid; grid-template-columns: minmax(180px, .95fr) minmax(220px, 1.25fr); gap: 16px; padding: 8px 0; border-bottom: 1px solid #edf0f4; }
+.lv-result-row span { color: var(--sp-muted); font-size: 10px; }
+.lv-result-row strong { color: #344054; font-size: 10px; font-weight: 600; }
+.lv-detail-feedback { display: grid; gap: 12px; }
+.lv-feedback-section p { margin: 0; color: #475467; font-size: 11px; line-height: 1.55; white-space: pre-line; }
+.lv-feedback-section .section-title { display: flex; align-items: center; gap: 6px; }
+.lv-feedback-section.is-positive { border-top: 3px solid #6ba58f !important; }
+.lv-feedback-section.is-growth { border-top: 3px solid #d1a35d !important; }
+
+@media (max-width: 1199.98px) {
+  .lv-filter-grid { grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(130px, 1fr)); }
+  .lv-filter-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .lv-form-layout { grid-template-columns: minmax(260px, .72fr) minmax(490px, 1.5fr); }
+  .lv-checklist-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 991.98px) {
+  .lv-form-layout, .lv-detail-grid { grid-template-columns: 1fr; }
+  .lv-lesson-card { position: static; }
+  .lv-checklist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767.98px) {
+  .lv-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .lv-summary-item { min-height: 62px; padding: 9px 11px; }
+  .lv-summary-item strong { font-size: 18px; }
+  .lv-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lv-filter-search, .lv-filter-actions { grid-column: 1 / -1; }
+  .lv-filter-actions .btn:first-child { flex: 1; }
+  .lv-checklist-grid, .lv-feedback-grid, .lv-followup-options, .lv-detail-meta .card-body { grid-template-columns: 1fr; }
+  .lv-field-row { grid-template-columns: 1fr; }
+  .lv-detail-meta .card-body { gap: 8px; }
+  .lv-meta-topic { grid-column: auto; }
+  .lv-result-row { grid-template-columns: 1fr; gap: 3px; }
+  .lv-form-actions { position: sticky; z-index: 10; bottom: 0; margin: 10px -12px -12px; padding: 10px 12px; border-top: 1px solid var(--sp-border); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); }
+  .lv-form-actions .btn { flex: 1; }
+}

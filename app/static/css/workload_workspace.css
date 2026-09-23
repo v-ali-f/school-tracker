@@ -1,33 +1,33 @@
 .workload-workspace {
-  --workload-border: #dfe5ee;
-  --workload-border-strong: #c9d3e1;
+  --workload-border: #e1e6ed;
+  --workload-border-strong: #d2dae5;
   --workload-surface: #ffffff;
   --workload-surface-muted: #f6f8fb;
   --workload-surface-blue: #eef5ff;
   --workload-text: #17213a;
   --workload-muted: #647089;
-  --workload-primary: #0b5fea;
+  --workload-primary: #2563eb;
   --workload-danger: #c93838;
   --workload-warning: #a96500;
   --workload-success: #19704a;
-  margin: -4px calc(-0.5 * var(--bs-gutter-x, 1.5rem)) 0;
+  width: 100%;
+  margin: 0;
   color: var(--workload-text);
-  background: var(--workload-surface);
-  border: 1px solid var(--workload-border);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 8px 22px rgba(17, 33, 64, 0.05);
+  background: transparent;
 }
 
 .workload-context-bar {
-  min-height: 72px;
-  padding: 12px 16px;
+  min-height: 76px;
+  margin-bottom: 12px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid var(--workload-border);
+  border: 1px solid var(--workload-border);
+  border-radius: 14px;
   background: var(--workload-surface);
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .035);
 }
 
 .workload-context-bar__identity,
@@ -51,8 +51,8 @@
   overflow: hidden;
   color: var(--workload-text) !important;
   font-family: Manrope, Inter, sans-serif !important;
-  font-size: 18px;
-  font-weight: 650;
+  font-size: 24px;
+  font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -89,7 +89,7 @@
   color: #3e4d68;
   background: #fff;
   border: 1px solid var(--workload-border-strong);
-  border-radius: 6px;
+  border-radius: 10px;
   text-decoration: none;
 }
 
@@ -117,19 +117,22 @@
 }
 
 .workload-mode-bar {
-  height: 48px;
+  min-height: 48px;
   display: flex;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
   padding: 6px 10px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--workload-border);
-  background: var(--workload-surface-muted);
+  border: 1px solid var(--workload-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .035);
   scrollbar-width: thin;
 }
 
 .workload-mode {
-  min-width: 112px;
+  min-width: 104px;
   height: 36px;
   display: inline-flex;
   align-items: center;
@@ -139,17 +142,17 @@
   padding: 0 12px;
   color: #4a5871;
   border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .workload-mode:hover {
   color: var(--workload-primary);
-  background: #fff;
-  border-color: var(--workload-border);
+  background: #f3f6fa;
+  border-color: transparent;
 }
 
 .workload-mode.is-active {
@@ -191,10 +194,14 @@
 
 .workload-indicators {
   min-height: 48px;
+  margin-bottom: 12px;
   display: grid;
   grid-template-columns: repeat(3, minmax(130px, 1fr)) minmax(180px, 1.25fr);
-  border-bottom: 1px solid var(--workload-border);
+  overflow: hidden;
+  border: 1px solid var(--workload-border);
+  border-radius: 12px;
   background: #fff;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .035);
 }
 
 .workload-indicator {
@@ -232,7 +239,7 @@
 }
 
 .workload-workspace-grid {
-  min-height: 620px;
+  min-height: 560px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
@@ -240,9 +247,12 @@
 
 .workload-canvas {
   min-width: 0;
-  padding: 16px;
+  padding: 18px;
   overflow: hidden;
   background: #fff;
+  border: 1px solid var(--workload-border);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .035);
 }
 
 .workload-canvas > .page-head {
@@ -258,8 +268,8 @@
 .workload-canvas > .page-head .page-title,
 .workload-canvas > .page-head h1 {
   font-family: Manrope, Inter, sans-serif !important;
-  font-size: 16px !important;
-  font-weight: 650 !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
 }
 
 .workload-canvas > .page-head .page-sub {
@@ -296,7 +306,7 @@
 .workload-canvas .form-control,
 .workload-canvas .form-select,
 .workload-canvas .btn {
-  border-radius: 6px !important;
+  border-radius: 9px !important;
 }
 
 .workload-context-list {
@@ -369,15 +379,12 @@
 
   .workload-workspace {
     margin: 0;
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
-    box-shadow: none;
   }
 
   .workload-context-bar {
     min-height: 62px;
     padding: 9px 10px;
+    border-radius: 12px;
   }
 
   .workload-context-bar h1 {
@@ -392,6 +399,7 @@
   .workload-mode-bar {
     height: 46px;
     padding: 5px 8px;
+    border-radius: 12px;
   }
 
   .workload-mode {
@@ -433,6 +441,7 @@
 
   .workload-canvas {
     padding: 12px 10px 20px;
+    border-radius: 12px;
   }
 
   .workload-canvas > .page-head {

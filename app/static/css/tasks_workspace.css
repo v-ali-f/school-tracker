@@ -1,0 +1,196 @@
+.task-workspace-page {
+  width: 100%;
+  min-width: 0;
+  color: var(--sp-text);
+}
+
+body.school-plan-modern-shell .ws-content .task-workspace-page .tasks-title {
+  margin: 0 !important;
+  color: var(--sp-heading) !important;
+  font-family: Manrope, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 26px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+  letter-spacing: -.025em !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page.tasks-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-topbar {
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-topline {
+  align-items: flex-start !important;
+  margin-bottom: 12px !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-top-actions .btn {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 9px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .v183-task-ui-toggle {
+  display: none !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-view-switch {
+  width: fit-content;
+  gap: 4px !important;
+  margin: 0 !important;
+  padding: 3px !important;
+  border: 1px solid var(--sp-border);
+  border-radius: 999px;
+  background: #fff;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-view-switch a {
+  min-height: 30px !important;
+  padding: 0 13px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: #415572 !important;
+  background: transparent !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-view-switch a.active {
+  color: #fff !important;
+  background: var(--sp-accent) !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-metrics {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin: 12px 0 !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .metric-card {
+  width: auto !important;
+  min-width: 0;
+  min-height: 72px !important;
+  padding: 12px 14px !important;
+  border: 1px solid var(--sp-border) !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .metric-card .label {
+  margin-bottom: 5px !important;
+  color: #718099 !important;
+  font-size: 9px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .metric-card .value {
+  color: #344054 !important;
+  font-size: 21px !important;
+  font-weight: 600 !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-list-page .tasks-filters-card,
+body.school-plan-modern-shell .ws-content .task-list-page .card,
+body.school-plan-modern-shell .ws-content .task-list-page .board-col,
+body.school-plan-modern-shell .ws-content .task-list-page .task-card-board {
+  border-color: var(--sp-border) !important;
+  border-radius: 13px !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-workspace-page .page-head {
+  margin-bottom: 14px !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-workspace-page .card-header {
+  padding: 11px 14px !important;
+  border-bottom: 1px solid #edf0f4 !important;
+  color: var(--sp-heading) !important;
+  background: #f8f9fb !important;
+  font-size: 13px !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-workspace-page .card-body {
+  padding: 15px !important;
+}
+
+body.school-plan-modern-shell .ws-content .task-form-page .form-label {
+  margin-bottom: 5px;
+  color: #526176;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+body.school-plan-modern-shell .ws-content .task-form-page .picker-card {
+  border-color: var(--sp-border);
+  border-radius: 11px;
+  box-shadow: none;
+}
+
+@media (max-width: 1100px) {
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  body.school-plan-modern-shell .ws-content .task-workspace-page .tasks-title {
+    font-size: 22px !important;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-topline {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-top-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-top-actions .btn {
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-view-switch {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-view-switch a {
+    flex: 1 0 auto;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .tasks-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-list-page .metric-card {
+    min-height: 66px !important;
+    padding: 10px 12px !important;
+  }
+
+  body.school-plan-modern-shell .ws-content .task-detail-page > .row,
+  body.school-plan-modern-shell .ws-content .task-form-page > .row {
+    --bs-gutter-y: 10px;
+  }
+}

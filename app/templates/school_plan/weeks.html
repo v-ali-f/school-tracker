@@ -28,7 +28,7 @@
           <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
             <div class="p-3 rounded" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">
               <div class="fw-semibold">{{ event.title }}</div>
-              <div class="small opacity-75">{{ event.display_period }}</div>
+              <div class="small opacity-75">{{ event.display_schedule }}</div>
               <div class="small opacity-75">{{ event.display_responsible or 'Без ответственного' }}</div>
               <div class="small opacity-75">
                 {% if event.building %}{{ event.building.short_name or event.building.name }}{% endif %}

@@ -62,6 +62,18 @@ from .workflow_routes import register_workflow_routes
 
 workload_bp = Blueprint("workload", __name__, url_prefix="/workload")
 
+
+@workload_bp.context_processor
+def _workload_workspace_context():
+    """Provide the shared portal navigation for every workload screen."""
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Учебные планы и нагрузка",
+        "workspace_context_subtitle": "Планирование и распределение педагогической нагрузки",
+    }
+
 CATALOG_SECTIONS = {
     "SUBJECTS": {
         "label": "Учебные предметы и курсы",

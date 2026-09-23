@@ -11,9 +11,9 @@
   <div class="noprint" style="margin-bottom:16px"><button type="button" onclick="window.print()">Печать</button></div>
   <h1>{{ export_title }}</h1>
   <table>
-    <thead><tr><th>Дата / период</th><th>Мероприятие</th><th>Направление</th><th>Классы</th><th>Ответственные</th></tr></thead>
+    <thead><tr><th>Дата / время</th><th>Мероприятие</th><th>Направление</th><th>Классы</th><th>Ответственные</th></tr></thead>
     <tbody>
-      {% for event in events %}<tr><td>{{ event.display_period }}</td><td>{{ event.title }}</td><td>{{ event.direction.name if event.direction else '—' }}</td><td>{{ event.display_audience }}</td><td>{{ event.display_responsible or '—' }}</td></tr>{% else %}<tr><td colspan="5">На выбранный месяц мероприятий нет.</td></tr>{% endfor %}
+      {% for event in events %}<tr><td>{{ event.display_schedule }}</td><td>{{ event.title }}</td><td>{{ event.direction.name if event.direction else '—' }}</td><td>{{ event.display_audience }}</td><td>{{ event.display_responsible or '—' }}</td></tr>{% else %}<tr><td colspan="5">На выбранный месяц мероприятий нет.</td></tr>{% endfor %}
     </tbody>
   </table>
 </body>

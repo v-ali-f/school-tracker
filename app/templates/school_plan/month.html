@@ -34,7 +34,7 @@
             <div class="d-flex flex-column gap-1">
               {% for event in day.events[:4] %}
               <a href="{{ url_for('school_plan.view', event_id=event.id) }}" class="text-decoration-none">
-                <div class="px-2 py-1 rounded small" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">{{ event.display_title }}</div>
+                <div class="px-2 py-1 rounded small" style="background: {{ event.effective_color }}; color: {{ event.effective_text_color }};">{% if event.start_time %}<strong>{{ event.display_time }}</strong> · {% endif %}{{ event.display_title }}</div>
               </a>
               {% endfor %}
               {% if day.events|length > 4 %}<div class="small text-muted">Еще: {{ day.events|length - 4 }}</div>{% endif %}

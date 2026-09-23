@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 
 {% set workspace_endpoint = request.endpoint or '' %}
 {% set workspace_teacher_self_only = current_user.has_role('TEACHER') and current_user.role_codes|length == 1 %}
@@ -65,14 +65,14 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260922_1">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_distribution.css') }}?v=20260817_1">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_control.css') }}?v=20260730_3">
 {% endblock %}
 
 {% block breadcrumb %}{% endblock %}
 
-{% block content %}
+{% block workspace_content %}
 <div class="workload-workspace" data-workload-workspace data-active-mode="{{ workspace_mode }}">
   <header class="workload-context-bar">
     <div class="workload-context-bar__identity">
@@ -158,7 +158,7 @@
 
   <div class="workload-workspace-grid">
     <main class="workload-canvas" id="workload-main-canvas">
-      {% block workspace_content %}{% endblock %}
+      {% block workload_content %}{% endblock %}
     </main>
   </div>
 </div>
