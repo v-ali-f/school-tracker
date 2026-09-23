@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-registry-page">
 <div class="page-head">
   <div>
     <div class="page-title">Реестр контрольных работ</div>
@@ -11,8 +13,9 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_summary', academic_year_id=selected_year_id, subject_id=selected_subject_id, teacher_id=selected_teacher_id, class_id=selected_class_id, grade=selected_grade) }}">Аналитика</a>
   </div>
 </div>
+{% with cw_active='registry' %}{% include 'control_works/_workspace_nav.html' %}{% endwith %}
 
-<form method="get" class="card mb-4">
+<form method="get" class="card mb-4 cw-filter-card">
   <div class="card-body">
     <div class="row g-3 align-items-end">
       <div class="col-lg-2 col-md-4">
@@ -167,4 +170,5 @@
     </div>
   </div>
 </form>
+</div>
 {% endblock %}

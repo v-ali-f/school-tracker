@@ -1,30 +1,7 @@
 {% extends "workspace_layout.html" %}
-{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
 {% block workspace_content %}
 <div class="cw-workspace-page cw-detail-page">
-<style>
-.control-work-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
-.control-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;width:100%}
-.control-topbar__group{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
-.control-topbar__status{display:flex;align-items:center;gap:.75rem;flex-wrap:nowrap;flex:0 0 auto}
-.control-topbar .btn,.control-topbar .form-select{height:48px;min-height:48px;padding:.55rem 1rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:18px}
-.control-topbar .form-select{width:220px;max-width:220px;padding-right:2.5rem}
-.control-topbar form{margin:0}
-.control-topbar__status form,.control-topbar__danger-form{display:flex;align-items:center;margin:0}
-@media (max-width: 1400px){
-  .control-topbar{align-items:flex-start}
-  .control-topbar__group--actions{margin-left:auto}
-}
-@media (max-width: 1100px){
-  .control-topbar{flex-direction:column;align-items:flex-start}
-  .control-topbar__group,.control-topbar__status{width:100%}
-  .control-topbar__group--actions{margin-left:0}
-}
-@media (max-width: 768px){
-  .control-topbar__status{flex-wrap:wrap}
-  .control-topbar .form-select{width:100%;max-width:100%}
-}
-</style>
 <div class="control-work-head">
   <div>
     <div class="page-title mb-1">{{ work.subject_name }} — {{ work.work_kind_label }}{% if work.theme %} · {{ work.theme }}{% endif %}</div>

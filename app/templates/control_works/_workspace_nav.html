@@ -1,0 +1,7 @@
+<nav class="cw-section-tabs" aria-label="Разделы контрольных работ">
+  <a class="cw-section-tab{% if cw_active == 'list' %} is-active{% endif %}" href="{{ url_for('control_works.list_control_works') }}"><i class="bi bi-list-check"></i><span>Работы</span></a>
+  <a class="cw-section-tab{% if cw_active == 'registry' %} is-active{% endif %}" href="{{ url_for('control_works.control_works_registry') }}"><i class="bi bi-table"></i><span>Реестр</span></a>
+  <a class="cw-section-tab{% if cw_active == 'journal' %} is-active{% endif %}" href="{{ url_for('control_works.control_works_journal') }}"><i class="bi bi-journal-text"></i><span>Журнал</span></a>
+  <a class="cw-section-tab{% if cw_active == 'summary' %} is-active{% endif %}" href="{{ url_for('control_works.control_works_summary') }}"><i class="bi bi-bar-chart"></i><span>Аналитика</span></a>
+  <a class="cw-section-tab{% if cw_active == 'archive' %} is-active{% endif %}" href="{{ url_for('control_works.control_works_archive') }}"><i class="bi bi-archive"></i><span>Архив</span></a>
+</nav>

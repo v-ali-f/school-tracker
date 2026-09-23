@@ -4,6 +4,156 @@
   color: var(--sp-text);
 }
 
+.cw-section-tabs {
+  display: flex;
+  gap: 5px;
+  margin: 0 0 14px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+  scrollbar-width: thin;
+}
+
+.cw-section-tab {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  color: #5c6879;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+.cw-section-tab:hover {
+  color: var(--sp-accent);
+  background: #f5f7fa;
+}
+
+.cw-section-tab.is-active {
+  color: #fff;
+  background: var(--sp-accent);
+}
+
+.control-work-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.control-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.control-topbar__group,
+.control-topbar__status {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.control-topbar__group { flex-wrap: wrap; }
+.control-topbar__status { flex: 0 0 auto; flex-wrap: nowrap; }
+.control-topbar form { margin: 0; }
+.control-topbar__status form,
+.control-topbar__danger-form { display: flex; align-items: center; margin: 0; }
+
+.mini-stat-card {
+  height: 100%;
+  padding: 15px;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+}
+
+.mini-stat-label {
+  margin-bottom: 6px;
+  color: #697586;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mini-stat-value {
+  color: var(--sp-heading);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.mini-stat-value-sm { font-size: 20px; }
+
+.cw-workspace-page .section-title,
+.cw-workspace-page h6 {
+  color: var(--sp-heading);
+  font-weight: 650;
+}
+
+.cw-workspace-page .progress {
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf1f5;
+}
+
+.cw-results-page .table-responsive,
+.cw-journal-page .table-responsive,
+.cw-registry-page .table-responsive {
+  max-height: min(70vh, 760px);
+}
+
+.cw-results-page .table thead,
+.cw-journal-page .table thead,
+.cw-registry-page .table thead {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+}
+
+.cw-results-page .table tbody td:first-child {
+  position: sticky;
+  z-index: 1;
+  left: 0;
+  min-width: 190px;
+  background: #fff;
+}
+
+.cw-results-page .table-striped > tbody > tr:nth-of-type(odd) > td:first-child {
+  background: #f8f9fb;
+}
+
+.cw-results-page input[type="number"],
+.cw-results-page input[type="text"],
+.cw-results-page select {
+  min-width: 84px;
+}
+
+.cw-form-page .card-body > h6,
+.cw-form-page .card-body > .section-title {
+  margin-top: 3px;
+}
+
+.cw-form-page #tasks-container > * {
+  border-color: var(--sp-border) !important;
+  border-radius: 10px !important;
+}
+
 body.school-plan-modern-shell .ws-content .cw-workspace-page .page-head,
 body.school-plan-modern-shell .ws-content .cw-workspace-page .control-work-head {
   margin-bottom: 14px !important;
@@ -59,6 +209,12 @@ body.school-plan-modern-shell .ws-content .cw-workspace-page .card-body {
 body.school-plan-modern-shell .ws-content .cw-workspace-page .cw-filter-card {
   background: #fff !important;
   box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .cw-filter-card .form-check {
+  min-height: 38px;
+  margin-top: 0 !important;
+  padding-top: 9px !important;
 }
 
 body.school-plan-modern-shell .ws-content .cw-workspace-page .form-label {
@@ -127,6 +283,11 @@ body.school-plan-modern-shell .ws-content .cw-form-page .dictation-grade-card {
 }
 
 @media (max-width: 1099.98px) {
+  .control-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar,
   body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar__group,
   body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar__status {
@@ -135,6 +296,17 @@ body.school-plan-modern-shell .ws-content .cw-form-page .dictation-grade-card {
 }
 
 @media (max-width: 767.98px) {
+  .cw-section-tabs {
+    margin-right: -4px;
+    margin-left: -4px;
+  }
+
+  .cw-section-tab {
+    flex: 0 0 auto;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
   body.school-plan-modern-shell .ws-content .cw-workspace-page .page-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -160,5 +332,35 @@ body.school-plan-modern-shell .ws-content .cw-form-page .dictation-grade-card {
   body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar .form-select {
     width: 100%;
     max-width: none;
+  }
+
+  body.school-plan-modern-shell .ws-content .cw-workspace-page .cw-filter-card .d-flex.gap-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .cw-workspace-page .cw-filter-card .btn {
+    width: 100%;
+  }
+
+  .cw-workspace-page .table-responsive {
+    max-width: 100%;
+    margin-right: 0;
+    margin-left: 0;
+    border-radius: 8px !important;
+  }
+
+  .cw-workspace-page .table-responsive .table {
+    min-width: 720px;
+  }
+
+  .cw-list-page .table-responsive .table,
+  .cw-class-report-page .table-responsive .table {
+    min-width: 640px;
+  }
+
+  .cw-results-page .table-responsive .table {
+    min-width: 900px;
   }
 }

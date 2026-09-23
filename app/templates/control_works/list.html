@@ -1,5 +1,5 @@
 {% extends "workspace_layout.html" %}
-{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260923_2">{% endblock %}
 {% block workspace_content %}
 <div class="cw-workspace-page cw-list-page">
 <div class="page-head">
@@ -14,6 +14,7 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('control_works.control_works_archive') }}">Архив</a>
   </div>
 </div>
+{% with cw_active='list' %}{% include 'control_works/_workspace_nav.html' %}{% endwith %}
 <div class="card soft-card mb-3 cw-filter-card"><div class="card-body">
   <form method="get" class="row g-2 align-items-end">
     <div class="col-md-4"><label class="form-label mb-1">Учебный год</label><select class="form-select" name="academic_year_id" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
