@@ -1,9 +1,8 @@
-{% extends "layout.html" %}
-{% block head_extra %}
-  {{ super() }}
+{% extends "departments/workspace.html" %}
+{% block departments_head_extra %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
 {% endblock %}
-{% block content %}
+{% block departments_content %}
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">Свод по кафедрам</h1>
@@ -33,7 +32,7 @@
 
 {% if dep %}
 <div class="row g-3 mb-4">
-  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Кафедра / год</div><div class="metric-value" style="font-size:1.2rem;">{{ dep.name }}{% if years %}<div class="small text-muted mt-1">{{ (years|selectattr("id", "equalto", academic_year_id)|list|first).name if academic_year_id else "Все годы" }}</div>{% endif %}</div></div></div></div>
+  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Кафедра / год</div><div class="metric-value department-metric-title">{{ dep.name }}{% if years %}<div class="small text-muted mt-1">{{ (years|selectattr("id", "equalto", academic_year_id)|list|first).name if academic_year_id else "Все годы" }}</div>{% endif %}</div></div></div></div>
   <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Учителей по нагрузке</div><div class="metric-value">{{ teachers|length }}</div></div></div></div>
   <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Средний результат диагностики</div><div class="metric-value">{{ diagnostics_stats.avg_percent if diagnostics_stats.avg_percent is not none else '—' }}</div><div class="small text-muted mt-1">Контрольные: {{ stats.avg_percent if stats.avg_percent is not none else '—' }}</div></div></div></div>
 </div>

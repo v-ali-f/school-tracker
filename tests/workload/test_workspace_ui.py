@@ -75,3 +75,23 @@ def test_binding_and_group_pages_hide_summary_indicators(
         assert 'class="workload-indicators"' not in response.get_data(
             as_text=True
         )
+
+
+def test_workload_catalog_uses_shared_workspace_shell(
+    app,
+    client,
+    make_user,
+    login,
+):
+    app.config["FEATURE_WORKLOAD_MODULE_ENABLED"] = True
+    app.config["FEATURE_WORKLOAD_WRITE_ENABLED"] = True
+    login(make_user("ADMIN"))
+
+    for path in ("/workload/catalog/", "/workload/catalog/new"):
+        response = client.get(path)
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert 'class="sp-workspace ws-workspace"' in html
+        assert 'data-active-mode="catalog"' in html
+        assert "workload_workspace.css" in html
+        assert "Единый реестр предметов и курсов" in html

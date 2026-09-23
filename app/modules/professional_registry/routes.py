@@ -43,6 +43,18 @@ professional_registry_bp = Blueprint(
     url_prefix="/professional-registers",
 )
 
+
+@professional_registry_bp.context_processor
+def _professional_workspace_context():
+    """Provide the shared portal navigation for professional registries."""
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Кафедры и кабинет педагога",
+        "workspace_context_subtitle": "Профессиональные сведения и контроль сроков",
+    }
+
 VIEW_ROLES = ("ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD")
 
 

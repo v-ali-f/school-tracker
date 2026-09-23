@@ -1,0 +1,26 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_workspace.css') }}?v=20260923_1">
+{% block departments_head_extra %}{% endblock %}
+{% endblock %}
+{% block workspace_content %}
+{% set department_endpoint = request.endpoint or '' %}
+{% set department_staff_view = current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}
+<div class="departments-workspace-page">
+  <nav class="departments-section-tabs" aria-label="Разделы кафедр">
+    {% if department_staff_view %}
+    <a class="departments-section-tab {% if department_endpoint == 'departments.summary' %}is-active{% endif %}" href="{{ url_for('departments.summary') }}"><i class="bi bi-bar-chart"></i><span>Свод</span></a>
+    <a class="departments-section-tab {% if department_endpoint.startswith('professional_registry.mcko') %}is-active{% endif %}" href="{{ url_for('professional_registry.mcko_registry') }}"><i class="bi bi-award"></i><span>МЦКО</span></a>
+    <a class="departments-section-tab {% if department_endpoint.startswith('professional_registry.attestation') %}is-active{% endif %}" href="{{ url_for('professional_registry.attestation_registry') }}"><i class="bi bi-patch-check"></i><span>Аттестация</span></a>
+    {% endif %}
+    <a class="departments-section-tab {% if department_endpoint == 'departments.loads' %}is-active{% endif %}" href="{{ url_for('departments.loads') }}"><i class="bi bi-person-lines-fill"></i><span>Нагрузка</span></a>
+    {% if current_user.has_role('TEACHER') or current_user.has_role('CLASS_TEACHER') or current_user.has_role('DEPARTMENT_HEAD') %}
+    <a class="departments-section-tab {% if department_endpoint in ['departments.teacher_profile', 'departments.my_teacher_profile', 'departments.teacher_cabinet'] %}is-active{% endif %}" href="{{ url_for('departments.my_teacher_profile') }}"><i class="bi bi-person-vcard"></i><span>Мой кабинет</span></a>
+    {% endif %}
+    {% if current_user.has_role('ADMIN') %}
+    <a class="departments-section-tab {% if department_endpoint == 'departments.settings' %}is-active{% endif %}" href="{{ url_for('departments.settings') }}"><i class="bi bi-sliders"></i><span>Настройки</span></a>
+    {% endif %}
+  </nav>
+  {% block departments_content %}{% endblock %}
+</div>
+{% endblock %}

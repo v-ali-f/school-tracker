@@ -1,5 +1,5 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "departments/workspace.html" %}
+{% block departments_content %}
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">Нагрузка учителей</h1>
@@ -30,7 +30,7 @@
   <div class="col-lg-4">
     <div class="card h-100"><div class="card-body">
       <h5 class="section-title">Часы по учителям</h5>
-      <div class="table-responsive" style="max-height: 320px;">
+      <div class="table-responsive department-teacher-hours">
         <table class="table table-sm align-middle mb-0"><thead><tr><th>Учитель</th><th class="text-end">Часы</th></tr></thead><tbody>{% for item in teacher_hours %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">{{ item.teacher.fio }}</a></td><td class="text-end">{{ item.hours|compact_decimal }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table>
       </div>
     </div></div>

@@ -28,6 +28,30 @@ def _activity(code, name, activity_kind, department_id):
     return activity
 
 
+def test_department_pages_use_shared_workspace_shell(
+    client,
+    make_user,
+    login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    login(admin_id)
+
+    for path in (
+        "/departments/settings",
+        "/departments/loads",
+        "/departments/summary",
+        f"/departments/teachers/{teacher_id}",
+    ):
+        response = client.get(path)
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert 'class="sp-workspace ws-workspace"' in html
+        assert "workspace_ui.css" in html
+        assert "departments_workspace.css" in html
+        assert 'class="departments-section-tabs"' in html
+
+
 def test_department_settings_only_displays_registry_activities_and_teachers(
     app,
     client,
