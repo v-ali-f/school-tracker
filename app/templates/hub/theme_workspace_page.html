@@ -1,4 +1,5 @@
 {% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header %}
 {% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
 {% block workspace_content %}
 {% macro workspace_card(item, fallback_icon='bi-folder2-open') %}
@@ -13,12 +14,7 @@
 {% endmacro %}
 
 <div class="registry-workspace-page registry-hub-page">
-  <div class="page-head">
-    <div>
-      <h1 class="page-title">{{ theme.title }}</h1>
-      <div class="page-sub">{{ theme.subtitle }}</div>
-    </div>
-  </div>
+  {{ page_header(theme.title, theme.subtitle) }}
 
   {% if theme.quick_actions %}
   <section class="registry-hub-section">

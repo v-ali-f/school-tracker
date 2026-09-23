@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% set use_workspace_shell = true %}
 {% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_3">
 {% block workspace_head_extra %}{% endblock %}
 {% endblock %}
 {% block breadcrumb %}{% endblock %}
@@ -42,6 +42,7 @@
       {% if ws.get('show_admin_block') and current_user.role in ['ADMIN', 'DIRECTOR'] %}
       <a class="sp-nav-link" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders"></i><span>Настройка ролей</span></a>
       <a class="sp-nav-link" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear"></i><span>Настройки почты</span></a>
+      <a class="sp-nav-link {% if ws_endpoint == 'main.design_system' %}is-active{% endif %}" href="{{ url_for('main.design_system') }}"><i class="bi bi-palette2"></i><span>Компоненты интерфейса</span></a>
       {% endif %}
       {% if ws.get('show_admin_block') %}{% for item in ws.get('sidebar_admin_actions', []) %}
       <a class="sp-nav-link {% if ws_endpoint == item.endpoint %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i><span>{{ item.title }}</span></a>

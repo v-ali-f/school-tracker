@@ -1,6 +1,9 @@
 {% extends 'layout.html' %}
 {% block title %}План работы школы{% endblock %}
-{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_2">{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_workspace.css') }}?v=20260923_3">
+{% endblock %}
 {% block breadcrumb %}{% endblock %}
 {% block content %}
 <div class="sp-workspace" id="schoolPlanWorkspace">

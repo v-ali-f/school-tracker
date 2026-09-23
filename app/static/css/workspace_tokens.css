@@ -1,0 +1,73 @@
+/*
+ * Altair workspace design tokens.
+ * Module styles must use these variables instead of introducing new base
+ * colours, radii, shadows or spacing values.
+ */
+.sp-workspace {
+  --ws-font-sans: Manrope, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --ws-color-canvas: #f5f7fa;
+  --ws-color-surface: #ffffff;
+  --ws-color-surface-subtle: #f8f9fb;
+  --ws-color-surface-muted: #f2f4f7;
+  --ws-color-border: #e1e6ed;
+  --ws-color-border-strong: #cfd8e5;
+  --ws-color-heading: #172033;
+  --ws-color-text: #263244;
+  --ws-color-muted: #697586;
+  --ws-color-accent: #2563eb;
+  --ws-color-accent-hover: #1d4ed8;
+  --ws-color-accent-soft: #eef4ff;
+  --ws-color-success: #2f7668;
+  --ws-color-success-soft: #edf7f3;
+  --ws-color-warning: #9a641f;
+  --ws-color-warning-soft: #fff7e8;
+  --ws-color-danger: #c2414b;
+  --ws-color-danger-soft: #fff1f2;
+  --ws-color-info: #4d6f9f;
+  --ws-color-info-soft: #eef3f8;
+  --ws-color-violet: #75648f;
+  --ws-color-violet-soft: #f2eff6;
+
+  --ws-space-1: 4px;
+  --ws-space-2: 8px;
+  --ws-space-3: 12px;
+  --ws-space-4: 16px;
+  --ws-space-5: 20px;
+  --ws-space-6: 24px;
+  --ws-space-8: 32px;
+
+  --ws-radius-sm: 8px;
+  --ws-radius-md: 10px;
+  --ws-radius-lg: 13px;
+  --ws-radius-xl: 16px;
+  --ws-radius-pill: 999px;
+
+  --ws-shadow-card: 0 4px 14px rgba(16, 24, 40, .035);
+  --ws-shadow-raised: 0 12px 30px rgba(16, 24, 40, .08);
+  --ws-focus-ring: 0 0 0 3px rgba(37, 99, 235, .12);
+
+  --ws-control-height-sm: 34px;
+  --ws-control-height: 40px;
+  --ws-sidebar-width: 236px;
+  --ws-content-max-width: 1600px;
+
+  /* Compatibility aliases for modules already migrated to the workspace. */
+  --sp-sidebar-width: var(--ws-sidebar-width);
+  --sp-border: var(--ws-color-border);
+  --sp-text: var(--ws-color-text);
+  --sp-heading: var(--ws-color-heading);
+  --sp-muted: var(--ws-color-muted);
+  --sp-accent: var(--ws-color-accent);
+  --sp-accent-soft: var(--ws-color-accent-soft);
+  --sp-neutral-soft: var(--ws-color-surface-muted);
+  --sp-tone-blue: var(--ws-color-info);
+  --sp-tone-blue-soft: var(--ws-color-info-soft);
+  --sp-tone-violet: var(--ws-color-violet);
+  --sp-tone-violet-soft: var(--ws-color-violet-soft);
+  --sp-tone-teal: var(--ws-color-success);
+  --sp-tone-teal-soft: var(--ws-color-success-soft);
+  --sp-danger: var(--ws-color-danger);
+  --sp-danger-soft: var(--ws-color-danger-soft);
+  --sp-shadow: var(--ws-shadow-card);
+}

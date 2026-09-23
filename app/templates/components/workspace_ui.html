@@ -1,0 +1,44 @@
+{% macro page_header(title, subtitle='', eyebrow='', back_url='', back_label='Назад') -%}
+<header class="ws-page-header">
+  <div class="ws-page-heading">
+    {% if back_url %}<a class="ws-page-back" href="{{ back_url }}"><i class="bi bi-arrow-left"></i><span>{{ back_label }}</span></a>{% endif %}
+    {% if eyebrow %}<span class="ws-page-eyebrow">{{ eyebrow }}</span>{% endif %}
+    <h1 class="ws-page-title">{{ title }}</h1>
+    {% if subtitle %}<div class="ws-page-subtitle">{{ subtitle }}</div>{% endif %}
+  </div>
+  {% if caller is defined %}<div class="ws-page-actions">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro %}
+
+{% macro status_badge(label, tone='neutral', icon='') -%}
+<span class="ws-status{% if tone != 'neutral' %} is-{{ tone }}{% endif %}">{% if icon %}<i class="bi {{ icon }}"></i>{% endif %}<span>{{ label }}</span></span>
+{%- endmacro %}
+
+{% macro metric(label, value, icon='bi-bar-chart', tone='info') -%}
+<div class="ws-metric{% if tone != 'info' %} is-{{ tone }}{% endif %}">
+  <span class="ws-metric-icon"><i class="bi {{ icon }}"></i></span>
+  <span class="ws-metric-copy"><span class="ws-metric-label">{{ label }}</span><strong class="ws-metric-value">{{ value }}</strong></span>
+</div>
+{%- endmacro %}
+
+{% macro empty_state(title, text='', icon='bi-inbox', action_url='', action_label='') -%}
+<div class="ws-empty">
+  <div class="ws-empty-content">
+    <span class="ws-empty-icon"><i class="bi {{ icon }}"></i></span>
+    <strong class="ws-empty-title">{{ title }}</strong>
+    {% if text %}<span class="ws-empty-text">{{ text }}</span>{% endif %}
+    {% if action_url and action_label %}<a class="btn btn-primary btn-sm" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro filter_panel() -%}
+<section class="ws-filter-panel">{{ caller() }}</section>
+{%- endmacro %}
+
+{% macro card(title='', subtitle='') -%}
+<section class="ws-card">
+  {% if title or subtitle %}<header class="ws-card-header"><div><h2 class="ws-section-title">{{ title }}</h2>{% if subtitle %}<div class="ws-section-subtitle">{{ subtitle }}</div>{% endif %}</div></header>{% endif %}
+  <div class="ws-card-body">{{ caller() }}</div>
+</section>
+{%- endmacro %}
