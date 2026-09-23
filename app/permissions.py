@@ -778,6 +778,7 @@ def build_menu_flags(user=None) -> dict:
         "can_control_works_view": has_permission("control_works_view", user=user),
         "can_control_works_edit": has_permission("control_works_edit", user=user),
         "can_olympiad_view": has_permission("olympiad_view", user=user),
+        "can_olympiad_edit": has_permission("olympiad_edit", user=user),
         "can_olympiad_import": has_permission("olympiad_import", user=user),
         "can_olympiad_dashboard_view": has_permission("olympiad_dashboard_view", user=user),
         "can_olympiad_settings_manage": has_permission("olympiad_settings_manage", user=user),

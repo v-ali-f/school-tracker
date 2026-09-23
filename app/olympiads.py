@@ -39,6 +39,17 @@ olympiads_bp = Blueprint("olympiads", __name__, url_prefix="/olympiads")
 STAGES = ["школьный", "муниципальный", "региональный", "заключительный"]
 
 
+@olympiads_bp.context_processor
+def _olympiads_workspace_context_processor():
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Олимпиады",
+        "workspace_context_subtitle": "Результаты, аналитика и импорт ВСОШ",
+    }
+
+
 def _mapping_linked_activity_ids_from_form():
     values = []
     for raw in request.form.getlist("linked_activity_ids"):

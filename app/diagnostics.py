@@ -41,6 +41,17 @@ diagnostics_bp = Blueprint("diagnostics", __name__, url_prefix="/diagnostics")
 GROUP_SUBJECT_MARKERS = ["англий", "иностран", "немец", "француз", "испан"]
 
 
+@diagnostics_bp.context_processor
+def _diagnostics_workspace_context_processor():
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Диагностики",
+        "workspace_context_subtitle": "МЦКО, ЕКР, ФГ, импорт и аналитика результатов",
+    }
+
+
 @diagnostics_bp.before_request
 def _restrict_diagnostics_module():
     """School-wide MCKO data is available only to admins and methodists."""

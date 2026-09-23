@@ -1,0 +1,324 @@
+.assessment-workspace {
+  width: 100%;
+  min-width: 0;
+  color: var(--sp-text);
+}
+
+.assessment-tabs {
+  display: flex;
+  gap: 5px;
+  margin: 0 0 14px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+  scrollbar-width: thin;
+}
+
+.assessment-tab {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  color: #5c6879;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+.assessment-tab:hover {
+  color: var(--sp-accent);
+  background: #f5f7fa;
+}
+
+.assessment-tab.is-active {
+  color: #fff;
+  background: var(--sp-accent);
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .page-head {
+  margin-bottom: 14px !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .page-actions {
+  gap: 7px !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .page-actions .btn {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 9px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .card,
+body.school-plan-modern-shell .ws-content .assessment-workspace .soft-card,
+body.school-plan-modern-shell .ws-content .assessment-workspace .olymp-stage-card {
+  border: 1px solid var(--sp-border) !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .card-header {
+  padding: 11px 14px !important;
+  border-bottom-color: #edf0f4 !important;
+  color: var(--sp-heading) !important;
+  background: #f8f9fb !important;
+  font-size: 13px !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .card-body {
+  padding: 15px !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .form-label {
+  margin-bottom: 5px !important;
+  color: #526176 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .form-control,
+body.school-plan-modern-shell .ws-content .assessment-workspace .form-select {
+  min-height: 38px;
+  border-color: #dfe4eb;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .form-control:focus,
+body.school-plan-modern-shell .ws-content .assessment-workspace .form-select:focus {
+  border-color: color-mix(in srgb, var(--sp-accent) 45%, #dfe4eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-accent) 12%, transparent);
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .form-check {
+  min-height: 38px;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .table-responsive {
+  max-width: 100%;
+  border-radius: 13px;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .table {
+  margin-bottom: 0 !important;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .table thead th {
+  padding: 9px 10px !important;
+  color: #5f6b7c !important;
+  background: #f8f9fb !important;
+  font-size: 10px !important;
+  font-weight: 650 !important;
+  white-space: nowrap;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .table tbody td {
+  padding: 9px 10px !important;
+  border-bottom-color: #edf0f4 !important;
+  color: #344054;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+body.school-plan-modern-shell .ws-content .assessment-workspace .badge {
+  border-radius: 999px !important;
+  padding: 4px 8px !important;
+  font-size: 9px !important;
+  font-weight: 650 !important;
+}
+
+.assessment-workspace .section-title,
+.assessment-workspace h5,
+.assessment-workspace h6 {
+  color: var(--sp-heading);
+  font-weight: 650;
+}
+
+.assessment-workspace .alert {
+  border-width: 1px;
+  border-radius: 11px;
+  font-size: 12px;
+}
+
+.assessment-workspace .stat-strip {
+  overflow: hidden;
+  border: 1px solid var(--sp-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--sp-shadow);
+}
+
+.assessment-workspace .stat-cell {
+  min-width: 120px;
+  padding: 14px !important;
+}
+
+.assessment-workspace .stat-label {
+  color: #697586;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.assessment-workspace .stat-value,
+.assessment-workspace .metric-value,
+.assessment-workspace .fs-4 {
+  color: var(--sp-heading);
+  font-size: 21px !important;
+  font-weight: 650 !important;
+  line-height: 1.15;
+}
+
+.assessment-workspace .olymp-stage-card .stage-chart-wrap {
+  height: 185px;
+}
+
+.assessment-workspace .olymp-mini-stat {
+  padding: 9px 11px;
+  border: 1px solid #edf0f4;
+  border-radius: 10px;
+  background: #f8f9fb;
+}
+
+.assessment-workspace .olymp-mini-stat .label {
+  color: #697586;
+  font-size: 10px;
+}
+
+.assessment-workspace .olymp-mini-stat .value {
+  color: var(--sp-heading);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.assessment-workspace .analytics-page {
+  max-width: none;
+  margin: 0;
+}
+
+.assessment-diagnostics-workspace .analytics-page .table {
+  min-width: 860px;
+}
+
+.assessment-workspace .chart-box {
+  position: relative;
+  width: 100%;
+}
+
+.assessment-workspace .chart-box-sm { height: 230px; }
+.assessment-workspace .chart-box-lg { height: 255px; }
+.assessment-workspace .chart-box-below { height: 250px; }
+.assessment-workspace .show-btn { white-space: nowrap; }
+.assessment-workspace .summary-card { min-height: 100%; }
+.assessment-workspace .summary-note { margin-bottom: 14px; color: #697586; }
+
+.assessment-workspace .level-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  padding: 9px 11px;
+  border: 1px solid #e5e9ef;
+  border-radius: 10px;
+}
+
+.assessment-workspace .level-row:last-child { margin-bottom: 0; }
+.assessment-workspace .level-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; }
+
+.assessment-workspace .progress {
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf1f5;
+}
+
+@media (max-width: 991.98px) {
+  .assessment-workspace .chart-box-sm,
+  .assessment-workspace .chart-box-lg,
+  .assessment-workspace .chart-box-below {
+    height: 220px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .assessment-tabs {
+    margin-right: -4px;
+    margin-left: -4px;
+  }
+
+  .assessment-tab {
+    flex: 0 0 auto;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  body.school-plan-modern-shell .ws-content .assessment-workspace .page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .assessment-workspace .page-actions .btn {
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .assessment-workspace .card-body {
+    padding: 13px !important;
+  }
+
+  .assessment-workspace form .d-flex.gap-2 {
+    flex-wrap: wrap;
+  }
+
+  .assessment-workspace form .d-flex.gap-2 > .btn {
+    flex: 1 1 140px;
+  }
+
+  .assessment-workspace .table-responsive {
+    max-width: 100%;
+    border-radius: 8px !important;
+  }
+
+  .assessment-workspace .table-responsive .table {
+    min-width: 720px;
+  }
+
+  .assessment-workspace .stat-strip {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assessment-workspace .stat-cell {
+    min-width: 0;
+    border-bottom: 1px solid #edf0f4;
+  }
+
+  .assessment-workspace .chart-box-sm,
+  .assessment-workspace .chart-box-lg,
+  .assessment-workspace .chart-box-below {
+    height: 210px;
+  }
+}
+
+@media (max-width: 420px) {
+  .assessment-workspace .stat-strip {
+    grid-template-columns: 1fr;
+  }
+}

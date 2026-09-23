@@ -1,0 +1,14 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/assessment_workspace.css') }}?v=20260923_1">{% endblock %}
+{% block workspace_content %}
+<div class="assessment-workspace assessment-diagnostics-workspace">
+  <nav class="assessment-tabs" aria-label="Разделы диагностик">
+    <a class="assessment-tab{% if request.endpoint == 'diagnostics.index' %} is-active{% endif %}" href="{{ url_for('diagnostics.index') }}"><i class="bi bi-clipboard-data"></i><span>Диагностики</span></a>
+    <a class="assessment-tab{% if request.endpoint == 'diagnostics.analytics' %} is-active{% endif %}" href="{{ url_for('diagnostics.analytics') }}"><i class="bi bi-bar-chart"></i><span>Аналитика</span></a>
+    <a class="assessment-tab{% if request.endpoint == 'diagnostics.departments_summary' %} is-active{% endif %}" href="{{ url_for('diagnostics.departments_summary') }}"><i class="bi bi-diagram-3"></i><span>Кафедры</span></a>
+    <a class="assessment-tab{% if request.endpoint == 'diagnostics.teacher_binding' %} is-active{% endif %}" href="{{ url_for('diagnostics.teacher_binding') }}"><i class="bi bi-person-check"></i><span>Учителя</span></a>
+    <a class="assessment-tab{% if request.endpoint in ['diagnostics.imports_registry', 'diagnostics.delete_import'] %} is-active{% endif %}" href="{{ url_for('diagnostics.imports_registry') }}"><i class="bi bi-clock-history"></i><span>Импорты</span></a>
+  </nav>
+  {% block assessment_content %}{% endblock %}
+</div>
+{% endblock %}
