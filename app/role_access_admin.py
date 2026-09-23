@@ -37,6 +37,7 @@ DEFAULT_MODULES = [
     ("analytics", "Аналитика"),
     ("workload", "Учебные планы и нагрузка"),
     ("collection_forms", "Формы сбора"),
+    ("lesson_visits", "Посещение уроков"),
 ]
 
 DEFAULT_QUICK_LINKS = [
@@ -73,6 +74,7 @@ MODULE_DESCRIPTIONS = {
     "analytics": "Аналитические отчёты и сводные данные",
     "workload": "Учебные планы, распределение нагрузки и тарификация",
     "collection_forms": "Создание публичных форм, сбор ответов и совместный доступ к результатам",
+    "lesson_visits": "Карты наблюдения уроков, история обратной связи и повторные посещения",
 }
 
 # Описания быстрых кнопок
@@ -114,6 +116,7 @@ MODULE_DEFAULT_ROLES = {
         "DEPARTMENT_HEAD", "HR_SPECIALIST", "ECONOMIST", "AUDITOR", "TEACHER",
     },
     "collection_forms": {"ADMIN", "DIRECTOR", "METHODIST"},
+    "lesson_visits": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD", "TEACHER", "CLASS_TEACHER"},
 }
 
 

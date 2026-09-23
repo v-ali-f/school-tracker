@@ -1,0 +1,164 @@
+.cw-workspace-page {
+  width: 100%;
+  min-width: 0;
+  color: var(--sp-text);
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .page-head,
+body.school-plan-modern-shell .ws-content .cw-workspace-page .control-work-head {
+  margin-bottom: 14px !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .page-actions,
+body.school-plan-modern-shell .ws-content .cw-workspace-page .control-topbar__group {
+  gap: 7px !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .page-actions .btn,
+body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar .btn,
+body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar .form-select {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 9px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar {
+  gap: 8px !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar .form-select {
+  width: 180px;
+  max-width: 180px;
+  padding-right: 30px !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .card,
+body.school-plan-modern-shell .ws-content .cw-workspace-page .soft-card {
+  border: 1px solid var(--sp-border) !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .card-header {
+  padding: 11px 14px !important;
+  border-bottom-color: #edf0f4 !important;
+  color: var(--sp-heading) !important;
+  background: #f8f9fb !important;
+  font-size: 13px !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .card-body {
+  padding: 15px !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .cw-filter-card {
+  background: #fff !important;
+  box-shadow: var(--sp-shadow) !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .form-label {
+  margin-bottom: 5px !important;
+  color: #526176;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .form-control,
+body.school-plan-modern-shell .ws-content .cw-workspace-page .form-select {
+  min-height: 38px;
+  font-size: 12px;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .table-responsive {
+  border-radius: 13px;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .table {
+  margin-bottom: 0 !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .table thead th {
+  padding: 9px 10px !important;
+  color: #5f6b7c !important;
+  background: #f8f9fb !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .table tbody td {
+  padding: 9px 10px !important;
+  border-bottom-color: #edf0f4 !important;
+  color: #344054;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+body.school-plan-modern-shell .ws-content .cw-workspace-page .badge {
+  border-radius: 999px !important;
+  padding: 4px 8px !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+}
+
+body.school-plan-modern-shell .ws-content .cw-detail-page .fs-4 {
+  margin-top: 4px;
+  color: #344054;
+  font-size: 21px !important;
+  line-height: 1;
+  font-weight: 600;
+}
+
+body.school-plan-modern-shell .ws-content .cw-form-page hr {
+  margin: 18px 0;
+  border-color: #e7ebf1;
+  opacity: 1;
+}
+
+body.school-plan-modern-shell .ws-content .cw-form-page .dictation-grade-card {
+  border-color: var(--sp-border) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 1099.98px) {
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar,
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar__group,
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar__status {
+    width: 100%;
+  }
+}
+
+@media (max-width: 767.98px) {
+  body.school-plan-modern-shell .ws-content .cw-workspace-page .page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .cw-workspace-page .page-actions .btn {
+    width: 100%;
+  }
+
+  body.school-plan-modern-shell .ws-content .cw-workspace-page .card-body {
+    padding: 13px !important;
+  }
+
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar,
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar__group,
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar__status {
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar .btn,
+  body.school-plan-modern-shell .ws-content .cw-detail-page .control-topbar .form-select {
+    width: 100%;
+    max-width: none;
+  }
+}

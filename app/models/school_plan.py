@@ -61,6 +61,7 @@ class SchoolPlanEvent(db.Model):
     short_title = db.Column(db.String(120), nullable=True)
     description = db.Column(db.Text, nullable=True)
     start_date = db.Column(db.Date, nullable=False, index=True)
+    start_time = db.Column(db.Time, nullable=True)
     end_date = db.Column(db.Date, nullable=True, index=True)
     period_type = db.Column(db.String(20), nullable=False, default='day')
     direction_id = db.Column(db.Integer, db.ForeignKey('school_plan_direction.id'), nullable=True, index=True)
@@ -128,6 +129,16 @@ class SchoolPlanEvent(db.Model):
         if self.end_date and self.end_date != self.start_date:
             return f'{self.start_date:%d.%m.%Y} — {self.end_date:%d.%m.%Y}'
         return f'{self.start_date:%d.%m.%Y}'
+
+    @property
+    def display_time(self):
+        return self.start_time.strftime('%H:%M') if self.start_time else ''
+
+    @property
+    def display_schedule(self):
+        if self.start_time:
+            return f'{self.display_period} · {self.display_time}'
+        return self.display_period
 
     @property
     def display_responsible(self):

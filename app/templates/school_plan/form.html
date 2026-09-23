@@ -1,17 +1,17 @@
-{% extends 'layout.html' %}
+{% extends 'workspace_layout.html' %}
 {% block title %}{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}{% endblock %}
-{% block content %}
-<div class="container py-3" style="max-width:980px">
-  <div class="page-head mb-3">
+{% block workspace_content %}
+<section class="sp-plan-form-page">
+  <div class="sp-page-head sp-plan-form-head">
     <div>
-      <div class="page-title">{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}</div>
-      <div class="page-sub">Только основные сведения для плана работы школы.</div>
+      <a class="sp-detail-back" href="{{ url_for('school_plan.index', period=return_period or (event.start_date.strftime('%Y-%m') if event.start_date else none)) }}"><i class="bi bi-arrow-left"></i><span>План работы</span></a>
+      <h1 class="sp-title">{{ 'Новое мероприятие' if not event.id else 'Редактирование мероприятия' }}</h1>
+      <div class="sp-subtitle">Основные сведения для плана работы школы</div>
     </div>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('school_plan.index', period=return_period or (event.start_date.strftime('%Y-%m') if event.start_date else none)) }}">К плану</a>
   </div>
 
   {% set selected_direction = request.form.get('direction_id', event.direction_id|string if event.direction_id else '') %}
-  <form method="post" class="card soft-card" id="schoolPlanForm">
+  <form method="post" class="card soft-card sp-plan-form-card" id="schoolPlanForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="return_period" value="{{ return_period }}">
     <div class="card-body p-3 p-md-4">
@@ -30,11 +30,16 @@
             <label class="btn btn-outline-primary" for="datePeriod">Период</label>
           </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
           <label class="form-label fw-semibold" id="startDateLabel">{{ 'Дата начала' if date_mode == 'period' else 'Дата' }} <span class="text-danger">*</span></label>
           <input class="form-control" type="date" name="start_date" required value="{{ request.form.get('start_date', event.start_date.isoformat() if event.start_date else '') }}">
         </div>
-        <div class="col-md-6 {% if date_mode != 'period' %}d-none{% endif %}" id="endDateWrap">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Время начала</label>
+          <input class="form-control" type="time" name="start_time" step="300" value="{{ request.form.get('start_time', event.start_time.strftime('%H:%M') if event.start_time else '') }}">
+          <div class="form-text">Можно не указывать для мероприятий без точного времени.</div>
+        </div>
+        <div class="col-md-4 {% if date_mode != 'period' %}d-none{% endif %}" id="endDateWrap">
           <label class="form-label fw-semibold">Дата окончания <span class="text-danger">*</span></label>
           <input class="form-control" type="date" name="end_date" value="{{ request.form.get('end_date', event.end_date.isoformat() if event.end_date and event.end_date != event.start_date else '') }}">
         </div>
@@ -231,7 +236,7 @@
     </div>
   </form>
   {% if event.id %}<form method="post" id="deleteSchoolPlanEventForm" action="{{ url_for('school_plan.delete', event_id=event.id) }}" onsubmit="return confirm('Удалить мероприятие без возможности восстановления?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_period" value="{{ return_period }}"></form>{% endif %}
-</div>
+</section>
 {% endblock %}
 {% block scripts %}
 <script>

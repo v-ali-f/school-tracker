@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-form-page">
 <div class="page-head">
   <div>
     <div class="page-title">{{ 'Изменить настройки контрольной' if work else 'Новая контрольная работа' }}</div>
@@ -156,6 +158,7 @@
     </div>
   </div>
 </form>
+</div>
 
 <script>
   const taskCountInput = document.getElementById('task-count');

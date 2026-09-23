@@ -16,6 +16,7 @@ DEFAULT_DIRECTIONS = [
     ('diagnostics', 'Диагностики', '#6d28d9', '#ffffff', 110),
     ('exams', 'Экзамены', '#b91c1c', '#ffffff', 120),
     ('olympiads', 'Олимпиады', '#047857', '#ffffff', 130),
+    ('school_sports_club', 'Школьный спортивный клуб', '#4f7f78', '#ffffff', 140),
 ]
 
 DEFAULT_CATEGORIES = [

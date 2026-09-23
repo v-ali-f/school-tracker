@@ -14,6 +14,8 @@ def test_workload_pages_use_shared_workspace_shell(
     response = client.get(response.headers["Location"])
     assert response.status_code == 200
     html = response.get_data(as_text=True)
+    assert 'class="sp-workspace ws-workspace"' in html
+    assert "workspace_ui.css" in html
     assert 'data-workload-workspace' in html
     assert 'data-active-mode="hours"' in html
     assert "Учебные планы и нагрузка" in html
@@ -28,7 +30,7 @@ def test_workload_pages_use_shared_workspace_shell(
     assert "Нагрузка" in html
     assert "Предметы и курсы" in html
     assert "Ответственные за нагрузку" in html
-    assert "Контроль" not in html
+    assert ">Контроль</span>" not in html
     assert "Печать и экспорт" not in html
     assert 'href="/workload/tariffication"' not in html
     assert 'href="/workload/integration"' not in html

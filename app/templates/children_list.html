@@ -1,13 +1,6 @@
-{% extends "layout.html" %}
-{% block breadcrumb %}
-<nav class="app-breadcrumb" aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item active">Список учеников</li>
-  </ol>
-</nav>
-{% endblock %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
 <style>
   .children-list-table {
     min-width: 760px;
@@ -46,7 +39,7 @@
     }
   }
 </style>
-<div class="children-registry-page">
+<div class="registry-workspace-page children-registry-page">
 <div class="page-head">
   <div>
     <h1 class="page-title">Список учеников</h1>

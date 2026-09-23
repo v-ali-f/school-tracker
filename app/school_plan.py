@@ -1,7 +1,8 @@
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as dt_time, timedelta
 from io import BytesIO
 import calendar as pycalendar
+from xml.sax.saxutils import escape
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, send_file
 from flask_login import current_user, login_required
@@ -10,7 +11,7 @@ from sqlalchemy import and_, func, or_
 from openpyxl import Workbook
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -315,6 +316,33 @@ def _normalize_period(value):
     return f'{parsed.year:04d}-{parsed.month:02d}'
 
 
+def _parse_time(value):
+    raw = (value or '').strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, '%H:%M').time()
+    except ValueError as exc:
+        raise SchoolPlanFormError('Укажите корректное время начала.') from exc
+
+
+def _event_ordering():
+    return (
+        SchoolPlanEvent.start_date.asc(),
+        SchoolPlanEvent.start_time.asc().nullslast(),
+        SchoolPlanEvent.created_at.desc(),
+    )
+
+
+def _event_sort_key(event):
+    return (
+        event.start_date,
+        event.start_time is None,
+        event.start_time or dt_time.max,
+        (event.title or '').lower(),
+    )
+
+
 def _month_filter_options(year, month):
     options = []
     for option_year in range(year - 1, year + 2):
@@ -378,7 +406,7 @@ def _build_calendar_weeks(events, year, month):
             days.append({
                 'date': day,
                 'in_month': day.month == month,
-                'events': sorted(event_map.get(day, []), key=lambda x: (x.start_date, x.title.lower())),
+                'events': sorted(event_map.get(day, []), key=_event_sort_key),
                 'is_today': day == date.today(),
             })
         weeks.append(days)
@@ -413,7 +441,7 @@ def _agenda_week_groups(events, year, month):
             'start': visible_start,
             'end': visible_end,
             'label': label,
-            'events': sorted(rows, key=lambda item: (item.start_date, item.title.lower())),
+            'events': sorted(rows, key=_event_sort_key),
         })
     return result
 
@@ -442,6 +470,9 @@ def _school_plan_sidebar_context():
         return result
 
     return {
+        'workspace_nav': home_context,
+        'workspace_context_title': 'Рабочее пространство',
+        'workspace_context_subtitle': 'Планирование мероприятий школы',
         'plan_sidebar_daily_actions': unique_items(page.get('quick_actions')),
         'plan_sidebar_sections': unique_items(page.get('secondary_sections')),
         'plan_sidebar_service_actions': unique_items(page.get('admin_sections')),
@@ -469,20 +500,20 @@ def _export_filename(prefix, ext):
 def _events_for_export(include_archived=False):
     year, month = _selected_month()
     query = _month_query(_event_query(include_archived=include_archived), year, month)
-    return query.order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc()).all()
+    return query.order_by(*_event_ordering()).all()
 
 
 def _build_excel(events):
     wb = Workbook()
     ws = wb.active
     ws.title = 'План работы школы'
-    headers = ['Дата / период', 'Мероприятие', 'Направление', 'Классы', 'Ответственные', 'Примечание']
+    headers = ['Дата / время', 'Мероприятие', 'Направление', 'Классы', 'Ответственные', 'Примечание']
     ws.append(headers)
     for cell in ws[1]:
         cell.font = cell.font.copy(bold=True)
     for event in events:
         ws.append([
-            event.display_period,
+            event.display_schedule,
             event.title or '',
             event.direction.name if event.direction else '',
             event.display_audience,
@@ -510,17 +541,55 @@ def _build_pdf(events, title='План работы школы'):
     doc = SimpleDocTemplate(stream, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
     styles = getSampleStyleSheet()
     styles['Title'].fontName = bold_font_name
+    styles['Title'].fontSize = 19
+    styles['Title'].leading = 23
+    cell_style = ParagraphStyle(
+        'SchoolPlanPdfCell',
+        parent=styles['BodyText'],
+        fontName=font_name,
+        fontSize=7.5,
+        leading=9.5,
+        textColor=colors.HexColor('#1f2937'),
+        spaceBefore=0,
+        spaceAfter=0,
+        splitLongWords=True,
+    )
+    header_style = ParagraphStyle(
+        'SchoolPlanPdfHeader',
+        parent=cell_style,
+        fontName=bold_font_name,
+        fontSize=7.5,
+        leading=9.5,
+        textColor=colors.HexColor('#111827'),
+    )
+
+    def cell(value, style=cell_style):
+        text = escape(str(value or '')).replace('\n', '<br/>')
+        return Paragraph(text or '&nbsp;', style)
+
     story = [Paragraph(title, styles['Title']), Spacer(1, 10)]
-    data = [['Период', 'Мероприятие', 'Направление', 'Классы', 'Ответственные']]
+    data = [[
+        cell('Дата / время', header_style),
+        cell('Мероприятие', header_style),
+        cell('Направление', header_style),
+        cell('Классы', header_style),
+        cell('Ответственные', header_style),
+    ]]
     for event in events:
         data.append([
-            event.display_period,
-            event.title or '',
-            event.direction.name if event.direction else '',
-            event.display_audience,
-            event.display_responsible or '',
+            cell(event.display_schedule),
+            cell(event.title),
+            cell(event.direction.name if event.direction else ''),
+            cell(event.display_audience),
+            cell(event.display_responsible),
         ])
-    table = Table(data, repeatRows=1, colWidths=[90, 245, 125, 120, 150])
+    table = Table(
+        data,
+        repeatRows=1,
+        colWidths=[88, 225, 120, 145, 215],
+        hAlign='LEFT',
+        splitByRow=1,
+    )
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
@@ -529,10 +598,10 @@ def _build_pdf(events, title='План работы школы'):
         ('FONTNAME', (0, 1), (-1, -1), font_name),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('LEADING', (0, 0), (-1, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
     story.append(table)
     doc.build(story)
@@ -547,7 +616,7 @@ def _academic_week_groups(events):
         groups.setdefault(week_no, []).append(event)
     ordered = []
     for week_no in sorted(groups):
-        ordered.append((week_no, sorted(groups[week_no], key=lambda x: (x.start_date, x.title.lower()))))
+        ordered.append((week_no, sorted(groups[week_no], key=_event_sort_key)))
     return ordered
 
 
@@ -558,7 +627,7 @@ def index():
     year, month = _selected_month()
     events = (
         _month_query(_event_query(include_archived=include_archived), year, month)
-        .order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc())
+        .order_by(*_event_ordering())
         .all()
     )
     prev_year, prev_month = _month_shift(year, month, -1)
@@ -566,7 +635,7 @@ def index():
     month_start, month_end = _month_bounds(year, month)
     all_month_events = (
         _month_query(_event_query(include_archived=True), year, month)
-        .order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc())
+        .order_by(*_event_ordering())
         .all()
     )
     today = date.today()
@@ -640,7 +709,7 @@ def week_view():
     week_start = ref - timedelta(days=ref.weekday())
     week_end = week_start + timedelta(days=6)
     include_archived = _is_manager() and request.args.get('show_archived') == '1'
-    events = _period_overlap(_event_query(include_archived=include_archived), week_start, week_end).order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc()).all()
+    events = _period_overlap(_event_query(include_archived=include_archived), week_start, week_end).order_by(*_event_ordering()).all()
     days = []
     for i in range(7):
         day = week_start + timedelta(days=i)
@@ -657,7 +726,7 @@ def month_view():
     year, month = _selected_month()
     month_start, month_end = _month_bounds(year, month)
     include_archived = _is_manager() and request.args.get('show_archived') == '1'
-    events = _period_overlap(_event_query(include_archived=include_archived), month_start, month_end).order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc()).all()
+    events = _period_overlap(_event_query(include_archived=include_archived), month_start, month_end).order_by(*_event_ordering()).all()
     weeks = _build_calendar_weeks(events, year, month)
     prev_y, prev_m = _month_shift(year, month, -1)
     next_y, next_m = _month_shift(year, month, 1)
@@ -673,7 +742,7 @@ def month_view():
 def day_view():
     selected_date = _parse_date(request.args.get('date')) or date.today()
     include_archived = _is_manager() and request.args.get('show_archived') == '1'
-    events = _period_overlap(_event_query(include_archived=include_archived), selected_date, selected_date).order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc()).all()
+    events = _period_overlap(_event_query(include_archived=include_archived), selected_date, selected_date).order_by(*_event_ordering()).all()
     return render_template('school_plan/day.html', selected_date=selected_date, events=events,
                            prev_date=selected_date - timedelta(days=1), next_date=selected_date + timedelta(days=1),
                            can_manage=_is_manager(), active_view='day', **_form_context())
@@ -683,7 +752,7 @@ def day_view():
 @login_required
 def weeks_view():
     include_archived = _is_manager() and request.args.get('show_archived') == '1'
-    events = _event_query(include_archived=include_archived).order_by(SchoolPlanEvent.start_date.asc(), SchoolPlanEvent.created_at.desc()).all()
+    events = _event_query(include_archived=include_archived).order_by(*_event_ordering()).all()
     groups = _academic_week_groups(events)
     return render_template('school_plan/weeks.html', week_groups=groups, can_manage=_is_manager(), active_view='weeks', **_form_context())
 
@@ -715,7 +784,8 @@ def create():
             )
     return render_template(
         'school_plan/form.html', event=event, return_period=return_period or '',
-        can_manage=True, active_view='list', **_form_context(event)
+        can_manage=True, active_view='list',
+        **_school_plan_sidebar_context(), **_form_context(event)
     )
 
 
@@ -724,7 +794,8 @@ def create():
 def view(event_id):
     event = _visible_events_query(include_archived=True).filter(SchoolPlanEvent.id == event_id).first_or_404()
     return render_template('school_plan/view.html', event=event, can_manage=_is_manager(), active_view='list',
-                           status_titles=STATUS_TITLES, priority_titles=PRIORITY_TITLES, visibility_titles=VISIBILITY_TITLES)
+                           status_titles=STATUS_TITLES, priority_titles=PRIORITY_TITLES,
+                           visibility_titles=VISIBILITY_TITLES, **_school_plan_sidebar_context())
 
 
 @school_plan_bp.route('/<int:event_id>/edit', methods=['GET', 'POST'])
@@ -748,7 +819,8 @@ def edit(event_id):
             return redirect(url_for('school_plan.index', period=return_period))
     return render_template(
         'school_plan/form.html', event=event, return_period=return_period,
-        can_manage=True, active_view='list', **_form_context(event)
+        can_manage=True, active_view='list',
+        **_school_plan_sidebar_context(), **_form_context(event)
     )
 
 
@@ -813,7 +885,7 @@ def export_xlsx():
 def export_pdf():
     include_archived = _is_manager() and request.args.get('show_archived') == '1'
     year, month = _selected_month()
-    title = f'План работы школы — {MONTH_TITLES[month].lower()} {year}'
+    title = f'План работы школы - {MONTH_TITLES[month].lower()} {year}'
     stream = _build_pdf(_events_for_export(include_archived=include_archived), title=title)
     return send_file(stream,
                      as_attachment=True,
@@ -935,6 +1007,7 @@ def editors():
         can_manage_editors=True,
         active_view='editors',
         current_args={},
+        **_school_plan_sidebar_context(),
     )
 
 
@@ -1160,6 +1233,7 @@ def _apply_event_form(event):
     start_date = _parse_date(request.form.get('start_date'))
     if not start_date:
         raise SchoolPlanFormError('Укажите дату мероприятия.')
+    start_time = _parse_time(request.form.get('start_time'))
     date_mode = (request.form.get('date_mode') or 'single').strip()
     if date_mode not in {'single', 'period'}:
         raise SchoolPlanFormError('Выберите один день или период.')
@@ -1275,6 +1349,7 @@ def _apply_event_form(event):
     event.title = title
     event.description = description
     event.start_date = start_date
+    event.start_time = start_time
     event.end_date = end_date
     event.period_type = 'range' if end_date else 'day'
     event.direction = direction

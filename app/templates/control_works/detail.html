@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-detail-page">
 <style>
 .control-work-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
 .control-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;width:100%}
@@ -181,5 +183,6 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}

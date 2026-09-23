@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/control_works_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+<div class="cw-workspace-page cw-journal-page">
 <div class="page-head">
   <div>
     <div class="page-title">Журнал контрольных работ</div>
@@ -11,7 +13,7 @@
   </div>
 </div>
 
-<form method="get" class="card mb-4">
+<form method="get" class="card mb-3 cw-filter-card">
   <div class="card-body">
     <div class="row g-3 align-items-end">
       <div class="col-lg-2 col-md-4"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id"><option value="">Все</option>{% for y in years %}<option value="{{ y.id }}" {% if selected_year_id == y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
@@ -54,5 +56,6 @@
       </tbody>
     </table>
   </div>
+</div>
 </div>
 {% endblock %}

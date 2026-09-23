@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from flask import Blueprint, jsonify, make_response, redirect, render_template, url_for
 from flask_login import login_required, current_user
@@ -8,6 +8,65 @@ from app.core.extensions import db
 from .models import AcademicYear, Child, ChildEnrollment, ChildSocial, Incident, Department, TeacherLoad, ControlWork, ControlWorkResult, ChildTransferHistory, SchoolClass, User, Document, OlympiadResult, DiagnosticImportBatch, DiagnosticResult, DiagnosticSession, DiagnosticTeacherBinding
 
 main_bp = Blueprint("main", __name__)
+
+
+_DASHBOARD_WEEKDAYS = (
+    "Понедельник",
+    "Вторник",
+    "Среда",
+    "Четверг",
+    "Пятница",
+    "Суббота",
+    "Воскресенье",
+)
+_DASHBOARD_MONTHS_GENITIVE = (
+    "",
+    "января",
+    "февраля",
+    "марта",
+    "апреля",
+    "мая",
+    "июня",
+    "июля",
+    "августа",
+    "сентября",
+    "октября",
+    "ноября",
+    "декабря",
+)
+
+
+def _dashboard_today_label():
+    today = date.today()
+    return (
+        f"{_DASHBOARD_WEEKDAYS[today.weekday()]}, {today.day} "
+        f"{_DASHBOARD_MONTHS_GENITIVE[today.month]}"
+    )
+
+
+def _dashboard_upcoming_events(limit=6):
+    from app.models import SchoolPlanEvent
+    from app.school_plan import _visible_events_query
+
+    today = date.today()
+    horizon = today + timedelta(days=30)
+    return (
+        _visible_events_query(include_archived=False)
+        .filter(
+            SchoolPlanEvent.start_date <= horizon,
+            func.coalesce(
+                SchoolPlanEvent.end_date,
+                SchoolPlanEvent.start_date,
+            )
+            >= today,
+        )
+        .order_by(
+            SchoolPlanEvent.start_date.asc(),
+            SchoolPlanEvent.title.asc(),
+        )
+        .limit(limit)
+        .all()
+    )
 
 
 # Legacy-алиасы: битые закладки пользователей ведут сюда 404-ом.
@@ -301,8 +360,13 @@ def dashboard():
             stats=build_attendance_dashboard_stats(current_user),
         )
     from app.modules.hub.routes import build_home_context
+    home_context = build_home_context()
     return render_template(
         "dashboard.html",
+        use_workspace_shell=True,
+        dashboard_today_label=_dashboard_today_label(),
+        dashboard_today=date.today(),
+        upcoming_events=_dashboard_upcoming_events(),
         dashboard_stats=_dashboard_stats(),
         departments_dashboard_stats=_departments_dashboard_stats(),
         control_works_dashboard_stats=_control_works_dashboard_stats(),
@@ -310,5 +374,5 @@ def dashboard():
         olympiad_dashboard_stats=_olympiad_dashboard_stats(),
         attendance_dashboard_stats=build_attendance_dashboard_stats(current_user),
         diagnostics_dashboard_stats=_diagnostics_dashboard_stats(),
-        **build_home_context(),
+        **home_context,
     )

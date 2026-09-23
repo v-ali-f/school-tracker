@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/tasks_workspace.css') }}?v=20260922_2">{% endblock %}
+{% block workspace_content %}
+<div class="task-workspace-page task-detail-page">
 <div class="page-head">
   <div>
     <h1 class="page-title">Задача №{{ task.id }}</h1>
@@ -255,5 +257,6 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}

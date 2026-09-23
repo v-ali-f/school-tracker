@@ -103,6 +103,7 @@ ICON_MAP = {
     "Свод по кафедрам": ("bi-diagram-3", "accent-blue"),
     "Нагрузка учителей": ("bi-person-lines-fill", "accent-blue"),
     "Учебные планы и нагрузка": ("bi-calculator", "accent-blue"),
+    "Посещение уроков": ("bi-journal-check", "accent-blue"),
     "Список диагностик": ("bi-clipboard-check", "accent-orange"),
     "Импорт результатов": ("bi-upload", "accent-orange"),
     "Аналитика диагностик": ("bi-bar-chart-line", "accent-orange"),
@@ -439,7 +440,7 @@ def _main_page_config():
                 "accent": "secondary",
             },
             {
-                "title": "Мои заявки",
+                "title": "Мои инциденты",
                 "description": "Поданные инциденты, статусы и история.",
                 "endpoint": "children.incidents_my",
                 "permission_any": ["incident_add"],
@@ -535,6 +536,12 @@ def _main_page_config():
                 "description": "Список работ, результаты, отчеты и сводные показатели.",
                 "endpoint": "hub.control_works",
                 "permission_any": ["control_works_view"],
+            },
+            {
+                "title": "Посещение уроков",
+                "description": "Карты наблюдения, обратная связь педагогам и контроль повторных посещений.",
+                "endpoint": "lesson_visits.index",
+                "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD", "TEACHER", "CLASS_TEACHER"],
             },
             {
                 "title": "Олимпиады",
@@ -877,7 +884,13 @@ def attendance():
 @hub_bp.route("/registries")
 @login_required
 def registries():
-    return render_template("hub/theme_page.html", theme=_theme_or_403("registries"))
+    return render_template(
+        "hub/theme_workspace_page.html",
+        theme=_theme_or_403("registries"),
+        workspace_nav=build_home_context(),
+        workspace_context_title="Основные реестры",
+        workspace_context_subtitle="Единая точка входа в реестры школы",
+    )
 
 
 @hub_bp.route("/control-works")
@@ -1016,11 +1029,26 @@ def _read_module_codes(role_code):
 
         rows = RoleModuleAccess.query.filter_by(
             role_code=role_code,
-            is_visible=True,
-            is_enabled=True,
+            is_active=True,
         ).all()
+        if not rows:
+            return None
 
-        return {r.module_code for r in rows}
+        from app.role_access_admin import DEFAULT_MODULES, MODULE_DEFAULT_ROLES
+
+        rows_by_code = {row.module_code: row for row in rows}
+        visible = {
+            row.module_code
+            for row in rows
+            if row.is_visible and row.is_enabled and row.access_level != "hidden"
+        }
+        for module_code, _title in DEFAULT_MODULES:
+            if module_code in rows_by_code:
+                continue
+            allowed_roles = MODULE_DEFAULT_ROLES.get(module_code)
+            if allowed_roles is None or role_code in allowed_roles:
+                visible.add(module_code)
+        return visible
     except Exception:
         return None
 
@@ -1049,6 +1077,7 @@ def _filter_page_sections_by_modules(page, module_codes):
         "familiarizations.my": "familiarizations",
         "appeals.index": "appeals",
         "workload.index": "workload",
+        "lesson_visits.index": "lesson_visits",
     }
 
     def keep(item):
@@ -1118,7 +1147,7 @@ def build_home_context():
     if preview_role:
         g._hub_preview_role_codes = None
 
-    # Для ADMIN/DEPUTY_DIRECTOR плитка «Мои заявки» превращается
+    # Для ADMIN/DEPUTY_DIRECTOR плитка «Мои инциденты» превращается
     # в «Инциденты» — открывается та же страница, но видом admin-view
     # (3 вкладки: Входящие / В работе / Завершённые)
     if preview_role:
@@ -1136,6 +1165,37 @@ def build_home_context():
                 else:
                     action["description"] = "Входящие, в работе и завершённые."
 
+    quick_actions = list(page.get("quick_actions") or [])
+    quick_actions.sort(
+        key=lambda item: 0
+        if item.get("endpoint") == "children.incident_new"
+        else 1
+    )
+    page["quick_actions"] = quick_actions
+
+    seen_sidebar_urls = set()
+
+    def unique_sidebar_items(items, *, skip_endpoints=()):
+        prepared = []
+        for item in items or []:
+            url = item.get("url")
+            if (
+                not url
+                or url in seen_sidebar_urls
+                or item.get("endpoint") in skip_endpoints
+            ):
+                continue
+            seen_sidebar_urls.add(url)
+            prepared.append(item)
+        return prepared
+
+    sidebar_daily_actions = unique_sidebar_items(quick_actions)
+    sidebar_sections = unique_sidebar_items(
+        page.get("secondary_sections"),
+        skip_endpoints=("school_plan.index",),
+    )
+    sidebar_admin_actions = unique_sidebar_items(page.get("admin_sections"))
+
     return {
         "page": page,
         "quick_summary": _summary_cards() if show_summary else [],
@@ -1145,6 +1205,9 @@ def build_home_context():
         "is_class_teacher": is_ct,
         "role_block_codes": role_block_codes,
         "role_module_codes": role_module_codes,
+        "sidebar_daily_actions": sidebar_daily_actions,
+        "sidebar_sections": sidebar_sections,
+        "sidebar_admin_actions": sidebar_admin_actions,
         "preview_role": preview_role,
         "preview_role_label": _ROLE_LABELS.get(preview_role, preview_role) if preview_role else None,
     }

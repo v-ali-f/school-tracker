@@ -1,5 +1,8 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+
+<div class="registry-workspace-page">
 
 <div class="page-head">
   <div>
@@ -7,7 +10,6 @@
     <div class="page-sub">Сформировано из открытых задолженностей</div>
   </div>
   <div class="page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>На главную</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ export_url }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
   </div>
 </div>
@@ -67,4 +69,5 @@
   </div>
 </div>
 {% include "components/pagination.html" %}
+</div>
 {% endblock %}

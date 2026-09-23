@@ -22,13 +22,15 @@ has_role("CLASS_TEACHER") возвращает False → они не видят:
 Новые кл. рук. в следующем году — добавлять через /admin/roles-admin вручную.
 """
 
+import os
+
 import paramiko
 
-HOST = "10.174.241.7"
-PORT = 22
-USER = "user"
-PASSWORD = "RTYq"
-DB_URL = "postgresql://school_user:StrongPassword123!@localhost/school_portal"
+HOST = os.environ.get("ALTAIR_SSH_HOST")
+PORT = int(os.environ.get("ALTAIR_SSH_PORT", "22"))
+USER = os.environ.get("ALTAIR_SSH_USER")
+PASSWORD = os.environ.get("ALTAIR_SSH_PASSWORD")
+DB_URL = os.environ.get("DATABASE_URL")
 
 # Шаг 1: проверить — сколько учителей получат роль
 SQL_CHECK = """
@@ -89,6 +91,21 @@ def run_sql(ssh, sql, label):
 
 
 def deploy():
+    missing = [
+        name
+        for name, value in {
+            "ALTAIR_SSH_HOST": HOST,
+            "ALTAIR_SSH_USER": USER,
+            "ALTAIR_SSH_PASSWORD": PASSWORD,
+            "DATABASE_URL": DB_URL,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise SystemExit(
+            "Не заданы переменные окружения: " + ", ".join(missing)
+        )
+
     print(f"Подключаюсь к {HOST}:{PORT}...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

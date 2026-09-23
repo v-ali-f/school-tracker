@@ -1,0 +1,48 @@
+{% extends "workspace_layout.html" %}
+{% block title %}{{ visit.teacher.fio or visit.teacher.username }} · {{ visit.visit_date.strftime('%d.%m.%Y') }}{% endblock %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="lesson-visits-page lv-detail-page">
+  <div class="page-head">
+    <div>
+      <a class="lv-back-link" href="{{ url_for('lesson_visits.index') }}"><i class="bi bi-arrow-left"></i> К реестру</a>
+      <h1 class="page-title">{{ visit.teacher.fio or visit.teacher.username }}</h1>
+      <div class="page-sub">{{ visit.visit_date.strftime('%d.%m.%Y') }} · {{ visit.class_name }} · {{ visit.subject_name }}</div>
+    </div>
+    <div class="page-actions">
+      {% if can_edit %}<a class="btn btn-outline-primary" href="{{ url_for('lesson_visits.edit', visit_id=visit.id) }}"><i class="bi bi-pencil"></i> Редактировать</a>{% endif %}
+      <span class="lv-repeat-badge lv-repeat-badge-large {{ 'is-required' if visit.repeat_required else 'is-clear' }}"><i class="bi {{ 'bi-exclamation-circle' if visit.repeat_required else 'bi-check-circle' }}"></i>{{ 'Повторное посещение требуется' if visit.repeat_required else 'Повторное посещение не требуется' }}</span>
+    </div>
+  </div>
+
+  <div class="lv-detail-meta card">
+    <div class="card-body">
+      <div><span>Дата</span><strong>{{ visit.visit_date.strftime('%d.%m.%Y') }}</strong></div>
+      <div><span>Класс</span><strong>{{ visit.class_name }}</strong></div>
+      <div><span>Предмет</span><strong>{{ visit.subject_name }}</strong></div>
+      <div><span>Проверяющий</span><strong>{{ visit.observer.fio or visit.observer.username }}</strong></div>
+      <div class="lv-meta-topic"><span>Тема урока</span><strong>{{ visit.topic }}</strong></div>
+    </div>
+  </div>
+
+  <div class="lv-detail-grid">
+    <section class="card">
+      <div class="card-body">
+        <h2 class="section-title">Карта наблюдения</h2>
+        <div class="lv-results-list">
+          {% for code, title, options, multiple in checklist_sections %}
+          {% set current = visit.checklist.get(code) %}
+          <div class="lv-result-row"><span>{{ loop.index }}. {{ title }}</span><strong>{% if multiple %}{% set labels = [] %}{% for value, label in options if value in (current or []) %}{% set _ = labels.append(label) %}{% endfor %}{{ labels|join(', ') or '—' }}{% else %}{% for value, label in options %}{% if value == current %}{{ label }}{% endif %}{% endfor %}{% if not current %}—{% endif %}{% endif %}</strong></div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    <aside class="lv-detail-feedback">
+      <section class="card lv-feedback-section is-positive"><div class="card-body"><h2 class="section-title"><i class="bi bi-plus-circle"></i> Сильные стороны</h2><p>{{ visit.strengths }}</p></div></section>
+      <section class="card lv-feedback-section is-growth"><div class="card-body"><h2 class="section-title"><i class="bi bi-arrow-up-right-circle"></i> Зоны роста</h2><p>{{ visit.growth_areas }}</p></div></section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

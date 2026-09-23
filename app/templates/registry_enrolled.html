@@ -1,12 +1,13 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
 <div class="page-head">
   <div>
     <h1 class="page-title">{{ title }}</h1>
     <div class="page-sub">Сформировано из зачислений текущего учебного года</div>
   </div>
   <div class="page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>На главную</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ export_url }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
   </div>
 </div>
@@ -17,4 +18,5 @@
   <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Показать</button><a class="btn btn-outline-secondary" href="{{ url_for('children.registry_enrolled') }}">Сбросить</a></div>
 </form></div></div>
 <div class="card soft-card"><div class="table-responsive"><table class="table table-striped mb-0 align-middle"><thead><tr><th class="table-number-col">№</th><th>ФИО</th><th style="width:90px;">Класс</th><th style="width:160px;">Дата зачисления</th></tr></thead><tbody>{% for r in rows %}<tr><td class="text-muted">{{ loop.index }}</td><td><a href="{{ url_for('children.child_card', child_id=r.child.id) }}">{{ r.child.fio }}</a></td><td class="text-muted">{{ r.class_name or "—" }}</td><td class="text-muted">{% if r.en and r.en.created_at %}{{ r.en.created_at.strftime("%d.%m.%Y") }}{% else %}—{% endif %}</td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endif %}</tbody></table></div></div>
+</div>
 {% endblock %}

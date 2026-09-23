@@ -1,7 +1,7 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 {% block breadcrumb %}
 {% endblock %}
-{% block content %}
+{% block workspace_content %}
 
 <style>
   .incident-hero {
@@ -195,12 +195,12 @@
 
 <div class="page-head mb-4">
   <div>
-    <div class="page-title">{{ title }}</div>
+    <div class="page-title">Дашборд инцидентов</div>
+    <div class="page-sub">Оперативная сводка, динамика и распределение событий.</div>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_registry') }}"><i class="bi bi-table me-1"></i>Реестр</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_registry_export', grade=grade, class_id=class_id, category=category, q='') }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>Главная</a>
   </div>
 </div>
 

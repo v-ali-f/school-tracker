@@ -1,0 +1,45 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+{% macro workspace_card(item, fallback_icon='bi-folder2-open') %}
+  {% if item.url %}<a class="registry-hub-card" href="{{ item.url }}">{% else %}<div class="registry-hub-card">{% endif %}
+    <span class="registry-hub-card-icon"><i class="bi {{ item.icon or fallback_icon }}"></i></span>
+    <span class="registry-hub-card-copy">
+      <strong>{{ item.title }}</strong>
+      <span>{{ item.description or '' }}</span>
+    </span>
+    {% if item.url %}<i class="bi bi-chevron-right registry-hub-card-arrow" aria-hidden="true"></i>{% endif %}
+  {% if item.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+<div class="registry-workspace-page registry-hub-page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">{{ theme.title }}</h1>
+      <div class="page-sub">{{ theme.subtitle }}</div>
+    </div>
+  </div>
+
+  {% if theme.quick_actions %}
+  <section class="registry-hub-section">
+    <div class="registry-hub-section-head">
+      <h2>Частые переходы</h2>
+      <span>Основные действия раздела</span>
+    </div>
+    <div class="registry-hub-grid registry-hub-grid-compact">
+      {% for item in theme.quick_actions %}{{ workspace_card(item, 'bi-lightning-charge') }}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="registry-hub-section">
+    <div class="registry-hub-section-head">
+      <h2>Реестры и справочники</h2>
+      <span>Выберите нужный раздел для просмотра или редактирования</span>
+    </div>
+    <div class="registry-hub-grid">
+      {% for item in theme.sections %}{{ workspace_card(item) }}{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

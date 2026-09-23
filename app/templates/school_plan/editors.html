@@ -1,22 +1,25 @@
-{% extends 'layout.html' %}
+{% extends 'workspace_layout.html' %}
 {% block title %}Ответственные за ведение плана{% endblock %}
-{% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_editors.css') }}?v=20260917_1">
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/school_plan_editors.css') }}?v=20260923_2">
 {% endblock %}
-{% block content %}
-<div class="dashboard-shell zone-page zone-slate school-plan-editors-page">
-  <div class="classic-page-header mb-3 zone-header zone-slate">
+{% block workspace_content %}
+<section class="school-plan-editors-page">
+  <div class="sp-page-head school-plan-editors-head">
     <div>
-      <div class="section-overline">План работы школы</div>
-      <h1 class="dashboard-title mb-1">Ответственные за ведение плана</h1>
-      <div class="text-muted classic-hero-note">Назначение и отзыв доступа к созданию и редактированию мероприятий.</div>
-    </div>
-    <div class="school-plan-editor-header-actions">
-      <a class="btn zone-btn zone-btn-soft zone-slate" href="{{ url_for('school_plan.index') }}"><i class="bi bi-arrow-left"></i> К плану</a>
+      <a class="sp-detail-back" href="{{ url_for('school_plan.index') }}"><i class="bi bi-arrow-left"></i><span>План работы</span></a>
+      <h1 class="sp-title">Ответственные за ведение плана</h1>
+      <div class="sp-subtitle">Назначение и отзыв доступа к созданию и редактированию мероприятий</div>
     </div>
   </div>
 
-  {% include 'school_plan/_nav.html' %}
+  <div class="sp-viewbar school-plan-editors-tabs">
+    <div class="sp-tabs">
+      <a class="sp-tab" href="{{ url_for('school_plan.index') }}"><i class="bi bi-list-ul"></i>План</a>
+      <a class="sp-tab" href="{{ url_for('school_plan.month_view') }}"><i class="bi bi-calendar3"></i>Календарь</a>
+      <a class="sp-tab is-active" href="{{ url_for('school_plan.editors') }}"><i class="bi bi-person-gear"></i>Ответственные</a>
+    </div>
+  </div>
 
   <div class="school-plan-editor-summary mb-3">
     <div class="school-plan-editor-summary-item"><span>Всего имеют доступ</span><strong>{{ editor_summary.total }}</strong></div>
@@ -89,7 +92,7 @@
   </div>
 
   <div class="school-plan-editor-help"><i class="bi bi-info-circle me-1"></i> Администраторы, заместители директора и методисты отображаются с пометкой «Доступ по роли». Директор может снять им доступ и при необходимости назначить снова через поиск. Доступ директора защищён от случайного отключения.</div>
-</div>
+</section>
 {% endblock %}
 {% block scripts %}
 <script>

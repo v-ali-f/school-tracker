@@ -1,7 +1,7 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 {% block breadcrumb %}
 {% endblock %}
-{% block content %}
+{% block workspace_content %}
 
 <style>
   .incident-hero { background:#fff; border:1px solid #e9ecef; border-radius:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }
@@ -270,11 +270,11 @@
 <div class="page-head mb-4">
   <div>
     <div class="page-title">{{ title }}</div>
+    <div class="page-sub">Поиск, фильтрация, группировка и экспорт зарегистрированных событий.</div>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.incidents_dashboard') }}"><i class="bi bi-speedometer2 me-1"></i>Дашборд</a>
     <a class="btn btn-outline-secondary btn-sm" id="excelExportBtn" href="{{ export_url }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}"><i class="bi bi-house me-1"></i>Главная</a>
   </div>
 </div>
 

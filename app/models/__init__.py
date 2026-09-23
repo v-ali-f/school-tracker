@@ -51,6 +51,7 @@ from .tariff_calculation import *
 from .tariff_workflow import *
 from .workload_integration import *
 from .additional_education_survey import *
+from .lesson_visit import *
 
 from app.models_legacy import KnowledgeArticle, IncidentNote, IncidentNoteAttachment
 

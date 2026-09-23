@@ -1,0 +1,59 @@
+{% extends "workspace_layout.html" %}
+{% block title %}Посещение уроков{% endblock %}
+{% block workspace_head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lesson_visits.css') }}?v=20260923_1">
+{% endblock %}
+{% block workspace_content %}
+<div class="lesson-visits-page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Посещение уроков</h1>
+      <div class="page-sub">Карты наблюдения, обратная связь педагогам и контроль повторных посещений.</div>
+    </div>
+    <div class="page-actions">
+      {% if can_create %}<a class="btn btn-primary" href="{{ url_for('lesson_visits.create') }}"><i class="bi bi-plus-lg"></i> Новое посещение</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="lv-summary" aria-label="Сводка реестра">
+    <div class="lv-summary-item"><span>Посещений</span><strong>{{ summary.total }}</strong></div>
+    <div class="lv-summary-item"><span>Педагогов</span><strong>{{ summary.teachers }}</strong></div>
+    <div class="lv-summary-item is-danger"><span>Нужно повторить</span><strong>{{ summary.repeat }}</strong></div>
+    <div class="lv-summary-item is-success"><span>Повтор не нужен</span><strong>{{ summary.closed }}</strong></div>
+  </div>
+
+  <form class="card lv-filter-card" method="get">
+    <div class="card-body">
+      <div class="lv-filter-grid">
+        <label class="lv-field lv-filter-search"><span>Педагог</span><input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="ФИО или логин"></label>
+        <label class="lv-field"><span>С даты</span><input class="form-control" type="date" name="date_from" value="{{ request.args.get('date_from', '') }}"></label>
+        <label class="lv-field"><span>По дату</span><input class="form-control" type="date" name="date_to" value="{{ request.args.get('date_to', '') }}"></label>
+        <label class="lv-field"><span>Повторное посещение</span><select class="form-select" name="repeat"><option value="">Все</option><option value="yes" {% if request.args.get('repeat') == 'yes' %}selected{% endif %}>Требуется</option><option value="no" {% if request.args.get('repeat') == 'no' %}selected{% endif %}>Не требуется</option></select></label>
+        <div class="lv-filter-actions"><button class="btn btn-primary" type="submit"><i class="bi bi-search"></i><span>Найти</span></button><a class="btn btn-outline-secondary" href="{{ url_for('lesson_visits.index') }}" title="Сбросить"><i class="bi bi-x-lg"></i></a></div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card lv-registry-card">
+    <div class="table-responsive">
+      <table class="table lv-registry-table mb-0">
+        <thead><tr><th>Дата</th><th>Педагог</th><th>Урок</th><th>Проверяющий</th><th>Повторное посещение</th><th></th></tr></thead>
+        <tbody>
+        {% for visit in visits %}
+          <tr>
+            <td class="lv-date">{{ visit.visit_date.strftime('%d.%m.%Y') }}</td>
+            <td><a class="lv-teacher-link" href="{{ url_for('lesson_visits.detail', visit_id=visit.id) }}">{{ visit.teacher.fio or visit.teacher.username }}</a></td>
+            <td><strong>{{ visit.class_name }} · {{ visit.subject_name }}</strong><span class="lv-topic">{{ visit.topic }}</span></td>
+            <td>{{ visit.observer.fio or visit.observer.username }}</td>
+            <td><span class="lv-repeat-badge {{ 'is-required' if visit.repeat_required else 'is-clear' }}"><i class="bi {{ 'bi-exclamation-circle' if visit.repeat_required else 'bi-check-circle' }}"></i>{{ 'Требуется' if visit.repeat_required else 'Не требуется' }}</span></td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-secondary lv-open-btn" href="{{ url_for('lesson_visits.detail', visit_id=visit.id) }}" aria-label="Открыть"><i class="bi bi-chevron-right"></i></a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6"><div class="lv-empty"><i class="bi bi-journal-check"></i><strong>Посещений пока нет</strong><span>Измените фильтры или создайте первую карту наблюдения.</span></div></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

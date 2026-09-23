@@ -603,8 +603,9 @@
   }
 </style>
 
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/tasks_workspace.css') }}?v=20260922_2">{% endblock %}
+{% block workspace_content %}
 
 <style>
   /* Задачи без бокового меню — основной блок на всю ширину */
@@ -1355,12 +1356,12 @@
   }
 </style>
 
-<div class="tasks-shell tasks-shell-no-side tasks-mobile-upgraded">
+<div class="tasks-shell tasks-shell-no-side tasks-mobile-upgraded task-workspace-page task-list-page">
   <section class="tasks-main tasks-mobile-main">
     <div class="tasks-topbar tasks-mobile-topbar">
       <div class="tasks-topline tasks-mobile-topline">
         <div class="tasks-mobile-heading">
-          <h1 class="tasks-title">Задачи и поручения</h1>
+          <h1 class="tasks-title">{{ title }}</h1>
           <div class="tasks-subtitle"></div>
         </div>
         <div class="tasks-top-actions tasks-mobile-actions">

@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 {% block breadcrumb %}
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -7,7 +7,7 @@
   </ol>
 </nav>
 {% endblock %}
-{% block content %}
+{% block workspace_content %}
 
 <style>
   .inc-hero { background:#fff; border:1px solid #e9ecef; border-radius:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }
@@ -433,7 +433,6 @@
   </div>
   <div class="page-actions">
     <a class="btn btn-primary btn-sm" href="{{ url_for('children.incident_new') }}"><i class="bi bi-plus-lg me-1"></i>Новый инцидент</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-house me-1"></i>Главная</a>
   </div>
 </div>
 

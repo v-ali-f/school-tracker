@@ -8,7 +8,7 @@ from psycopg2 import sql
 
 
 SQLITE_PATH = os.path.abspath(os.path.join("data", "app.db"))
-POSTGRES_URL = "postgresql://school_user:StrongPassword123@localhost:5432/school_tracker"
+POSTGRES_URL = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL")
 
 TABLES = [
     "academic_year",
@@ -32,6 +32,8 @@ def get_sqlite_conn():
 
 
 def get_postgres_conn():
+    if not POSTGRES_URL:
+        raise RuntimeError("Укажите POSTGRES_URL или DATABASE_URL в окружении.")
     parsed = urlparse(POSTGRES_URL)
     return psycopg2.connect(
         dbname=parsed.path.lstrip("/"),

@@ -43,3 +43,13 @@ __MACOSX/
 
 # Local server backups
 backups/
+
+# Generated previews and temporary working files
+output/
+tmp/
+
+# Local one-off copies and editor backups
+*.bak.*
+app/services/* 2.py
+app/services/* 3.py
+app/static/images/* 2.png

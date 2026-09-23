@@ -1,6 +1,7 @@
-{% extends "layout.html" %}
-{% block content %}
-<div class="contingent-page">
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260922_1">{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page contingent-page contingent-workspace-page">
 
 <style>
   /* ── KPI-доска контингента: крупные читаемые карточки в 2 ряда ───────
@@ -121,11 +122,6 @@
   <div>
     <h1 class="page-title">Сводный контингент</h1>
     <div class="page-sub">Статистика по классам, параллелям и зданиям</div>
-  </div>
-  <div class="page-actions contingent-home-action">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}">
-      <i class="bi bi-house me-1"></i>На главную
-    </a>
   </div>
 </div>
 
