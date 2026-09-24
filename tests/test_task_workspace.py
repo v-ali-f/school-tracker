@@ -32,6 +32,8 @@ def test_task_pages_use_shared_workspace_shell(client, make_user, login, path):
     assert 'id="workspaceSidebar"' in html
     assert "workspace_ui.css" in html
     assert "tasks_workspace.css" in html
+    if path in ("/tasks/my", "/tasks/created", "/tasks/overdue", "/tasks/archive"):
+        assert "tasks_list.css" in html
     assert "Поручения, сроки и совместная работа" in html
     assert 'class="task-section-tabs"' in html
 

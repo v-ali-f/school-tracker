@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 from xml.etree import ElementTree
@@ -79,6 +80,7 @@ from app.services.tariff_document_service import (
     generate_tariff_document,
     resolve_artifact_path,
 )
+
 from app.services.tariff_workflow_service import (
     TariffWorkflowError,
     answer_review_comment,
@@ -112,6 +114,12 @@ from app.modules.workload.assignment_routes import (
     _filter_workspace_needs,
     _workspace_matrix_specs,
 )
+
+
+WORKLOAD_WORKSPACE_JS = (
+    Path(__file__).resolve().parents[2]
+    / "app/static/js/workload_assignment_workspace.js"
+).read_text(encoding="utf-8")
 
 
 def _distribution_context(user_id):
@@ -1246,6 +1254,7 @@ def test_admin_creates_assignment_through_route(
     workspace_html = workspace_response.get_data(as_text=True)
     assert workspace_response.status_code == 200
     assert "workload_distribution.css" in workspace_html
+    assert "workload_assignment_workspace.js" in workspace_html
     assert "data-workload-matrix" in workspace_html
     assert "data-matrix-subject-column" in workspace_html
     assert "data-matrix-total-column" in workspace_html
@@ -1763,18 +1772,18 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert 'name="hours"' not in html
     assert f'data-workload-holder-row="teacher:{teacher_id}"' in html
     assert "data-holder-sort-key=" in html
-    assert "sortHolderRows(current);" in html
+    assert "sortHolderRows(current);" in WORKLOAD_WORKSPACE_JS
     assert "workload-matrix-sticky-class" in html
     assert "workload-matrix-sticky-plan" in html
     assert "workload-assignment-matrix__class-group" not in html
     assert "data-matrix-column-key=" not in html
-    assert "columnCell?.cellIndex" not in html
+    assert "columnCell?.cellIndex" not in WORKLOAD_WORKSPACE_JS
     assert 'data-matrix-column-index="0"' in html
-    assert "columnCell?.dataset.matrixColumnIndex" in html
+    assert "columnCell?.dataset.matrixColumnIndex" in WORKLOAD_WORKSPACE_JS
     assert 'id="workspace-holder-page-size"' in html
     assert '<option value="5" selected>5</option>' in html
-    assert "is-row-hovered" in html
-    assert "is-column-hovered" in html
+    assert "is-row-hovered" in WORKLOAD_WORKSPACE_JS
+    assert "is-column-hovered" in WORKLOAD_WORKSPACE_JS
     assert html.count('class="workload-subject-add"') == 1
     assert "Добавить предмет" in html
     assert "<small>Учебный план</small>" not in html
@@ -1787,9 +1796,15 @@ def test_workspace_adds_teacher_subject_and_assigns_full_need(
     assert "Введите фамилию или её часть" in teacher_dialog_html
     assert f'data-teacher-id="{teacher_id}"' not in teacher_dialog_html
     assert f'data-teacher-id="{unused_teacher_id}"' in teacher_dialog_html
-    assert "normalizeTeacherSearch(option.dataset.search).includes(query)" in html
-    assert "teacherPickerOptions().forEach((option) => option.hidden = true)" in html
-    assert "removeTeacherPickerOption(payload.teacher_id)" in html
+    assert (
+        "normalizeTeacherSearch(option.dataset.search).includes(query)"
+        in WORKLOAD_WORKSPACE_JS
+    )
+    assert (
+        "teacherPickerOptions().forEach((option) => option.hidden = true)"
+        in WORKLOAD_WORKSPACE_JS
+    )
+    assert "removeTeacherPickerOption(payload.teacher_id)" in WORKLOAD_WORKSPACE_JS
 
     holder_fragment = client.get(
         "/workload/assignments/workspace",
@@ -2008,7 +2023,7 @@ def test_workspace_can_delete_teacher_subject_row(
     assert "Удалить строку предмета" in before
     assert "/workload/assignments/workspace/subjects/delete" in before
     assert "data-workload-async-subject-delete" in before
-    assert '"X-Requested-With": "XMLHttpRequest"' in before
+    assert '"X-Requested-With": "XMLHttpRequest"' in WORKLOAD_WORKSPACE_JS
     assert "Удалить всю строку" in before
 
     deleted = client.post(
@@ -2316,10 +2331,10 @@ def test_workspace_paginates_five_teachers_by_default(
     assert "workload-holder-pagination--top" in default_html
     assert "workload-holder-pagination--bottom" in default_html
     assert '<option value="5" selected>5</option>' in default_html
-    assert "loadHolderPage" in default_html
-    assert 'searchParams.set("page_fragment", "1")' in default_html
-    assert "window.history.pushState" in default_html
-    assert 'window.addEventListener("popstate"' in default_html
+    assert "loadHolderPage" in WORKLOAD_WORKSPACE_JS
+    assert 'searchParams.set("page_fragment", "1")' in WORKLOAD_WORKSPACE_JS
+    assert "window.history.pushState" in WORKLOAD_WORKSPACE_JS
+    assert 'window.addEventListener("popstate"' in WORKLOAD_WORKSPACE_JS
 
     fragment_response = client.get(
         "/workload/assignments/workspace",
@@ -2835,7 +2850,7 @@ def test_workspace_copies_subject_set_only_to_teacher_without_load(
     ).query)
     assert redirect_query["teacher_query"] == [target_name]
     assert redirect_query["focus_holder"] == [f"teacher:{target_teacher_id}"]
-    assert "scrollIntoView" in copied_html
+    assert "scrollIntoView" in WORKLOAD_WORKSPACE_JS
     assert f'data-workload-holder-row="teacher:{target_teacher_id}"' in copied_html
     target_fragment = copied_html.split(
         f'workload-holder-start:teacher:{target_teacher_id}',

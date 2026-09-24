@@ -46,6 +46,8 @@ def test_incident_pages_use_shared_workspace_shell(
     assert 'id="workspaceSidebar"' in html
     assert "workspace_ui.css" in html
     assert "incidents_workspace.css" in html
+    if path == "/incidents/my":
+        assert "incidents_my.css" in html
     assert 'class="incident-section-tabs"' in html
     assert "Добавить инцидент" in html
 

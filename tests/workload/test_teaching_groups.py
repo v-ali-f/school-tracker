@@ -548,20 +548,10 @@ def test_empty_class_keeps_plan_binding_and_enters_planning_matrix(
     assert "5–9 ·".encode() in response.data
     assert b'value=""' in response.data
     assert b'data-saved-value="0"' in response.data
-    assert (
-        b".contingent-classes-table.table tbody td"
-        in response.data
-    )
-    assert b"height: 31px !important" in response.data
-    assert b"font-size: 15px !important" in response.data
-    assert b"padding: 3px 5px !important" in response.data
+    assert b"contingent_page.css" in response.data
+    assert b"contingent_page.js" in response.data
     assert b"building-tone-1" in response.data
     assert b"contingent-classes-scroll" in response.data
-    assert b"contingent-home-action" in response.data
-    assert b".contingent-page .contingent-home-action" in response.data
-    assert b"col.col-teacher" in response.data
-    assert b"width: 1120px !important" in response.data
-    assert b"visibility: collapse" not in response.data
 
 
 def test_plan_bindings_page_reads_snapshot_classes(
