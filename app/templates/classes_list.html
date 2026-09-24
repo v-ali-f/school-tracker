@@ -1,12 +1,11 @@
-{% extends "workspace_layout.html" %}
-{% block workspace_head_extra %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260923_2">
+{% extends "children_workspace.html" %}
+{% block children_head_extra %}
   <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/classes_registry.css') }}?v=20260804_4"
   >
 {% endblock %}
-{% block workspace_content %}
+{% block children_content %}
 <div class="registry-workspace-page classes-workspace-page">
 
 <div class="page-head">
