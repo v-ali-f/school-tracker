@@ -163,7 +163,6 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'children.class_detail':       [HOME, ('Классы', 'children.classes_registry'), ('Класс', None)],
             'children.contingent':         [HOME, ('Контингент', None)],
             'children.list_contingent':    [HOME, ('Контингент', None)],
-            'children.movements_registry': [HOME, ('Движение контингента', None)],
             'children.comments_registry':  [HOME, ('Комментарии', None)],
             'children.social_passport_dashboard': [HOME, ('Социальные паспорта', None)],
             'children.social_passport_registry':  [HOME, ('Социальные паспорта', None)],
@@ -210,7 +209,6 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'children.roles_admin':        [HOME, ('Управление ролями', None)],
             # Администрирование
             'role_access_admin.settings':  [HOME, ('Настройка ролей', None)],
-            'children.system_logs':        [HOME, ('Системные логи', None)],
             'organization_settings.settings_form': [HOME, ('Настройки организации', None)],
             # Олимпиады (blueprint: olympiads)
             'olympiads.registry':          [HOME, ('Олимпиады', None)],
