@@ -16,6 +16,13 @@ from app.utils.user_matching import find_existing_user, normalize_fio, potential
 
 users_bp = Blueprint("users", __name__)
 
+
+@users_bp.context_processor
+def _users_workspace_context():
+    from app.services.workspace_navigation_service import admin_workspace_context
+
+    return admin_workspace_context()
+
 ROLE_OPTIONS = [
     "ADMIN", "DIRECTOR", "CLASS_TEACHER", "CURATOR", "TEACHER", "VIEWER", "METHODIST", "KPP",
     "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT", "SENIOR_EDUCATOR", "EDUCATOR",

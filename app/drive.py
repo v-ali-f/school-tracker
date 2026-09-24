@@ -29,6 +29,13 @@ from app.models.users import User
 drive_bp = Blueprint("drive", __name__, url_prefix="/drive")
 
 
+@drive_bp.context_processor
+def _drive_workspace_context():
+    from app.services.workspace_navigation_service import documents_workspace_context
+
+    return documents_workspace_context()
+
+
 # ── Конфигурация ──────────────────────────────────────────────────────
 MAX_FILE_BYTES = 100 * 1024 * 1024          # 100 МБ на один файл
 PER_USER_QUOTA_BYTES = 1024 * 1024 * 1024   # 1 ГБ на «Мои файлы»

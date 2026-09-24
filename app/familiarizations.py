@@ -11,6 +11,15 @@ from app.models import Familiarization, FamiliarizationRecipient, User
 from app.services.familiarization_notifications import send_familiarization_max_notification, send_familiarization_mobile_push
 
 familiarizations_bp = Blueprint('familiarizations', __name__, url_prefix='/familiarizations')
+
+
+@familiarizations_bp.context_processor
+def _familiarizations_workspace_context():
+    from app.services.workspace_navigation_service import documents_workspace_context
+
+    return documents_workspace_context()
+
+
 MANAGER_ROLES = {'ADMIN','DIRECTOR','DEPUTY_DIRECTOR','SECRETARY','SECRETARY_ACADEMIC'}
 DIRECTOR_NOTIFICATION_ROLES = {'ADMIN', 'DIRECTOR'}
 

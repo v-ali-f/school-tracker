@@ -10,6 +10,13 @@ from werkzeug.utils import secure_filename
 
 organization_settings_bp = Blueprint('organization_settings', __name__)
 
+
+@organization_settings_bp.context_processor
+def _organization_workspace_context():
+    from app.services.workspace_navigation_service import admin_workspace_context
+
+    return admin_workspace_context()
+
 FIELDS = [
     'parent_org_name', 'full_name', 'short_name', 'legal_name',
     'city', 'address', 'postal_code', 'phone', 'fax', 'email', 'website',

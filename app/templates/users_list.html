@@ -1,9 +1,9 @@
-{% extends "layout.html" %}
+{% extends "admin_workspace.html" %}
 {% block title %}Реестр пользователей{% endblock %}
-{% block head_extra %}
+{% block admin_head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/users_registry.css') }}?v=20260917_1">
 {% endblock %}
-{% block content %}
+{% block admin_content %}
 <div class="dashboard-shell zone-page zone-slate users-registry-page">
   <div class="classic-page-header mb-3 zone-header zone-slate">
     <div>

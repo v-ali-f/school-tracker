@@ -1,12 +1,13 @@
 {% extends "workspace_layout.html" %}
 {% block workspace_head_extra %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/registries_workspace.css') }}?v=20260924_1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/children_workspace.css') }}?v=20260924_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/module_workspace.css') }}?v=20260924_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/children_workspace.css') }}?v=20260924_3">
   {% block children_head_extra %}{% endblock %}
 {% endblock %}
 {% block workspace_content %}
 {% set active_endpoint = request.endpoint or '' %}
-<div class="children-workspace">
+<div class="module-workspace children-workspace">
   <nav class="module-tabs children-workspace-tabs" aria-label="Разделы контингента">
     {% for tab in children_workspace_tabs|default([]) %}
       <a class="module-tab {% if tab.active %}is-active{% endif %}" href="{{ tab.url }}" {% if tab.active %}aria-current="page"{% endif %}>
@@ -14,7 +15,7 @@
       </a>
     {% endfor %}
   </nav>
-  <div class="children-workspace-body">
+  <div class="module-workspace-body children-workspace-body">
     {% block children_content %}{% endblock %}
   </div>
 </div>

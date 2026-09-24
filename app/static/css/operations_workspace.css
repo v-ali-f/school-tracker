@@ -1,0 +1,38 @@
+.documents-workspace-body,
+.admin-workspace-body {
+  min-width: 0;
+}
+
+.documents-workspace-body .dashboard-shell,
+.admin-workspace-body .dashboard-shell {
+  padding: 0;
+}
+
+.documents-workspace-body .table-responsive,
+.admin-workspace-body .table-responsive,
+.documents-workspace-body .registry-table-scroll,
+.admin-workspace-body .registry-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.documents-workspace-body .card,
+.admin-workspace-body .card,
+.documents-workspace-body .registry-matrix-card,
+.admin-workspace-body .registry-matrix-card {
+  border-color: var(--sp-border);
+  border-radius: 13px;
+  box-shadow: var(--sp-shadow);
+}
+
+.documents-workspace-body table,
+.admin-workspace-body table {
+  font-size: 11px;
+}
+
+@media (max-width: 767.98px) {
+  .documents-workspace-body .classic-page-header,
+  .admin-workspace-body .classic-page-header {
+    align-items: flex-start;
+  }
+}

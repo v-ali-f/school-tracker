@@ -1,10 +1,11 @@
 {% extends "workspace_layout.html" %}
 {% block workspace_head_extra %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/service_staff_workspace.css') }}?v=20260924_2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/module_workspace.css') }}?v=20260924_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/service_staff_workspace.css') }}?v=20260924_3">
   {% block service_staff_head_extra %}{% endblock %}
 {% endblock %}
 {% block workspace_content %}
-<div class="service-workspace">
+<div class="module-workspace service-workspace">
   <nav class="module-tabs service-workspace-tabs" aria-label="Разделы службы сопровождения">
     {% for tab in service_workspace_tabs|default([]) %}
       <a class="module-tab {% if tab.active %}is-active{% endif %}" href="{{ tab.url }}" {% if tab.active %}aria-current="page"{% endif %}>
@@ -12,7 +13,7 @@
       </a>
     {% endfor %}
   </nav>
-  <div class="service-workspace-body">
+  <div class="module-workspace-body service-workspace-body">
     {% block service_staff_content %}{% endblock %}
   </div>
 </div>

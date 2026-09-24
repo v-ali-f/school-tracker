@@ -1,0 +1,18 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/module_workspace.css') }}?v=20260924_1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/operations_workspace.css') }}?v=20260924_1">
+  {% block admin_head_extra %}{% endblock %}
+{% endblock %}
+{% block workspace_content %}
+<div class="module-workspace admin-workspace">
+  <nav class="module-tabs admin-workspace-tabs" aria-label="Разделы администрирования">
+    {% for tab in admin_workspace_tabs|default([]) %}
+      <a class="module-tab {% if tab.active %}is-active{% endif %}" href="{{ tab.url }}" {% if tab.active %}aria-current="page"{% endif %}><i class="bi {{ tab.icon }}"></i><span>{{ tab.title }}</span></a>
+    {% endfor %}
+  </nav>
+  <div class="module-workspace-body admin-workspace-body">
+    {% block admin_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}
