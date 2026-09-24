@@ -40,6 +40,32 @@ from app.permissions import can_view_child_basic, has_role, is_admin
 
 service_staff_bp = Blueprint("service_staff", __name__, url_prefix="/service-staff")
 
+
+@service_staff_bp.context_processor
+def _service_staff_workspace_context():
+    """Role-aware shell and compact navigation for service staff pages."""
+    from app.modules.hub.routes import build_home_context
+
+    endpoint = request.endpoint or ""
+    tabs = [
+        {"title": "Обзор", "icon": "bi-grid", "url": url_for("service_staff.index"), "active": endpoint == "service_staff.index"},
+        {"title": "Специалисты", "icon": "bi-people", "url": url_for("service_staff.registry"), "active": endpoint in {"service_staff.registry", "service_staff.specialist_new", "service_staff.specialist_card", "service_staff.specialist_edit", "service_staff.structure", "service_staff.buildings_summary"}},
+        {"title": "Сопровождение", "icon": "bi-person-check", "url": url_for("service_staff.assignments_registry"), "active": endpoint in {"service_staff.assignments_registry", "service_staff.assignment_new", "service_staff.assignment_edit", "service_staff.children_summary", "service_staff.buildings_children_summary"}},
+        {"title": "Циклограммы", "icon": "bi-calendar-week", "url": url_for("service_staff.cyclegrams_registry"), "active": endpoint.startswith("service_staff.cyclegram")},
+        {"title": "Представления", "icon": "bi-file-earmark-text", "url": url_for("service_staff.presentations_registry"), "active": endpoint.startswith("service_staff.presentation")},
+        {"title": "Аналитика", "icon": "bi-bar-chart", "url": url_for("service_staff.analytics_dashboard"), "active": endpoint.startswith("service_staff.analytics_")},
+    ]
+    if _can_edit_module():
+        tabs.append(
+            {"title": "Настройки", "icon": "bi-sliders", "url": url_for("service_staff.norms_registry"), "active": endpoint in {"service_staff.norms_registry", "service_staff.norm_new", "service_staff.norm_edit", "service_staff.responsibles"}}
+        )
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Служба сопровождения",
+        "workspace_context_subtitle": "Специалисты, маршруты помощи, документы и аналитика",
+        "service_workspace_tabs": tabs,
+    }
+
 SERVICE_ROLE_LABELS = {
     "METHODIST": "Методист",
     "OLIGOPHRENOPEDAGOG": "Олигофренопедагог",

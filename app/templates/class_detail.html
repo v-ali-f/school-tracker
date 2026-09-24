@@ -1,5 +1,5 @@
-{% extends "layout.html" %}
-{% block breadcrumb %}
+{% extends "children_workspace.html" %}
+{% block child_breadcrumb_legacy %}
 <nav class="app-breadcrumb" aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
@@ -8,7 +8,7 @@
   </ol>
 </nav>
 {% endblock %}
-{% block content %}
+{% block children_content %}
 
 <div class="page-head">
   <div>

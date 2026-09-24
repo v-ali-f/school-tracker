@@ -22,6 +22,26 @@ from .roles import require_roles
 transfers_bp = Blueprint("transfers", __name__, url_prefix="/transfers")
 
 
+@transfers_bp.context_processor
+def _transfers_workspace_context():
+    """Shared navigation for the complete student movement workflow."""
+    from app.modules.hub.routes import build_home_context
+
+    endpoint = request.endpoint or ""
+    return {
+        "workspace_nav": build_home_context(),
+        "workspace_context_title": "Движение контингента",
+        "workspace_context_subtitle": "Переводы, выбытие и сохранение истории учеников",
+        "children_workspace_tabs": [
+            {"title": "Ученики", "icon": "bi-people", "url": url_for("children.list_children"), "active": False},
+            {"title": "Классы", "icon": "bi-mortarboard", "url": url_for("children.classes_registry"), "active": False},
+            {"title": "Контингент", "icon": "bi-bar-chart", "url": url_for("children.contingent"), "active": False},
+            {"title": "Переводы и выбытие", "icon": "bi-arrow-left-right", "url": url_for("transfers.index"), "active": endpoint.startswith("transfers.")},
+            {"title": "Кабинеты", "icon": "bi-door-open", "url": url_for("children.classrooms_registry"), "active": False},
+        ],
+    }
+
+
 def _get_current_year():
     return AcademicYear.query.filter_by(is_current=True).first()
 

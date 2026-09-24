@@ -4083,6 +4083,12 @@ _REGISTRY_WORKSPACE_ENDPOINTS = {
     "children.registry_enrolled",
     "children.registry_expelled",
     "children.registry_kdn",
+    "children.new_child",
+    "children.child_card",
+    "children.children_import",
+    "children.parents_import",
+    "children.class_detail",
+    "children.classrooms_registry",
 }
 
 _INCIDENT_WORKSPACE_ENDPOINTS = {
@@ -4108,9 +4114,61 @@ def _registry_workspace_context():
     if request.endpoint not in _REGISTRY_WORKSPACE_ENDPOINTS:
         return {}
 
-    is_contingent = request.endpoint == "children.contingent"
+    endpoint = request.endpoint or ""
+    is_contingent = endpoint == "children.contingent"
+    children_tabs = [
+        {
+            "title": "Ученики",
+            "icon": "bi-people",
+            "url": url_for("children.list_children"),
+            "active": endpoint in {
+                "children.list_children",
+                "children.new_child",
+                "children.child_card",
+                "children.children_import",
+                "children.parents_import",
+            },
+        }
+    ]
+    if has_role("ADMIN"):
+        children_tabs.extend(
+            [
+                {
+                    "title": "Классы",
+                    "icon": "bi-mortarboard",
+                    "url": url_for("children.classes_registry"),
+                    "active": endpoint in {
+                        "children.classes_registry",
+                        "children.class_detail",
+                    },
+                },
+                {
+                    "title": "Переводы и выбытие",
+                    "icon": "bi-arrow-left-right",
+                    "url": url_for("transfers.index"),
+                    "active": False,
+                },
+                {
+                    "title": "Кабинеты",
+                    "icon": "bi-door-open",
+                    "url": url_for("children.classrooms_registry"),
+                    "active": endpoint == "children.classrooms_registry",
+                },
+            ]
+        )
+    if has_role("ADMIN") or has_role("METHODIST"):
+        children_tabs.insert(
+            2 if has_role("ADMIN") else 1,
+            {
+                "title": "Контингент",
+                "icon": "bi-bar-chart",
+                "url": url_for("children.contingent"),
+                "active": is_contingent,
+            },
+        )
     return {
         "workspace_nav": _incident_workspace_navigation(),
+        "children_workspace_tabs": children_tabs,
         "workspace_context_title": (
             "Контингент школы" if is_contingent else "Основные реестры"
         ),
