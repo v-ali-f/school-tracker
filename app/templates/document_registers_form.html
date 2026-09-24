@@ -1,6 +1,6 @@
-{% extends "layout.html" %}
+{% extends "documents_workspace.html" %}
 {% block title %}{{ registry_label }} — {{ app_display_title }}{% endblock %}
-{% block content %}
+{% block documents_content %}
 
 {% set read_only = read_only|default(false) %}
 {% set page_title = 'Карточка документа' if read_only else ('Редактирование записи' if item else 'Новая запись') %}

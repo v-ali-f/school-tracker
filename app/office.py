@@ -33,6 +33,13 @@ from app.models import User
 
 office_bp = Blueprint("office", __name__, url_prefix="/office")
 
+
+@office_bp.context_processor
+def _office_workspace_context():
+    from app.services.workspace_navigation_service import documents_workspace_context
+
+    return documents_workspace_context()
+
 OFFICE_EXTENSIONS = {"docx", "xlsx", "pptx"}
 
 

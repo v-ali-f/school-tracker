@@ -34,18 +34,19 @@
 
       {% if ws.get('sidebar_sections') %}<div class="sp-sidebar-label">Разделы и сервисы</div>{% endif %}
       {% for item in ws.get('sidebar_sections', []) %}
-      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'hub.departments' and (ws_endpoint.startswith('departments.') or ws_endpoint.startswith('professional_registry.'))) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.attendance' and ws_endpoint.startswith('attendance.')) or (item.endpoint == 'hub.registries' and ((ws_endpoint.startswith('children.') and not ws_endpoint.startswith('children.incident')) or ws_endpoint.startswith('transfers.'))) or (item.endpoint == 'service_staff.index' and ws_endpoint.startswith('service_staff.')) %}
+      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'hub.departments' and (ws_endpoint.startswith('departments.') or ws_endpoint.startswith('professional_registry.'))) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.attendance' and ws_endpoint.startswith('attendance.')) or (item.endpoint == 'hub.registries' and ((ws_endpoint.startswith('children.') and not ws_endpoint.startswith('children.incident') and ws_endpoint not in ['children.academic_years_registry', 'children.buildings_registry', 'children.roles_admin', 'children.subjects_import']) or ws_endpoint.startswith('transfers.'))) or (item.endpoint == 'service_staff.index' and ws_endpoint.startswith('service_staff.')) or (item.endpoint == 'familiarizations.index' and ws_endpoint.startswith('familiarizations.')) or (item.endpoint == 'drive.index' and (ws_endpoint.startswith('drive.') or ws_endpoint.startswith('office.'))) or (item.endpoint == 'hub.orders' and (ws_endpoint.startswith('orders.') or ws_endpoint.startswith('document_registers.'))) %}
       <a class="sp-nav-link {% if item_active %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-grid' }}"></i><span>{{ item.title }}</span></a>
       {% endfor %}
 
       {% if ws.get('show_admin_block') and (ws.get('sidebar_admin_actions') or current_user.role in ['ADMIN', 'DIRECTOR']) %}<div class="sp-sidebar-label">Служебные действия</div>{% endif %}
       {% if ws.get('show_admin_block') and current_user.role in ['ADMIN', 'DIRECTOR'] %}
-      <a class="sp-nav-link" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders"></i><span>Настройка ролей</span></a>
-      <a class="sp-nav-link" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear"></i><span>Настройки почты</span></a>
+      <a class="sp-nav-link {% if ws_endpoint.startswith('role_access_admin.') %}is-active{% endif %}" href="{{ url_for('role_access_admin.settings') }}"><i class="bi bi-sliders"></i><span>Настройка ролей</span></a>
+      <a class="sp-nav-link {% if ws_endpoint.startswith('admin_email_settings.') %}is-active{% endif %}" href="{{ url_for('admin_email_settings.email_settings') }}"><i class="bi bi-envelope-gear"></i><span>Настройки почты</span></a>
       <a class="sp-nav-link {% if ws_endpoint == 'main.design_system' %}is-active{% endif %}" href="{{ url_for('main.design_system') }}"><i class="bi bi-palette2"></i><span>Компоненты интерфейса</span></a>
       {% endif %}
       {% if ws.get('show_admin_block') %}{% for item in ws.get('sidebar_admin_actions', []) %}
-      <a class="sp-nav-link {% if ws_endpoint == item.endpoint %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i><span>{{ item.title }}</span></a>
+      {% set admin_item_active = ws_endpoint == item.endpoint or (item.endpoint == 'users.users_list' and ws_endpoint.startswith('users.')) or (item.endpoint == 'children.academic_years_registry' and ws_endpoint == 'children.academic_years_registry') or (item.endpoint == 'documents.documents_archive' and ws_endpoint == 'documents.documents_archive') %}
+      <a class="sp-nav-link {% if admin_item_active %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-gear' }}"></i><span>{{ item.title }}</span></a>
       {% endfor %}{% endif %}
     </div>
 

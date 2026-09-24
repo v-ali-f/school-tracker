@@ -13,6 +13,13 @@ orders_bp = Blueprint("orders", __name__)
 # Принимаем и /orders, и /orders/ (закладки пользователей ходят по обоим).
 orders_bp.url_map_strict_slashes = False
 
+
+@orders_bp.context_processor
+def _orders_workspace_context():
+    from app.services.workspace_navigation_service import documents_workspace_context
+
+    return documents_workspace_context()
+
 SECTIONS = [
     ("main_activity", "Основная деятельность"),
     ("procurement", "Закупки"),

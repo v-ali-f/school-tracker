@@ -21,6 +21,13 @@ from app.models import SystemMailSettings
 
 admin_email_settings_bp = Blueprint("admin_email_settings", __name__, url_prefix="/admin")
 
+
+@admin_email_settings_bp.context_processor
+def _email_workspace_context():
+    from app.services.workspace_navigation_service import admin_workspace_context
+
+    return admin_workspace_context()
+
 TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS system_email_settings (
     id INTEGER PRIMARY KEY,

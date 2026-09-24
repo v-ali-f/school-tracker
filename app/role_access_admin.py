@@ -16,6 +16,13 @@ from app.permissions import is_admin as _permissions_is_admin
 role_access_admin_bp = Blueprint("role_access_admin", __name__, url_prefix="/admin/role-access")
 
 
+@role_access_admin_bp.context_processor
+def _role_access_workspace_context():
+    from app.services.workspace_navigation_service import admin_workspace_context
+
+    return admin_workspace_context()
+
+
 DEFAULT_MODULES = [
     ("appeals", "Обращения"),
     ("familiarizations", "Ознакомления"),

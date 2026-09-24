@@ -13,6 +13,13 @@ document_registers_bp = Blueprint("document_registers", __name__, url_prefix="/d
 document_registers_bp.url_map_strict_slashes = False
 
 
+@document_registers_bp.context_processor
+def _document_registers_workspace_context():
+    from app.services.workspace_navigation_service import documents_workspace_context
+
+    return documents_workspace_context()
+
+
 REGISTRIES = [
     ("incoming", "Входящие документы"),
     ("outgoing", "Исходящие документы"),

@@ -4100,10 +4100,22 @@ _INCIDENT_WORKSPACE_ENDPOINTS = {
     "children.incidents_dashboard",
 }
 
+_ADMIN_WORKSPACE_ENDPOINTS = {
+    "children.academic_years_registry",
+    "children.buildings_registry",
+    "children.roles_admin",
+    "children.subjects_import",
+}
+
 
 @children_bp.context_processor
 def _registry_workspace_context():
     """Supply the shared role-aware shell to migrated registry and incident pages."""
+    if request.endpoint in _ADMIN_WORKSPACE_ENDPOINTS:
+        from app.services.workspace_navigation_service import admin_workspace_context
+
+        return admin_workspace_context()
+
     if request.endpoint in _INCIDENT_WORKSPACE_ENDPOINTS:
         return {
             "workspace_nav": _incident_workspace_navigation(),

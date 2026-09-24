@@ -16,6 +16,13 @@ from .permissions import can_view_documents, can_upload_documents, is_admin
 documents_bp = Blueprint("documents", __name__)
 
 
+@documents_bp.context_processor
+def _documents_workspace_context():
+    from app.services.workspace_navigation_service import documents_workspace_context
+
+    return documents_workspace_context()
+
+
 def _upload_root() -> str:
     root = current_app.config.get("UPLOAD_FOLDER") or "app/uploads"
     return os.path.abspath(root)
