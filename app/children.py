@@ -166,6 +166,7 @@ from app.services.teacher_mcko_registry_service import (
 from app.services.population_snapshot_sync_service import (
     sync_school_class_structure,
 )
+from app.services.incident_assignment_service import incident_assignee_candidates
 from app.utils.building_matrix_tones import (
     BUILDING_MATRIX_TONE_CHOICES,
     building_matrix_tone,
@@ -5158,21 +5159,7 @@ def incident_edit(incident_id):
 
     selected_blocks = list(grouped.values()) or [{"grade": "", "class_id": "", "child_ids": []}]
 
-    assignees = []
-    if _can_change_status():
-        from app.models_legacy import User as _User, UserRole as _UserRole, Role as _Role
-        assignees = (
-            _User.query
-            .join(_UserRole, _UserRole.user_id == _User.id)
-            .join(_Role, _Role.id == _UserRole.role_id)
-            .filter(_Role.code.in_([
-                "ADMIN", "DEPUTY_DIRECTOR", "PSYCHOLOGIST", "SOCIAL_PEDAGOG",
-                "METHODIST", "CLASS_TEACHER", "TEACHER",
-            ]))
-            .distinct()
-            .order_by(_User.last_name, _User.first_name)
-            .all()
-        )
+    assignees = incident_assignee_candidates() if _can_change_status() else []
 
     is_author = inc.author_id == getattr(current_user, "id", None)
     is_assignee = _uid_is_assignee(inc, getattr(current_user, "id", None))
@@ -6191,29 +6178,9 @@ def incidents_my():
             .all()
         )
 
-    # Список исполнителей для picker-а в строке таблицы.
-    # Двойная схема ролей: user.role (старая) ИЛИ user_role→role (новая).
-    # На локали user_role часто пустая — полагаемся на user.role. На проде
-    # наоборот — основная — user_role. Ищем по обеим сразу через OR.
-    from app.models_legacy import User as _User, UserRole as _UserRole, Role as _Role
-    _ROLE_CODES = [
-        "ADMIN", "DEPUTY_DIRECTOR", "PSYCHOLOGIST", "SOCIAL_PEDAGOG",
-        "METHODIST", "CLASS_TEACHER", "TEACHER",
-    ]
-    _users_via_ur = (
-        db.session.query(_User.id)
-        .join(_UserRole, _UserRole.user_id == _User.id)
-        .join(_Role, _Role.id == _UserRole.role_id)
-        .filter(_Role.code.in_(_ROLE_CODES))
-    )
-    assignees = (
-        _User.query
-        .filter(
-            _User.role.in_(_ROLE_CODES) | _User.id.in_(_users_via_ur)
-        )
-        .order_by(_User.last_name.asc().nullslast(), _User.first_name.asc().nullslast())
-        .all()
-    )
+    # Карточка и таблица используют один источник кандидатов. Он учитывает
+    # одновременно старое поле user.role и нормализованную таблицу user_role.
+    assignees = incident_assignee_candidates()
 
     # Лейблы вкладок
     tab_labels = {

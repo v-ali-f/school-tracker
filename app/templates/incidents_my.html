@@ -1,6 +1,6 @@
 {% extends "incidents_workspace.html" %}
 {% block incidents_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/incidents_my.css') }}?v=20260924_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/incidents_my.css') }}?v=20260924_2">
 {% endblock %}
 {% block breadcrumb %}{% endblock %}
 {% block incidents_content %}
@@ -742,30 +742,33 @@
           <td class="small text-muted col-author">{{ r.author_label or "—" }}</td>
           <td class="small col-assignee">
             {% if can_change_status %}
-              <div class="assignee-picker" data-incident-id="{{ r.inc.id }}"
+              <div class="assignee-picker" data-assignee-picker data-incident-id="{{ r.inc.id }}"
                    data-current-ids="{{ r.assignee_ids | join(',') }}">
-                <button type="button" class="btn btn-sm assignee-btn {% if r.assignee_ids %}has-assignee{% endif %}">
+                <button type="button" data-assignee-toggle aria-haspopup="listbox" aria-expanded="false"
+                        class="btn btn-sm assignee-btn {% if r.assignee_ids %}has-assignee{% endif %}">
                   {% if r.assignee_ids %}
                     {{ r.assignees_label }}
                   {% else %}
                     <i class="bi bi-person-plus"></i> Назначить
                   {% endif %}
                 </button>
-                <div class="assignee-menu">
+                <div class="assignee-menu" data-assignee-menu role="listbox">
                   <div class="assignee-search-wrap">
-                    <input type="text" class="assignee-search" placeholder="Поиск…" autocomplete="off">
+                    <input type="text" class="assignee-search" data-assignee-search placeholder="Поиск по ФИО…" autocomplete="off">
                   </div>
-                  <div class="assignee-list">
+                  <div class="assignee-list" data-assignee-list>
                     {% for u in assignees %}
                     <label class="assignee-opt d-flex align-items-center gap-2"
+                         data-assignee-option
                          data-aid="{{ u.id }}"
                          data-label="{{ u.last_name }} {{ (u.first_name or '')[:1] }}."
                          data-search="{{ (u.last_name or '')|lower }} {{ (u.first_name or '')|lower }} {{ (u.username or '')|lower }}">
-                      <input type="checkbox" class="form-check-input m-0 assignee-cb" value="{{ u.id }}"
+                      <input type="checkbox" name="assignee_ids" class="form-check-input m-0 assignee-cb" value="{{ u.id }}"
                              {% if u.id in r.assignee_ids %}checked{% endif %}>
                       <span>{{ u.last_name }} {{ u.first_name }}{% if u.middle_name %} {{ u.middle_name[:1] }}.{% endif %}</span>
                     </label>
                     {% endfor %}
+                    <div class="assignee-empty text-muted small px-2 py-2" data-assignee-empty>Никто не найден</div>
                   </div>
                   <div class="assignee-apply-wrap" style="border-top:1px solid #f1f3f5;padding:.4rem .5rem;display:flex;justify-content:flex-end;gap:.4rem;">
                     <button type="button" class="btn btn-sm btn-outline-secondary assignee-clear">Очистить</button>
@@ -1230,38 +1233,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
 (function(){
-    // Открытие меню пикера
-    document.addEventListener('click', function(e){
-      var trigger = e.target.closest && e.target.closest('.assignee-btn');
-      if (!trigger) return;
-      e.stopPropagation();
-      var pk = trigger.closest('.assignee-picker');
-      if (!pk) return;
-      var menu = pk.querySelector('.assignee-menu');
-      if (!menu) return;
-      document.querySelectorAll('.assignee-menu.open').forEach(function(m){ if (m !== menu) m.classList.remove('open'); });
-      document.querySelectorAll('.status-picker-menu.open').forEach(function(m){ m.classList.remove('open'); });
-      menu.classList.toggle('open');
-      var search = pk.querySelector('.assignee-search');
-      if (menu.classList.contains('open') && search) {
-        search.value = '';
-        pk.querySelectorAll('.assignee-opt').forEach(function(o){ o.classList.remove('hidden'); });
-        setTimeout(function(){ search.focus(); }, 0);
-      }
-    });
-
-    // Фильтр-поиск
-    document.addEventListener('input', function(e){
-      if (!(e.target && e.target.classList && e.target.classList.contains('assignee-search'))) return;
-      var pk = e.target.closest('.assignee-picker');
-      if (!pk) return;
-      var q = (e.target.value || '').trim().toLowerCase();
-      pk.querySelectorAll('.assignee-opt').forEach(function(o){
-        var txt = o.dataset.search || (o.textContent || '').toLowerCase();
-        o.classList.toggle('hidden', q && txt.indexOf(q) === -1);
-      });
-    });
-
     // state для модалки
     var pendingAssign = { pk:null, btn:null, menu:null, incId:'', ids:[], addedLabels:[] };
     var modalEl = document.getElementById('setAssigneeModal');

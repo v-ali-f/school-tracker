@@ -96,6 +96,44 @@ body.school-plan-modern-shell .ws-content .incident-workspace .form-select {
 .incident-workspace .timeline-content { padding: 9px 12px; border: 1px solid #edf0f4; border-radius: 9px; background: #f8f9fb; }
 .incident-workspace .timeline-event-text { margin-top: 4px; white-space: pre-wrap; }
 
+/* Shared incident assignee picker. Fixed positioning keeps it outside table/card clipping. */
+[data-assignee-picker] { position: relative; }
+
+[data-assignee-menu] {
+  display: none;
+  position: fixed !important;
+  z-index: 1090;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: calc(100vw - 24px) !important;
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  border: 1px solid var(--sp-border);
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(30, 41, 59, 0.18);
+}
+
+[data-assignee-menu].open { display: flex !important; }
+
+[data-assignee-list] {
+  flex: 1 1 auto;
+  min-height: 72px;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+[data-assignee-option].hidden { display: none !important; }
+
+[data-assignee-empty] { display: none; }
+
+@media (max-width: 575.98px) {
+  [data-assignee-menu] {
+    min-width: 0;
+    max-height: min(70vh, 460px);
+  }
+}
+
 @media (max-width: 767.98px) {
   .incident-section-tab { flex: 0 0 auto; }
 

@@ -69,19 +69,19 @@
   .assignee-btn:hover { background:#f8fafc; border-color:#94a3b8; color:#1f2937; }
   .assignee-btn.has-assignee { border-style:solid; border-color:#c7d2fe; background:#eef2ff; color:#3730a3; }
   .assignee-menu {
-    display:none; position:absolute; left:0; top:calc(100% + 4px); z-index:1060;
-    width:260px; max-width:80vw; background:#fff;
+    display:none; z-index:1060;
+    width:340px; max-width:calc(100vw - 24px); background:#fff;
     border:1px solid #e9ecef; border-radius:10px;
     box-shadow:0 8px 24px rgba(0,0,0,.13); padding:.4rem;
   }
-  .assignee-menu.open { display:block; }
+  .assignee-menu.open { display:flex; }
   .assignee-search-wrap { padding:.2rem .3rem .4rem; border-bottom:1px solid #f1f3f5; margin-bottom:.3rem; }
   .assignee-search {
     width:100%; padding:.25rem .5rem; border:1px solid #e9ecef; border-radius:6px;
     font-size:.82rem; outline:none;
   }
   .assignee-search:focus { border-color:#3b82f6; }
-  .assignee-list { max-height:240px; overflow-y:auto; }
+  .assignee-list { min-height:72px; max-height:280px; overflow-y:auto; }
   .assignee-opt {
     padding:.35rem .5rem; border-radius:6px; cursor:pointer;
     font-size:.82rem; color:#212529;
@@ -132,15 +132,6 @@
     .incident-table th[class^="col-"],
     .incident-table th[class*=" col-"] { width: auto !important; }
   }
-  /* Picker assignee — fixed на узких экранах, чтобы не упирался в правый край */
-  @media (max-width: 575.98px) {
-    .assignee-menu {
-      position: fixed;
-      left: 1rem; right: 1rem; top: auto;
-      width: auto; max-width: none;
-    }
-  }
-
   /* Kanban */
   .inc-kanban { display:flex; gap:14px; padding:1rem; overflow-x:auto; min-height:60vh; }
   .kb-col { flex:0 0 320px; max-width:320px; }

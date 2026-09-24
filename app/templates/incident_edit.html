@@ -90,26 +90,28 @@
         </div>
         <div class="col-12">
           <label class="form-label">Исполнители <span class="text-muted small">(можно выбрать нескольких)</span></label>
-          <div id="assigneePicker" style="position:relative;max-width:560px;">
+          <div id="assigneePicker" data-assignee-picker style="position:relative;max-width:560px;">
             <button type="button" id="assigneePickerToggle" class="form-select text-start"
+                    data-assignee-toggle aria-haspopup="listbox" aria-expanded="false"
                     style="padding-right:2rem;cursor:pointer;background-color:#fff;">
               <span id="assigneePickerSelected" style="display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;min-height:1.4rem;">
                 <span class="text-muted small" id="assigneePickerEmptyHint">— выбрать исполнителей —</span>
               </span>
             </button>
-            <div id="assigneePickerDropdown"
+            <div id="assigneePickerDropdown" data-assignee-menu role="listbox"
                  style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);
                         background:#fff;border:1px solid #e9ecef;border-radius:8px;
                         box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:1050;">
               <div style="padding:.4rem .5rem;border-bottom:1px solid #f1f3f5;">
                 <input type="text" class="form-control form-control-sm" id="assigneePickerSearch"
-                       placeholder="Поиск по ФИО…" autocomplete="off">
+                       data-assignee-search placeholder="Поиск по ФИО…" autocomplete="off">
               </div>
-              <div id="assigneePickerList" style="max-height:260px;overflow-y:auto;padding:.25rem;">
+              <div id="assigneePickerList" data-assignee-list style="max-height:260px;overflow-y:auto;padding:.25rem;">
                 {% for u in assignees %}
                   {% set _label = (u.last_name or '') ~ ' ' ~ (u.first_name or '') ~ ((' ' ~ u.middle_name) if u.middle_name else '') %}
                   {% set _checked = u.id in (selected_assignee_ids or []) %}
                   <label class="assignee-row d-flex align-items-center gap-2"
+                         data-assignee-option
                          data-search="{{ _label|trim|lower }}"
                          style="padding:.3rem .55rem;border-radius:6px;cursor:pointer;font-size:.88rem;margin:0;">
                     <input type="checkbox" name="assignee_ids" value="{{ u.id }}"
@@ -119,7 +121,7 @@
                     <span>{{ _label|trim }}</span>
                   </label>
                 {% endfor %}
-                <div class="assignee-empty text-muted small px-2 py-2" style="display:none;">Никто не найден</div>
+                <div class="assignee-empty text-muted small px-2 py-2" data-assignee-empty>Никто не найден</div>
               </div>
             </div>
           </div>
@@ -422,15 +424,10 @@ const MARK_RESOLVED_URL = "{{ url_for('children.incident_mark_resolved', inciden
 document.addEventListener('DOMContentLoaded', function(){
   const wrap = document.getElementById('assigneePicker');
   if (!wrap) return;
-  const toggle = document.getElementById('assigneePickerToggle');
-  const dropdown = document.getElementById('assigneePickerDropdown');
-  const search = document.getElementById('assigneePickerSearch');
   const listEl = document.getElementById('assigneePickerList');
   const selWrap = document.getElementById('assigneePickerSelected');
   const emptyHint = document.getElementById('assigneePickerEmptyHint');
   const noteWrap = document.getElementById('assignmentNoteWrap');
-  const rows = Array.from(listEl.querySelectorAll('.assignee-row'));
-  const emptyEl = listEl.querySelector('.assignee-empty');
 
   function renderSelected(){
     const checks = listEl.querySelectorAll('.assignee-cb:checked');
@@ -451,43 +448,9 @@ document.addEventListener('DOMContentLoaded', function(){
     if (noteWrap) noteWrap.style.display = checks.length ? '' : 'none';
   }
 
-  function applyFilter(q){
-    const query = (q || '').trim().toLowerCase();
-    let visible = 0;
-    rows.forEach(r => {
-      const match = query === '' || (r.dataset.search || '').includes(query);
-      r.style.display = match ? '' : 'none';
-      if (match) visible++;
-    });
-    if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
-  }
-
-  function openDropdown(){
-    dropdown.style.display = 'block';
-    setTimeout(function(){ search.focus(); }, 0);
-  }
-  function closeDropdown(){
-    dropdown.style.display = 'none';
-    if (search) search.value = '';
-    applyFilter('');
-  }
-
-  toggle.addEventListener('click', function(e){
-    e.stopPropagation();
-    if (dropdown.style.display === 'block') closeDropdown();
-    else openDropdown();
-  });
-
-  search.addEventListener('input', function(){ applyFilter(search.value); });
-  search.addEventListener('click', function(e){ e.stopPropagation(); });
-
   listEl.addEventListener('click', function(e){ e.stopPropagation(); });
   listEl.addEventListener('change', function(e){
     if (e.target && e.target.classList.contains('assignee-cb')) renderSelected();
-  });
-
-  document.addEventListener('click', function(e){
-    if (!wrap.contains(e.target)) closeDropdown();
   });
 
   renderSelected();
