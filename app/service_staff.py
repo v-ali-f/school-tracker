@@ -367,7 +367,26 @@ def _specialist_choices():
 
 
 def _class_choices():
-    return SchoolClass.query.order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc()).all()
+    current_year = (
+        AcademicYear.query
+        .filter(AcademicYear.is_current.is_(True))
+        .order_by(AcademicYear.id.desc())
+        .first()
+    )
+    if not current_year:
+        current_year = (
+            AcademicYear.query
+            .filter(AcademicYear.is_archived.is_(False))
+            .order_by(AcademicYear.start_date.desc(), AcademicYear.id.desc())
+            .first()
+        )
+    query = SchoolClass.query.filter(
+        SchoolClass.is_active.is_(True),
+        SchoolClass.is_archived.is_(False),
+    )
+    if current_year:
+        query = query.filter(SchoolClass.academic_year_id == current_year.id)
+    return query.order_by(SchoolClass.grade.asc().nullslast(), SchoolClass.name.asc()).all()
 
 
 def _extract_parallel_from_class_name(value):
@@ -606,13 +625,6 @@ def _multi_assignment_payload_from_request():
     allowed_children = {row.id: row for row in _child_choices()}
     if any(child_id not in allowed_children for child_id in child_ids):
         raise ValueError("Один из выбранных обучающихся недоступен.")
-    selected_classes = {
-        allowed_children[child_id].current_class.id
-        for child_id in child_ids
-        if allowed_children[child_id].current_class
-    }
-    if len(child_ids) > 1 and (len(selected_classes) != 1 or any(not allowed_children[child_id].current_class for child_id in child_ids)):
-        raise ValueError("Группу можно сформировать только из обучающихся одного класса.")
     if not order_number:
         raise ValueError("Укажите номер приказа.")
     if not order_date:

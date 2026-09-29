@@ -31,6 +31,7 @@
   const classOptions = Array.from(schoolClass.options).filter(function (option) { return option.value; });
   const children = Array.from(roster.querySelectorAll(".sa-child-option"));
   const count = document.getElementById("saSelectedCount");
+  const selectedClasses = document.getElementById("saSelectedClasses");
   const empty = document.getElementById("saRosterEmpty");
 
   function visibleChildren() {
@@ -38,8 +39,16 @@
   }
 
   function updateCount() {
-    const selected = children.filter(function (item) { return item.querySelector("input").checked; }).length;
-    if (count) count.textContent = "Выбрано: " + selected;
+    const selected = children.filter(function (item) { return item.querySelector("input").checked; });
+    const classNames = Array.from(new Set(selected.map(function (item) {
+      return item.dataset.className || "Без класса";
+    })));
+    if (count) count.textContent = "Выбрано: " + selected.length;
+    if (selectedClasses) {
+      selectedClasses.textContent = classNames.length
+        ? "Классы: " + classNames.join(", ")
+        : "Можно выбрать из разных классов";
+    }
   }
 
   function filterChildren() {
@@ -76,9 +85,6 @@
   function updateClass() {
     const option = schoolClass.options[schoolClass.selectedIndex];
     if (teacher) teacher.value = option && option.value ? (option.dataset.teacher || "Не указан") : "";
-    children.forEach(function (item) {
-      if (item.dataset.classId !== schoolClass.value) item.querySelector("input").checked = false;
-    });
     filterChildren();
   }
 

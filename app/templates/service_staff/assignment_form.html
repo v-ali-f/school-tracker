@@ -1,13 +1,13 @@
 {% extends "service_staff/workspace.html" %}
 {% block service_staff_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/service_assignment_form.css') }}?v=20260929_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/service_assignment_form.css') }}?v=20260929_2">
 {% endblock %}
 {% block service_staff_content %}
 <div class="service-assignment-page">
   <div class="page-head">
     <div>
       <h1 class="page-title">{{ 'Добавить в реестр сопровождения' if is_group_create else 'Карточка сопровождения' }}</h1>
-      <div class="page-sub">{{ 'Можно выбрать одного обучающегося или сразу группу из одного класса.' if is_group_create else 'Реквизиты приказа, срок ИУП и состав специалистов.' }}</div>
+      <div class="page-sub">{{ 'Можно выбрать одного обучающегося или группу из разных классов.' if is_group_create else 'Реквизиты приказа, срок ИУП и состав специалистов.' }}</div>
     </div>
     <div class="page-actions">
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('service_staff.assignments_registry') }}"><i class="bi bi-arrow-left"></i> К реестру</a>
@@ -22,8 +22,8 @@
       {% set enabled_roles = form_state.enabled_roles|default([], true) %}
       {% set selected_role_specialists = form_state.role_specialists|default({}, true) %}
 
-      <section class="card sa-section">
-        <div class="sa-section-head"><span class="sa-step">1</span><div><h2>Обучающиеся</h2><p>Класс и классный руководитель подставляются автоматически.</p></div></div>
+      <section class="card sa-section sa-students-section">
+        <div class="sa-section-head"><span class="sa-step">1</span><div><h2>Обучающиеся</h2><p>Выбирайте учеников по классам — ранее выбранные сохранятся.</p></div></div>
         <div class="card-body">
           {% if is_group_create %}
           <div class="sa-class-grid">
@@ -31,13 +31,14 @@
             <label class="sa-field"><span>Класс</span><select class="form-select" id="saClass"><option value="">Сначала параллель</option>{% for row in classes %}<option value="{{ row.id }}" data-grade="{{ row.grade if row.grade is not none else '' }}" data-teacher="{{ row.teacher_user.fio if row.teacher_user else (row.teacher_name or '') }}">{{ row.name }}</option>{% endfor %}</select></label>
             <label class="sa-field sa-teacher-field"><span>Классный руководитель</span><input class="form-control" id="saTeacher" readonly placeholder="Подставится после выбора класса"></label>
           </div>
+          <div class="sa-year-note"><i class="bi bi-calendar3"></i> Классы текущего учебного года{% if classes and classes[0].academic_year %}: {{ classes[0].academic_year.name }}{% endif %}</div>
           <div class="sa-roster-toolbar">
             <label class="sa-field sa-search"><span>Поиск по классу</span><span class="sa-search-control"><i class="bi bi-search"></i><input class="form-control" id="saChildSearch" placeholder="Начните вводить фамилию"></span></label>
-            <div class="sa-selection-actions"><span id="saSelectedCount">Выбрано: 0</span><button class="btn btn-sm btn-outline-secondary" id="saSelectVisible" type="button">Выбрать всех</button><button class="btn btn-sm btn-link" id="saClearSelection" type="button">Очистить</button></div>
+            <div class="sa-selection-actions"><span class="sa-selection-summary"><strong id="saSelectedCount">Выбрано: 0</strong><small id="saSelectedClasses">Можно выбрать из разных классов</small></span><button class="btn btn-sm btn-outline-secondary" id="saSelectVisible" type="button">Выбрать класс</button><button class="btn btn-sm btn-link" id="saClearSelection" type="button">Очистить всё</button></div>
           </div>
           <div class="sa-roster" id="saRoster" aria-live="polite">
             {% for row in children %}
-            <label class="sa-child-option" data-class-id="{{ row.current_class.id if row.current_class else '' }}" data-child-search="{{ row.fio|lower }}">
+            <label class="sa-child-option" data-class-id="{{ row.current_class.id if row.current_class else '' }}" data-class-name="{{ row.current_class_name or '' }}" data-child-search="{{ row.fio|lower }}">
               <input class="form-check-input" type="checkbox" name="child_ids" value="{{ row.id }}" {% if row.id|string in selected_child_ids %}checked{% endif %}>
               <span><strong>{{ row.fio }}</strong><small>{{ row.current_class_name or 'Без класса' }}</small></span>
             </label>
@@ -54,7 +55,7 @@
         </div>
       </section>
 
-      <section class="card sa-section">
+      <section class="card sa-section sa-order-section">
         <div class="sa-section-head"><span class="sa-step">2</span><div><h2>Приказ и срок ИУП</h2><p>Реквизиты будут общими для всех выбранных обучающихся.</p></div></div>
         <div class="card-body sa-order-grid">
           <label class="sa-field"><span>Номер приказа <b>*</b></span><input class="form-control" name="order_number" value="{{ form_state.order_number|default('', true) }}" required placeholder="Например, 145-ОД"></label>
@@ -64,7 +65,7 @@
         </div>
       </section>
 
-      <section class="card sa-section">
+      <section class="card sa-section sa-specialists-section">
         <div class="sa-section-head"><span class="sa-step">3</span><div><h2>Специалисты сопровождения</h2><p>Отметьте нужные роли и выберите сотрудников.</p></div></div>
         <div class="card-body sa-specialists-grid">
           {% for role_key, role_label, role_code in assignment_role_choices %}
@@ -99,5 +100,5 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/service_assignment_form.js') }}?v=20260929_1"></script>
+<script src="{{ url_for('static', filename='js/service_assignment_form.js') }}?v=20260929_2"></script>
 {% endblock %}

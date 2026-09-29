@@ -3,6 +3,7 @@ from datetime import date
 from app.core.extensions import db
 from app.models import AcademicYear, Child, ChildEnrollment, SchoolClass, User
 from app.models.service_staff import ServiceAssignment, ServiceSpecialist
+from app.service_staff import _class_choices
 
 
 def _group_context(app, make_user):
@@ -129,3 +130,85 @@ def test_group_assignment_requires_order_details(
     assert "Укажите номер приказа" in response.get_data(as_text=True)
     with app.app_context():
         assert ServiceAssignment.query.count() == 0
+
+
+def test_assignment_form_uses_only_current_academic_year_classes(
+    app,
+    make_user,
+):
+    teacher_id = make_user("CLASS_TEACHER")
+    with app.app_context():
+        previous_year = AcademicYear(name="2025/2026", is_current=False)
+        current_year = AcademicYear(name="2026/2027", is_current=True)
+        db.session.add_all([previous_year, current_year])
+        db.session.flush()
+        db.session.add_all([
+            SchoolClass(
+                academic_year_id=previous_year.id,
+                name="2А",
+                grade=2,
+                letter="А",
+                teacher_user_id=teacher_id,
+            ),
+            SchoolClass(
+                academic_year_id=current_year.id,
+                name="2А",
+                grade=2,
+                letter="А",
+                teacher_user_id=teacher_id,
+            ),
+        ])
+        db.session.commit()
+
+        rows = _class_choices()
+
+        assert [row.name for row in rows] == ["2А"]
+        assert rows[0].academic_year_id == current_year.id
+
+
+def test_group_assignment_accepts_children_from_different_classes(
+    app,
+    client,
+    make_user,
+    login,
+):
+    context = _group_context(app, make_user)
+    with app.app_context():
+        current_year = AcademicYear.query.filter_by(is_current=True).one()
+        second_class = SchoolClass(
+            academic_year_id=current_year.id,
+            name="8Б",
+            grade=8,
+            letter="Б",
+        )
+        second_child = Child(last_name="Сидоров", first_name="Сидор")
+        db.session.add_all([second_class, second_child])
+        db.session.flush()
+        db.session.add(ChildEnrollment(
+            child_id=second_child.id,
+            academic_year_id=current_year.id,
+            school_class_id=second_class.id,
+            status="ACTIVE",
+        ))
+        db.session.commit()
+        second_child_id = second_child.id
+
+    login(context["admin_id"])
+    selected_ids = [context["child_ids"][0], second_child_id]
+    response = client.post(
+        "/service-staff/assignments/new",
+        data={
+            "child_ids": [str(child_id) for child_id in selected_ids],
+            "order_number": "201-ОД",
+            "order_date": "2026-09-29",
+            "iup_end_date": "2027-05-31",
+            "enabled_roles": "pedagog_psychologist",
+            "role_pedagog_psychologist_specialist_id": str(context["specialist_id"]),
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert "обучающихся — 2" in response.get_data(as_text=True)
+    with app.app_context():
+        assert {row.child_id for row in ServiceAssignment.query.all()} == set(selected_ids)
