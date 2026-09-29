@@ -1368,8 +1368,6 @@ def assignment_edit(assignment_id: int):
         except Exception as exc:
             db.session.rollback()
             flash(str(exc), "danger")
-    assignment_ids = [row.id for row in assignments]
-    history_rows = ServiceAssignmentHistory.query.options(joinedload(ServiceAssignmentHistory.changed_by)).filter(ServiceAssignmentHistory.assignment_id.in_(assignment_ids)).order_by(ServiceAssignmentHistory.created_at.desc()).all() if assignment_ids else []
     incidents_list = []
     if is_admin():
         incidents_list = (
@@ -1389,7 +1387,6 @@ def assignment_edit(assignment_id: int):
         buildings=_building_choices(),
         classes=_class_choices(),
         status_choices=ASSIGNMENT_STATUS_CHOICES,
-        history_rows=history_rows,
         form_state=form_state,
         multi_mode=True,
         is_group_create=False,

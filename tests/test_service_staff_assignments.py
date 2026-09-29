@@ -94,6 +94,7 @@ def test_group_assignment_creates_registry_rows_with_order_and_iup(
     with app.app_context():
         rows = ServiceAssignment.query.order_by(ServiceAssignment.child_id).all()
         assert len(rows) == 2
+        assignment_id = rows[0].id
         assert {row.child_id for row in rows} == set(context["child_ids"])
         assert {row.order_number for row in rows} == {"145-ОД"}
         assert {row.order_date for row in rows} == {date(2026, 9, 15)}
@@ -104,6 +105,13 @@ def test_group_assignment_creates_registry_rows_with_order_and_iup(
     assert "Комментарий / примечание" in form_html
     assert "Параметры сопровождения" not in form_html
     assert "Дата завершения сопровождения" not in form_html
+
+    edit_response = client.get(f"/service-staff/assignments/{assignment_id}/edit")
+    edit_html = edit_response.get_data(as_text=True)
+    assert edit_response.status_code == 200
+    assert "История изменений" not in edit_html
+    assert "Параметры сопровождения" not in edit_html
+    assert "Разделы службы сопровождения" in edit_html
 
 
 def test_group_assignment_requires_order_details(

@@ -1,6 +1,6 @@
 {% extends "service_staff/workspace.html" %}
 {% block service_staff_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/service_assignment_form.css') }}?v=20260929_2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/service_assignment_form.css') }}?v=20260929_3">
 {% endblock %}
 {% block service_staff_content %}
 <div class="service-assignment-page">
@@ -81,20 +81,12 @@
       </section>
 
       <div class="sa-submit-bar">
+        {% if not is_group_create and assignment.id and multi_mode %}<button class="btn btn-outline-danger sa-delete-action" type="submit" formaction="{{ url_for('service_staff.assignment_delete', assignment_id=assignment.id) }}" formmethod="post" onclick="return confirm('Удалить всю карточку сопровождения?');"><i class="bi bi-trash"></i> Удалить</button>{% endif %}
         <a class="btn btn-outline-secondary" href="{{ url_for('service_staff.assignments_registry') }}">Отмена</a>
         <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> {{ 'Добавить в реестр' if is_group_create else 'Сохранить изменения' }}</button>
       </div>
     </div>
 
-    {% if not is_group_create %}
-    <aside class="sa-history card">
-      <div class="card-header"><strong>История изменений</strong></div>
-      <div class="card-body">
-        {% if history_rows %}{% for row in history_rows %}<div class="sa-history-item"><strong>{{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '—' }}</strong><span>{{ row.changed_by.fio if row.changed_by else 'Система' }}</span><p>{{ row.old_status or '—' }} → {{ row.new_status or '—' }}{% if row.comment %}<br>{{ row.comment }}{% endif %}</p></div>{% endfor %}{% else %}<div class="sa-history-empty">История появится после первого изменения карточки.</div>{% endif %}
-      </div>
-      {% if assignment.id and multi_mode %}<div class="card-footer"><button class="btn btn-sm btn-outline-danger w-100" type="submit" formaction="{{ url_for('service_staff.assignment_delete', assignment_id=assignment.id) }}" formmethod="post" onclick="return confirm('Удалить всю карточку сопровождения?');"><i class="bi bi-trash"></i> Удалить карточку</button></div>{% endif %}
-    </aside>
-    {% endif %}
   </form>
 </div>
 {% endblock %}
