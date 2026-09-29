@@ -512,6 +512,17 @@ def _normalize_text(value):
     return (value or "").strip().lower().replace("ё", "е")
 
 
+def _compact_fio(specialist):
+    if not specialist:
+        return "—"
+    initials = "".join(
+        f"{value.strip()[0]}."
+        for value in (specialist.first_name, specialist.middle_name)
+        if value and value.strip()
+    )
+    return " ".join(value for value in (specialist.last_name, initials) if value) or specialist.fio or "—"
+
+
 def _specialist_matches_assignment_role(specialist: ServiceSpecialist, role_key: str):
     role_code = ASSIGNMENT_ROLE_CODES.get(role_key)
     if not specialist or not specialist.is_active or not role_code:
@@ -573,18 +584,41 @@ def _assignment_role_specialists():
 
 
 def _multi_assignment_payload_from_request():
-    child_id = request.form.get("child_id", type=int)
+    child_ids = [int(value) for value in request.form.getlist("child_ids") if str(value).isdigit()]
+    fallback_child_id = request.form.get("child_id", type=int)
+    if fallback_child_id and not child_ids:
+        child_ids = [fallback_child_id]
+    child_ids = list(dict.fromkeys(child_ids))
     building_id = request.form.get("building_id", type=int)
+    order_number = (request.form.get("order_number") or "").strip() or None
+    order_date = _parse_date(request.form.get("order_date"))
+    iup_end_date = _parse_date(request.form.get("iup_end_date"))
     basis = (request.form.get("basis") or "").strip() or None
     comment = (request.form.get("comment") or "").strip() or None
     status = (request.form.get("status") or "ACTIVE").upper()
-    start_date = _parse_date(request.form.get("start_date"))
+    start_date = _parse_date(request.form.get("start_date")) or order_date or date.today()
     end_date = _parse_date(request.form.get("end_date"))
     incident_id = request.form.get("incident_id", type=int) or None
     enabled_roles = [x for x in request.form.getlist("enabled_roles") if x in ASSIGNMENT_ROLE_LABELS]
 
-    if not child_id:
-        raise ValueError("Выберите ребенка.")
+    if not child_ids:
+        raise ValueError("Выберите хотя бы одного обучающегося.")
+    allowed_children = {row.id: row for row in _child_choices()}
+    if any(child_id not in allowed_children for child_id in child_ids):
+        raise ValueError("Один из выбранных обучающихся недоступен.")
+    selected_classes = {
+        allowed_children[child_id].current_class.id
+        for child_id in child_ids
+        if allowed_children[child_id].current_class
+    }
+    if len(child_ids) > 1 and (len(selected_classes) != 1 or any(not allowed_children[child_id].current_class for child_id in child_ids)):
+        raise ValueError("Группу можно сформировать только из обучающихся одного класса.")
+    if not order_number:
+        raise ValueError("Укажите номер приказа.")
+    if not order_date:
+        raise ValueError("Укажите дату приказа.")
+    if not iup_end_date:
+        raise ValueError("Укажите дату окончания ИУП.")
     if status not in {x[0] for x in ASSIGNMENT_STATUS_CHOICES}:
         raise ValueError("Некорректный статус сопровождения.")
     if not enabled_roles:
@@ -592,33 +626,45 @@ def _multi_assignment_payload_from_request():
 
     specialists_by_role = _assignment_role_specialists()
     assignments = []
-    for role_key in enabled_roles:
-        specialist_id = request.form.get(f"role_{role_key}_specialist_id", type=int)
-        if not specialist_id:
-            raise ValueError(f'По роли «{ASSIGNMENT_ROLE_LABELS.get(role_key, role_key)}» выберите специалиста.')
-        allowed_ids = {row.id for row in specialists_by_role.get(role_key, [])}
-        if specialist_id not in allowed_ids:
-            raise ValueError(f'Специалист по роли «{ASSIGNMENT_ROLE_LABELS.get(role_key, role_key)}» выбран некорректно.')
-        assignments.append(ServiceAssignment(
-            child_id=child_id,
-            specialist_id=specialist_id,
-            building_id=building_id,
-            role_title=ASSIGNMENT_ROLE_LABELS.get(role_key),
-            basis=basis,
-            comment=comment,
-            status=status,
-            start_date=start_date,
-            end_date=end_date,
-            incident_id=incident_id,
-            created_by_user_id=current_user.id if getattr(current_user, 'is_authenticated', False) else None,
-        ))
+    for child_id in child_ids:
+        child = allowed_children[child_id]
+        assignment_building_id = building_id or (
+            child.current_building.id if child.current_building else None
+        )
+        for role_key in enabled_roles:
+            specialist_id = request.form.get(f"role_{role_key}_specialist_id", type=int)
+            if not specialist_id:
+                raise ValueError(f'По роли «{ASSIGNMENT_ROLE_LABELS.get(role_key, role_key)}» выберите специалиста.')
+            allowed_ids = {row.id for row in specialists_by_role.get(role_key, [])}
+            if specialist_id not in allowed_ids:
+                raise ValueError(f'Специалист по роли «{ASSIGNMENT_ROLE_LABELS.get(role_key, role_key)}» выбран некорректно.')
+            assignments.append(ServiceAssignment(
+                child_id=child_id,
+                specialist_id=specialist_id,
+                building_id=assignment_building_id,
+                role_title=ASSIGNMENT_ROLE_LABELS.get(role_key),
+                order_number=order_number,
+                order_date=order_date,
+                iup_end_date=iup_end_date,
+                basis=basis,
+                comment=comment,
+                status=status,
+                start_date=start_date,
+                end_date=end_date,
+                incident_id=incident_id,
+                created_by_user_id=current_user.id if getattr(current_user, 'is_authenticated', False) else None,
+            ))
     return assignments
 
 
 def _form_state_from_request():
     return {
         'child_id': request.form.get('child_id', ''),
+        'child_ids': [value for value in request.form.getlist('child_ids') if str(value).isdigit()],
         'building_id': request.form.get('building_id', ''),
+        'order_number': request.form.get('order_number', ''),
+        'order_date': request.form.get('order_date', ''),
+        'iup_end_date': request.form.get('iup_end_date', ''),
         'status': (request.form.get('status') or 'ACTIVE').upper(),
         'start_date': request.form.get('start_date', ''),
         'end_date': request.form.get('end_date', ''),
@@ -645,7 +691,11 @@ def _multi_form_state_from_assignments(assignments):
     enabled_roles = list(dict.fromkeys(enabled_roles))
     return {
         'child_id': str(primary.child_id) if primary and primary.child_id else '',
+        'child_ids': [str(primary.child_id)] if primary and primary.child_id else [],
         'building_id': str(primary.building_id) if primary and primary.building_id else '',
+        'order_number': primary.order_number if primary and primary.order_number else '',
+        'order_date': primary.order_date.isoformat() if primary and primary.order_date else '',
+        'iup_end_date': primary.iup_end_date.isoformat() if primary and primary.iup_end_date else '',
         'status': (primary.status if primary and primary.status else 'ACTIVE'),
         'start_date': primary.start_date.isoformat() if primary and primary.start_date else '',
         'end_date': primary.end_date.isoformat() if primary and primary.end_date else '',
@@ -659,23 +709,33 @@ def _multi_form_state_from_assignments(assignments):
 
 def _save_multi_assignment_group(existing_rows=None):
     existing_rows = list(existing_rows or [])
+    primary = existing_rows[0] if existing_rows else None
     child_id = request.form.get('child_id', type=int)
     if not child_id:
         raise ValueError('Выберите ребенка.')
 
-    status = (request.form.get('status') or 'ACTIVE').upper()
+    status = (request.form.get('status') or (primary.status if primary else 'ACTIVE')).upper()
     if status not in {x[0] for x in ASSIGNMENT_STATUS_CHOICES}:
         raise ValueError('Некорректный статус сопровождения.')
 
-    building_id = request.form.get('building_id', type=int)
-    basis = (request.form.get('basis') or '').strip() or None
+    building_id = request.form.get('building_id', type=int) if 'building_id' in request.form else (primary.building_id if primary else None)
+    order_number = (request.form.get('order_number') or '').strip() or None
+    order_date = _parse_date(request.form.get('order_date'))
+    iup_end_date = _parse_date(request.form.get('iup_end_date'))
+    basis = ((request.form.get('basis') or '').strip() or None) if 'basis' in request.form else (primary.basis if primary else None)
     comment = (request.form.get('comment') or '').strip() or None
-    incident_id = request.form.get('incident_id', type=int) or None
-    start_date = _parse_date(request.form.get('start_date'))
-    end_date = _parse_date(request.form.get('end_date'))
+    incident_id = (request.form.get('incident_id', type=int) or None) if 'incident_id' in request.form else (primary.incident_id if primary else None)
+    start_date = _parse_date(request.form.get('start_date')) if 'start_date' in request.form else (primary.start_date if primary else order_date or date.today())
+    end_date = _parse_date(request.form.get('end_date')) if 'end_date' in request.form else (primary.end_date if primary else None)
     enabled_roles = [x for x in request.form.getlist('enabled_roles') if x in ASSIGNMENT_ROLE_LABELS]
     if not enabled_roles:
         raise ValueError('Выберите хотя бы одного специалиста сопровождения.')
+    if not order_number:
+        raise ValueError('Укажите номер приказа.')
+    if not order_date:
+        raise ValueError('Укажите дату приказа.')
+    if not iup_end_date:
+        raise ValueError('Укажите дату окончания ИУП.')
 
     specialists_by_role = _assignment_role_specialists()
     existing_by_role = {}
@@ -706,6 +766,9 @@ def _save_multi_assignment_group(existing_rows=None):
         row.specialist_id = specialist_id
         row.building_id = building_id
         row.role_title = ASSIGNMENT_ROLE_LABELS.get(role_key)
+        row.order_number = order_number
+        row.order_date = order_date
+        row.iup_end_date = iup_end_date
         row.basis = basis
         row.comment = comment
         row.status = status
@@ -726,7 +789,7 @@ def _save_multi_assignment_group(existing_rows=None):
     return len(kept_ids)
 
 
-def _assignment_display_group_data():
+def _assignment_display_group_data(*, paginate=True):
     query = _visible_assignments_query().order_by(ServiceAssignment.updated_at.desc(), ServiceAssignment.id.desc())
     rows = query.all()
 
@@ -760,6 +823,8 @@ def _assignment_display_group_data():
                 child.fio.lower() if child else "",
                 specialist.fio.lower() if specialist else "",
                 (row.role_title or "").lower(),
+                (row.order_number or "").lower(),
+                (school_class.name or "").lower() if school_class else "",
             ])
             if q not in hay:
                 continue
@@ -794,31 +859,47 @@ def _assignment_display_group_data():
                 'class_teacher': ((row.child.current_class.teacher_user.fio if getattr(row.child.current_class, 'teacher_user', None) else (row.child.current_class.teacher_name if getattr(row.child.current_class, 'teacher_name', None) else '—')) if row.child and row.child.current_class else '—'),
                 'building_name': (row.building.short_name or row.building.name) if row.building else (row.child_building_name or '—'),
                 'start_date': row.start_date,
+                'order_number': row.order_number,
+                'order_date': row.order_date,
+                'iup_end_date': row.iup_end_date,
                 'status': row.status,
                 'status_label': row.status_label,
                 'edit_id': row.id,
                 'delete_id': row.id,
-                'roles': {label: '—' for label in ASSIGNMENT_ROLE_LABELS.values()},
+                'specialists': [],
                 'updated_at': row.updated_at or datetime.min,
             }
         group = groups[row.child_id]
         role_label = row.role_title or '—'
-        if role_label in group['roles']:
-            group['roles'][role_label] = row.specialist.fio if row.specialist else '—'
+        specialist_item = {
+            'fio': _compact_fio(row.specialist),
+            'role': role_label,
+            'sort_order': list(ASSIGNMENT_ROLE_LABELS.values()).index(role_label) if role_label in ASSIGNMENT_ROLE_LABELS.values() else 999,
+        }
+        if specialist_item not in group['specialists']:
+            group['specialists'].append(specialist_item)
         if (row.updated_at or datetime.min) > (group.get('updated_at') or datetime.min):
             group['edit_id'] = row.id
             group['start_date'] = row.start_date
+            group['order_number'] = row.order_number
+            group['order_date'] = row.order_date
+            group['iup_end_date'] = row.iup_end_date
             group['status'] = row.status
             group['status_label'] = row.status_label
             group['updated_at'] = row.updated_at or datetime.min
 
     grouped_rows = [groups[key] for key in order]
-    page, per_page = resolve_pagination()
-    items, pagination = paginate_list(grouped_rows, page=page, per_page=per_page)
+    for group in grouped_rows:
+        group['specialists'].sort(key=lambda item: (item['sort_order'], item['fio']))
+    if paginate:
+        page, per_page = resolve_pagination()
+        items, pagination = paginate_list(grouped_rows, page=page, per_page=per_page)
+    else:
+        items, pagination = grouped_rows, None
     stats = {
         'children_count': len(grouped_rows),
-        'active_count': len([x for x in filtered if (x.status or '').upper() == 'ACTIVE']),
-        'finished_count': len([x for x in filtered if (x.status or '').upper() == 'FINISHED']),
+        'active_count': len({x.child_id for x in filtered if (x.status or '').upper() == 'ACTIVE'}),
+        'finished_count': len({x.child_id for x in filtered if (x.status or '').upper() == 'FINISHED'}),
         'specialists_count': len({x.specialist_id for x in filtered if x.specialist_id}),
     }
     return items, pagination, stats
@@ -1197,7 +1278,11 @@ def assignment_new():
     assignment = ServiceAssignment(status="ACTIVE", start_date=date.today())
     form_state = {
         'child_id': '',
+        'child_ids': [],
         'building_id': '',
+        'order_number': '',
+        'order_date': '',
+        'iup_end_date': '',
         'status': assignment.status,
         'start_date': assignment.start_date.isoformat() if assignment.start_date else '',
         'end_date': '',
@@ -1215,7 +1300,11 @@ def assignment_new():
                 db.session.flush()
                 _log_assignment_history(row, None, row.status, "Создание назначения")
             db.session.commit()
-            flash(f"Карточка сопровождения сохранена. Назначено специалистов: {len(new_rows)}.", "success")
+            children_count = len({row.child_id for row in new_rows})
+            flash(
+                f"Сопровождение добавлено: обучающихся — {children_count}, назначений специалистов — {len(new_rows)}.",
+                "success",
+            )
             return redirect(url_for("service_staff.assignments_registry"))
         except Exception as exc:
             db.session.rollback()
@@ -1241,6 +1330,7 @@ def assignment_new():
         status_choices=ASSIGNMENT_STATUS_CHOICES,
         form_state=form_state,
         multi_mode=True,
+        is_group_create=True,
         incidents_list=incidents_list,
         is_admin_user=is_admin(),
     )
@@ -1290,6 +1380,7 @@ def assignment_edit(assignment_id: int):
         history_rows=history_rows,
         form_state=form_state,
         multi_mode=True,
+        is_group_create=False,
         incidents_list=incidents_list,
         is_admin_user=is_admin(),
     )
@@ -1350,23 +1441,30 @@ def buildings_children_summary():
 @login_required
 def assignments_export():
     _require_view()
-    rows, _, _ = _assignment_registry_data()
+    rows, _, _ = _assignment_display_group_data(paginate=False)
     wb = Workbook()
     ws = wb.active
     ws.title = "Сопровождение"
-    ws.append(["Ребенок", "Класс", "Специалист", "Роль", "Здание", "Дата начала", "Дата окончания", "Статус", "Основание", "Комментарий"])
+    ws.append([
+        "Обучающийся",
+        "Класс",
+        "Классный руководитель",
+        "Приказ №",
+        "Дата приказа",
+        "ИУП до",
+        "Специалисты сопровождения",
+        "Статус",
+    ])
     for row in rows:
         ws.append([
-            row.child.fio if row.child else "",
-            row.child.current_class_name if row.child else "",
-            row.specialist.fio if row.specialist else "",
-            row.role_title or "",
-            (row.building.short_name or row.building.name) if row.building else (row.child_building_name or ""),
-            row.start_date.strftime("%d.%m.%Y") if row.start_date else "",
-            row.end_date.strftime("%d.%m.%Y") if row.end_date else "",
-            _status_label(row.status),
-            row.basis or "",
-            row.comment or "",
+            row["child"].fio if row["child"] else "",
+            row["class_name"],
+            row["class_teacher"],
+            row["order_number"] or "",
+            row["order_date"].strftime("%d.%m.%Y") if row["order_date"] else "",
+            row["iup_end_date"].strftime("%d.%m.%Y") if row["iup_end_date"] else "",
+            "; ".join(f'{item["fio"]} — {item["role"]}' for item in row["specialists"]),
+            row["status_label"],
         ])
     bio = BytesIO()
     wb.save(bio)
