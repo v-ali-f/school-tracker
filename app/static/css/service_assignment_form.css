@@ -2,8 +2,8 @@
 
 .sa-form {
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .sa-form-main { display: grid; min-width: 0; gap: 9px; }
@@ -82,7 +82,7 @@
 }
 
 @media (max-width: 1279.98px) {
-  .sa-form { max-width: 1040px; }
+  .sa-form { max-width: none; }
 }
 
 @media (max-width: 767.98px) {
