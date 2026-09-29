@@ -76,7 +76,7 @@
   .sa-roster { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .sa-roster-empty { min-height: 55px; }
   .sa-specialists-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .sa-order-grid { grid-template-columns: 1.05fr .85fr .85fr 1.25fr; }
+  .sa-order-grid { grid-template-columns: 1fr .8fr .9fr .9fr 1.2fr; }
   .sa-order-grid .sa-field-wide { grid-column: auto; }
   .sa-order-grid textarea { min-height: 36px !important; height: 36px !important; resize: vertical; }
 }

@@ -95,6 +95,7 @@ def test_group_assignment_creates_registry_rows_with_order_and_iup(
         rows = ServiceAssignment.query.order_by(ServiceAssignment.child_id).all()
         assert len(rows) == 2
         assignment_id = rows[0].id
+        deleted_child_id = rows[0].child_id
         assert {row.child_id for row in rows} == set(context["child_ids"])
         assert {row.order_number for row in rows} == {"145-ОД"}
         assert {row.order_date for row in rows} == {date(2026, 9, 15)}
@@ -103,6 +104,7 @@ def test_group_assignment_creates_registry_rows_with_order_and_iup(
     form_response = client.get("/service-staff/assignments/new")
     form_html = form_response.get_data(as_text=True)
     assert "Комментарий / примечание" in form_html
+    assert "Дата начала действия ИУП" in form_html
     assert "Параметры сопровождения" not in form_html
     assert "Дата завершения сопровождения" not in form_html
 
@@ -112,6 +114,22 @@ def test_group_assignment_creates_registry_rows_with_order_and_iup(
     assert "История изменений" not in edit_html
     assert "Параметры сопровождения" not in edit_html
     assert "Разделы службы сопровождения" in edit_html
+
+    registry_response = client.get("/service-staff/assignments")
+    registry_html = registry_response.get_data(as_text=True)
+    assert "Срок ИУП" in registry_html
+    assert "Удалить из реестра" in registry_html
+
+    delete_response = client.post(
+        f"/service-staff/assignments/{assignment_id}/delete",
+        follow_redirects=True,
+    )
+    assert delete_response.status_code == 200
+    assert "Карточка сопровождения удалена" in delete_response.get_data(as_text=True)
+    with app.app_context():
+        remaining_rows = ServiceAssignment.query.all()
+        assert len(remaining_rows) == 1
+        assert all(row.child_id != deleted_child_id for row in remaining_rows)
 
 
 def test_group_assignment_requires_order_details(
@@ -209,6 +227,7 @@ def test_group_assignment_accepts_children_from_different_classes(
             "child_ids": [str(child_id) for child_id in selected_ids],
             "order_number": "201-ОД",
             "order_date": "2026-09-29",
+            "start_date": "2026-09-29",
             "iup_end_date": "2027-05-31",
             "enabled_roles": "pedagog_psychologist",
             "role_pedagog_psychologist_specialist_id": str(context["specialist_id"]),

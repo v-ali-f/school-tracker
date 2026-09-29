@@ -1,6 +1,6 @@
 {% extends "service_staff/workspace.html" %}
 {% block service_staff_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/service_assignment_form.css') }}?v=20260929_4">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/service_assignment_form.css') }}?v=20260929_5">
 {% endblock %}
 {% block service_staff_content %}
 <div class="service-assignment-page">
@@ -60,6 +60,7 @@
         <div class="card-body sa-order-grid">
           <label class="sa-field"><span>Номер приказа <b>*</b></span><input class="form-control" name="order_number" value="{{ form_state.order_number|default('', true) }}" required placeholder="Например, 145-ОД"></label>
           <label class="sa-field"><span>Дата приказа <b>*</b></span><input class="form-control" type="date" name="order_date" value="{{ form_state.order_date|default('', true) }}" required></label>
+          <label class="sa-field"><span>Дата начала действия ИУП <b>*</b></span><input class="form-control" type="date" name="start_date" value="{{ form_state.start_date|default('', true) }}" required></label>
           <label class="sa-field"><span>Дата окончания ИУП <b>*</b></span><input class="form-control" type="date" name="iup_end_date" value="{{ form_state.iup_end_date|default('', true) }}" required></label>
           <label class="sa-field sa-field-wide"><span>Комментарий / примечание <small>(необязательно)</small></span><textarea class="form-control" rows="2" name="comment" placeholder="Дополнительная информация по сопровождению">{{ form_state.comment|default('', true) }}</textarea></label>
         </div>

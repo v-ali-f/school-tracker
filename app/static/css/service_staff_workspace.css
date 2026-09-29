@@ -98,9 +98,9 @@ a.service-summary-item:hover { border-color: #cbd8e8; background: #fbfdff; }
 .service-registry-table tbody tr:hover { background: #fbfcfe; }
 .service-student-cell { min-width: 165px; }
 .service-student-cell a { display: block; color: #315f9f; font-size: 11px; font-weight: 650; text-decoration: none; }
-.service-student-cell span, .service-class-cell span, .service-order-cell span { display: block; margin-top: 2px; color: var(--sp-muted); font-size: 9px; }
+.service-student-cell span, .service-class-cell span, .service-order-cell span, .service-date-cell span { display: block; margin-top: 2px; color: var(--sp-muted); font-size: 9px; }
 .service-class-cell { min-width: 145px; }
-.service-class-cell strong, .service-order-cell strong { color: #344054; font-size: 10px; font-weight: 650; }
+.service-class-cell strong, .service-order-cell strong, .service-date-cell strong { color: #344054; font-size: 10px; font-weight: 650; }
 .service-order-cell, .service-date-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .service-specialists-cell { min-width: 245px; }
 .service-specialist-line { display: block; line-height: 1.45; }
@@ -112,6 +112,9 @@ a.service-summary-item:hover { border-color: #cbd8e8; background: #fbfdff; }
 .service-status.is-finished { border-color: #ead8a8; color: #86691b; background: #fff9e8; }
 .service-status.is-archived { border-color: #d8dee7; color: #667085; background: #f5f6f8; }
 .service-open-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0 !important; }
+.service-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.service-row-actions form { margin: 0; }
+.service-delete-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0 !important; }
 .service-empty { display: flex; align-items: center; flex-direction: column; justify-content: center; min-height: 210px; color: var(--sp-muted); text-align: center; }
 .service-empty i { margin-bottom: 8px; color: #8aa0be; font-size: 25px; }
 .service-empty strong { margin-bottom: 3px; color: var(--sp-heading); font-size: 12px; }

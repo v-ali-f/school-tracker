@@ -615,7 +615,7 @@ def _multi_assignment_payload_from_request():
     basis = (request.form.get("basis") or "").strip() or None
     comment = (request.form.get("comment") or "").strip() or None
     status = (request.form.get("status") or "ACTIVE").upper()
-    start_date = _parse_date(request.form.get("start_date")) or order_date or date.today()
+    start_date = _parse_date(request.form.get("start_date"))
     end_date = _parse_date(request.form.get("end_date"))
     incident_id = request.form.get("incident_id", type=int) or None
     enabled_roles = [x for x in request.form.getlist("enabled_roles") if x in ASSIGNMENT_ROLE_LABELS]
@@ -629,8 +629,12 @@ def _multi_assignment_payload_from_request():
         raise ValueError("Укажите номер приказа.")
     if not order_date:
         raise ValueError("Укажите дату приказа.")
+    if not start_date:
+        raise ValueError("Укажите дату начала действия ИУП.")
     if not iup_end_date:
         raise ValueError("Укажите дату окончания ИУП.")
+    if iup_end_date < start_date:
+        raise ValueError("Дата окончания ИУП не может быть раньше даты начала.")
     if status not in {x[0] for x in ASSIGNMENT_STATUS_CHOICES}:
         raise ValueError("Некорректный статус сопровождения.")
     if not enabled_roles:
@@ -737,7 +741,7 @@ def _save_multi_assignment_group(existing_rows=None):
     basis = ((request.form.get('basis') or '').strip() or None) if 'basis' in request.form else (primary.basis if primary else None)
     comment = (request.form.get('comment') or '').strip() or None
     incident_id = (request.form.get('incident_id', type=int) or None) if 'incident_id' in request.form else (primary.incident_id if primary else None)
-    start_date = _parse_date(request.form.get('start_date')) if 'start_date' in request.form else (primary.start_date if primary else order_date or date.today())
+    start_date = _parse_date(request.form.get('start_date')) if 'start_date' in request.form else (primary.start_date if primary else None)
     end_date = _parse_date(request.form.get('end_date')) if 'end_date' in request.form else (primary.end_date if primary else None)
     enabled_roles = [x for x in request.form.getlist('enabled_roles') if x in ASSIGNMENT_ROLE_LABELS]
     if not enabled_roles:
@@ -746,8 +750,12 @@ def _save_multi_assignment_group(existing_rows=None):
         raise ValueError('Укажите номер приказа.')
     if not order_date:
         raise ValueError('Укажите дату приказа.')
+    if not start_date:
+        raise ValueError('Укажите дату начала действия ИУП.')
     if not iup_end_date:
         raise ValueError('Укажите дату окончания ИУП.')
+    if iup_end_date < start_date:
+        raise ValueError('Дата окончания ИУП не может быть раньше даты начала.')
 
     specialists_by_role = _assignment_role_specialists()
     existing_by_role = {}
@@ -1460,6 +1468,7 @@ def assignments_export():
         "Классный руководитель",
         "Приказ №",
         "Дата приказа",
+        "ИУП с",
         "ИУП до",
         "Специалисты сопровождения",
         "Статус",
@@ -1471,6 +1480,7 @@ def assignments_export():
             row["class_teacher"],
             row["order_number"] or "",
             row["order_date"].strftime("%d.%m.%Y") if row["order_date"] else "",
+            row["start_date"].strftime("%d.%m.%Y") if row["start_date"] else "",
             row["iup_end_date"].strftime("%d.%m.%Y") if row["iup_end_date"] else "",
             "; ".join(f'{item["fio"]} — {item["role"]}' for item in row["specialists"]),
             row["status_label"],

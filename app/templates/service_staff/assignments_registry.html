@@ -43,17 +43,17 @@
   <div class="card service-registry-card">
     <div class="table-responsive">
       <table class="table service-registry-table mb-0">
-        <thead><tr><th>Обучающийся</th><th>Класс и руководитель</th><th>Приказ</th><th>ИУП до</th><th>Специалисты сопровождения</th><th>Статус</th><th></th></tr></thead>
+        <thead><tr><th>Обучающийся</th><th>Класс и руководитель</th><th>Приказ</th><th>Срок ИУП</th><th>Специалисты сопровождения</th><th>Статус</th><th></th></tr></thead>
         <tbody>
           {% for row in rows %}
           <tr>
             <td class="service-student-cell"><a href="{{ url_for('children.child_card', child_id=row.child.id) }}">{{ row.child.fio if row.child else '—' }}</a><span>{{ row.building_name }}</span></td>
             <td class="service-class-cell"><strong>{{ row.class_name }}</strong><span>{{ row.class_teacher }}</span></td>
             <td class="service-order-cell"><strong>№ {{ row.order_number or '—' }}</strong><span>{{ row.order_date.strftime('%d.%m.%Y') if row.order_date else 'Дата не указана' }}</span></td>
-            <td class="service-date-cell">{{ row.iup_end_date.strftime('%d.%m.%Y') if row.iup_end_date else '—' }}</td>
+            <td class="service-date-cell"><strong>с {{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}</strong><span>до {{ row.iup_end_date.strftime('%d.%m.%Y') if row.iup_end_date else '—' }}</span></td>
             <td class="service-specialists-cell">{% for specialist in row.specialists %}<span class="service-specialist-line"><strong>{{ specialist.fio }}</strong><small>— {{ specialist.role }}</small></span>{% else %}<span class="text-muted">Не назначены</span>{% endfor %}</td>
             <td><span class="service-status {{ 'is-active' if row.status == 'ACTIVE' else 'is-finished' if row.status == 'FINISHED' else 'is-archived' }}">{{ row.status_label }}</span></td>
-            <td class="text-end"><a class="btn btn-sm btn-outline-secondary service-open-button" href="{{ url_for('service_staff.assignment_edit', assignment_id=row.edit_id) }}" aria-label="Открыть карточку"><i class="bi bi-chevron-right"></i></a></td>
+            <td class="text-end"><div class="service-row-actions"><a class="btn btn-sm btn-outline-secondary service-open-button" href="{{ url_for('service_staff.assignment_edit', assignment_id=row.edit_id) }}" aria-label="Открыть карточку" title="Открыть карточку"><i class="bi bi-chevron-right"></i></a>{% if can_edit %}<form method="post" action="{{ url_for('service_staff.assignment_delete', assignment_id=row.delete_id) }}" onsubmit="return confirm('Удалить карточку сопровождения из реестра?');"><button class="btn btn-sm btn-outline-danger service-delete-button" type="submit" aria-label="Удалить из реестра" title="Удалить из реестра"><i class="bi bi-trash"></i></button></form>{% endif %}</div></td>
           </tr>
           {% else %}
           <tr><td colspan="7"><div class="service-empty"><i class="bi bi-person-check"></i><strong>В реестре пока нет записей</strong><span>Измените фильтры или добавьте первого обучающегося.</span></div></td></tr>
