@@ -86,7 +86,12 @@ function render(){
   const data=filtered(), f=selection(), all=roster.filter(x=>x.class.startsWith(f.grade)&&(!f.cls||x.class===f.cls));
   const avgMarks=data.flatMap(x=>x.marks),avg=avgMarks.length?avgMarks.reduce((s,x)=>s+x.grade,0)/avgMarks.length:NaN;
   const flagged=data.filter(x=>x.reasons.length);
-  $('#kpis').innerHTML=[['Учеников в выборке',data.length],['Сигналы внимания',flagged.length],['Средний балл по выбранным экзаменам',fmt(avg)],['Зафиксировано пропусков',data.reduce((s,x)=>s+x.absences.length,0)]].map(([a,b])=>`<div class="q-kpi"><span>${esc(a)}</span><strong>${b}</strong></div>`).join('');
+  $('#kpis').innerHTML=[
+    ['Учеников в выборке',data.length,'bi-people',''],
+    ['Сигналы внимания',flagged.length,'bi-exclamation-circle','is-warning'],
+    ['Средний балл по выбранным экзаменам',fmt(avg),'bi-bar-chart',''],
+    ['Зафиксировано пропусков',data.reduce((s,x)=>s+x.absences.length,0),'bi-calendar-x','']
+  ].map(([label,value,icon,tone])=>`<div class="ws-metric ${tone}"><span class="ws-metric-icon"><i class="bi ${icon}" aria-hidden="true"></i></span><span class="ws-metric-copy"><span class="ws-metric-label">${esc(label)}</span><strong class="ws-metric-value">${value}</strong></span></div>`).join('');
   const counts=new Map();
   for(const s of data)for(const c of s.chosen)counts.set(c.subject,(counts.get(c.subject)||0)+1);
   const sorted=[...counts].sort((a,b)=>b[1]-a[1]),max=Math.max(1,...sorted.map(x=>x[1]));

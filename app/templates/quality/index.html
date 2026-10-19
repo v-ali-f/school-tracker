@@ -1,44 +1,47 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 {% block title %}Качество образования · Альтаир{% endblock %}
-{% block head_extra %}
+{% block workspace_head_extra %}
 <style>
 {% raw %}
-  #quality-app .q-tabs{display:flex;gap:.4rem;overflow:auto;border-bottom:1px solid #dbe5ed;margin-bottom:1rem}
-  #quality-app .q-tabs button{border:0;background:none;padding:.8rem 1rem;border-bottom:3px solid transparent;color:#697d91;white-space:nowrap}
-  #quality-app .q-tabs button.active{border-color:#2675ad;color:#1c5e8b;font-weight:700}
+  #quality-app .q-intro{display:flex;align-items:end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  #quality-app .q-intro h2{margin:0;color:var(--ws-color-heading);font-size:1.15rem;font-weight:600}
+  #quality-app .q-intro p{margin:.25rem 0 0;color:var(--ws-color-muted);font-size:.76rem}
+  #quality-app .q-source{color:var(--ws-color-muted);font-size:.7rem}
+  #quality-app .q-tabs{display:flex;width:max-content;max-width:100%;overflow:auto;margin:0}
+  #quality-app .q-tabs button{border:0;background:none;min-height:32px;padding:.35rem .8rem;border-radius:var(--ws-radius-pill);color:#415572;font-size:.76rem;white-space:nowrap}
+  #quality-app .q-tabs button:hover{background:var(--ws-color-accent-soft)}
+  #quality-app .q-tabs button.active{background:var(--ws-color-accent);color:#fff;font-weight:600}
   #quality-app .q-view{display:none}#quality-app .q-view.active{display:block}
-  #quality-app .q-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;align-items:end}
-  #quality-app .q-filters label{font-size:.8rem;font-weight:600;color:#54697d}
+  #quality-app .q-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;align-items:end;margin:0}
+  #quality-app .q-filters label{font-size:.7rem;font-weight:600;color:#53657f}
   #quality-app .q-filters .form-control,#quality-app .q-filters .form-select{margin-top:.35rem}
   #quality-app .q-check{display:flex;align-items:center;gap:.5rem;min-height:2.4rem}
-  #quality-app .q-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-bottom:1rem}
-  #quality-app .q-kpi{padding:1rem;background:#eaf3fa;border-radius:.65rem}
-  #quality-app .q-kpi span{display:block;color:#61758a}#quality-app .q-kpi strong{display:block;font-size:1.7rem;color:#1b3654}
+  #quality-app .q-kpis{margin-bottom:var(--ws-space-3)}
   #quality-app .q-two{display:grid;grid-template-columns:1.2fr 1fr;gap:1rem}
   #quality-app .q-bar{display:grid;grid-template-columns:155px 1fr 32px;gap:.65rem;align-items:center;margin:.55rem 0}
-  #quality-app .q-track{height:11px;background:#ebf0f4;border-radius:20px;overflow:hidden}
-  #quality-app .q-fill{height:100%;background:#49a7b6;border-radius:20px}
+  #quality-app .q-track{height:11px;background:var(--ws-color-surface-muted);border-radius:20px;overflow:hidden}
+  #quality-app .q-fill{height:100%;background:var(--ws-color-accent);border-radius:20px}
   #quality-app .q-bar strong{text-align:right}#quality-app .q-table{overflow:auto;max-height:590px}
-  #quality-app .q-table table{min-width:850px}#quality-app .q-table th{position:sticky;top:0;background:#edf4f9;z-index:1}
-  #quality-app .q-person{border:0;background:none;padding:0;color:#1b6898;text-decoration:underline;text-align:left}
+  #quality-app .q-table table{min-width:850px}#quality-app .q-table th{position:sticky;top:0;z-index:1}
+  #quality-app .q-person{border:0;background:none;padding:0;color:var(--ws-color-accent);text-decoration:underline;text-align:left}
   #quality-app .q-pill{display:inline-block;border-radius:99px;background:#edf3f7;color:#52697f;padding:.2rem .55rem;margin:1px 3px 1px 0;font-size:.77rem}
   #quality-app .q-pill.warn{background:#fff0cf;color:#795211}#quality-app .q-pill.bad{background:#fae3e3;color:#8e3737}#quality-app .q-pill.good{background:#dff4e8;color:#276f4a}
   #quality-app .q-drawer{display:none;position:fixed;inset:0;background:#16273a78;z-index:1200}
-  #quality-app .q-drawer.open{display:block}#quality-app .q-panel{position:absolute;right:0;top:0;bottom:0;width:min(680px,100%);background:#fff;overflow:auto;padding:1.5rem}
+  #quality-app .q-drawer.open{display:block}#quality-app .q-panel{position:absolute;right:0;top:0;bottom:0;width:min(680px,100%);background:var(--ws-color-surface);overflow:auto;padding:1.5rem}
   #quality-app .q-detail{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin:1rem 0}
   #quality-app .q-detail div{background:#edf4f9;border-radius:.5rem;padding:.75rem}#quality-app .q-detail strong{display:block;font-size:1.3rem}
   #quality-app .q-subject-card{border:1px solid #dbe5ed;border-radius:.5rem;padding:.65rem;margin:.5rem 0}
   @media(max-width:1000px){#quality-app .q-filters{grid-template-columns:repeat(2,1fr)}#quality-app .q-two{grid-template-columns:1fr}}
-  @media(max-width:700px){#quality-app .q-filters{grid-template-columns:repeat(2,1fr)}#quality-app .q-kpis{grid-template-columns:repeat(2,1fr)}#quality-app .q-bar{grid-template-columns:120px 1fr 28px}}
+  @media(max-width:700px){#quality-app .q-filters{grid-template-columns:repeat(2,minmax(0,1fr))}#quality-app .q-bar{grid-template-columns:120px 1fr 28px}}
+  @media(max-width:480px){#quality-app .q-filters{grid-template-columns:1fr}#quality-app .q-source{width:100%}}
 {% endraw %}
 </style>
 {% endblock %}
-{% block content %}
-<div id="quality-app" data-api="{{ url_for('quality.data') }}" data-import-prefix="{{ url_for('quality.import_file', kind='PLACEHOLDER') | replace('PLACEHOLDER', '') }}" data-can-import="{{ '1' if can_import else '0' }}">
-  <div class="page-head"><div><div class="page-title">Качество образования</div><div class="page-sub">9 класс · ОГЭ &nbsp; 11 класс · ЕГЭ &nbsp; учебный год {{ year.name }}</div></div><div class="page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a></div></div>
-  <div class="d-flex justify-content-between flex-wrap gap-2 mb-3"><div><h2 class="h4 mb-1">Аналитика успеваемости</h2><div class="text-muted small">Выбор экзаменов, текущие отметки и зафиксированные пропуски</div></div><div class="text-muted small" id="source"></div></div>
-  <nav class="q-tabs" aria-label="Экраны раздела"><button class="active" data-view="dashboard">Обзор</button><button data-view="students">Ученики</button><button data-view="exams">Выбор экзаменов</button>{% if can_import %}<button data-view="imports">Обновление данных</button>{% endif %}</nav>
-  <div class="card mb-3"><div class="card-body q-filters">
+{% block workspace_content %}
+<div id="quality-app" class="ws-stack" data-api="{{ url_for('quality.data') }}" data-import-prefix="{{ url_for('quality.import_file', kind='PLACEHOLDER') | replace('PLACEHOLDER', '') }}" data-can-import="{{ '1' if can_import else '0' }}">
+  <div class="q-intro"><div><span class="ws-page-eyebrow">Аналитика успеваемости</span><h2>Экзамены и текущие результаты</h2><p>Выбор экзаменов, текущие отметки и зафиксированные пропуски</p></div><div class="q-source" id="source"></div></div>
+  <nav class="ws-tabs q-tabs" aria-label="Экраны раздела"><button class="active" data-view="dashboard" type="button">Обзор</button><button data-view="students" type="button">Ученики</button><button data-view="exams" type="button">Выбор экзаменов</button>{% if can_import %}<button data-view="imports" type="button">Обновление данных</button>{% endif %}</nav>
+  <div class="ws-filter-panel q-filters">
     <label>Ученик<input class="form-control" id="student-search" type="search" placeholder="Поиск по ФИО" autocomplete="off"></label>
     <label>Параллель<select class="form-select" id="grade"><option value="9">9 класс · ОГЭ</option><option value="11">11 класс · ЕГЭ</option></select></label>
     <label>Класс<select class="form-select" id="class"><option value="">Все классы</option></select></label>
@@ -46,8 +49,8 @@
     <label>С даты<input class="form-control" id="from" type="date"></label>
     <label>По дату<input class="form-control" id="to" type="date"></label>
     <label class="q-check"><input class="form-check-input" id="attention" type="checkbox">Только с сигналами внимания</label>
-  </div></div>
-  <section id="dashboard" class="q-view active"><div class="q-kpis" id="kpis"></div><div class="q-two"><div class="card mb-3"><div class="card-body"><h3 class="h6">Выбор экзаменов</h3><div id="bars"></div></div></div><div class="card mb-3"><div class="card-body"><h3 class="h6">Сигналы внимания</h3><div id="signals"></div><p class="text-muted small mt-3 mb-0">Сигналы помогают выбрать, что проверить вручную. Они не определяют допуск к ГИА.</p></div></div></div><div class="card mb-3"><div class="card-body"><div class="d-flex justify-content-between gap-2"><h3 class="h6">Ученики, требующие просмотра</h3><button class="btn btn-outline-primary btn-sm" id="show-all">Открыть всех учеников</button></div><div class="q-table"><table class="table table-hover align-middle"><thead><tr><th>Ученик</th><th>Класс</th><th>Экзамены</th><th>Средний балл</th><th>Оценок «2»</th><th>Пропуски</th><th>Основание</th></tr></thead><tbody id="dashboard-rows"></tbody></table></div></div></div></section>
+  </div>
+  <section id="dashboard" class="q-view active"><div class="ws-metric-grid q-kpis" id="kpis"></div><div class="q-two"><div class="card mb-3"><div class="card-body"><h3 class="h6">Выбор экзаменов</h3><div id="bars"></div></div></div><div class="card mb-3"><div class="card-body"><h3 class="h6">Сигналы внимания</h3><div id="signals"></div><p class="text-muted small mt-3 mb-0">Сигналы помогают выбрать, что проверить вручную. Они не определяют допуск к ГИА.</p></div></div></div><div class="card mb-3"><div class="card-body"><div class="d-flex justify-content-between gap-2"><h3 class="h6">Ученики, требующие просмотра</h3><button class="btn btn-outline-primary btn-sm" id="show-all">Открыть всех учеников</button></div><div class="q-table"><table class="table table-hover align-middle"><thead><tr><th>Ученик</th><th>Класс</th><th>Экзамены</th><th>Средний балл</th><th>Оценок «2»</th><th>Пропуски</th><th>Основание</th></tr></thead><tbody id="dashboard-rows"></tbody></table></div></div></div></section>
   <section id="students" class="q-view"><div class="card mb-3"><div class="card-body"><div class="d-flex justify-content-between"><h3 class="h6">Успеваемость учеников</h3><span class="small text-muted" id="student-count"></span></div><div class="q-table"><table class="table table-hover align-middle"><thead><tr><th>Ученик</th><th>Класс</th><th>Экзамены</th><th>Средний балл</th><th>Оценок «2»</th><th>Пропуски</th><th>Основание</th></tr></thead><tbody id="student-rows"></tbody></table></div></div></div></section>
   <section id="exams" class="q-view"><div class="card mb-3"><div class="card-body"><div class="d-flex justify-content-between"><h3 class="h6" id="exam-heading">Выбор ОГЭ</h3><span class="small text-muted">Источник: таблица ГИА</span></div><div class="q-table"><table class="table table-hover align-middle"><thead><tr><th>Ученик</th><th>Класс</th><th>Выбранные предметы</th><th>Количество</th><th>Проверка данных</th></tr></thead><tbody id="exam-rows"></tbody></table></div></div></div></section>
   {% if can_import %}<section id="imports" class="q-view"><div class="row g-3 mb-3"><div class="col-lg-6"><div class="card h-100"><div class="card-body"><h3 class="h6">1. Журналы МЭШ</h3><p>В разделе «Журналы классов, групп» нажмите <strong>«Выгрузить все журналы»</strong> и загрузите ZIP.</p><label class="form-label" for="journal-file">ZIP с журналами</label><input class="form-control" id="journal-file" type="file" accept=".zip"><button class="btn btn-primary mt-3" id="upload-journals">Обновить отметки</button><p class="small text-muted mt-3 mb-0">Каждая загрузка сохраняется отдельным снимком. Отображается последняя.</p></div></div></div><div class="col-lg-6"><div class="card h-100"><div class="card-body"><h3 class="h6">2. Выбор ГИА</h3><p>Из <a href="https://docs.google.com/spreadsheets/d/1Z0_qtbfjesY9MTg6Apsto_BFNXyP_wGypYBYgECNkw4/edit" target="_blank" rel="noopener">таблицы ГИА</a> скачайте всю книгу: «Файл → Скачать → Microsoft Excel (.xlsx)».</p><label class="form-label" for="gia-file">XLSX со всеми листами</label><input class="form-control" id="gia-file" type="file" accept=".xlsx"><button class="btn btn-primary mt-3" id="upload-gia">Обновить выбор экзаменов</button><p class="small text-muted mt-3 mb-0">Прямая синхронизация потребует отдельной авторизации Google.</p></div></div></div></div><div class="card mb-3"><div class="card-body"><h3 class="h6">Контроль сопоставления</h3><div id="matching"></div></div></div><p class="small text-muted" id="import-status" role="status"></p></section>{% endif %}

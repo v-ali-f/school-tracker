@@ -45,8 +45,13 @@ def index():
     if not has_permission("quality_view"):
         abort(403)
     year = _year()
-    return render_template("quality/index.html", year=year,
-                           can_import=has_permission("quality_import"))
+    return render_template(
+        "quality/index.html",
+        year=year,
+        can_import=has_permission("quality_import"),
+        workspace_page_title="Качество образования",
+        workspace_page_subtitle=f"9 класс · ОГЭ  /  11 класс · ЕГЭ  ·  {year.name}",
+    )
 
 
 @quality_bp.get("/api/data")
