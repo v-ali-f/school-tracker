@@ -138,14 +138,18 @@ def parse_gia_xlsx(content, filename):
                 columns.append((idx, subject))
         for row in rows:
             name = _normal(row[1]) if len(row) > 1 and row[1] else ""
-            if len(name.split()) < 2 or not str(row[0] if row else "").strip().isdigit():
+            number = row[0] if row else None
+            valid_number = (number >= 1 and number == int(number)) if isinstance(number, (int, float)) and not isinstance(number, bool) else str(number or "").strip().isdigit()
+            if len(name.split()) < 2 or not valid_number:
                 continue
             choices = []
             for idx, subject in columns:
-                value = str(row[idx]).strip() if idx < len(row) and row[idx] is not None else ""
-                if value == "1" or value.lower() in {"база", "проф", "профиль"}:
+                cell = row[idx] if idx < len(row) else None
+                value = str(cell).strip() if cell is not None else ""
+                selected = (cell == 1 and not isinstance(cell, bool)) or value == "1"
+                if selected or value.lower() in {"база", "проф", "профиль"}:
                     item = {"subject": subject}
-                    if value != "1":
+                    if not selected:
                         item["level"] = value
                     choices.append(item)
             students.append({"class": cls, "name": name, "choices": choices})
