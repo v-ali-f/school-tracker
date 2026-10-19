@@ -22,6 +22,8 @@ AUDITOR = "AUDITOR"
 # PERMISSIONS MATRIX
 # =========================================================
 PERMISSIONS = {
+    "quality_view": {ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST},
+    "quality_import": {ADMIN, DIRECTOR, DEPUTY_DIRECTOR},
     "dashboard_view": {
         ADMIN, TEACHER, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG, METHODIST
     },

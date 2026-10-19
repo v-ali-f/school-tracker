@@ -37,6 +37,7 @@ ICON_MAP = {
     "Контингент": ("bi-people-fill", "accent-green"),
     "Кафедры": ("bi-diagram-3", "accent-dark"),
     "Диагностики МЦКО": ("bi-clipboard-data", "accent-orange"),
+    "Качество образования": ("bi-mortarboard", "accent-blue"),
     "Пропуска и аналитика посещаемости": ("bi-calendar-check", "accent-green"),
     "Основные реестры": ("bi-table", "accent-dark"),
     "Дошкольное отделение": ("bi-house-heart", "accent-green"),
@@ -512,6 +513,12 @@ def _main_page_config():
                 "description": "Сессии, импорт результатов, аналитика и привязка к учителям.",
                 "endpoint": "hub.diagnostics",
                 "roles_any": ["ADMIN", "METHODIST"],
+            },
+            {
+                "title": "Качество образования",
+                "description": "Выбор ОГЭ и ЕГЭ, успеваемость 9 и 11 классов, данные журналов МЭШ.",
+                "endpoint": "quality.index",
+                "permission_any": ["quality_view"],
             },
             {
                 "title": "Пропуска и аналитика посещаемости",
