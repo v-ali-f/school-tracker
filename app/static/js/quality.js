@@ -82,6 +82,56 @@ function pills(choices){return choices.length?choices.map(x=>`<span class="q-pil
 function studentRow(s){
   return `<tr><td><button class="q-person" data-person="${esc(key(s.class,s.name))}">${esc(s.name)}</button></td><td>${esc(s.class)}</td><td>${pills(s.chosen)}</td><td>${fmt(s.avg)}</td><td>${s.twos}</td><td>${s.absences.length}</td><td>${s.reasons.length?s.reasons.map(x=>`<span class="q-pill warn">${esc(x)}</span>`).join(''):'<span class="q-pill good">Без сигналов</span>'}</td></tr>`;
 }
+function matrixSubject(name){
+  if(/^ВиС\s/i.test(name))return 'Вероятность и статистика';
+  if(/^Труд \(технология\)/i.test(name))return 'Труд (технология)';
+  return name;
+}
+function matrixExamSubject(name){
+  return ['Алгебра','Геометрия','Вероятность и статистика'].includes(name)?'Математика':name;
+}
+function matrixSubjects(cohort,filter,scope){
+  const subjects=new Set();
+  for(const student of cohort){
+    const choices=new Set(student.choices.map(x=>x.subject));
+    const journals=new Set(student.journals.map(x=>matrixSubject(x.subject)));
+    for(const subject of journals){
+      if((scope==='all'||choices.has(matrixExamSubject(subject)))&&(!filter.subject||matrixExamSubject(subject)===filter.subject))subjects.add(subject);
+    }
+    for(const choice of choices){
+      if((!filter.subject||choice===filter.subject)&&![...journals].some(x=>matrixExamSubject(x)===choice))subjects.add(choice);
+    }
+  }
+  const order=['Русский язык','Литература','Алгебра','Геометрия','Вероятность и статистика','Математика','Английский язык','Информатика','Физика','Химия','Биология','История','Обществознание','География'];
+  return [...subjects].sort((a,b)=>{
+    const ai=order.indexOf(a),bi=order.indexOf(b);
+    return (ai<0?order.length:ai)-(bi<0?order.length:bi)||a.localeCompare(b,'ru');
+  });
+}
+function renderMatrix(data,filter){
+  const cohort=roster.filter(x=>x.class.startsWith(filter.grade)&&(!filter.cls||x.class===filter.cls));
+  const subjects=matrixSubjects(cohort,filter,$('#matrix-scope').value);
+  $('#matrix-count').textContent=`${data.length} учеников · ${subjects.length} предметов · ${filter.from||'начало года'} — ${filter.to||'сегодня'}`;
+  $('#matrix-head').innerHTML=`<tr><th class="q-matrix-name" rowspan="2" scope="col">Ученик</th><th class="q-matrix-class" rowspan="2" scope="col">Класс</th>${subjects.map(sub=>`<th class="q-matrix-subject" colspan="4" scope="colgroup" title="${esc(sub)}">${esc(sub)}</th>`).join('')}</tr>`+
+    `<tr>${subjects.map(()=>'<th class="q-matrix-value" scope="col">ГИА</th><th class="q-matrix-value" scope="col">Отметок</th><th class="q-matrix-value" scope="col">Средний</th><th class="q-matrix-value" scope="col">Пропуски</th>').join('')}</tr>`;
+  $('#matrix-rows').innerHTML=data.map(student=>{
+    const grouped=new Map();
+    for(const rec of student.journals){
+      const subject=matrixSubject(rec.subject),item=grouped.get(subject)||{marks:[],absences:[]};
+      item.marks.push(...filteredMarks(rec.marks||[],filter.from,filter.to));
+      item.absences.push(...filteredMarks((rec.absences||[]).map(date=>({date})),filter.from,filter.to));
+      grouped.set(subject,item);
+    }
+    const cells=subjects.map(subject=>{
+      const item=grouped.get(subject),selected=student.choices.some(x=>x.subject===matrixExamSubject(subject));
+      const marks=item?.marks||[],absences=item?.absences||[];
+      const average=marks.length?marks.reduce((sum,x)=>sum+x.grade,0)/marks.length:NaN;
+      const tone=marks.length?(average<3.5?'q-matrix-low':average>=4.5?'q-matrix-good':''):'q-matrix-empty';
+      return `<td class="${selected?'q-matrix-selected':'q-matrix-empty'}" title="${selected?'Выбран для ГИА':'Не выбран для ГИА'}">${selected?'+':'—'}</td><td>${marks.length||'—'}</td><td class="${tone}">${fmt(average)}</td><td>${item?absences.length:'—'}</td>`;
+    }).join('');
+    return `<tr><td class="q-matrix-name"><button class="q-person" data-person="${esc(key(student.class,student.name))}" title="${esc(student.name)}">${esc(student.name)}</button></td><td class="q-matrix-class">${esc(student.class)}</td>${cells}</tr>`;
+  }).join('')||`<tr><td colspan="${2+subjects.length*4}" class="empty">Нет учеников для выбранных фильтров.</td></tr>`;
+}
 function render(){
   const data=filtered(), f=selection(), all=roster.filter(x=>x.class.startsWith(f.grade)&&(!f.cls||x.class===f.cls));
   const avgMarks=data.flatMap(x=>x.marks),avg=avgMarks.length?avgMarks.reduce((s,x)=>s+x.grade,0)/avgMarks.length:NaN;
@@ -103,6 +153,7 @@ function render(){
   $('#student-count').textContent=`Показано ${data.length} из ${all.length}`;
   $('#exam-heading').textContent=f.grade==='9'?'Выбор ОГЭ':'Выбор ЕГЭ';
   $('#exam-rows').innerHTML=data.map(s=>`<tr><td><button class="q-person" data-person="${esc(key(s.class,s.name))}">${esc(s.name)}</button></td><td>${esc(s.class)}</td><td>${pills(s.chosen)}</td><td>${s.chosen.length}</td><td>${s.missingGia?'<span class="q-pill bad">Нет в ГИА</span>':s.class.startsWith('9')&&s.chosen.length<4?'<span class="q-pill warn">Проверить выбор</span>':'<span class="q-pill good">Загружено</span>'}</td></tr>`).join('');
+  renderMatrix(data,f);
   renderMatching();
 }
 function renderMatching(){
@@ -134,6 +185,7 @@ async function load(){const r=await fetch(root.dataset.api,{cache:'no-store',cre
 document.addEventListener('click',e=>{const tab=e.target.closest('[data-view]');if(tab){activeView=tab.dataset.view;document.querySelectorAll('.q-tabs button').forEach(x=>x.classList.toggle('active',x.dataset.view===activeView));document.querySelectorAll('.q-view').forEach(x=>x.classList.toggle('active',x.id===activeView));}const person=e.target.closest('[data-person]');if(person)openPerson(person.dataset.person);});
 $('#grade').addEventListener('change',()=>{updateFilters();render()});
 for(const id of ['class','subject','from','to','attention'])$('#'+id).addEventListener('change',render);
+$('#matrix-scope').addEventListener('change',render);
 $('#student-search').addEventListener('input',render);
 $('#show-all').addEventListener('click',()=>document.querySelector('.q-tabs [data-view="students"]').click());
 $('#close-drawer').addEventListener('click',()=>$('#drawer').classList.remove('open'));
