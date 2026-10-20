@@ -37,6 +37,7 @@ from app.familiarizations import familiarizations_bp
 from app.appeals import appeals_bp
 from app.mobile_api import mobile_api_bp
 from app.quality import quality_bp
+from app.professional_development import professional_development_bp
 from app.additional_education_surveys import additional_education_surveys_bp
 
 BLUEPRINTS = [
@@ -80,6 +81,7 @@ BLUEPRINTS = [
     workload_bp,
     additional_education_surveys_bp,
     quality_bp,
+    professional_development_bp,
 ]
 
 

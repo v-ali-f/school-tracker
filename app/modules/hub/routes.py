@@ -38,6 +38,7 @@ ICON_MAP = {
     "Кафедры": ("bi-diagram-3", "accent-dark"),
     "Диагностики МЦКО": ("bi-clipboard-data", "accent-orange"),
     "Качество образования": ("bi-mortarboard", "accent-blue"),
+    "Повышение квалификации": ("bi-mortarboard", "accent-blue"),
     "Пропуска и аналитика посещаемости": ("bi-calendar-check", "accent-green"),
     "Основные реестры": ("bi-table", "accent-dark"),
     "Дошкольное отделение": ("bi-house-heart", "accent-green"),
@@ -521,6 +522,12 @@ def _main_page_config():
                 "permission_any": ["quality_view"],
             },
             {
+                "title": "Повышение квалификации",
+                "description": "Курсы сотрудников, аналитика и планирование обучения.",
+                "endpoint": "professional_development.index",
+                "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "HR_SPECIALIST"],
+            },
+            {
                 "title": "Пропуска и аналитика посещаемости",
                 "description": "Реестр пропусков, аналитика, импорт и начало занятий.",
                 "endpoint": "hub.attendance",
@@ -706,6 +713,7 @@ def _theme_configs():
             "sections": _materialize([
                 {"title": "Настройка предметных кафедр", "description": "Структура кафедр и состав участников.", "endpoint": "departments.settings"},
                 {"title": "Свод по кафедрам", "description": "Итоги и показатели по кафедрам.", "endpoint": "departments.summary"},
+                {"title": "Повышение квалификации", "description": "Курсы и планирование обучения сотрудников.", "endpoint": "professional_development.index", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "HR_SPECIALIST"]},
                 {"title": "Нагрузка учителей", "description": "Распределение часов и учебной нагрузки.", "endpoint": "departments.loads"},
                 {
                     "title": "Мой профиль преподавателя",

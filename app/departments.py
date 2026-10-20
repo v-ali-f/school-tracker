@@ -37,6 +37,7 @@ from app.services.teacher_attestation_service import (
     position_compliance_due_at,
 )
 from app.services.teacher_professional_service import professional_entry_source
+from app.services.professional_development_service import course_status, imported_and_manual_courses, staff_overview
 from app.services.teacher_professional_audit_service import (
     CHANGE_ARCHIVED,
     CHANGE_CREATED,
@@ -1486,6 +1487,7 @@ def summary():
     mcko_overviews = []
     attestation_overviews = []
     course_rows = []
+    department_training = []
     department_load_rows = []
     teacher_load_summaries = []
     legacy_load_rows = []
@@ -1562,15 +1564,10 @@ def summary():
             ),
             key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
         )
-        course_q = TeacherCourse.query.filter(
-            TeacherCourse.teacher_id.in_(teacher_ids),
-            TeacherCourse.is_archived.is_(False),
-        ) if teacher_ids else TeacherCourse.query.filter(db.text("0=1"))
-        if academic_year_id:
-            course_q = course_q.filter(db.or_(TeacherCourse.academic_year_id == academic_year_id, TeacherCourse.academic_year_id.is_(None)))
-        if selected_teacher_id:
-            course_q = course_q.filter_by(teacher_id=selected_teacher_id)
-        course_rows = course_q.order_by(TeacherCourse.start_date.desc().nullslast(), TeacherCourse.created_at.desc()).all()
+        courses_by_teacher = imported_and_manual_courses(teacher_ids)
+        department_training = staff_overview(teacher_rows, courses_by_teacher)
+        course_rows = [course for teacher_id in ([selected_teacher_id] if selected_teacher_id else teacher_ids)
+                       for course in courses_by_teacher.get(teacher_id, [])]
         attestation_teacher_ids = (
             [selected_teacher_id]
             if selected_teacher_id
@@ -1601,6 +1598,7 @@ def summary():
         stats=stats,
         mcko_overviews=mcko_overviews,
         course_rows=course_rows,
+        department_training=department_training,
         buildings=Building.query.order_by(Building.name.asc()).all(),
         building_id=building_id,
         years=years,
@@ -1686,16 +1684,8 @@ def teacher_profile(teacher_id):
         teacher_id=teacher.id,
     )
     mcko_overview = mcko_overviews_for_teachers([teacher.id]).get(teacher.id)
-    course_rows = (
-        TeacherCourse.query
-        .filter_by(teacher_id=teacher.id, is_archived=False)
-        .order_by(
-            TeacherCourse.end_date.desc().nullslast(),
-            TeacherCourse.start_date.desc().nullslast(),
-            TeacherCourse.created_at.desc(),
-        )
-        .all()
-    )
+    course_rows = imported_and_manual_courses([teacher.id]).get(teacher.id, [])
+    training_status = course_status(course_rows)
     attestation_rows = (
         TeacherAttestation.query
         .filter_by(teacher_id=teacher.id, is_archived=False)
@@ -1753,6 +1743,7 @@ def teacher_profile(teacher_id):
         mcko_level_labels=MCKO_LEVEL_LABELS,
         mcko_subjects=list_subject_activities(),
         course_rows=course_rows,
+        training_status=training_status,
         attestation_rows=attestation_history,
         attestation_overview=attestation_overview,
         debt_rows=debt_rows,
