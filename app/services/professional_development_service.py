@@ -17,6 +17,7 @@ HEADERS = ("ФИО", "Должность", "Наименование курса"
 PEDAGOGICAL_ROLES = {
     "TEACHER", "CLASS_TEACHER", "DEPARTMENT_HEAD", "METHODIST",
     "SOCIAL_PEDAGOG", "PSYCHOLOGIST", "PRESCHOOL_TEACHER",
+    "LOGOPEDIST", "DEFECTOLOGIST", "TUTOR",
 }
 
 
@@ -169,13 +170,30 @@ def _course_sort_key(row):
     return (year or 0, 0, row.id)
 
 
-def is_pedagogical(user, courses=()):
+def current_pedagogical_ids():
+    """Use the same effective workload and membership rules as departments."""
+    from app.models import AcademicYear, Department
+    from app.services.workload_integration_service import department_teacher_ids
+
+    year = AcademicYear.query.filter_by(is_current=True).first()
+    if year is None:
+        return set()
+    return {
+        teacher_id
+        for department in Department.query.all()
+        for teacher_id in department_teacher_ids(year.id, department.id)
+    }
+
+
+def is_pedagogical(user, courses=(), pedagogical_ids=None):
+    if pedagogical_ids is not None and user.id in pedagogical_ids:
+        return True
     if PEDAGOGICAL_ROLES.intersection(user.role_codes):
         return True
     return any(
         isinstance(row, StaffCourseImport)
         and any(word in (row.position or "").casefold()
-                for word in ("учитель", "педагог", "воспитатель", "логопед", "психолог", "методист"))
+                for word in ("учитель", "педагог", "воспитатель", "логопед", "психолог", "методист", "дефектолог", "тьютор", "инструктор", "музыкальный руководитель"))
         for row in courses
     )
 
@@ -215,11 +233,11 @@ def course_status(rows, today=None):
             "next": year_label(due_year)}
 
 
-def staff_overview(users, courses_by_user, today=None):
+def staff_overview(users, courses_by_user, today=None, pedagogical_ids=None):
     rows = []
     for user in users:
         courses = courses_by_user.get(user.id, [])
         status = course_status(courses, today=today)
         rows.append({"user": user, "courses": courses, "count": len(courses),
-                     "pedagogical": is_pedagogical(user, courses), "status": status})
+                     "pedagogical": is_pedagogical(user, courses, pedagogical_ids), "status": status})
     return rows

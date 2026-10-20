@@ -1565,7 +1565,7 @@ def summary():
             key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
         )
         courses_by_teacher = imported_and_manual_courses(teacher_ids)
-        department_training = staff_overview(teacher_rows, courses_by_teacher)
+        department_training = staff_overview(teacher_rows, courses_by_teacher, pedagogical_ids=set(teacher_ids))
         course_rows = [course for teacher_id in ([selected_teacher_id] if selected_teacher_id else teacher_ids)
                        for course in courses_by_teacher.get(teacher_id, [])]
         attestation_teacher_ids = (

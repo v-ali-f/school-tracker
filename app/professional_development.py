@@ -10,7 +10,7 @@ from app.core.extensions import db
 from app.models import StaffCourseImport, User
 from app.permissions import has_any_role
 from app.services.professional_development_service import (
-    course_status, import_courses, imported_and_manual_courses,
+    course_status, current_pedagogical_ids, import_courses, imported_and_manual_courses,
     is_pedagogical, normalize_fio, staff_overview, year_label,
 )
 
@@ -39,7 +39,7 @@ def index():
         abort(403)
     users = [user for user in _active_staff() if user.last_name and user.first_name]
     by_user = imported_and_manual_courses([user.id for user in users])
-    overview = staff_overview(users, by_user)
+    overview = staff_overview(users, by_user, pedagogical_ids=current_pedagogical_ids())
     pedagogical = [row for row in overview if row["pedagogical"]]
     trained = sum(bool(row["count"]) for row in overview)
     covered = sum(row["status"]["code"] == "ok" for row in pedagogical)
@@ -93,7 +93,7 @@ def my():
     status = course_status(courses)
     return render_template(
         "professional_development/my.html", courses=courses,
-        status=status, pedagogical=is_pedagogical(current_user, courses),
+        status=status, pedagogical=is_pedagogical(current_user, courses, current_pedagogical_ids()),
         can_manage=_can_manage(),
         workspace_page_title="Мои курсы",
         workspace_page_subtitle="История повышения квалификации",
