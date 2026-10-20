@@ -4,6 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import current_app
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
 from app.models import (
@@ -16,6 +17,7 @@ from app.models import (
     TariffVersion,
     TeacherLoad,
     WorkloadAssignment,
+    WorkloadNeed,
     WorkloadReconciliationItem,
     WorkloadReconciliationRun,
     WorkloadSourceSetting,
@@ -410,6 +412,23 @@ def current_department_load_rows(
 
     query = (
         WorkloadAssignment.query
+        .options(
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.education_activity
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.department
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.building
+            ),
+            joinedload(WorkloadAssignment.employee),
+            joinedload(WorkloadAssignment.department),
+            joinedload(WorkloadAssignment.building),
+        )
         .join(
             WorkloadAssignment.workload_need,
         )

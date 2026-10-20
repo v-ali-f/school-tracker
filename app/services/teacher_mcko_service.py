@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from datetime import date
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
-from app.models import TeacherMckoResult, User
+from app.models import Subject, TeacherMckoResult, User
 from app.services.teacher_professional_service import (
     add_calendar_months,
     add_calendar_years,
@@ -150,6 +151,9 @@ def mcko_results_for_teachers(
     query = TeacherMckoResult.query.filter(
         TeacherMckoResult.teacher_id.in_(teacher_ids),
         TeacherMckoResult.is_archived.is_(False),
+    ).options(
+        joinedload(TeacherMckoResult.education_activity),
+        joinedload(TeacherMckoResult.subject).joinedload(Subject.education_activity),
     )
     if teacher_id:
         query = query.filter(TeacherMckoResult.teacher_id == teacher_id)

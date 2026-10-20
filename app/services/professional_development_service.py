@@ -8,6 +8,7 @@ import re
 
 from openpyxl import load_workbook
 from sqlalchemy import inspect, or_
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
 from app.models import StaffCourseImport, TeacherCourse, User
@@ -131,7 +132,9 @@ def import_courses(content, filename, *, commit=True):
 
 def imported_and_manual_courses(user_ids=None):
     imported_query = StaffCourseImport.query.filter_by(is_archived=False)
-    manual_query = TeacherCourse.query.filter_by(is_archived=False)
+    manual_query = TeacherCourse.query.options(
+        joinedload(TeacherCourse.academic_year)
+    ).filter_by(is_archived=False)
     if user_ids is not None:
         imported_query = imported_query.filter(StaffCourseImport.teacher_id.in_(user_ids))
         manual_query = manual_query.filter(TeacherCourse.teacher_id.in_(user_ids))
@@ -180,16 +183,18 @@ def current_pedagogical_ids():
 def current_department_memberships():
     """Map employees to departments in the current effective workload."""
     from app.models import AcademicYear, Department
-    from app.services.workload_integration_service import department_teacher_ids
+    from app.services.workload_integration_service import current_department_load_rows
 
     departments = Department.query.order_by(Department.name).all()
     memberships = defaultdict(set)
     year = AcademicYear.query.filter_by(is_current=True).first()
     if year is None:
         return departments, memberships
-    for department in departments:
-        for teacher_id in department_teacher_ids(year.id, department.id):
-            memberships[teacher_id].add(department.id)
+    department_ids = {department.id for department in departments}
+    rows, _ = current_department_load_rows(year.id)
+    for row in rows:
+        if row.teacher and row.department and row.department.id in department_ids:
+            memberships[row.teacher.id].add(row.department.id)
     return departments, memberships
 
 

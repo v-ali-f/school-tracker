@@ -11,6 +11,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 from flask_login import current_user, login_required
 from openpyxl import load_workbook
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
 from app.services.education_activity_service import (
@@ -64,7 +65,7 @@ from .models import (
     User,
     WORKLOAD_APPROVAL_STATUS_LABELS,
 )
-from .models.diagnostics import DiagnosticResult, DiagnosticSession
+from .models.diagnostics import DiagnosticResult, DiagnosticSession, DiagnosticTeacherBinding
 from .permissions import (
     CLASS_TEACHER,
     DEPARTMENT_HEAD,
@@ -75,7 +76,10 @@ from .permissions import (
     has_role,
     is_admin,
 )
-from .services.olympiad_stats_service import department_stats as olympiad_department_stats, dashboard_stats as olympiad_dashboard_stats
+from .services.olympiad_stats_service import (
+    department_stats as olympiad_department_stats,
+    department_overview_stats as olympiad_department_overview_stats,
+)
 from app.users import register_unmatched_staff
 from app.utils.user_matching import find_existing_user
 
@@ -939,15 +943,10 @@ def _parse_excel_loads(file_storage):
     _rebind_all_loads_to_departments()
     return created, updated, skipped
 
-def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None):
+def _control_work_query(dep: Department, teacher_id=None, academic_year_id=None):
     activity_ids = _subject_activity_ids_for_department(dep)
     if not activity_ids:
-        return {
-            "total_results": 0,
-            "avg_percent": None,
-            "by_subject": [],
-            "by_teacher": [],
-        }
+        return None
 
     results_q = (
         db.session.query(
@@ -976,6 +975,31 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
         results_q = results_q.filter(ControlWorkAssignment.teacher_id == teacher_id)
     if academic_year_id:
         results_q = results_q.filter(ControlWorkResult.academic_year_id == academic_year_id)
+    return results_q
+
+
+def _control_work_summary(dep: Department, teacher_id=None, academic_year_id=None):
+    query = _control_work_query(dep, teacher_id, academic_year_id)
+    if query is None:
+        return {"total_results": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
+    count, average = query.filter(
+        ControlWorkResult.percent.isnot(None)
+    ).with_entities(
+        func.count(ControlWorkResult.id),
+        func.avg(ControlWorkResult.percent),
+    ).one()
+    return {
+        "total_results": count,
+        "avg_percent": round(float(average), 1) if average is not None else None,
+        "by_subject": [],
+        "by_teacher": [],
+    }
+
+
+def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None):
+    results_q = _control_work_query(dep, teacher_id, academic_year_id)
+    if results_q is None:
+        return {"total_results": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
 
     rows = results_q.all()
     percents = [r.ControlWorkResult.percent for r in rows if r.ControlWorkResult.percent is not None]
@@ -1296,7 +1320,7 @@ def archived_load_delete(load_id):
 
 
 
-def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
+def _diagnostic_scope_query(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
     teacher_ids = teacher_ids or []
     subject_names = {
         _normalize_subject_name(
@@ -1311,29 +1335,60 @@ def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_ye
         )
     }
 
-    results = (
+    session_query = db.session.query(DiagnosticSession.id, DiagnosticSession.subject)
+    if academic_year_id:
+        session_query = session_query.filter(or_(
+            DiagnosticSession.academic_year_id == academic_year_id,
+            DiagnosticSession.academic_year_id.is_(None),
+        ))
+    subject_session_ids = [
+        session_id
+        for session_id, subject in session_query.all()
+        if _normalize_subject_name(subject)
+        and _normalize_subject_name(subject) in subject_names
+    ]
+    query = (
         DiagnosticResult.query
         .join(DiagnosticSession, DiagnosticSession.id == DiagnosticResult.session_id)
+        .outerjoin(
+            DiagnosticTeacherBinding,
+            DiagnosticTeacherBinding.result_id == DiagnosticResult.id,
+        )
         .filter(DiagnosticResult.is_final.is_(True))
+    )
+    if academic_year_id:
+        query = query.filter(or_(
+            DiagnosticSession.academic_year_id == academic_year_id,
+            DiagnosticSession.academic_year_id.is_(None),
+        ))
+    if subject_session_ids or teacher_ids:
+        query = query.filter(or_(
+            DiagnosticResult.session_id.in_(subject_session_ids),
+            DiagnosticTeacherBinding.teacher_id.in_(teacher_ids),
+        ))
+    else:
+        query = query.filter(DiagnosticResult.id == -1)
+    if selected_teacher_id:
+        query = query.filter(DiagnosticTeacherBinding.teacher_id == selected_teacher_id)
+    return query
+
+
+def _diagnostics_department_count(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
+    query = _diagnostic_scope_query(dep, teacher_ids, academic_year_id, selected_teacher_id)
+    return query.with_entities(func.count(DiagnosticResult.id)).scalar() or 0
+
+
+def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
+    filtered = (
+        _diagnostic_scope_query(dep, teacher_ids, academic_year_id, selected_teacher_id)
+        .options(
+            joinedload(DiagnosticResult.session),
+            joinedload(DiagnosticResult.teacher_binding).joinedload(
+                DiagnosticTeacherBinding.teacher
+            ),
+        )
         .all()
     )
-
-    filtered = []
-    for row in results:
-        session = row.session
-        if academic_year_id and getattr(session, "academic_year_id", None) not in {academic_year_id, None}:
-            continue
-        subject_name = _normalize_subject_name(getattr(session, "subject", None) or "")
-        binding = getattr(row, "teacher_binding", None)
-        teacher_id = getattr(binding, "teacher_id", None) if binding else None
-
-        matched_by_subject = bool(subject_name and subject_name in subject_names)
-        matched_by_teacher = bool(teacher_id and teacher_id in teacher_ids)
-        if not (matched_by_subject or matched_by_teacher):
-            continue
-        if selected_teacher_id and teacher_id != selected_teacher_id:
-            continue
-        filtered.append(row)
 
     def pct(values):
         nums = [float(v) for v in values if v is not None]
@@ -1458,6 +1513,10 @@ def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_ye
 def summary():
     selected_dep_id = request.args.get("department_id", type=int)
     selected_teacher_id = _teacher_scope_user_id()
+    active_section = request.args.get("section", "")
+    active_section = {"courses": "training", "legacy": "load"}.get(active_section, active_section)
+    if active_section not in {"", "training", "load", "control", "diagnostics", "olympiads", "mcko", "attestation"}:
+        active_section = ""
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
@@ -1478,16 +1537,23 @@ def summary():
         or has_role(DEPARTMENT_HEAD)
     )
     building_id = request.args.get("building_id", type=int)
-    all_load_rows = (
-        current_department_load_rows(academic_year_id, building_id=building_id)[0]
-        if deps and academic_year_id else []
+    all_load_rows, workload_version = (
+        current_department_load_rows(academic_year_id, building_id=building_id)
+        if deps and academic_year_id else ([], None)
     )
     overview_teacher_ids = defaultdict(set)
+    loads_by_department = defaultdict(list)
     allowed_department_ids = {item.id for item in deps}
     for row in all_load_rows:
         if row.department and row.department.id in allowed_department_ids and row.teacher:
             if can_view_department_team or row.teacher.id == current_user.id:
                 overview_teacher_ids[row.department.id].add(row.teacher.id)
+                loads_by_department[row.department.id].append(row)
+    all_teacher_ids = {
+        teacher_id for member_ids in overview_teacher_ids.values()
+        for teacher_id in member_ids
+    }
+    all_courses_by_teacher = imported_and_manual_courses(all_teacher_ids) if all_teacher_ids else {}
     dep = None
     if selected_dep_id:
         dep = Department.query.get_or_404(selected_dep_id)
@@ -1511,10 +1577,9 @@ def summary():
     teacher_load_summaries = []
     legacy_load_rows = []
     legacy_load_total = 0
-    workload_version = None
 
     if dep:
-        if can_manage_legacy_loads:
+        if active_section == "load" and can_manage_legacy_loads:
             legacy_load_query = TeacherLoad.query.filter(
                 TeacherLoad.department_id == dep.id,
             )
@@ -1539,24 +1604,12 @@ def summary():
                 .limit(100)
                 .all()
             )
-        department_load_rows, workload_version = current_department_load_rows(
-            academic_year_id,
-            department_id=dep.id,
-            building_id=building_id,
-        )
+        department_load_rows = loads_by_department[dep.id]
         teacher_ids = sorted({
             row.teacher.id
             for row in department_load_rows
             if row.teacher is not None
         })
-        if not can_view_department_team and (
-            has_role(TEACHER) or has_role(CLASS_TEACHER)
-        ):
-            teacher_ids = [x for x in teacher_ids if x == current_user.id]
-            department_load_rows = [
-                row for row in department_load_rows
-                if row.teacher and row.teacher.id == current_user.id
-            ]
         if selected_teacher_id and selected_teacher_id not in teacher_ids:
             abort(403)
         teacher_options = User.query.filter(User.id.in_(teacher_ids)).order_by(
@@ -1568,66 +1621,56 @@ def summary():
                 row for row in department_load_rows
                 if row.teacher and row.teacher.id == selected_teacher_id
             ]
-        teacher_rows = User.query.filter(User.id.in_(teacher_ids)).order_by(User.last_name.asc(), User.first_name.asc()).all() if teacher_ids else []
-        for teacher in teacher_rows:
-            teacher_loads = [
-                row for row in department_load_rows
-                if row.teacher and row.teacher.id == teacher.id
-            ]
-            teacher_load_summaries.append({
-                "teacher": teacher,
-                "total": sum(row.hours for row in teacher_loads),
-                "subjects": len({row.subject_name for row in teacher_loads}),
-                "groups": len({row.group_name for row in teacher_loads if row.group_name}),
-            })
-        stats = _control_work_stats(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
-        mcko_teacher_ids = [selected_teacher_id] if selected_teacher_id else teacher_ids
-        mcko_overview_map = mcko_overviews_for_teachers(mcko_teacher_ids)
-        mcko_overviews = sorted(
-            (
-                mcko_overview_map[teacher_id]
-                for teacher_id in mcko_teacher_ids
-                if teacher_id in mcko_overview_map
-            ),
-            key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
+        teacher_rows = [teacher for teacher in teacher_options if teacher.id in teacher_ids]
+        if active_section == "load":
+            for teacher in teacher_rows:
+                teacher_loads = [
+                    row for row in department_load_rows
+                    if row.teacher and row.teacher.id == teacher.id
+                ]
+                teacher_load_summaries.append({
+                    "teacher": teacher,
+                    "total": sum(row.hours for row in teacher_loads),
+                    "subjects": len({row.subject_name for row in teacher_loads}),
+                    "groups": len({row.group_name for row in teacher_loads if row.group_name}),
+                })
+        stats = (
+            _control_work_stats(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
+            if active_section == "control"
+            else _control_work_summary(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
         )
-        courses_by_teacher = imported_and_manual_courses(teacher_ids)
-        department_training = staff_overview(teacher_rows, courses_by_teacher, pedagogical_ids=set(teacher_ids))
+        if active_section == "mcko":
+            mcko_overview_map = mcko_overviews_for_teachers(teacher_ids)
+            mcko_overviews = sorted(
+                mcko_overview_map.values(),
+                key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
+            )
+        department_training = staff_overview(teacher_rows, all_courses_by_teacher, pedagogical_ids=set(teacher_ids))
         course_rows = [course for teacher_id in ([selected_teacher_id] if selected_teacher_id else teacher_ids)
-                       for course in courses_by_teacher.get(teacher_id, [])]
-        attestation_teacher_ids = (
-            [selected_teacher_id]
-            if selected_teacher_id
-            else teacher_ids
+                       for course in all_courses_by_teacher.get(teacher_id, [])]
+        if active_section == "attestation":
+            attestation_overview_map = attestation_overviews_for_teachers(teacher_ids)
+            attestation_overviews = sorted(
+                attestation_overview_map.values(),
+                key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
+            )
+        olympiad_stats = (
+            olympiad_department_stats(academic_year_id=academic_year_id, department_id=dep.id)
+            if active_section == "olympiads"
+            else olympiad_department_overview_stats(academic_year_id=academic_year_id, department_id=dep.id)
         )
-        attestation_overview_map = attestation_overviews_for_teachers(
-            attestation_teacher_ids
-        )
-        attestation_overviews = sorted(
-            (
-                attestation_overview_map[teacher_id]
-                for teacher_id in attestation_teacher_ids
-                if teacher_id in attestation_overview_map
-            ),
-            key=lambda item: (
-                item.teacher.fio or item.teacher.username
-            ).casefold(),
-        )
-        olympiad_stats = olympiad_department_stats(academic_year_id=academic_year_id, department_id=dep.id)
-        diagnostics_stats = _diagnostics_department_stats(dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id, selected_teacher_id=selected_teacher_id)
+        if active_section == "diagnostics":
+            diagnostics_stats = _diagnostics_department_stats(
+                dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id,
+                selected_teacher_id=selected_teacher_id,
+            )
+        else:
+            diagnostics_stats["total_results"] = _diagnostics_department_count(
+                dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id,
+                selected_teacher_id=selected_teacher_id,
+            )
     department_cards = []
     if deps and academic_year_id:
-        loads_by_department = defaultdict(list)
-        for row in all_load_rows:
-            if row.department and row.department.id in allowed_department_ids and row.teacher:
-                if can_view_department_team or row.teacher.id == current_user.id:
-                    loads_by_department[row.department.id].append(row)
-        all_teacher_ids = {
-            row.teacher.id
-            for rows in loads_by_department.values()
-            for row in rows
-        }
-        all_courses_by_teacher = imported_and_manual_courses(all_teacher_ids)
         for department in deps:
             rows = loads_by_department[department.id]
             member_ids = {row.teacher.id for row in rows}
@@ -1650,19 +1693,15 @@ def summary():
         "training_ok": sum(row["status"]["code"] == "ok" for row in department_training),
         "training_attention": sum(row["status"]["code"] in {"due", "overdue", "no_data"}
                                   for row in department_training),
-        "mcko_count": len(mcko_overviews),
-        "attestation_count": len(attestation_overviews),
+        "mcko_count": len(teacher_rows),
+        "attestation_count": len(teacher_rows),
     }
-    active_section = request.args.get("section", "")
-    active_section = {"courses": "training", "legacy": "load"}.get(active_section, active_section)
-    if active_section not in {"", "training", "load", "control", "diagnostics", "olympiads", "mcko", "attestation"}:
-        active_section = ""
+    can_manage_professional = bool(dep and _can_manage_professional_registry())
     return render_template(
         "departments/summary.html",
         departments=deps,
         dep=dep,
         teachers=teacher_options,
-        all_teachers=User.query.order_by(User.last_name.asc(), User.first_name.asc()).all(),
         selected_teacher_id=selected_teacher_id,
         stats=stats,
         mcko_overviews=mcko_overviews,
@@ -1680,14 +1719,11 @@ def summary():
         legacy_load_rows=legacy_load_rows,
         legacy_load_total=legacy_load_total,
         mcko_level_labels=MCKO_LEVEL_LABELS,
-        mcko_subjects=list_subject_activities(),
+        mcko_subjects=list_subject_activities() if active_section == "mcko" and can_manage_professional else [],
         attestation_overviews=attestation_overviews,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
         can_manage_attestation=_can_manage_teacher_attestation(),
-        can_manage_professional=bool(
-            dep
-            and _can_manage_professional_registry()
-        ),
+        can_manage_professional=can_manage_professional,
         department_cards=department_cards,
         dashboard=dashboard,
         active_section=active_section,

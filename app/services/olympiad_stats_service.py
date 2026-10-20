@@ -15,7 +15,6 @@ from .olympiad_normalization import (
     stage_label,
     status_label,
 )
-from .olympiad_import_service import ensure_olympiad_result_schema
 
 STAGE_ORDER = ["school", "municipal", "regional", "final", "unknown"]
 STATUS_ORDER = ["winner", "prize", "participant", "out_of_competition", "annulled", "unknown"]
@@ -30,7 +29,6 @@ def _row_status_group(row):
 
 
 def _base_query(academic_year_id=None, stage_group=None, status_group=None, department_id=None, teacher_id=None, year_ids=None):
-    ensure_olympiad_result_schema()
     q = OlympiadResult.query.filter(OlympiadResult.is_archived.is_(False))
     if academic_year_id:
         q = q.filter(OlympiadResult.academic_year_id == academic_year_id)
@@ -291,9 +289,13 @@ def teacher_stats(academic_year_id=None, teacher_id=None):
 
 
 def department_stats(academic_year_id=None, department_id=None):
-    rows = _load_rows_eager(academic_year_id, department_id=department_id)
-    summary, _, dept, _, _, _, _, _ = all_analytics(academic_year_id=academic_year_id, department_id=department_id)
+    _, _, dept, _, _, _, _, _ = all_analytics(academic_year_id=academic_year_id, department_id=department_id)
     return dept
+
+
+def department_overview_stats(academic_year_id=None, department_id=None):
+    """Card totals without building every olympiad breakdown and comparison."""
+    return _compute_dashboard(_load_rows_eager(academic_year_id, department_id=department_id))
 
 
 def subject_stats(academic_year_id=None):

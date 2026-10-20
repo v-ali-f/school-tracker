@@ -2994,6 +2994,7 @@ def test_department_and_workspace_read_current_load_and_mcko(
         query_string={
             "academic_year_id": year_id,
             "department_id": context["department_id"],
+            "section": "mcko",
         },
     )
     summary_html = summary.get_data(as_text=True)
@@ -3001,9 +3002,25 @@ def test_department_and_workspace_read_current_load_and_mcko(
     assert f"/departments/teachers/{teacher_id}" in summary_html
     assert "Диагностика действует" in summary_html
     assert "professional-level-HIGH" in summary_html
-    assert "Высшая квалификационная категория" in summary_html
-    assert "Бессрочно" in summary_html
-    assert "5" in summary_html
+    attestation_html = client.get(
+        "/departments/summary",
+        query_string={
+            "academic_year_id": year_id,
+            "department_id": context["department_id"],
+            "section": "attestation",
+        },
+    ).get_data(as_text=True)
+    assert "Высшая квалификационная категория" in attestation_html
+    assert "Бессрочно" in attestation_html
+    load_html = client.get(
+        "/departments/summary",
+        query_string={
+            "academic_year_id": year_id,
+            "department_id": context["department_id"],
+            "section": "load",
+        },
+    ).get_data(as_text=True)
+    assert "5" in load_html
 
 
 def test_workspace_and_department_summary_highlight_missing_mcko(
@@ -3033,6 +3050,7 @@ def test_workspace_and_department_summary_highlight_missing_mcko(
         query_string={
             "academic_year_id": context["year_id"],
             "department_id": context["department_id"],
+            "section": "mcko",
         },
     ).get_data(as_text=True)
 
@@ -3040,7 +3058,15 @@ def test_workspace_and_department_summary_highlight_missing_mcko(
     assert "workload-teacher-mcko is-danger" in workspace
     assert "Диагностика отсутствует" in summary
     assert "professional-status-MISSING" in summary
-    assert "Не указана дата приёма" in summary
+    attestation = client.get(
+        "/departments/summary",
+        query_string={
+            "academic_year_id": context["year_id"],
+            "department_id": context["department_id"],
+            "section": "attestation",
+        },
+    ).get_data(as_text=True)
+    assert "Не указана дата приёма" in attestation
 
 
 def test_teacher_can_view_only_own_workload(

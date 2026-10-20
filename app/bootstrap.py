@@ -176,6 +176,9 @@ def ensure_runtime_schema():
             "priority": "ALTER TABLE olympiad_subject_mapping ADD COLUMN priority INTEGER DEFAULT 100",
         },
         "olympiad_result": {
+            "status_original": "ALTER TABLE olympiad_result ADD COLUMN status_original TEXT",
+            "status_group": "ALTER TABLE olympiad_result ADD COLUMN status_group VARCHAR(50)",
+            "stage_group": "ALTER TABLE olympiad_result ADD COLUMN stage_group VARCHAR(50)",
             "teacher_binding_status": "ALTER TABLE olympiad_result ADD COLUMN teacher_binding_status VARCHAR(30)",
             "teacher_binding_source": "ALTER TABLE olympiad_result ADD COLUMN teacher_binding_source VARCHAR(30)",
             "teacher_binding_reason": "ALTER TABLE olympiad_result ADD COLUMN teacher_binding_reason TEXT",

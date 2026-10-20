@@ -1,12 +1,16 @@
 from datetime import date
 from io import BytesIO
+from types import SimpleNamespace
 
 from openpyxl import Workbook
 
 from app.core.extensions import db
 from app.models import AcademicYear, Department, StaffCourseImport, TeacherCourse, User
 from app.modules.preschool.models import PreschoolGroup
-from app.services.professional_development_service import course_status, import_courses, parse_courses
+from app.services.professional_development_service import (
+    course_status, current_department_memberships, import_courses, parse_courses,
+)
+from app.services import workload_integration_service
 
 
 def _workbook(rows):
@@ -18,6 +22,31 @@ def _workbook(rows):
     output = BytesIO()
     book.save(output)
     return output.getvalue()
+
+
+def test_department_memberships_read_workload_once(app, make_user, monkeypatch):
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        year = AcademicYear(name="2026/2027", is_current=True)
+        first = Department(name="Первая кафедра", code="first-fast")
+        second = Department(name="Вторая кафедра", code="second-fast")
+        db.session.add_all([year, first, second])
+        db.session.commit()
+        teacher = db.session.get(User, teacher_id)
+        calls = []
+
+        def workload_rows(year_id):
+            calls.append(year_id)
+            return [
+                SimpleNamespace(teacher=teacher, department=first),
+                SimpleNamespace(teacher=teacher, department=second),
+            ], None
+
+        monkeypatch.setattr(workload_integration_service, "current_department_load_rows", workload_rows)
+        _, memberships = current_department_memberships()
+
+        assert calls == [year.id]
+        assert memberships[teacher_id] == {first.id, second.id}
 
 
 def test_import_matches_unique_employee_and_reimport_is_idempotent(app, client, make_user, login):
