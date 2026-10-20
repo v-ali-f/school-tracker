@@ -1,15 +1,16 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 
 from app.models import (
+    AcademicYear,
     Department,
     TeacherAttestation,
-    TeacherLoad,
     TeacherMckoResult,
     User,
-    WorkloadAssignment,
 )
 from app.services.teacher_mcko_service import MckoResultView, mcko_result_view
+from app.services.workload_integration_service import current_department_load_rows, department_teacher_ids
 
 
 MISSING_STATUS = "MISSING"
@@ -42,7 +43,7 @@ class TeacherMckoRegistryRow:
 
 
 def teacher_professional_roster():
-    """Return active teaching staff and their workload-derived departments."""
+    """Return active teaching staff and their current department membership."""
     teacher_ids = set()
     department_ids_by_teacher = {}
 
@@ -50,26 +51,25 @@ def teacher_professional_roster():
         if set(user.role_codes).intersection({"TEACHER", "CLASS_TEACHER", "DEPARTMENT_HEAD"}):
             teacher_ids.add(user.id)
 
-    assignments = WorkloadAssignment.query.with_entities(
-        WorkloadAssignment.employee_user_id,
-        WorkloadAssignment.department_id,
-    ).filter(
-        WorkloadAssignment.employee_user_id.isnot(None),
-        WorkloadAssignment.status != "CANCELLED",
-    ).all()
-    for item in assignments:
-        teacher_ids.add(item.employee_user_id)
-        if item.department_id:
-            department_ids_by_teacher.setdefault(item.employee_user_id, set()).add(item.department_id)
-
-    legacy_loads = TeacherLoad.query.with_entities(
-        TeacherLoad.teacher_id,
-        TeacherLoad.department_id,
-    ).filter_by(is_archived=False).distinct().all()
-    for item in legacy_loads:
-        teacher_ids.add(item.teacher_id)
-        if item.department_id:
-            department_ids_by_teacher.setdefault(item.teacher_id, set()).add(item.department_id)
+    current_year = AcademicYear.query.filter_by(is_current=True).first()
+    departments = {item.id: item for item in Department.query.all()}
+    load_rows, workload_version = (
+        current_department_load_rows(current_year.id)
+        if current_year else ([], None)
+    )
+    rows_by_department = defaultdict(list)
+    for row in load_rows:
+        if row.department is not None:
+            rows_by_department[row.department.id].append(row)
+    for department_id in departments:
+        for teacher_id in department_teacher_ids(
+            current_year.id if current_year else None,
+            department_id,
+            preloaded_rows=rows_by_department[department_id],
+            preloaded_version=workload_version,
+        ):
+            teacher_ids.add(teacher_id)
+            department_ids_by_teacher.setdefault(teacher_id, set()).add(department_id)
 
     for teacher_id, in TeacherMckoResult.query.with_entities(TeacherMckoResult.teacher_id).distinct():
         teacher_ids.add(teacher_id)
@@ -83,15 +83,6 @@ def teacher_professional_roster():
             User.is_active_user.is_(True),
             User.employment_status == "ACTIVE",
         ).all()
-    }
-    department_ids = {
-        department_id
-        for values in department_ids_by_teacher.values()
-        for department_id in values
-    }
-    departments = {
-        item.id: item
-        for item in Department.query.filter(Department.id.in_(department_ids or {-1})).all()
     }
     return active_users, department_ids_by_teacher, departments
 
@@ -182,8 +173,9 @@ def teacher_mcko_registry_rows(
 
 
 def mcko_registry_summary(rows):
-    counts = {key: 0 for key in ("TOTAL", "ACTIVE", "EXPIRING_SOON", "EXPIRED", "INCOMPLETE", MISSING_STATUS)}
+    counts = {key: 0 for key in ("TOTAL", "RESULTS", "ACTIVE", "EXPIRING_SOON", "EXPIRED", "INCOMPLETE", MISSING_STATUS)}
     counts["TOTAL"] = len({row.teacher.id for row in rows})
+    counts["RESULTS"] = sum(row.result is not None for row in rows)
     for row in rows:
         counts[row.status] = counts.get(row.status, 0) + 1
     return counts

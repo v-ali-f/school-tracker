@@ -2,6 +2,8 @@ from app.core.extensions import db
 from app.models import (
     Department,
     DepartmentLeader,
+    DepartmentSubject,
+    DepartmentTeacherMembership,
     EducationActivity,
     EducationActivityDepartment,
     User,
@@ -136,21 +138,27 @@ def test_department_settings_only_displays_registry_activities_and_teachers(
             department.id,
         )
         db.session.commit()
+        department_id = department.id
     login(admin_id)
 
     response = client.get("/departments/settings")
-
     assert response.status_code == 200
-    html = response.data.decode()
+    assert 'id="department-picker"' in response.get_data(as_text=True)
+    assert 'id="department-detail"' not in response.get_data(as_text=True)
+    assert "Школьный проект" not in response.get_data(as_text=True)
+
+    response = client.get(f"/departments/settings?department_id={department_id}")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
     assert 'name="subject_ids"' not in html
-    assert "Изменить в реестре" in html
+    assert 'id="department-detail"' in html
     assert html.count("Школьный проект") == 2
     assert "Учебный курс" in html
     assert "Внеурочный курс" in html
     assert "Учитель Мария" in html
     assert "Наблюдатель Иван" not in html
-    assert "data-leader-picker" in html
-    assert "Исключить" not in html
+    assert 'id="leader-choice"' in html
+    assert 'id="department-members"' in html
 
 
 def test_department_update_does_not_change_registry_links(
@@ -236,10 +244,10 @@ def test_only_teacher_candidates_can_be_department_leaders(
         ).one()
         leader_id = leader.id
 
-    page = client.get("/departments/settings")
+    page = client.get(f"/departments/settings?department_id={department_id}")
 
     assert page.status_code == 200
-    assert "Исключить".encode() in page.data
+    assert "Убрать".encode() in page.data
 
     deleted = client.post(
         f"/departments/settings/leader/{leader_id}/delete",
@@ -248,3 +256,91 @@ def test_only_teacher_candidates_can_be_department_leaders(
     assert deleted.status_code == 302
     with app.app_context():
         assert db.session.get(DepartmentLeader, leader_id) is None
+
+
+def test_settings_directory_skips_department_detail_queries(
+    app, client, make_user, login, monkeypatch,
+):
+    import app.departments as department_routes
+
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        db.session.add(Department(name="Кафедра для выбора", code="choose-only"))
+        db.session.commit()
+    login(admin_id)
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Detailed department data should load after selection")
+
+    monkeypatch.setattr(department_routes, "department_teacher_ids", unexpected)
+    monkeypatch.setattr(department_routes, "_department_leader_candidates", unexpected)
+    response = client.get("/departments/settings")
+    assert response.status_code == 200
+    assert 'id="department-picker"' in response.get_data(as_text=True)
+
+
+def test_settings_can_manage_member_and_activity_for_selected_department(
+    app, client, make_user, login,
+):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        department = Department(name="Кафедра выбора", code="choice")
+        db.session.add(department)
+        db.session.flush()
+        activity = EducationActivity(
+            code="SETTINGS_ACTIVITY", name="Новый предмет",
+            activity_kind="SUBJECT", is_global=True,
+            is_tariffable=True, is_active=True,
+        )
+        db.session.add(activity)
+        db.session.commit()
+        department_id, activity_id = department.id, activity.id
+    login(admin_id)
+
+    added_member = client.post(
+        f"/departments/settings/{department_id}/teacher/add",
+        data={"teacher_id": str(teacher_id)},
+    )
+    assert added_member.status_code == 302
+    assert f"department_id={department_id}" in added_member.headers["Location"]
+    added_activity = client.post(
+        f"/departments/settings/{department_id}/activity/add",
+        data={"activity_id": str(activity_id)},
+    )
+    assert added_activity.status_code == 302
+    with app.app_context():
+        membership = DepartmentTeacherMembership.query.filter_by(
+            department_id=department_id, teacher_id=teacher_id,
+        ).one()
+        assert membership.mode == "INCLUDE"
+        link = EducationActivityDepartment.query.filter_by(
+            department_id=department_id, education_activity_id=activity_id,
+        ).one()
+        assert link.is_active is True
+        assert DepartmentSubject.query.filter_by(
+            department_id=department_id, education_activity_id=activity_id,
+        ).count() == 1
+        link_id = link.id
+
+    page = client.get(f"/departments/settings?department_id={department_id}")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "Новый предмет" in html
+    assert "Вручную" in html
+
+    excluded = client.post(
+        f"/departments/settings/{department_id}/teacher/{teacher_id}/exclude",
+    )
+    removed = client.post(
+        f"/departments/settings/{department_id}/activity/{link_id}/remove",
+    )
+    assert excluded.status_code == removed.status_code == 302
+    with app.app_context():
+        assert DepartmentTeacherMembership.query.filter_by(
+            department_id=department_id, teacher_id=teacher_id,
+        ).one().mode == "EXCLUDE"
+        assert db.session.get(EducationActivityDepartment, link_id).is_active is False
+        assert DepartmentSubject.query.filter_by(
+            department_id=department_id, education_activity_id=activity_id,
+        ).count() == 0

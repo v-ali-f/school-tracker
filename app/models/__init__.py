@@ -12,6 +12,7 @@ from .classes import *
 from .classroom import *
 from .control_works import *
 from .departments import *
+from .department_membership import DepartmentTeacherMembership
 from .professional_development import StaffCourseImport
 from .documents import *
 from .olympiads import *
