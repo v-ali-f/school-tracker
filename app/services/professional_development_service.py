@@ -70,7 +70,7 @@ def parse_courses(content, filename):
             key = sha256(repr((*identity, occurrences[identity])).encode("utf-8")).hexdigest()
             rows.append({"source_key": key, "source_year": year, "source_row": row_number,
                          "employee_name": name, "position": position or None,
-                         "title": title, "provider": provider or None})
+                         "source_title": title, "source_provider": provider or None})
         if not rows:
             raise ValueError("В таблице нет записей о курсах")
         return year, rows

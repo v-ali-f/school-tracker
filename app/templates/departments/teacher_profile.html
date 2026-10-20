@@ -114,31 +114,18 @@
 </div></div>
 {% endif %}
 
-{% if course_rows or can_edit_professional %}
-<div class="card mb-4"><div class="card-body">
-  <h2 class="section-title">Курсы повышения квалификации</h2>
-  <div class="small text-muted mb-2">{{ training_status.label }}{% if training_status.latest %} · Последний курс: {{ training_status.latest }}{% endif %}{% if training_status.next %} · Следующий плановый период: {{ training_status.next }}{% endif %}</div>
+{% if course_rows or can_edit_courses %}
+<div class="card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-start gap-2">
+    <div><h2 class="section-title mb-1">Курсы повышения квалификации</h2><div class="small text-muted">{{ training_status.label }}{% if training_status.latest %} · Последний курс: {{ training_status.latest }}{% endif %}{% if training_status.next %} · Следующий плановый период: {{ training_status.next }}{% endif %}</div></div>
+    {% if can_edit_courses %}<a class="btn btn-primary btn-sm" href="{{ url_for('professional_development.new_course', teacher_id=teacher.id) }}">Добавить курс</a>{% endif %}
+  </div>
   {% if course_rows %}
-  <div class="registry-mobile-scroll-hint mt-3"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
-  <div class="registry-matrix-card mt-3"><div class="registry-table-scroll" tabindex="0" aria-label="Курсы повышения квалификации"><table class="registry-matrix registry-matrix-medium">
-    <thead><tr><th>Курс</th><th>Организация</th><th class="text-end">Часы</th><th>Период</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="registry-cell-center">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{% if row.source_year is defined %}{{ row.source_year }}/{{ row.source_year + 1 }}{% else %}{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}{% if row.end_date %} — {{ row.end_date.strftime('%d.%m.%Y') }}{% endif %}{% endif %}</td><td>{{ row.notes or '—' }}</td>{% if can_edit_professional %}<td class="registry-cell-center">{% if row.source_year is not defined %}<form method="post" action="{{ url_for('departments.archive_course', record_id=row.id) }}"><button class="btn btn-outline-danger registry-row-action" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form>{% else %}<span class="text-muted">Из таблицы</span>{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody>
+  <div class="registry-mobile-scroll-hint mt-2"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card mt-2"><div class="registry-table-scroll" tabindex="0" aria-label="Курсы повышения квалификации"><table class="registry-matrix registry-matrix-wide">
+    <thead><tr><th>Курс</th><th>Организация</th><th>Часы</th><th>Период</th><th>Источник</th>{% if can_edit_courses %}<th>Действия</th>{% endif %}</tr></thead>
+    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="registry-cell-center">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{% if row.end_date %}{{ row.end_date.strftime('%d.%m.%Y') }}{% elif row.start_date %}{{ row.start_date.strftime('%d.%m.%Y') }}{% elif row.source_year is defined %}{{ row.source_year }}/{{ row.source_year + 1 }}{% else %}—{% endif %}</td><td>{{ 'Загруженная таблица' if row.source_year is defined else 'Добавлен вручную' }}</td>{% if can_edit_courses %}<td class="registry-cell-nowrap"><a href="{{ url_for('professional_development.edit_course', kind='imported' if row.source_year is defined else 'manual', record_id=row.id) }}">Редактировать</a></td>{% endif %}</tr>{% endfor %}</tbody>
   </table></div></div>
-  {% endif %}
-  {% if can_edit_professional %}
-  <details class="mt-3">
-    <summary class="btn btn-outline-primary btn-sm">Добавить курс</summary>
-    <form method="post" action="{{ url_for('departments.add_course') }}" class="row g-2 mt-1">
-      <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
-      <div class="col-md-6"><label class="form-label">Название курса</label><input class="form-control" name="title" required></div>
-      <div class="col-md-4"><label class="form-label">Организация</label><input class="form-control" name="provider"></div>
-      <div class="col-md-2"><label class="form-label">Часы</label><input class="form-control" type="number" min="0" step="0.1" name="hours"></div>
-      <div class="col-md-3"><label class="form-label">Дата начала</label><input class="form-control" type="date" name="start_date"></div>
-      <div class="col-md-3"><label class="form-label">Дата окончания</label><input class="form-control" type="date" name="end_date"></div>
-      <div class="col-md-4"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
-      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
-    </form>
-  </details>
   {% endif %}
 </div></div>
 {% endif %}

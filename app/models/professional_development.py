@@ -15,8 +15,11 @@ class StaffCourseImport(db.Model):
     source_row = db.Column(db.Integer, nullable=False)
     employee_name = db.Column(db.String(255), nullable=False)
     position = db.Column(db.String(255), nullable=True)
-    title = db.Column(db.String(512), nullable=False)
-    provider = db.Column(db.String(512), nullable=True)
+    source_title = db.Column("title", db.String(512), nullable=False)
+    source_provider = db.Column("provider", db.String(512), nullable=True)
+    title_override = db.Column(db.String(512), nullable=True)
+    provider_override = db.Column(db.String(512), nullable=True)
+    hours = db.Column(db.Float, nullable=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
     completed_at = db.Column(db.Date, nullable=True)
     is_archived = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
@@ -25,8 +28,12 @@ class StaffCourseImport(db.Model):
     teacher = db.relationship("User", foreign_keys=[teacher_id])
 
     @property
-    def hours(self):
-        return None
+    def title(self):
+        return self.title_override if self.title_override is not None else self.source_title
+
+    @property
+    def provider(self):
+        return self.provider_override if self.provider_override is not None else self.source_provider
 
     @property
     def start_date(self):

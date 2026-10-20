@@ -1,0 +1,28 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/professional_development.css') }}?v=2">{% endblock %}
+{% block workspace_content %}
+<div class="pd-page">
+  <div class="page-head mb-2">
+    <div><h1 class="page-title">{{ 'Добавить курс' if is_new else 'Редактировать курс' }}</h1><div class="page-sub">{{ teacher.fio or teacher.username }}</div></div>
+    <div class="page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('professional_development.my') if teacher.id == current_user.id else url_for('departments.teacher_profile', teacher_id=teacher.id) }}">К списку курсов</a></div>
+  </div>
+  <section class="card pd-course-form-card"><div class="card-body">
+    {% if kind == 'imported' %}<p class="small text-muted mb-3">Исправления и часы сохранятся после повторной загрузки таблицы. Дату указывайте только если она известна.</p>{% endif %}
+    <form method="post" class="pd-course-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if is_new and can_manage %}<input type="hidden" name="teacher_id" value="{{ teacher.id }}">{% endif %}
+      <div class="pd-field pd-field-wide"><label class="form-label" for="course-title">Название курса</label><input class="form-control" id="course-title" name="title" maxlength="{{ 512 if kind == 'imported' else 255 }}" value="{{ request.form.get('title', row.title if row else '') }}" required></div>
+      <div class="pd-field pd-field-wide"><label class="form-label" for="course-provider">Организация</label><input class="form-control" id="course-provider" name="provider" maxlength="{{ 512 if kind == 'imported' else 255 }}" value="{{ request.form.get('provider', row.provider or '' if row else '') }}"></div>
+      <div class="pd-field"><label class="form-label" for="course-hours">Количество часов</label><input class="form-control" id="course-hours" name="hours" type="number" min="0.1" max="10000" step="0.1" value="{{ request.form.get('hours', row.hours|compact_decimal if row and row.hours is not none else '') }}" placeholder="Например, 72"></div>
+      {% if kind == 'imported' %}
+      <div class="pd-field"><label class="form-label" for="course-completed">Дата окончания</label><input class="form-control" id="course-completed" name="completed_at" type="date" value="{{ request.form.get('completed_at', row.completed_at.isoformat() if row and row.completed_at else '') }}"></div>
+      {% else %}
+      <div class="pd-field"><label class="form-label" for="course-start">Дата начала</label><input class="form-control" id="course-start" name="start_date" type="date" value="{{ request.form.get('start_date', row.start_date.isoformat() if row and row.start_date else '') }}"></div>
+      <div class="pd-field"><label class="form-label" for="course-end">Дата окончания</label><input class="form-control" id="course-end" name="end_date" type="date" value="{{ request.form.get('end_date', row.end_date.isoformat() if row and row.end_date else '') }}"></div>
+      <div class="pd-field pd-field-wide"><label class="form-label" for="course-notes">Примечание</label><textarea class="form-control" id="course-notes" name="notes" rows="2" maxlength="2000">{{ request.form.get('notes', row.notes or '' if row else '') }}</textarea></div>
+      {% endif %}
+      <div class="pd-form-actions"><button class="btn btn-primary" type="submit">Сохранить курс</button></div>
+    </form>
+  </div></section>
+</div>
+{% endblock %}

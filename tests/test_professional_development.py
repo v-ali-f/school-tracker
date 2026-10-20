@@ -4,7 +4,7 @@ from io import BytesIO
 from openpyxl import Workbook
 
 from app.core.extensions import db
-from app.models import StaffCourseImport, User
+from app.models import StaffCourseImport, TeacherCourse, User
 from app.services.professional_development_service import course_status, import_courses, parse_courses
 
 
@@ -76,3 +76,58 @@ def test_uploaded_source_requires_year_and_known_columns():
         assert "учебный год" in str(exc)
     else:
         assert False, "missing year must be rejected"
+
+
+def test_teacher_can_update_imported_hours_and_corrections_survive_reimport(app, client, make_user, login):
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name, teacher.first_name, teacher.middle_name = "Иванова", "Анна", "Петровна"
+        db.session.commit()
+        content = _workbook([("Иванова Анна Петровна", "Учитель", "Старое название", "Центр")])
+        import_courses(content, "Курсы 2025-2026.xlsx")
+        row_id = StaffCourseImport.query.one().id
+    login(teacher_id)
+    form = client.get(f"/professional-development/course/imported/{row_id}/edit")
+    assert form.status_code == 200
+    response = client.post(f"/professional-development/course/imported/{row_id}/edit", data={
+        "title": "Уточнённое название", "provider": "Центр", "hours": "72",
+        "completed_at": "2026-06-15",
+    }, follow_redirects=True)
+    assert response.status_code == 200
+    assert "Уточнённое название" in response.get_data(as_text=True)
+    with app.app_context():
+        import_courses(content, "Курсы 2025-2026.xlsx")
+        row = db.session.get(StaffCourseImport, row_id)
+        assert row.source_title == "Старое название"
+        assert row.title == "Уточнённое название"
+        assert row.hours == 72
+        assert row.completed_at == date(2026, 6, 15)
+
+
+def test_self_and_methodist_can_add_courses_but_cannot_edit_another_users_course(app, client, make_user, login):
+    teacher_id = make_user("TEACHER")
+    other_id = make_user("TEACHER")
+    methodist_id = make_user("METHODIST")
+    login(teacher_id)
+    response = client.post("/professional-development/course/new", data={
+        "teacher_id": other_id, "title": "Курс вне выгрузки", "provider": "Институт",
+        "hours": "36", "end_date": "2026-10-01",
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        row = TeacherCourse.query.one()
+        assert row.teacher_id == teacher_id
+        assert row.hours == 36
+        record_id = row.id
+    assert client.get(f"/professional-development/course/manual/{record_id}/edit").status_code == 200
+    login(other_id)
+    assert client.get(f"/professional-development/course/manual/{record_id}/edit").status_code == 403
+    login(methodist_id)
+    assert client.get(f"/professional-development/course/manual/{record_id}/edit").status_code == 200
+    response = client.post("/professional-development/course/new", data={
+        "teacher_id": other_id, "title": "Курс методиста", "hours": "16",
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        assert TeacherCourse.query.filter_by(teacher_id=other_id, title="Курс методиста").count() == 1

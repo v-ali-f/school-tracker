@@ -71,6 +71,7 @@ from .permissions import (
     METHODIST,
     TEACHER,
     has_permission,
+    has_any_role,
     has_role,
     is_admin,
 )
@@ -1744,6 +1745,9 @@ def teacher_profile(teacher_id):
         mcko_subjects=list_subject_activities(),
         course_rows=course_rows,
         training_status=training_status,
+        can_edit_courses=(teacher.id == current_user.id or has_any_role(
+            "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "HR_SPECIALIST"
+        )),
         attestation_rows=attestation_history,
         attestation_overview=attestation_overview,
         debt_rows=debt_rows,
