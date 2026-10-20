@@ -96,7 +96,9 @@ def index():
     departments, memberships = current_department_memberships()
     preschool_group_ids = current_preschool_teacher_ids()
     departments_by_id = {item.id: item for item in departments}
-    overview = staff_overview(users, by_user, pedagogical_ids=set(memberships))
+    overview = staff_overview(
+        users, by_user, pedagogical_ids=set(memberships) | preschool_group_ids,
+    )
     for row in overview:
         row["departments"] = tuple(
             departments_by_id[item_id] for item_id in sorted(memberships.get(row["user"].id, ()))

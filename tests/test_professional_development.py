@@ -203,3 +203,5 @@ def test_preschool_group_teacher_appears_without_imported_course(app, client, ma
     html = response.get_data(as_text=True)
     assert "Педагог Детсада" in html
     assert "Сведения о курсах отсутствуют" in html
+    assert "Нет сведений" in html
+    assert "Из 1 педагогических работников" in html
