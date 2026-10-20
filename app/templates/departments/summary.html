@@ -2,9 +2,13 @@
 {% block departments_head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260810_3">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_summary_dashboard.css') }}?v=2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_summary_dashboard.css') }}?v=3">
 {% endblock %}
 {% block departments_content %}
+{% macro direction_url(section) -%}
+{{ url_for('departments.summary', department_id=dep.id, academic_year_id=academic_year_id, teacher_id=selected_teacher_id, building_id=building_id, section=section, _anchor='summary-details') }}
+{%- endmacro %}
+{% set section_titles = {'load': 'Нагрузка и педагоги', 'control': 'Контрольные работы', 'diagnostics': 'Диагностики', 'olympiads': 'Олимпиады и ВСОШ', 'mcko': 'МЦКО педагогов', 'training': 'Повышение квалификации', 'attestation': 'Аттестация'} %}
 <div class="department-summary-dashboard">
   <div class="page-head mb-2">
     <div><h1 class="page-title">Свод по кафедрам</h1><div class="page-sub">Показатели по направлениям и переход к подробным данным выбранной кафедры</div></div>
@@ -14,7 +18,8 @@
     </div>
   </div>
 
-  <form method="get" class="registry-filter-panel department-summary-filters" aria-label="Фильтры свода по кафедрам">
+  <form method="get" action="{{ url_for('departments.summary', _anchor='summary-details') if active_section else url_for('departments.summary') }}" class="registry-filter-panel department-summary-filters" aria-label="Фильтры свода по кафедрам">
+    {% if active_section %}<input type="hidden" name="section" value="{{ active_section }}">{% endif %}
     <div><label class="form-label" for="summary-year">Учебный год</label><select class="form-select" id="summary-year" name="academic_year_id" onchange="this.form.submit()">{% for year in years %}<option value="{{ year.id }}" {% if academic_year_id == year.id %}selected{% endif %}>{{ year.name }}</option>{% endfor %}</select></div>
     <div><label class="form-label" for="summary-department">Кафедра</label><select class="form-select" id="summary-department" name="department_id" onchange="this.form.submit()">{% for item in departments %}<option value="{{ item.id }}" {% if dep and dep.id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
     <div><label class="form-label" for="summary-teacher">Педагог</label><select class="form-select" id="summary-teacher" name="teacher_id" onchange="this.form.submit()"><option value="">Все педагоги кафедры</option>{% for teacher in teachers %}<option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>{{ teacher.fio or teacher.username }}</option>{% endfor %}</select></div>
@@ -25,7 +30,7 @@
   <section class="department-overview" aria-label="Обзор кафедр">
     <div class="department-overview-head"><h2 class="section-title mb-0">Кафедры</h2><span class="text-muted small">Выберите кафедру · список прокручивается вправо</span></div>
     <div class="department-overview-grid">{% for item in department_cards %}
-      <a class="department-overview-card {% if dep and dep.id == item.department.id %}is-selected{% endif %}" href="{{ url_for('departments.summary', department_id=item.department.id, academic_year_id=academic_year_id, building_id=building_id) }}" {% if dep and dep.id == item.department.id %}aria-current="page"{% endif %}>
+      <a class="department-overview-card {% if dep and dep.id == item.department.id %}is-selected{% endif %}" href="{{ url_for('departments.summary', department_id=item.department.id, academic_year_id=academic_year_id, building_id=building_id, section=active_section or None, _anchor='summary-details' if active_section else None) }}" {% if dep and dep.id == item.department.id %}aria-current="page"{% endif %}>
         <span class="department-overview-title">{{ item.department.name }}</span>
         <span class="department-overview-values"><b>{{ item.teachers }}</b> педагогов <b>{{ item.hours|compact_decimal }}</b> ч/нед.{% if item.planning %}<em>{{ item.planning }} планировать</em>{% endif %}</span>
       </a>
@@ -37,20 +42,20 @@
   <div class="department-selected-head"><div><span class="department-eyebrow">Выбранная кафедра</span><h2>{{ dep.name }}</h2><span>{{ years|selectattr('id', 'equalto', academic_year_id)|map(attribute='name')|first|default('Учебный год не выбран') }} · состав по действующей нагрузке{% if selected_teacher_id %} · выбран один педагог{% endif %}</span></div>{% if workload_version %}<span class="department-source-tag">Нагрузка: версия {{ workload_version.version_no }}</span>{% endif %}</div>
 
   <div class="department-kpi-grid">
-    <div class="department-kpi"><span>Педагогов по нагрузке</span><strong>{{ dashboard.teachers }}</strong><small>В выбранной кафедре</small></div>
-    <div class="department-kpi"><span>Часов в неделю</span><strong>{{ dashboard.hours|compact_decimal }}</strong><small>{{ dashboard.subjects }} предметов · {{ dashboard.groups }} групп</small></div>
-    <div class="department-kpi"><span>Обучение в пределах 3 лет</span><strong>{{ dashboard.training_ok }}</strong><small>По имеющимся сведениям о курсах</small></div>
-    <div class="department-kpi is-warning"><span>Планировать обучение</span><strong>{{ dashboard.training_attention }}</strong><small>Включая отсутствие сведений</small></div>
+    <a href="{{ direction_url('load') }}" class="department-kpi"><span>Педагогов по нагрузке</span><strong>{{ dashboard.teachers }}</strong><small>В выбранной кафедре</small></a>
+    <a href="{{ direction_url('load') }}" class="department-kpi"><span>Часов в неделю</span><strong>{{ dashboard.hours|compact_decimal }}</strong><small>{{ dashboard.subjects }} предметов · {{ dashboard.groups }} групп</small></a>
+    <a href="{{ direction_url('training') }}" class="department-kpi"><span>Обучение в пределах 3 лет</span><strong>{{ dashboard.training_ok }}</strong><small>По имеющимся сведениям о курсах</small></a>
+    <a href="{{ direction_url('training') }}" class="department-kpi is-warning"><span>Планировать обучение</span><strong>{{ dashboard.training_attention }}</strong><small>Включая отсутствие сведений</small></a>
   </div>
 
   <div class="department-directions" aria-label="Направления аналитики">
-    <a href="#section-load" data-summary-target="section-load" class="department-direction"><span class="department-direction-icon is-blue"><i class="bi bi-person-lines-fill"></i></span><span><b>Нагрузка и педагоги</b><small>{{ dashboard.teachers }} педагогов · {{ dashboard.hours|compact_decimal }} ч/нед.</small></span><i class="bi bi-arrow-right"></i></a>
-    <a href="#section-control" data-summary-target="section-control" class="department-direction"><span class="department-direction-icon is-teal"><i class="bi bi-clipboard-data"></i></span><span><b>Контрольные работы</b><small>{{ stats.total_results }} результатов · средний {{ stats.avg_percent if stats.avg_percent is not none else '—' }}%</small></span><i class="bi bi-arrow-right"></i></a>
-    <a href="#section-diagnostics" data-summary-target="section-diagnostics" class="department-direction"><span class="department-direction-icon is-violet"><i class="bi bi-graph-up"></i></span><span><b>Диагностики</b><small>{{ diagnostics_stats.total_results }} результатов · {{ diagnostics_stats.result_mode_label }}</small></span><i class="bi bi-arrow-right"></i></a>
-    <a href="#section-olympiads" data-summary-target="section-olympiads" class="department-direction"><span class="department-direction-icon is-amber"><i class="bi bi-trophy"></i></span><span><b>Олимпиады и ВСОШ</b><small>{{ olympiad_stats.unique_children }} участников · {{ olympiad_stats.winners }} победителей · {{ olympiad_stats.prizers }} призёров</small></span><i class="bi bi-arrow-right"></i></a>
-    <a href="#section-mcko" data-summary-target="section-mcko" class="department-direction"><span class="department-direction-icon is-indigo"><i class="bi bi-award"></i></span><span><b>МЦКО педагогов</b><small>{{ dashboard.mcko_count }} записей по педагогам</small></span><i class="bi bi-arrow-right"></i></a>
-    <a href="#section-training" data-summary-target="section-training" class="department-direction"><span class="department-direction-icon is-green"><i class="bi bi-mortarboard"></i></span><span><b>Повышение квалификации</b><small>{{ course_rows|length }} курсов · {{ dashboard.training_attention }} требуют планирования</small></span><i class="bi bi-arrow-right"></i></a>
-    <a href="#section-attestation" data-summary-target="section-attestation" class="department-direction"><span class="department-direction-icon is-slate"><i class="bi bi-patch-check"></i></span><span><b>Аттестация</b><small>{{ dashboard.attestation_count }} педагогов в перечне</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('load') }}" class="department-direction {% if active_section == 'load' %}is-selected{% endif %}" {% if active_section == 'load' %}aria-current="true"{% endif %}><span class="department-direction-icon is-blue"><i class="bi bi-person-lines-fill"></i></span><span><b>Нагрузка и педагоги</b><small>{{ dashboard.teachers }} педагогов · {{ dashboard.hours|compact_decimal }} ч/нед.</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('control') }}" class="department-direction {% if active_section == 'control' %}is-selected{% endif %}" {% if active_section == 'control' %}aria-current="true"{% endif %}><span class="department-direction-icon is-teal"><i class="bi bi-clipboard-data"></i></span><span><b>Контрольные работы</b><small>{{ stats.total_results }} результатов · средний {{ stats.avg_percent if stats.avg_percent is not none else '—' }}%</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('diagnostics') }}" class="department-direction {% if active_section == 'diagnostics' %}is-selected{% endif %}" {% if active_section == 'diagnostics' %}aria-current="true"{% endif %}><span class="department-direction-icon is-violet"><i class="bi bi-graph-up"></i></span><span><b>Диагностики</b><small>{{ diagnostics_stats.total_results }} результатов · {{ diagnostics_stats.result_mode_label }}</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('olympiads') }}" class="department-direction {% if active_section == 'olympiads' %}is-selected{% endif %}" {% if active_section == 'olympiads' %}aria-current="true"{% endif %}><span class="department-direction-icon is-amber"><i class="bi bi-trophy"></i></span><span><b>Олимпиады и ВСОШ</b><small>{{ olympiad_stats.unique_children }} участников · {{ olympiad_stats.winners }} победителей · {{ olympiad_stats.prizers }} призёров</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('mcko') }}" class="department-direction {% if active_section == 'mcko' %}is-selected{% endif %}" {% if active_section == 'mcko' %}aria-current="true"{% endif %}><span class="department-direction-icon is-indigo"><i class="bi bi-award"></i></span><span><b>МЦКО педагогов</b><small>{{ dashboard.mcko_count }} записей по педагогам</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('training') }}" class="department-direction {% if active_section == 'training' %}is-selected{% endif %}" {% if active_section == 'training' %}aria-current="true"{% endif %}><span class="department-direction-icon is-green"><i class="bi bi-mortarboard"></i></span><span><b>Повышение квалификации</b><small>{{ course_rows|length }} курсов · {{ dashboard.training_attention }} требуют планирования</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('attestation') }}" class="department-direction {% if active_section == 'attestation' %}is-selected{% endif %}" {% if active_section == 'attestation' %}aria-current="true"{% endif %}><span class="department-direction-icon is-slate"><i class="bi bi-patch-check"></i></span><span><b>Аттестация</b><small>{{ dashboard.attestation_count }} педагогов в перечне</small></span><i class="bi bi-arrow-right"></i></a>
   </div>
 
   <div class="department-quick-links">
@@ -58,13 +63,14 @@
     {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a href="{{ url_for('professional_registry.mcko_registry', department_id=dep.id) }}">Реестр МЦКО <i class="bi bi-arrow-up-right"></i></a><a href="{{ url_for('professional_registry.attestation_registry', department_id=dep.id) }}">Реестр аттестации <i class="bi bi-arrow-up-right"></i></a>{% endif %}
   </div>
 
-  <details class="department-detail-disclosure" id="summary-details" {% if active_section %}open{% endif %}>
-    <summary><span><i class="bi bi-table"></i> Подробные списки и показатели</span><small>Нагрузка, результаты, курсы, МЦКО и аттестация</small><i class="bi bi-chevron-down"></i></summary>
+  {% if active_section %}
+  <section class="department-detail-panel" id="summary-details" aria-label="{{ section_titles[active_section] }}">
+    <div class="department-detail-heading"><div><span>Подробные данные кафедры</span><h3>{{ section_titles[active_section] }}</h3></div><a href="{{ url_for('departments.summary', department_id=dep.id, academic_year_id=academic_year_id, teacher_id=selected_teacher_id, building_id=building_id) }}">К показателям</a></div>
     <div class="department-detail-area">{% include "departments/summary_details.html" %}</div>
-  </details>
+  </section>
+  {% endif %}
   {% else %}
   <div class="alert alert-info">Для выбранной роли пока нет доступных кафедр или нагрузка ещё не загружена.</div>
   {% endif %}
 </div>
-<script src="{{ url_for('static', filename='js/departments_summary_dashboard.js') }}?v=1" defer></script>
 {% endblock %}

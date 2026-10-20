@@ -52,8 +52,45 @@ def test_department_pages_use_shared_workspace_shell(
         assert 'class="departments-section-tabs"' in html
         if path == "/departments/summary":
             assert 'class="department-directions"' in html
-            assert 'id="summary-details"' in html
-            assert 'id="section-training"' in html
+            assert 'id="summary-details"' not in html
+
+
+def test_summary_opens_only_selected_direction_for_department_head(
+    app,
+    client,
+    make_user,
+    login,
+):
+    head_id = make_user("DEPARTMENT_HEAD")
+    with app.app_context():
+        own = Department(name="Кафедра руководителя", code="head-own")
+        other = Department(name="Другая кафедра", code="head-other")
+        db.session.add_all([own, other])
+        db.session.flush()
+        db.session.add(DepartmentLeader(department_id=own.id, user_id=head_id))
+        db.session.commit()
+        own_id, other_id = own.id, other.id
+    login(head_id)
+
+    sections = {
+        "load": 'id="section-load"',
+        "control": 'id="section-control"',
+        "diagnostics": 'id="section-diagnostics"',
+        "olympiads": 'id="section-olympiads"',
+        "mcko": 'id="section-mcko"',
+        "training": 'id="section-training"',
+        "attestation": 'id="section-attestation"',
+    }
+    for section, marker in sections.items():
+        response = client.get(f"/departments/summary?department_id={own_id}&section={section}")
+        html = response.get_data(as_text=True)
+        assert response.status_code == 200
+        assert 'id="summary-details"' in html
+        assert marker in html
+        for other_section, other_marker in sections.items():
+            if other_section != section:
+                assert other_marker not in html
+    assert client.get(f"/departments/summary?department_id={other_id}&section=mcko").status_code == 403
 
 
 def test_department_settings_only_displays_registry_activities_and_teachers(

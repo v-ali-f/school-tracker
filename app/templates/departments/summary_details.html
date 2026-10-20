@@ -1,15 +1,23 @@
 
+{% if active_section == 'training' %}
 <div class="card mb-3" id="section-training"><div class="card-body"><div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><div><h2 class="section-title mb-1">Повышение квалификации кафедры</h2><div class="small text-muted">История курсов по всем учебным годам и планирование следующего обучения</div></div>{% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('HR_SPECIALIST') %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('professional_development.index') }}">Общая аналитика</a>{% endif %}</div><div class="d-flex flex-wrap gap-2 mb-3"><span class="badge text-bg-light border">Педагогов: {{ department_training|length }}</span><span class="badge text-bg-success">В пределах 3 лет: {{ department_training|selectattr('status.code', 'equalto', 'ok')|list|length }}</span><span class="badge text-bg-warning">Планировать: {{ (department_training|selectattr('status.code', 'equalto', 'due')|list|length) + (department_training|selectattr('status.code', 'equalto', 'overdue')|list|length) }}</span><span class="badge text-bg-light border">Нет сведений: {{ department_training|selectattr('status.code', 'equalto', 'no_data')|list|length }}</span></div><div class="registry-matrix-card table-responsive"><table class="registry-matrix registry-matrix-wide"><thead><tr><th>Педагог</th><th>Курсов</th><th>Последний курс</th><th>Следующий период</th><th>Статус</th></tr></thead><tbody>{% for row in department_training %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=row.user.id, academic_year_id=academic_year_id) }}">{{ row.user.fio or row.user.username }}</a></td><td>{{ row.count }}</td><td>{{ row.status.latest or '—' }}</td><td>{{ row.status.next or '—' }}</td><td>{{ row.status.label }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">Нет сотрудников в выбранной кафедре.</td></tr>{% endfor %}</tbody></table></div></div></div>
-<div class="row g-4 mb-4" id="section-load">
-  <div class="col-lg-6" id="department-teachers"><div class="card h-100"><div class="card-body">
-    <h5 class="section-title mb-1">Преподаватели</h5>
+{% endif %}
+{% if active_section in ['load', 'control'] %}
+<div class="row g-4 mb-4">
+  {% if active_section == 'load' %}
+  <div class="col-12" id="department-teachers"><div class="card h-100"><div class="card-body">
+    <h5 class="section-title mb-1" id="section-load">Преподаватели</h5>
     <div class="small text-muted mb-3">Нажмите на ФИО, чтобы посмотреть нагрузку и профессиональные сведения преподавателя.</div>
     <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>ФИО</th><th class="text-end">Часы</th><th class="text-end">Предметы</th><th class="text-end">Группы</th></tr></thead><tbody>{% for item in teacher_load_summaries %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">{{ item.teacher.fio or item.teacher.username }}</a></td><td class="text-end fw-semibold">{{ item.total|compact_decimal }}</td><td class="text-end">{{ item.subjects }}</td><td class="text-end">{{ item.groups }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">В кафедре пока нет преподавателей</td></tr>{% endfor %}</tbody></table></div>
   </div></div></div>
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title" id="section-control">Результаты контрольных по предметам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет результатов</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  {% endif %}
+  {% if active_section == 'control' %}
+  <div class="col-12"><div class="card h-100"><div class="card-body"><h5 class="section-title" id="section-control">Результаты контрольных по предметам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет результатов</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  {% endif %}
 </div>
+{% endif %}
 
-{% if can_manage_professional and legacy_load_total %}
+{% if active_section == 'load' and can_manage_professional and legacy_load_total %}
 <details class="card mb-4" id="legacy-loads">
   <summary class="card-header d-flex align-items-center justify-content-between gap-3">
     <span class="fw-semibold">Старая нагрузка из файлов</span>
@@ -84,6 +92,7 @@
 {% endif %}
 
 
+{% if active_section == 'diagnostics' %}
 <div class="card mb-4"><div class="card-body">
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
     <div>
@@ -118,10 +127,13 @@
   </div>
   {% endif %}
 </div></div>
+{% endif %}
 
+{% if active_section == 'control' %}
 <div class="card mb-4"><div class="card-body"><h5 class="section-title">Результаты контрольных по учителям</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th class="text-end">Средний %</th><th class="text-end">Результатов</th></tr></thead><tbody>{% for item in stats.by_teacher %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% endif %}
 
-
+{% if active_section == 'olympiads' %}
 <div class="card mb-4"><div class="card-body">
   <h5 class="section-title" id="section-olympiads">Олимпиады / ВСОШ по кафедре</h5>
   <div class="row g-3 mb-3">
@@ -136,9 +148,12 @@
     <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Предмет</th><th class="text-end">Участий</th><th class="text-end">Победителей</th><th class="text-end">Призёров</th><th class="text-end">Аннулировано</th></tr></thead><tbody>{% for item in olympiad_stats.by_teacher %}<tr><td>{{ item.name }}</td><td>{{ item.subject }}</td><td class="text-end">{{ item.total }}</td><td class="text-end">{{ item.winners }}</td><td class="text-end">{{ item.prizers }}</td><td class="text-end text-danger">{{ item.annulled or 0 }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
   </div>
 </div></div>
+{% endif %}
 
+{% if active_section in ['mcko', 'training'] %}
 <div class="row g-4">
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+  {% if active_section == 'mcko' %}
+  <div class="col-12"><div class="card h-100"><div class="card-body">
     <h5 class="section-title" id="section-mcko">Результаты МЦКО педагогов</h5>
     <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
       <div class="small text-muted">Показаны все педагоги кафедры, включая педагогов без действующей диагностики.</div>
@@ -167,7 +182,9 @@
     </form>
     {% endif %}
   </div></div></div>
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+  {% endif %}
+  {% if active_section == 'training' %}
+  <div class="col-12"><div class="card h-100"><div class="card-body">
     <h5 class="section-title" id="section-courses">Курсы повышения квалификации</h5>
     <div class="registry-matrix-card table-responsive mb-3"><table class="registry-matrix registry-matrix-wide"><thead><tr><th>Учитель</th><th>Курс</th><th>Организация</th><th>Часы</th></tr></thead><tbody>{% for row in course_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td>{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
     {% if can_manage_professional %}
@@ -182,8 +199,11 @@
     </form>
     {% endif %}
   </div></div></div>
+  {% endif %}
 </div>
+{% endif %}
 
+{% if active_section == 'attestation' %}
 <div class="card mt-4"><div class="card-body">
   <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
     <div>
@@ -205,3 +225,4 @@
     </tr>{% else %}<tr><td class="registry-empty-row" colspan="{{ 7 if can_manage_attestation else 6 }}">В выбранной кафедре нет педагогов.</td></tr>{% endfor %}</tbody>
   </table></div></div>
 </div></div>
+{% endif %}

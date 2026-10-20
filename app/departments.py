@@ -1647,7 +1647,8 @@ def summary():
         "attestation_count": len(attestation_overviews),
     }
     active_section = request.args.get("section", "")
-    if active_section not in {"", "training", "load", "control", "diagnostics", "olympiads", "mcko", "courses", "attestation", "legacy"}:
+    active_section = {"courses": "training", "legacy": "load"}.get(active_section, active_section)
+    if active_section not in {"", "training", "load", "control", "diagnostics", "olympiads", "mcko", "attestation"}:
         active_section = ""
     return render_template(
         "departments/summary.html",
