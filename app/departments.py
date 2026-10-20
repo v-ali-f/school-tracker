@@ -1462,6 +1462,13 @@ def summary():
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     deps = _load_departments_for_user(academic_year_id)
+    led_department_ids = _managed_department_ids()
+    if led_department_ids and not (
+        is_admin(current_user)
+        or has_role("DIRECTOR")
+        or has_role("DEPUTY_DIRECTOR")
+    ):
+        deps = [item for item in deps if item.id in led_department_ids]
     can_view_department_team = bool(
         _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
     )
@@ -1484,7 +1491,7 @@ def summary():
     dep = None
     if selected_dep_id:
         dep = Department.query.get_or_404(selected_dep_id)
-        if not _department_allowed(dep, academic_year_id=academic_year_id):
+        if dep.id not in allowed_department_ids:
             abort(403)
     elif deps:
         dep = max(deps, key=lambda item: len(overview_teacher_ids[item.id]))

@@ -62,12 +62,14 @@ def test_summary_opens_only_selected_direction_for_department_head(
     login,
 ):
     head_id = make_user("DEPARTMENT_HEAD")
+    methodist_head_id = make_user("METHODIST")
     with app.app_context():
         own = Department(name="Кафедра руководителя", code="head-own")
         other = Department(name="Другая кафедра", code="head-other")
         db.session.add_all([own, other])
         db.session.flush()
         db.session.add(DepartmentLeader(department_id=own.id, user_id=head_id))
+        db.session.add(DepartmentLeader(department_id=own.id, user_id=methodist_head_id))
         db.session.commit()
         own_id, other_id = own.id, other.id
     login(head_id)
@@ -90,6 +92,12 @@ def test_summary_opens_only_selected_direction_for_department_head(
         for other_section, other_marker in sections.items():
             if other_section != section:
                 assert other_marker not in html
+    assert client.get(f"/departments/summary?department_id={other_id}&section=mcko").status_code == 403
+
+    login(methodist_head_id)
+    own_page = client.get("/departments/summary?section=mcko")
+    assert own_page.status_code == 200
+    assert 'id="section-mcko"' in own_page.get_data(as_text=True)
     assert client.get(f"/departments/summary?department_id={other_id}&section=mcko").status_code == 403
 
 
