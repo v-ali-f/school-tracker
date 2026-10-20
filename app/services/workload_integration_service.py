@@ -4,11 +4,16 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import current_app
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.extensions import db
 from app.models import (
     AcademicYear,
+    EducationPlanLine,
+    EducationPlanLineScope,
+    TeachingGroup,
+    TeachingGroupClass,
+    TeachingMetagroupSource,
     EducationActivity,
     OrganizationSettings,
     Subject,
@@ -415,6 +420,25 @@ def current_department_load_rows(
         .options(
             joinedload(WorkloadAssignment.workload_need).joinedload(
                 WorkloadNeed.teaching_group
+            ).joinedload(TeachingGroup.source_plan_line).joinedload(
+                EducationPlanLine.education_plan
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).joinedload(TeachingGroup.source_plan_line).selectinload(
+                EducationPlanLine.scopes
+            ).joinedload(EducationPlanLineScope.school_class),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).selectinload(TeachingGroup.source_classes).joinedload(
+                TeachingGroupClass.population_snapshot_class
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).selectinload(TeachingGroup.metagroup_sources).joinedload(
+                TeachingMetagroupSource.source_group
+            ).selectinload(TeachingGroup.source_classes).joinedload(
+                TeachingGroupClass.population_snapshot_class
             ),
             joinedload(WorkloadAssignment.workload_need).joinedload(
                 WorkloadNeed.education_activity
