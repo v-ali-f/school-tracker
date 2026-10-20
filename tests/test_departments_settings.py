@@ -50,6 +50,10 @@ def test_department_pages_use_shared_workspace_shell(
         assert "workspace_ui.css" in html
         assert "departments_workspace.css" in html
         assert 'class="departments-section-tabs"' in html
+        if path == "/departments/summary":
+            assert 'class="department-directions"' in html
+            assert 'id="summary-details"' in html
+            assert 'id="section-training"' in html
 
 
 def test_department_settings_only_displays_registry_activities_and_teachers(

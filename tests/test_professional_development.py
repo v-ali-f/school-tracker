@@ -4,7 +4,8 @@ from io import BytesIO
 from openpyxl import Workbook
 
 from app.core.extensions import db
-from app.models import StaffCourseImport, TeacherCourse, User
+from app.models import AcademicYear, Department, StaffCourseImport, TeacherCourse, User
+from app.modules.preschool.models import PreschoolGroup
 from app.services.professional_development_service import course_status, import_courses, parse_courses
 
 
@@ -131,3 +132,74 @@ def test_self_and_methodist_can_add_courses_but_cannot_edit_another_users_course
     assert response.status_code == 302
     with app.app_context():
         assert TeacherCourse.query.filter_by(teacher_id=other_id, title="Курс методиста").count() == 1
+
+
+def test_course_registry_filters_department_preschool_staff_and_course_name(
+    app, client, make_user, login, monkeypatch,
+):
+    admin_id = make_user("ADMIN")
+    preschool_id = make_user("VIEWER")
+    school_id = make_user("TEACHER")
+    with app.app_context():
+        preschool = db.session.get(User, preschool_id)
+        preschool.last_name, preschool.first_name = "Воспитатель", "Анна"
+        school = db.session.get(User, school_id)
+        school.last_name, school.first_name = "Учитель", "Борис"
+        preschool_department = Department(name="Дошкольное отделение")
+        school_department = Department(name="Кафедра математики")
+        db.session.add_all([preschool_department, school_department])
+        db.session.flush()
+        db.session.add(StaffCourseImport(
+            source_key="preschool-course", source_name="Курсы 2025-2026.xlsx",
+            source_year=2025, source_row=2, employee_name=preschool.fio,
+            position="Воспитатель", source_title="Работа с дошкольниками",
+            source_provider="Педагогический центр", teacher_id=preschool_id,
+        ))
+        db.session.add(TeacherCourse(
+            teacher_id=school_id, title="Алгебра в школе", provider="Институт", hours=72,
+        ))
+        db.session.commit()
+        preschool_department_id = preschool_department.id
+        school_department_id = school_department.id
+    from app import professional_development as module
+    monkeypatch.setattr(module, "current_department_memberships", lambda: (
+        Department.query.filter(Department.id.in_([preschool_department_id, school_department_id])).all(),
+        {preschool_id: {preschool_department_id}, school_id: {school_department_id}},
+    ))
+    login(admin_id)
+    response = client.get(
+        f"/professional-development/?department_id={preschool_department_id}"
+        "&scope=preschool&q=дошкольниками"
+    )
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Работа с дошкольниками" in html
+    assert "Воспитатель Анна" in html
+    assert "Алгебра в школе" not in html
+    assert "Реестр курсов сотрудников" in html
+    response = client.get(
+        f"/professional-development/?department_id={school_department_id}&scope=preschool"
+    )
+    assert "По выбранным условиям записей нет" in response.get_data(as_text=True)
+
+
+def test_preschool_group_teacher_appears_without_imported_course(app, client, make_user, login):
+    admin_id = make_user("ADMIN")
+    teacher_id = make_user("VIEWER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name, teacher.first_name = "Педагог", "Детсада"
+        year = AcademicYear(name="2026/2027", is_current=True)
+        db.session.add(year)
+        db.session.flush()
+        db.session.add(PreschoolGroup(
+            academic_year_id=year.id, name="Группа Радуга", teacher_user_id=teacher_id,
+            is_active=True, is_archived=False,
+        ))
+        db.session.commit()
+    login(admin_id)
+    response = client.get("/professional-development/?scope=preschool")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "Педагог Детсада" in html
+    assert "Сведения о курсах отсутствуют" in html

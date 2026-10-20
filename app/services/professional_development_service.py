@@ -7,6 +7,7 @@ from io import BytesIO
 import re
 
 from openpyxl import load_workbook
+from sqlalchemy import inspect, or_
 
 from app.core.extensions import db
 from app.models import StaffCourseImport, TeacherCourse, User
@@ -172,17 +173,67 @@ def _course_sort_key(row):
 
 def current_pedagogical_ids():
     """Use the same effective workload and membership rules as departments."""
+    _, memberships = current_department_memberships()
+    return set(memberships)
+
+
+def current_department_memberships():
+    """Map employees to departments in the current effective workload."""
     from app.models import AcademicYear, Department
     from app.services.workload_integration_service import department_teacher_ids
 
+    departments = Department.query.order_by(Department.name).all()
+    memberships = defaultdict(set)
     year = AcademicYear.query.filter_by(is_current=True).first()
     if year is None:
+        return departments, memberships
+    for department in departments:
+        for teacher_id in department_teacher_ids(year.id, department.id):
+            memberships[teacher_id].add(department.id)
+    return departments, memberships
+
+
+def current_preschool_teacher_ids():
+    """Teachers assigned to active preschool groups, when that registry exists."""
+    from app.models import AcademicYear
+    from app.modules.preschool.models import PreschoolGroup
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table("preschool_group"):
         return set()
-    return {
-        teacher_id
-        for department in Department.query.all()
-        for teacher_id in department_teacher_ids(year.id, department.id)
-    }
+    if "teacher_user_id" not in {
+        column["name"] for column in inspector.get_columns("preschool_group")
+    }:
+        return set()
+    year = AcademicYear.query.filter_by(is_current=True).first()
+    query = PreschoolGroup.query.with_entities(PreschoolGroup.teacher_user_id).filter(
+        PreschoolGroup.teacher_user_id.isnot(None),
+        PreschoolGroup.is_active.is_(True),
+        PreschoolGroup.is_archived.is_(False),
+    )
+    if year:
+        query = query.filter(or_(
+            PreschoolGroup.academic_year_id == year.id,
+            PreschoolGroup.academic_year_id.is_(None),
+        ))
+    return {teacher_id for teacher_id, in query.all()}
+
+
+def is_preschool_staff(user, courses=(), departments=(), group_teacher_ids=()):
+    """Identify preschool staff from groups, role, imported position or department."""
+    if user.id in group_teacher_ids:
+        return True
+    if "PRESCHOOL_TEACHER" in user.role_codes:
+        return True
+    if any(any(term in department.name.casefold() for term in ("дошколь", "детский сад"))
+           for department in departments):
+        return True
+    return any(
+        isinstance(row, StaffCourseImport)
+        and any(term in (row.position or "").casefold()
+                for term in ("воспитател", "дошколь", "детского сада"))
+        for row in courses
+    )
 
 
 def is_pedagogical(user, courses=(), pedagogical_ids=None):

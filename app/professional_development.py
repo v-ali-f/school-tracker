@@ -11,8 +11,9 @@ from app.core.extensions import db
 from app.models import AcademicYear, StaffCourseImport, TeacherCourse, User
 from app.permissions import has_any_role
 from app.services.professional_development_service import (
-    course_status, current_pedagogical_ids, import_courses, imported_and_manual_courses,
-    is_pedagogical, normalize_fio, staff_overview, year_label,
+    course_status, current_department_memberships, current_pedagogical_ids,
+    current_preschool_teacher_ids, import_courses, imported_and_manual_courses, is_pedagogical,
+    is_preschool_staff, normalize_fio, staff_overview, year_label,
 )
 
 
@@ -92,7 +93,33 @@ def index():
         abort(403)
     users = [user for user in _active_staff() if user.last_name and user.first_name]
     by_user = imported_and_manual_courses([user.id for user in users])
-    overview = staff_overview(users, by_user, pedagogical_ids=current_pedagogical_ids())
+    departments, memberships = current_department_memberships()
+    preschool_group_ids = current_preschool_teacher_ids()
+    departments_by_id = {item.id: item for item in departments}
+    overview = staff_overview(users, by_user, pedagogical_ids=set(memberships))
+    for row in overview:
+        row["departments"] = tuple(
+            departments_by_id[item_id] for item_id in sorted(memberships.get(row["user"].id, ()))
+        )
+        row["preschool"] = is_preschool_staff(
+            row["user"], row["courses"], row["departments"], preschool_group_ids
+        )
+    department_filter = (request.args.get("department_id") or "").strip()
+    if department_filter and department_filter != "none":
+        if not department_filter.isdecimal() or int(department_filter) not in departments_by_id:
+            abort(404)
+        selected_department_id = int(department_filter)
+        overview = [row for row in overview
+                    if selected_department_id in memberships.get(row["user"].id, ())]
+    elif department_filter == "none":
+        overview = [row for row in overview if not row["departments"]]
+    scope_filter = (request.args.get("scope") or "all").strip()
+    if scope_filter not in {"all", "preschool", "other"}:
+        scope_filter = "all"
+    if scope_filter == "preschool":
+        overview = [row for row in overview if row["preschool"]]
+    elif scope_filter == "other":
+        overview = [row for row in overview if not row["preschool"]]
     pedagogical = [row for row in overview if row["pedagogical"]]
     trained = sum(bool(row["count"]) for row in overview)
     covered = sum(row["status"]["code"] == "ok" for row in pedagogical)
@@ -118,12 +145,26 @@ def index():
     status_filter = (request.args.get("status") or "").strip()
     if status_filter not in {"", "ok", "due", "overdue", "no_data"}:
         status_filter = ""
-    filtered = [row for row in overview
-                if (not term or term in (row["user"].fio or "").casefold())
-                and (not status_filter or row["status"]["code"] == status_filter)]
+    entries = []
+    for row in overview:
+        if status_filter and row["status"]["code"] != status_filter:
+            continue
+        employee_match = term in (row["user"].fio or "").casefold()
+        for course in row["courses"] or [None]:
+            course_match = course is not None and any(
+                term in (value or "").casefold()
+                for value in (course.title, course.provider)
+            )
+            if not term or employee_match or course_match:
+                entries.append({"staff": row, "course": course})
+    previous_staff_id = None
+    for entry in entries:
+        staff_id = entry["staff"]["user"].id
+        entry["first_for_staff"] = staff_id != previous_staff_id
+        previous_staff_id = staff_id
     return render_template(
         "professional_development/index.html",
-        overview=filtered,
+        overview=overview, entries=entries,
         totals={"staff": len(overview), "trained": trained,
                 "trained_percent": round(100 * trained / len(overview)) if overview else 0,
                 "pedagogical": len(pedagogical), "covered": covered,
@@ -134,6 +175,8 @@ def index():
                for year, count in sorted(by_year.items())],
         top_courses=by_title.most_common(8),
         q=request.args.get("q", ""), status_filter=status_filter,
+        departments=departments, department_filter=department_filter,
+        scope_filter=scope_filter,
         workspace_page_title="Повышение квалификации",
         workspace_page_subtitle="Курсы сотрудников, охват и планирование обучения",
     )
