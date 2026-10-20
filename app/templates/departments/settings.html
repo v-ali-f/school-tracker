@@ -67,7 +67,7 @@
     <div class="card-body">
       <label class="form-label" for="department-search">Поиск кафедры</label>
       <input class="form-control form-control-sm mb-2" id="department-search" type="search" placeholder="Начните вводить название" data-department-search>
-      <div class="table-responsive table-scroll">
+      <div class="table-responsive">
         <table class="table table-hover table-sm mb-0"><thead><tr><th>Название</th><th class="text-end">Настройка</th></tr></thead><tbody>
           {% for item in departments %}
           <tr data-department-row data-search-text="{{ item.name|lower }}"><td>{{ item.name }}</td><td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('departments.settings', department_id=item.id) }}">Открыть</a></td></tr>
