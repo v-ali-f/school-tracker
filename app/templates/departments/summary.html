@@ -2,14 +2,13 @@
 {% block departments_head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260810_3">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_summary_dashboard.css') }}?v=3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_summary_dashboard.css') }}?v=4">
 {% endblock %}
 {% block departments_content %}
 {% macro direction_url(section) -%}
 {{ url_for('departments.summary', department_id=dep.id, academic_year_id=academic_year_id, teacher_id=selected_teacher_id, building_id=building_id, section=section, _anchor='summary-details') }}
 {%- endmacro %}
-{% set section_titles = {'load': 'Нагрузка и педагоги', 'control': 'Контрольные работы', 'diagnostics': 'Диагностики', 'olympiads': 'Олимпиады и ВСОШ', 'mcko': 'МЦКО педагогов', 'training': 'Повышение квалификации', 'attestation': 'Аттестация'} %}
-<div class="department-summary-dashboard">
+<div class="department-summary-dashboard" data-summary-current="{{ active_section }}">
   <div class="page-head mb-2">
     <div><h1 class="page-title">Свод по кафедрам</h1><div class="page-sub">Показатели по направлениям и переход к подробным данным выбранной кафедры</div></div>
     <div class="page-actions">
@@ -63,14 +62,10 @@
     {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a href="{{ url_for('professional_registry.mcko_registry', department_id=dep.id) }}">Реестр МЦКО <i class="bi bi-arrow-up-right"></i></a><a href="{{ url_for('professional_registry.attestation_registry', department_id=dep.id) }}">Реестр аттестации <i class="bi bi-arrow-up-right"></i></a>{% endif %}
   </div>
 
-  {% if active_section %}
-  <section class="department-detail-panel" id="summary-details" aria-label="{{ section_titles[active_section] }}">
-    <div class="department-detail-heading"><div><span>Подробные данные кафедры</span><h3>{{ section_titles[active_section] }}</h3></div><a href="{{ url_for('departments.summary', department_id=dep.id, academic_year_id=academic_year_id, teacher_id=selected_teacher_id, building_id=building_id) }}">К показателям</a></div>
-    <div class="department-detail-area">{% include "departments/summary_details.html" %}</div>
-  </section>
-  {% endif %}
+  <div id="summary-details-host" data-summary-details-host>{% if active_section %}{% include "departments/summary_panel.html" %}{% endif %}</div>
   {% else %}
   <div class="alert alert-info">Для выбранной роли пока нет доступных кафедр или нагрузка ещё не загружена.</div>
   {% endif %}
 </div>
+<script defer src="{{ url_for('static', filename='js/departments_summary.js') }}?v=1"></script>
 {% endblock %}

@@ -1,0 +1,4 @@
+<section class="department-detail-panel" id="summary-details" aria-label="{{ section_titles[active_section] }}">
+  <div class="department-detail-heading"><div><span>Подробные данные кафедры</span><h3>{{ section_titles[active_section] }}</h3></div><a href="{{ url_for('departments.summary', department_id=dep.id, academic_year_id=academic_year_id, teacher_id=selected_teacher_id, building_id=building_id) }}" data-summary-close>Свернуть</a></div>
+  <div class="department-detail-area">{% include "departments/summary_details.html" %}</div>
+</section>

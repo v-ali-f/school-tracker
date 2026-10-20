@@ -94,7 +94,21 @@ def test_summary_opens_only_selected_direction_for_department_head(
         for other_section, other_marker in sections.items():
             if other_section != section:
                 assert other_marker not in html
+    fragment = client.get(
+        f"/departments/summary?department_id={own_id}&section=training",
+        headers={"X-Department-Summary": "details"},
+    )
+    fragment_html = fragment.get_data(as_text=True)
+    assert fragment.status_code == 200
+    assert 'id="summary-details"' in fragment_html
+    assert 'id="section-training"' in fragment_html
+    assert 'class="department-directions"' not in fragment_html
+    assert 'id="section-mcko"' not in fragment_html
     assert client.get(f"/departments/summary?department_id={other_id}&section=mcko").status_code == 403
+    assert client.get(
+        f"/departments/summary?department_id={other_id}&section=training",
+        headers={"X-Department-Summary": "details"},
+    ).status_code == 403
 
     login(methodist_head_id)
     own_page = client.get("/departments/summary?section=mcko")

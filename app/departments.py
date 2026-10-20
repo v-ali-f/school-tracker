@@ -1962,8 +1962,22 @@ def summary():
         "attestation_count": len(teacher_rows),
     }
     can_manage_professional = bool(dep and _can_manage_professional_registry())
+    section_titles = {
+        "load": "Нагрузка и педагоги",
+        "control": "Контрольные работы",
+        "diagnostics": "Диагностики",
+        "olympiads": "Олимпиады и ВСОШ",
+        "mcko": "МЦКО педагогов",
+        "training": "Повышение квалификации",
+        "attestation": "Аттестация",
+    }
+    template = (
+        "departments/summary_panel.html"
+        if request.headers.get("X-Department-Summary") == "details" and active_section and dep
+        else "departments/summary.html"
+    )
     return render_template(
-        "departments/summary.html",
+        template,
         departments=deps,
         dep=dep,
         teachers=teacher_options,
@@ -1992,6 +2006,7 @@ def summary():
         department_cards=department_cards,
         dashboard=dashboard,
         active_section=active_section,
+        section_titles=section_titles,
     )
 
 
