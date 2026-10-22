@@ -8,9 +8,9 @@
 
       <form class="sp-commandbar" id="schoolPlanFilters" method="get" aria-label="Управление планом">
         <nav class="sp-period-navigation" aria-label="Переключение месяцев">
-          <a class="sp-period-step" href="{{ url_for('school_plan.index', period=prev_period) }}" title="Открыть предыдущий месяц"><i class="bi bi-arrow-left"></i><span>Предыдущий</span></a>
+          <a class="sp-period-step" href="{{ url_for('school_plan.index', period=prev_period, direction_id=request.args.get('direction_id'), q=request.args.get('q'), show_archived=request.args.get('show_archived')) }}" title="Открыть предыдущий месяц"><i class="bi bi-arrow-left"></i><span>Предыдущий</span></a>
           <label class="sp-current-period" for="schoolPlanPeriod"><i class="bi bi-calendar3"></i><span class="visually-hidden">Месяц</span><select id="schoolPlanPeriod" name="period" aria-label="Месяц">{% for item in month_options %}<option value="{{ item.value }}" {% if selected_period == item.value %}selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></label>
-          <a class="sp-period-step" href="{{ url_for('school_plan.index', period=next_period) }}" title="Открыть следующий месяц"><span>Следующий</span><i class="bi bi-arrow-right"></i></a>
+          <a class="sp-period-step" href="{{ url_for('school_plan.index', period=next_period, direction_id=request.args.get('direction_id'), q=request.args.get('q'), show_archived=request.args.get('show_archived')) }}" title="Открыть следующий месяц"><span>Следующий</span><i class="bi bi-arrow-right"></i></a>
         </nav>
         <div class="sp-command-filters">
           <label class="sp-command-field sp-direction-field"><span class="visually-hidden">Направление</span><i class="bi bi-tag"></i><select class="form-select" name="direction_id" aria-label="Направление"><option value="">Все направления</option>{% for row in directions %}<option value="{{ row.id }}" {% if request.args.get('direction_id')|int == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></label>
@@ -75,7 +75,7 @@
 
         <aside class="sp-aside">
           <div class="sp-side-card">
-            <div class="sp-side-card-title"><span>{{ month_title }} {{ year }}</span><span><a href="{{ url_for('school_plan.index', period=prev_period) }}"><i class="bi bi-chevron-left"></i></a> <a href="{{ url_for('school_plan.index', period=next_period) }}"><i class="bi bi-chevron-right"></i></a></span></div>
+            <div class="sp-side-card-title"><span>{{ month_title }} {{ year }}</span><span><a href="{{ url_for('school_plan.index', period=prev_period, direction_id=request.args.get('direction_id'), q=request.args.get('q'), show_archived=request.args.get('show_archived')) }}"><i class="bi bi-chevron-left"></i></a> <a href="{{ url_for('school_plan.index', period=next_period, direction_id=request.args.get('direction_id'), q=request.args.get('q'), show_archived=request.args.get('show_archived')) }}"><i class="bi bi-chevron-right"></i></a></span></div>
             <table class="sp-mini-calendar"><thead><tr>{% for title in weekday_short_titles %}<th>{{ title }}</th>{% endfor %}</tr></thead><tbody>{% for week in calendar_weeks %}<tr>{% for day in week %}<td class="{% if not day.in_month %}is-outside{% endif %} {% if day.is_today %}is-today{% endif %} {% if day.events %}has-events{% endif %}">{{ day.date.day }}{% if day.events %}<span class="sp-calendar-dots">{% for event in day.events[:3] %}<span class="sp-calendar-dot" style="--dot-color:{{ event.direction.color if event.direction and event.direction.color else '#1673ec' }}"></span>{% endfor %}</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
           </div>
           <div class="sp-side-card">

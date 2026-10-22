@@ -4,6 +4,7 @@ from app.models import SchoolPlanCategory, SchoolPlanDirection
 
 DEFAULT_DIRECTIONS = [
     ('quality', 'Качество образования', '#2563eb', '#ffffff', 10),
+    ('vsoko', 'ВСОКО', '#0f766e', '#ffffff', 15),
     ('upbringing', 'Воспитательная работа', '#16a34a', '#ffffff', 20),
     ('methodical', 'Методическая работа', '#7c3aed', '#ffffff', 30),
     ('parents', 'Работа с родителями', '#0ea5e9', '#ffffff', 40),
