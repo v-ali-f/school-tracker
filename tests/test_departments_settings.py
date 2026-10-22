@@ -1,3 +1,5 @@
+import pytest
+
 from app.core.extensions import db
 from app.models import (
     Department,
@@ -173,6 +175,103 @@ def test_department_settings_only_displays_registry_activities_and_teachers(
     assert "Наблюдатель Иван" not in html
     assert 'id="leader-choice"' in html
     assert 'id="department-members"' in html
+
+
+@pytest.mark.parametrize("leader_role", ["METHODIST", "DEPARTMENT_HEAD"])
+def test_department_leader_can_manage_only_assigned_department(
+    app, client, make_user, login, leader_role,
+):
+    leader_id = make_user(leader_role)
+    teacher_id = make_user("TEACHER")
+    with app.app_context():
+        teacher = db.session.get(User, teacher_id)
+        teacher.last_name = "Учитель"
+        teacher.first_name = "Кафедры"
+        own = Department(name="Своя кафедра", code="own-settings")
+        other = Department(name="Чужая кафедра", code="other-settings")
+        db.session.add_all([own, other])
+        db.session.flush()
+        db.session.add(DepartmentLeader(department_id=own.id, user_id=leader_id))
+        db.session.add(DepartmentTeacherMembership(
+            department_id=own.id, teacher_id=teacher_id, mode="INCLUDE",
+            updated_by_user_id=leader_id,
+        ))
+        activity = EducationActivity(
+            code="LEADER_SETTINGS_ACTIVITY", name="Предмет кафедры",
+            activity_kind="SUBJECT", is_global=True,
+            is_tariffable=True, is_active=True,
+        )
+        db.session.add(activity)
+        db.session.commit()
+        own_id, other_id = own.id, other.id
+        activity_id = activity.id
+    login(leader_id)
+
+    response = client.get("/departments/settings")
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'id="department-detail"' in html
+    assert "Своя кафедра" in html
+    assert "Учитель Кафедры" in html
+    assert "Чужая кафедра" not in html
+    assert "+ Добавить сотрудника" in html
+    assert "Создать кафедру" not in html
+    assert "Добавить руководителя" not in html
+
+    assert client.get(f"/departments/settings?department_id={other_id}").status_code == 403
+    assert client.post("/departments/settings", data={"name": "Новая кафедра"}).status_code == 403
+    assert client.post(
+        f"/departments/settings/{own_id}/update", data={"name": "Переименована"},
+    ).status_code == 403
+    assert client.post(
+        f"/departments/settings/{other_id}/teacher/add",
+        data={"teacher_id": teacher_id},
+    ).status_code == 403
+    assert client.post(
+        f"/departments/settings/{own_id}/teacher/{teacher_id}/exclude",
+    ).status_code == 302
+    with app.app_context():
+        assert DepartmentTeacherMembership.query.filter_by(
+            department_id=own_id, teacher_id=teacher_id,
+        ).one().mode == "EXCLUDE"
+    assert client.post(
+        f"/departments/settings/{own_id}/teacher/add",
+        data={"teacher_id": teacher_id},
+    ).status_code == 302
+    assert client.post(
+        f"/departments/settings/{own_id}/activity/add",
+        data={"activity_id": activity_id},
+    ).status_code == 302
+    with app.app_context():
+        assert DepartmentTeacherMembership.query.filter_by(
+            department_id=own_id, teacher_id=teacher_id,
+        ).one().mode == "INCLUDE"
+        link = EducationActivityDepartment.query.filter_by(
+            department_id=own_id, education_activity_id=activity_id,
+        ).one()
+        link_id = link.id
+    assert client.post(
+        f"/departments/settings/{other_id}/activity/add",
+        data={"activity_id": activity_id},
+    ).status_code == 403
+    assert client.post(
+        f"/departments/settings/{own_id}/activity/{link_id}/remove",
+    ).status_code == 302
+
+
+def test_settings_without_leadership_shows_explanation_only_to_staff(
+    client, make_user, login,
+):
+    methodist_id = make_user("METHODIST")
+    viewer_id = make_user("VIEWER")
+    login(methodist_id)
+    response = client.get("/departments/settings")
+    assert response.status_code == 200
+    assert "Вам пока не назначена кафедра" in response.get_data(as_text=True)
+    assert "Создать кафедру" not in response.get_data(as_text=True)
+
+    login(viewer_id)
+    assert client.get("/departments/settings").status_code == 403
 
 
 def test_department_update_does_not_change_registry_links(

@@ -23,17 +23,17 @@
   <div class="page-head mb-3">
     <div>
       <h1 class="page-title">Настройка предметных кафедр</h1>
-      <div class="page-sub">Выберите кафедру, чтобы изменить её состав и предметы.</div>
+      <div class="page-sub">Состав педагогов, руководители и предметы кафедры.</div>
     </div>
-    <div class="page-actions">
+    {% if can_manage_structure %}<div class="page-actions">
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('workload.catalog', section='ALL') }}">Реестр предметов</a>
-    </div>
+    </div>{% endif %}
   </div>
 
-  <div class="card mb-3">
+  {% if departments or can_manage_structure %}<div class="card mb-3">
     <div class="card-body">
       <div class="row g-2 align-items-end">
-        <div class="col-lg-8">
+        <div class="{{ 'col-lg-8' if can_manage_structure else 'col-lg-12' }}">
           <form method="get" action="{{ url_for('departments.settings') }}" class="row g-2 align-items-end">
             <div class="col-md-8">
               <label class="form-label" for="settings-department">Кафедра</label>
@@ -42,10 +42,10 @@
                 {% for item in departments %}<option value="{{ item.id }}" {% if dep and dep.id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}
               </select>
             </div>
-            <div class="col-md-4 d-grid"><button class="btn btn-primary btn-sm" type="submit">Открыть настройки</button></div>
+            <div class="col-md-4 d-grid"><button class="btn btn-primary btn-sm" type="submit">Открыть кафедру</button></div>
           </form>
         </div>
-        <div class="col-lg-4 d-flex justify-content-lg-end">
+        {% if can_manage_structure %}<div class="col-lg-4 d-flex justify-content-lg-end">
           <details class="w-100" id="create-department">
             <summary class="btn btn-outline-primary btn-sm w-100">+ Создать кафедру</summary>
             <form method="post" action="{{ url_for('departments.settings') }}" class="pick-form row g-2">
@@ -56,12 +56,14 @@
               <div class="col-12 d-grid"><button class="btn btn-primary btn-sm" type="submit">Создать</button></div>
             </form>
           </details>
-        </div>
+        </div>{% endif %}
       </div>
     </div>
-  </div>
+  </div>{% endif %}
 
-  {% if not dep %}
+  {% if not dep and not departments and not can_manage_structure %}
+  <div class="alert alert-info">Вам пока не назначена кафедра. Обратитесь к администратору.</div>
+  {% elif not dep %}
   <section class="card" id="department-picker">
     <div class="card-header d-flex align-items-center justify-content-between gap-2"><strong>Кафедры</strong><span class="settings-count">{{ departments|length }}</span></div>
     <div class="card-body">
@@ -88,12 +90,12 @@
     <div class="card mb-3">
       <div class="card-header"><strong>Основные сведения</strong></div>
       <div class="card-body">
-        <form method="post" action="{{ url_for('departments.settings_update', department_id=dep.id) }}" class="row g-2 align-items-end">
+        {% if can_manage_structure %}<form method="post" action="{{ url_for('departments.settings_update', department_id=dep.id) }}" class="row g-2 align-items-end">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-lg-5"><label class="form-label" for="edit-department-name">Название кафедры</label><input class="form-control form-control-sm" id="edit-department-name" name="name" value="{{ dep.name }}" required maxlength="255"></div>
           <div class="col-lg-5"><label class="form-label" for="edit-department-description">Описание</label><input class="form-control form-control-sm" id="edit-department-description" name="description" value="{{ dep.description or '' }}"></div>
           <div class="col-lg-2 d-grid"><button class="btn btn-primary btn-sm" type="submit">Сохранить</button></div>
-        </form>
+        </form>{% else %}<div class="row g-2"><div class="col-lg-5"><span class="form-label d-block">Название кафедры</span>{{ dep.name }}</div><div class="col-lg-7"><span class="form-label d-block">Описание</span>{{ dep.description or '—' }}</div></div>{% endif %}
       </div>
     </div>
 
@@ -104,17 +106,17 @@
           <div class="card-body">
             <div class="table-responsive table-scroll">
               {% if dep.leaders %}<table class="table table-hover table-sm mb-0"><thead><tr><th>Сотрудник</th><th>Здание</th><th></th></tr></thead><tbody>
-                {% for leader in dep.leaders %}<tr><td>{{ leader.user.fio if leader.user else '—' }}</td><td class="text-muted">{{ leader.building.name if leader.building else 'Вся школа' }}</td><td class="text-end"><form method="post" action="{{ url_for('departments.delete_leader', leader_id=leader.id) }}" onsubmit="return confirm('Исключить из руководства кафедрой?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Убрать</button></form></td></tr>{% endfor %}
+                {% for leader in dep.leaders %}<tr><td>{{ leader.user.fio if leader.user else '—' }}</td><td class="text-muted">{{ leader.building.name if leader.building else 'Вся школа' }}</td><td class="text-end">{% if can_manage_structure %}<form method="post" action="{{ url_for('departments.delete_leader', leader_id=leader.id) }}" onsubmit="return confirm('Исключить из руководства кафедрой?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Убрать</button></form>{% endif %}</td></tr>{% endfor %}
               </tbody></table>{% else %}<div class="empty-note">Руководители не назначены.</div>{% endif %}
             </div>
-            <details class="mt-2"><summary class="btn btn-outline-primary btn-sm">+ Добавить руководителя</summary>
+            {% if can_manage_structure %}<details class="mt-2"><summary class="btn btn-outline-primary btn-sm">+ Добавить руководителя</summary>
               <form method="post" action="{{ url_for('departments.add_leader', department_id=dep.id) }}" class="pick-form row g-2">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="col-12"><label class="form-label" for="leader-choice">Сотрудник</label><input class="form-control form-control-sm mb-1" type="search" placeholder="Поиск по ФИО" data-option-search="leader-choice"><select class="form-select form-select-sm" id="leader-choice" name="user_id" required><option value="">Выберите сотрудника</option>{% for user in users if user.id not in current_leader_ids %}<option value="{{ user.id }}">{{ user.fio or user.username }}</option>{% endfor %}</select></div>
                 <div class="col-12"><label class="form-label" for="leader-building">Здание</label><select class="form-select form-select-sm" id="leader-building" name="building_id"><option value="">Вся школа</option>{% for building in buildings %}<option value="{{ building.id }}">{{ building.name }}</option>{% endfor %}</select></div>
                 <div class="col-12 d-grid"><button class="btn btn-primary btn-sm" type="submit">Назначить</button></div>
               </form>
-            </details>
+            </details>{% endif %}
           </div>
         </section>
       </div>
@@ -124,16 +126,16 @@
           <div class="card-body">
             <div class="table-responsive table-scroll">
               {% if members %}<table class="table table-hover table-sm mb-0"><thead><tr><th>Педагог</th><th>Основание</th><th></th></tr></thead><tbody>
-                {% for user in members %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=user.id) }}">{{ user.fio or user.username }}</a></td><td class="text-muted">{{ 'Вручную' if user.id in manual_member_ids else 'Нагрузка' }}</td><td class="text-end"><form method="post" action="{{ url_for('departments.exclude_department_teacher', department_id=dep.id, teacher_id=user.id) }}" onsubmit="return confirm('Исключить педагога из кафедры?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Убрать</button></form></td></tr>{% endfor %}
+                {% for user in members %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=user.id) }}">{{ user.fio or user.username }}</a></td><td class="text-muted">{{ 'Вручную' if user.id in manual_member_ids else 'Нагрузка' }}</td><td class="text-end">{% if can_edit_content %}<form method="post" action="{{ url_for('departments.exclude_department_teacher', department_id=dep.id, teacher_id=user.id) }}" onsubmit="return confirm('Исключить педагога из кафедры?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Убрать</button></form>{% endif %}</td></tr>{% endfor %}
               </tbody></table>{% else %}<div class="empty-note">Сотрудники не прикреплены.</div>{% endif %}
             </div>
-            <details class="mt-2"><summary class="btn btn-outline-primary btn-sm">+ Добавить сотрудника</summary>
+            {% if can_edit_content %}<details class="mt-2"><summary class="btn btn-outline-primary btn-sm">+ Добавить сотрудника</summary>
               <form method="post" action="{{ url_for('departments.add_department_teacher', department_id=dep.id) }}" class="pick-form row g-2">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="col-12"><label class="form-label" for="member-choice">Педагог</label><input class="form-control form-control-sm mb-1" type="search" placeholder="Поиск по ФИО" data-option-search="member-choice"><select class="form-select form-select-sm" id="member-choice" name="teacher_id" required><option value="">Выберите педагога</option>{% for user in users if user.id not in member_ids %}<option value="{{ user.id }}">{{ user.fio or user.username }}</option>{% endfor %}</select></div>
                 <div class="col-12 d-grid"><button class="btn btn-primary btn-sm" type="submit">Добавить</button></div>
               </form>
-            </details>
+            </details>{% endif %}
             <div class="small text-muted mt-2">Автоматический состав — по нагрузке{% if dep.code == 'primary' %} 1–4 классов{% endif %}{% if current_year %} за {{ current_year.name }} учебный год{% endif %}.</div>
           </div>
         </section>
@@ -144,17 +146,17 @@
           <div class="card-body">
             <div class="table-responsive table-scroll">
               {% if activity_links %}<table class="table table-hover table-sm mb-0"><thead><tr><th>Название</th><th>Тип</th><th></th></tr></thead><tbody>
-                {% for link in activity_links %}<tr><td>{{ link.education_activity.name }}</td><td class="text-muted">{{ activity_kind_labels.get(link.education_activity.activity_kind, link.education_activity.activity_kind) }}</td><td class="text-end"><form method="post" action="{{ url_for('departments.remove_department_activity', department_id=dep.id, link_id=link.id) }}" onsubmit="return confirm('Убрать предмет из кафедры?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Убрать</button></form></td></tr>{% endfor %}
+                {% for link in activity_links %}<tr><td>{{ link.education_activity.name }}</td><td class="text-muted">{{ activity_kind_labels.get(link.education_activity.activity_kind, link.education_activity.activity_kind) }}</td><td class="text-end">{% if can_edit_content %}<form method="post" action="{{ url_for('departments.remove_department_activity', department_id=dep.id, link_id=link.id) }}" onsubmit="return confirm('Убрать предмет из кафедры?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Убрать</button></form>{% endif %}</td></tr>{% endfor %}
               </tbody></table>{% else %}<div class="empty-note">Предметы пока не закреплены.</div>{% endif %}
             </div>
-            <details class="mt-2"><summary class="btn btn-outline-primary btn-sm">+ Добавить предмет</summary>
+            {% if can_edit_content %}<details class="mt-2"><summary class="btn btn-outline-primary btn-sm">+ Добавить предмет</summary>
               <form method="post" action="{{ url_for('departments.add_department_activity', department_id=dep.id) }}" class="pick-form row g-2">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="col-12"><label class="form-label" for="activity-choice">Из реестра предметов и курсов</label><input class="form-control form-control-sm mb-1" type="search" placeholder="Поиск предмета" data-option-search="activity-choice"><select class="form-select form-select-sm" id="activity-choice" name="activity_id" required><option value="">Выберите предмет</option>{% for activity in available_activities %}<option value="{{ activity.id }}">{{ activity.name }} · {{ activity_kind_labels.get(activity.activity_kind, activity.activity_kind) }}</option>{% endfor %}</select></div>
                 <div class="col-12 d-grid"><button class="btn btn-primary btn-sm" type="submit">Закрепить</button></div>
               </form>
-            </details>
-            <a class="small d-inline-block mt-2" href="{{ url_for('workload.catalog', section='ALL') }}">Нового предмета нет в реестре?</a>
+            </details>{% endif %}
+            {% if can_manage_structure %}<a class="small d-inline-block mt-2" href="{{ url_for('workload.catalog', section='ALL') }}">Нового предмета нет в реестре?</a>{% endif %}
           </div>
         </section>
       </div>

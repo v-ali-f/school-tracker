@@ -1,6 +1,6 @@
 {% extends "workspace_layout.html" %}
 {% block workspace_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_workspace.css') }}?v=20260923_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_workspace.css') }}?v=20261009_3">
 {% block departments_head_extra %}{% endblock %}
 {% endblock %}
 {% block workspace_content %}
@@ -18,7 +18,7 @@
     {% if current_user.has_role('TEACHER') or current_user.has_role('CLASS_TEACHER') or current_user.has_role('DEPARTMENT_HEAD') %}
     <a class="departments-section-tab {% if department_endpoint in ['departments.teacher_profile', 'departments.my_teacher_profile', 'departments.teacher_cabinet'] %}is-active{% endif %}" href="{{ url_for('departments.my_teacher_profile') }}"><i class="bi bi-person-vcard"></i><span>Мой кабинет</span></a>
     {% endif %}
-    {% if current_user.has_role('ADMIN') %}
+    {% if department_staff_view %}
     <a class="departments-section-tab {% if department_endpoint == 'departments.settings' %}is-active{% endif %}" href="{{ url_for('departments.settings') }}"><i class="bi bi-sliders"></i><span>Настройки</span></a>
     {% endif %}
   </nav>

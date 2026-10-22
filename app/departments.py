@@ -366,6 +366,10 @@ def _managed_department_ids(user=None) -> set[int]:
     }
 
 
+def _can_edit_department_content(department_id: int) -> bool:
+    return is_admin(current_user) or department_id in _managed_department_ids()
+
+
 def _can_manage_professional_registry() -> bool:
     role_codes = {
         str(code).upper()
@@ -1082,10 +1086,21 @@ def index():
 @departments_bp.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    if not is_admin(current_user):
+    can_manage_structure = is_admin(current_user)
+    managed_department_ids = _managed_department_ids()
+    if not (
+        can_manage_structure
+        or has_role("DIRECTOR")
+        or has_role("DEPUTY_DIRECTOR")
+        or has_role(METHODIST)
+        or has_role(DEPARTMENT_HEAD)
+        or managed_department_ids
+    ):
         abort(403)
 
     if request.method == "POST":
+        if not can_manage_structure:
+            abort(403)
         name = (request.form.get("name") or "").strip()
         code = re.sub(r"[^a-z0-9_]+", "_", (request.form.get("code") or name).strip().lower()).strip("_")
         if not name or len(name) > 255:
@@ -1107,10 +1122,17 @@ def settings():
         return redirect(url_for("departments.settings", department_id=dep.id))
 
     departments = Department.query.order_by(Department.name.asc()).all()
+    if not (can_manage_structure or has_role("DIRECTOR") or has_role("DEPUTY_DIRECTOR")):
+        departments = [item for item in departments if item.id in managed_department_ids]
     selected_id = request.args.get("department_id", type=int)
     dep = next((item for item in departments if item.id == selected_id), None)
     if selected_id is not None and dep is None:
+        if db.session.get(Department, selected_id) is not None:
+            abort(403)
         abort(404)
+    if selected_id is None and not can_manage_structure and len(departments) == 1:
+        dep = departments[0]
+    can_edit_content = bool(dep and (can_manage_structure or dep.id in managed_department_ids))
 
     users = []
     buildings = []
@@ -1120,8 +1142,10 @@ def settings():
     available_activities = []
     current_year = None
     if dep is not None:
-        users = _department_leader_candidates()
-        buildings = Building.query.order_by(Building.name.asc()).all()
+        if can_edit_content:
+            users = _department_leader_candidates()
+        if can_manage_structure:
+            buildings = Building.query.order_by(Building.name.asc()).all()
         current_year = AcademicYear.query.filter_by(is_current=True).first()
         member_ids = department_teacher_ids(
             current_year.id if current_year else None,
@@ -1152,12 +1176,13 @@ def settings():
             .all()
         )
         linked_activity_ids = {link.education_activity_id for link in activity_links}
-        available_activities = (
-            EducationActivity.query
-            .filter(EducationActivity.is_active.is_(True), EducationActivity.id.notin_(linked_activity_ids))
-            .order_by(EducationActivity.name.asc(), EducationActivity.id.asc())
-            .all()
-        )
+        if can_edit_content:
+            available_activities = (
+                EducationActivity.query
+                .filter(EducationActivity.is_active.is_(True), EducationActivity.id.notin_(linked_activity_ids))
+                .order_by(EducationActivity.name.asc(), EducationActivity.id.asc())
+                .all()
+            )
     return render_template(
         "departments/settings.html",
         departments=departments,
@@ -1170,6 +1195,8 @@ def settings():
         available_activities=available_activities,
         activity_kind_labels=ACTIVITY_KIND_LABELS,
         current_year=current_year,
+        can_manage_structure=can_manage_structure,
+        can_edit_content=can_edit_content,
     )
 
 
@@ -1261,7 +1288,7 @@ def delete_leader(leader_id):
 @departments_bp.post("/settings/<int:department_id>/teacher/add")
 @login_required
 def add_department_teacher(department_id):
-    if not is_admin(current_user):
+    if not _can_edit_department_content(department_id):
         abort(403)
     department = Department.query.get_or_404(department_id)
     teacher_id = request.form.get("teacher_id", type=int)
@@ -1292,7 +1319,7 @@ def add_department_teacher(department_id):
 @departments_bp.post("/settings/<int:department_id>/teacher/<int:teacher_id>/exclude")
 @login_required
 def exclude_department_teacher(department_id, teacher_id):
-    if not is_admin(current_user):
+    if not _can_edit_department_content(department_id):
         abort(403)
     department = Department.query.get_or_404(department_id)
     teacher = User.query.get_or_404(teacher_id)
@@ -1319,7 +1346,7 @@ def exclude_department_teacher(department_id, teacher_id):
 @departments_bp.post("/settings/<int:department_id>/activity/add")
 @login_required
 def add_department_activity(department_id):
-    if not is_admin(current_user):
+    if not _can_edit_department_content(department_id):
         abort(403)
     department = Department.query.get_or_404(department_id)
     activity_id = request.form.get("activity_id", type=int)
@@ -1368,7 +1395,7 @@ def add_department_activity(department_id):
 @departments_bp.post("/settings/<int:department_id>/activity/<int:link_id>/remove")
 @login_required
 def remove_department_activity(department_id, link_id):
-    if not is_admin(current_user):
+    if not _can_edit_department_content(department_id):
         abort(403)
     Department.query.get_or_404(department_id)
     link = EducationActivityDepartment.query.filter_by(
