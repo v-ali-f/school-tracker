@@ -6641,6 +6641,8 @@ def _classroom_redirect(building_id=None):
 
 
 def _classroom_form_values():
+    from decimal import Decimal, InvalidOperation
+
     building_id = request.form.get("building_id", type=int)
     teacher_user_ids = []
     raw_teacher_ids = request.form.getlist("teacher_user_ids")
@@ -6662,17 +6664,32 @@ def _classroom_form_values():
             capacity = int(capacity_text)
         except ValueError:
             capacity = 0
+    floor_text = (request.form.get("floor") or "").strip()
+    try:
+        floor = int(floor_text) if floor_text else None
+    except ValueError:
+        floor = "invalid"
+    area_text = (request.form.get("area") or "").strip().replace(",", ".")
+    try:
+        area = Decimal(area_text) if area_text and len(area_text) <= 12 else (Decimal("0") if area_text else None)
+    except InvalidOperation:
+        area = Decimal("0")
     return {
         "building_id": building_id,
         "teacher_user_ids": teacher_user_ids,
         "name": name,
         "short_name": short_name,
         "capacity": capacity,
+        "room_type": (request.form.get("room_type") or "").strip() or None,
+        "floor": floor,
+        "area": area,
         "is_active": request.form.get("is_active") == "1",
     }
 
 
 def _classroom_form_error(values):
+    from decimal import Decimal
+
     if not values["building_id"] or db.session.get(
         Building, values["building_id"]
     ) is None:
@@ -6681,6 +6698,14 @@ def _classroom_form_error(values):
         return "Укажите название или номер кабинета."
     if values["capacity"] is not None and values["capacity"] <= 0:
         return "Вместимость кабинета должна быть больше нуля."
+    if values["floor"] == "invalid" or (values["floor"] is not None and not -5 <= values["floor"] <= 100):
+        return "Укажите корректный этаж."
+    if values["area"] is not None:
+        area = values["area"]
+        if not area.is_finite() or area <= 0 or area > Decimal("999999.99") or area != area.quantize(Decimal("0.01")):
+            return "Укажите площадь больше нуля с точностью до 0,01 м²."
+    if values["room_type"] and len(values["room_type"]) > 80:
+        return "Тип кабинета слишком длинный."
     if values["teacher_user_ids"]:
         existing_teacher_ids = {
             item.id
@@ -6757,6 +6782,10 @@ def classrooms_new():
     _apply_classroom_form_values(classroom, values)
     db.session.add(classroom)
     try:
+        db.session.flush()
+        if classroom.assigned_teacher_ids:
+            from app.services.safety_passport_service import ensure_passport
+            ensure_passport(classroom)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -6780,6 +6809,10 @@ def classrooms_update(classroom_id):
         return _classroom_redirect(values["building_id"])
     _apply_classroom_form_values(classroom, values)
     try:
+        db.session.flush()
+        if classroom.assigned_teacher_ids:
+            from app.services.safety_passport_service import ensure_passport
+            ensure_passport(classroom)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -6797,6 +6830,9 @@ def classrooms_update(classroom_id):
 def classrooms_delete(classroom_id):
     classroom = SchoolClassroom.query.get_or_404(classroom_id)
     building_id = classroom.building_id
+    if classroom.safety_passport is not None:
+        flash("У кабинета есть паспорт. Переведите кабинет в неактивное состояние, чтобы сохранить его историю.", "danger")
+        return _classroom_redirect(building_id)
     db.session.delete(classroom)
     db.session.commit()
     flash("Кабинет удалён.", "success")

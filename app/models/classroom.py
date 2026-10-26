@@ -36,6 +36,9 @@ class SchoolClassroom(db.Model):
     name = db.Column(db.String(120), nullable=False)
     short_name = db.Column(db.String(50), nullable=True)
     capacity = db.Column(db.Integer, nullable=True)
+    room_type = db.Column(db.String(80), nullable=True)
+    floor = db.Column(db.Integer, nullable=True)
+    area = db.Column(db.Numeric(8, 2), nullable=True)
     teacher_user_id = db.Column(
         db.Integer,
         db.ForeignKey("user.id", ondelete="SET NULL"),
@@ -102,6 +105,10 @@ class SchoolClassroom(db.Model):
         db.CheckConstraint(
             "capacity IS NULL OR capacity > 0",
             name="ck_school_classroom_capacity_positive",
+        ),
+        db.CheckConstraint(
+            "area IS NULL OR area > 0",
+            name="ck_school_classroom_area_positive",
         ),
         db.UniqueConstraint(
             "building_id",

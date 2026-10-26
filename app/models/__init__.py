@@ -10,6 +10,7 @@ from .analytics import *
 from .children import *
 from .classes import *
 from .classroom import *
+from .safety_passport import *
 from .control_works import *
 from .departments import *
 from .documents import *

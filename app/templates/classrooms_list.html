@@ -46,13 +46,16 @@
   <div class="registry-table-scroll" tabindex="0" aria-label="Реестр кабинетов">
     <table class="registry-matrix registry-matrix-wide classrooms-registry-table">
       <colgroup>
+        <col style="width:12%">
         <col style="width:15%">
-        <col style="width:19%">
-        <col style="width:9%">
-        <col style="width:8%">
-        <col style="width:34%">
         <col style="width:7%">
+        <col style="width:7%">
+        <col style="width:10%">
+        <col style="width:6%">
         <col style="width:8%">
+        <col style="width:21%">
+        <col style="width:7%">
+        <col style="width:7%">
       </colgroup>
       <thead>
         <tr>
@@ -60,6 +63,9 @@
           <th>Кабинет</th>
           <th>Кратко</th>
           <th>Мест</th>
+          <th>Тип</th>
+          <th>Этаж</th>
+          <th>Площадь, м²</th>
           <th>Кабинет педагога</th>
           <th>Статус</th>
           <th>Действия</th>
@@ -79,6 +85,9 @@
           <td><input class="form-control form-control-sm" name="name" form="classroom-add-form" placeholder="Номер или название" aria-label="Название нового кабинета" required></td>
           <td><input class="form-control form-control-sm" name="short_name" form="classroom-add-form" placeholder="Кратко" aria-label="Краткое название нового кабинета"></td>
           <td><input class="form-control form-control-sm" name="capacity" form="classroom-add-form" type="number" min="1" placeholder="—" aria-label="Вместимость нового кабинета"></td>
+          <td><input class="form-control form-control-sm" name="room_type" form="classroom-add-form" maxlength="80" placeholder="Тип" aria-label="Тип нового кабинета"></td>
+          <td><input class="form-control form-control-sm" name="floor" form="classroom-add-form" type="number" min="-5" max="100" aria-label="Этаж нового кабинета"></td>
+          <td><input class="form-control form-control-sm" name="area" form="classroom-add-form" type="number" min="0.01" step="0.01" aria-label="Площадь нового кабинета"></td>
           <td>
             <select class="form-select form-select-sm" name="teacher_user_ids" form="classroom-add-form" aria-label="Педагоги нового кабинета" multiple size="3">
               {% for teacher in teachers %}<option value="{{ teacher.id }}">{{ teacher.fio or teacher.username }}</option>{% endfor %}
@@ -118,6 +127,18 @@
               <span data-classroom-view>{{ classroom.capacity or '—' }}</span>
               <input class="form-control form-control-sm d-none" name="capacity" form="{{ form_id }}" type="number" min="1" value="{{ classroom.capacity or '' }}" data-classroom-edit aria-label="Вместимость кабинета">
             </td>
+            <td class="registry-cell-center">
+              <span data-classroom-view>{{ classroom.room_type or '—' }}</span>
+              <input class="form-control form-control-sm d-none" name="room_type" form="{{ form_id }}" maxlength="80" value="{{ classroom.room_type or '' }}" data-classroom-edit aria-label="Тип кабинета">
+            </td>
+            <td class="registry-cell-center">
+              <span data-classroom-view>{{ classroom.floor if classroom.floor is not none else '—' }}</span>
+              <input class="form-control form-control-sm d-none" name="floor" form="{{ form_id }}" type="number" min="-5" max="100" value="{{ classroom.floor if classroom.floor is not none else '' }}" data-classroom-edit aria-label="Этаж кабинета">
+            </td>
+            <td class="registry-cell-center">
+              <span data-classroom-view>{{ classroom.area if classroom.area is not none else '—' }}</span>
+              <input class="form-control form-control-sm d-none" name="area" form="{{ form_id }}" type="number" min="0.01" step="0.01" value="{{ classroom.area if classroom.area is not none else '' }}" data-classroom-edit aria-label="Площадь кабинета">
+            </td>
             <td class="registry-cell-clip" title="{{ classroom.assigned_teachers|map(attribute='fio')|join(', ') or 'Не закреплён' }}">
               <span data-classroom-view>{{ classroom.assigned_teachers|map(attribute='fio')|join(', ') or '—' }}</span>
               <select class="form-select form-select-sm d-none" name="teacher_user_ids" form="{{ form_id }}" data-classroom-edit aria-label="Педагоги кабинета" multiple size="4">
@@ -136,6 +157,7 @@
             <td class="registry-cell-center">
               <form id="{{ form_id }}" method="post" action="{{ url_for('children.classrooms_update', classroom_id=classroom.id) }}"></form>
               <div class="registry-row-actions" data-classroom-view-actions>
+                <a class="btn btn-outline-primary registry-row-action" href="{{ url_for('safety_passports.detail', classroom_id=classroom.id) }}" title="Паспорт кабинета" aria-label="Паспорт кабинета {{ classroom.name }}"><i class="bi bi-file-earmark-text"></i></a>
                 <button class="btn btn-outline-secondary registry-row-action" type="button" data-classroom-edit-button title="Изменить" aria-label="Изменить кабинет {{ classroom.name }}"><i class="bi bi-pencil"></i></button>
                 <form method="post" action="{{ url_for('children.classrooms_delete', classroom_id=classroom.id) }}" onsubmit="return confirm('Удалить кабинет {{ classroom.name }}?');">
                   <button class="btn btn-outline-danger registry-row-action" title="Удалить" aria-label="Удалить кабинет {{ classroom.name }}"><i class="bi bi-trash"></i></button>
@@ -148,7 +170,7 @@
             </td>
           </tr>
         {% else %}
-          <tr><td colspan="7" class="registry-empty-row">Для выбранного здания кабинеты ещё не добавлены.</td></tr>
+          <tr><td colspan="10" class="registry-empty-row">Для выбранного здания кабинеты ещё не добавлены.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -1,0 +1,33 @@
+{% extends "workspace_layout.html" %}
+{% block title %}Паспорта кабинетов{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-4">
+  <div><div class="section-overline">Охрана труда</div><h1 class="page-title">Паспорта кабинетов</h1><p class="page-sub">Один паспорт сохраняется за кабинетом при смене ответственного и учебного года.</p></div>
+  {% if manager and current_user.has_role('DIRECTOR') %}<a class="btn btn-outline-primary" href="{{ url_for('safety_passports.officers') }}">Ответственный за ОТ</a>{% endif %}
+</div>
+
+{% if manager %}
+<form method="get" class="card card-body mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-5"><label class="form-label" for="building-filter">Здание</label><select class="form-select" id="building-filter" name="building_id"><option value="">Все здания</option>{% for building in buildings %}<option value="{{ building.id }}" {% if selected_building_id == building.id %}selected{% endif %}>{{ building.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-5"><label class="form-label" for="status-filter">Статус</label><select class="form-select" id="status-filter" name="status"><option value="">Все статусы</option>{% for code, label in status_labels.items() %}<option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Показать</button></div>
+  </div>
+</form>
+{% endif %}
+
+<div class="row g-2 mb-3">
+  <div class="col-auto"><span class="badge text-bg-secondary">Кабинетов: {{ classrooms|length }}</span></div>
+  <div class="col-auto"><span class="badge text-bg-success">Проверено: {{ counts.verified }}</span></div>
+  <div class="col-auto"><span class="badge text-bg-warning">На проверке: {{ counts.in_review }}</span></div>
+  <div class="col-auto"><span class="badge text-bg-danger">Требуют внимания: {{ counts.needs_work + counts.noncompliant + counts.needs_recheck }}</span></div>
+</div>
+
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+  <thead><tr><th>Здание</th><th>Кабинет</th><th>Тип</th><th>Ответственные</th><th>Статус</th><th></th></tr></thead>
+  <tbody>{% for classroom in classrooms %}
+    {% set effective_status = 'archived' if not classroom.is_active else (classroom.safety_passport.status if classroom.safety_passport else 'not_started') %}
+    <tr><td>{{ classroom.building.name }}</td><td>{{ classroom.name }}</td><td>{{ classroom.room_type or '—' }}</td><td>{{ classroom.assigned_teachers|map(attribute='fio')|join(', ') or 'Не назначены' }}</td><td>{{ status_labels[effective_status] }}</td><td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('safety_passports.detail', classroom_id=classroom.id) }}">Открыть</a></td></tr>
+  {% else %}<tr><td colspan="6" class="text-muted text-center py-4">Кабинетов по выбранным условиям нет.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

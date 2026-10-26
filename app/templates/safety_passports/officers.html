@@ -1,0 +1,15 @@
+{% extends "workspace_layout.html" %}
+{% block title %}Ответственный за охрану труда{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-4"><div><div class="section-overline">Охрана труда</div><h1 class="page-title">Ответственные за ОТ</h1><p class="page-sub">Директор назначает сотрудника на период. Отмена сохраняется в истории.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('safety_passports.index') }}">К паспортам</a></div>
+<form method="post" class="card card-body mb-4"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5 mb-3">Новое назначение</h2><div class="row g-3 align-items-end">
+  <div class="col-md-5"><label class="form-label" for="officer-user">Сотрудник</label><select id="officer-user" class="form-select" name="user_id" required><option value="">Выберите</option>{% for user in users %}<option value="{{ user.id }}">{{ user.fio or user.username }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label" for="valid-from">С</label><input id="valid-from" class="form-control" type="date" name="valid_from" value="{{ today.isoformat() }}" required></div>
+  <div class="col-md-2"><label class="form-label" for="valid-to">По</label><input id="valid-to" class="form-control" type="date" name="valid_to"></div>
+  <div class="col-md-3"><button class="btn btn-primary w-100">Назначить</button></div>
+</div></form>
+<div class="card"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Сотрудник</th><th>Период</th><th>Назначил</th><th>Состояние</th><th></th></tr></thead><tbody>
+{% for item in assignments %}<tr><td>{{ item.user.fio or item.user.username }}</td><td>{{ item.valid_from.strftime('%d.%m.%Y') }} — {{ item.valid_to.strftime('%d.%m.%Y') if item.valid_to else 'без окончания' }}</td><td>{{ item.assigned_by.fio or item.assigned_by.username }}</td><td>{{ 'Отменено' if item.revoked_at else ('Действует' if item.valid_from <= today and (not item.valid_to or item.valid_to >= today) else 'Вне периода') }}</td><td>{% if not item.revoked_at %}<form method="post" action="{{ url_for('safety_passports.revoke_officer', assignment_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger">Отменить</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="text-muted text-center py-4">Назначений ещё нет.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

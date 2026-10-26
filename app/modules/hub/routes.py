@@ -1203,6 +1203,14 @@ def build_home_context():
         page.get("secondary_sections"),
         skip_endpoints=("school_plan.index",),
     )
+    from app.services.safety_passport_service import can_access_registry
+    if not preview_role and can_access_registry(current_user):
+        sidebar_sections.append({
+            "endpoint": "safety_passports.index",
+            "url": url_for("safety_passports.index"),
+            "title": "Охрана труда",
+            "icon": "bi-shield-check",
+        })
     sidebar_admin_actions = unique_sidebar_items(page.get("admin_sections"))
 
     return {
