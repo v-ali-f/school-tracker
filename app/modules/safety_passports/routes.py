@@ -251,6 +251,7 @@ def officers():
                 db.session.add(SafetyOfficerAssignment(
                     user_id=user.id, valid_from=valid_from, valid_to=valid_to,
                     assigned_by_id=current_user.id,
+                    can_manage_instructions=request.form.get("can_manage_instructions") == "1",
                 ))
                 db.session.commit()
                 flash("Ответственный за ОТ назначен.", "success")
@@ -275,6 +276,20 @@ def revoke_officer(assignment_id):
         assignment.revoked_by_id = current_user.id
         db.session.commit()
     flash("Назначение отменено; история сохранена.", "success")
+    return redirect(url_for("safety_passports.officers"))
+
+
+@safety_passports_bp.route("/officers/<int:assignment_id>/instructions", methods=["POST"])
+@login_required
+def set_instruction_right(assignment_id):
+    if not is_director(current_user):
+        abort(403)
+    assignment = SafetyOfficerAssignment.query.get_or_404(assignment_id)
+    if assignment.revoked_at is not None:
+        abort(409)
+    assignment.can_manage_instructions = request.form.get("can_manage_instructions") == "1"
+    db.session.commit()
+    flash("Право ведения инструкций обновлено.", "success")
     return redirect(url_for("safety_passports.officers"))
 
 

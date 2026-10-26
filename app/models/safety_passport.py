@@ -20,6 +20,7 @@ class SafetyOfficerAssignment(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
     revoked_at = db.Column(db.DateTime(timezone=True), nullable=True)
     revoked_by_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="RESTRICT"), nullable=True)
+    can_manage_instructions = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     user = db.relationship("User", foreign_keys=[user_id])
     assigned_by = db.relationship("User", foreign_keys=[assigned_by_id])

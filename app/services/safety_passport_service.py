@@ -83,6 +83,21 @@ def is_officer(user, on_date=None):
     )
 
 
+def can_manage_instructions(user, on_date=None):
+    on_date = on_date or school_today()
+    return (
+        SafetyOfficerAssignment.query
+        .filter(
+            SafetyOfficerAssignment.user_id == user.id,
+            SafetyOfficerAssignment.revoked_at.is_(None),
+            SafetyOfficerAssignment.valid_from <= on_date,
+            or_(SafetyOfficerAssignment.valid_to.is_(None), SafetyOfficerAssignment.valid_to >= on_date),
+            SafetyOfficerAssignment.can_manage_instructions.is_(True),
+        )
+        .first() is not None
+    )
+
+
 def is_assigned_teacher(user, classroom):
     return bool(classroom.is_active and user.id in classroom.assigned_teacher_ids)
 

@@ -1211,6 +1211,13 @@ def build_home_context():
             "title": "Охрана труда",
             "icon": "bi-shield-check",
         })
+    from app.services.safety_journal_service import can_create_journal
+    from app.services.safety_passport_service import is_admin, is_director, is_officer
+    if not preview_role and (can_create_journal(current_user) or is_officer(current_user) or is_director(current_user) or is_admin(current_user)):
+        sidebar_sections.append({
+            "endpoint": "safety_journals.index", "url": url_for("safety_journals.index"),
+            "title": "Журналы инструктажей", "icon": "bi-journal-text",
+        })
     sidebar_admin_actions = unique_sidebar_items(page.get("admin_sections"))
 
     return {

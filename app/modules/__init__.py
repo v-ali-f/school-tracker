@@ -27,6 +27,8 @@ from .preschool import bp as preschool_bp
 from .professional_registry import professional_registry_bp
 from .lesson_visits import lesson_visits_bp
 from .safety_passports import safety_passports_bp
+from .safety_instructions import safety_instructions_bp
+from .safety_journals import safety_journals_bp
 from .workload import workload_bp
 from app.knowledge import knowledge_bp
 from app.datalens import datalens_bp
@@ -78,6 +80,8 @@ BLUEPRINTS = [
     professional_registry_bp,
     lesson_visits_bp,
     safety_passports_bp,
+    safety_instructions_bp,
+    safety_journals_bp,
     workload_bp,
     additional_education_surveys_bp,
 ]
