@@ -113,7 +113,9 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
     with pdfplumber.open(BytesIO(pdf.data)) as document:
         text = "\n".join(sheet.extract_text() or "" for sheet in document.pages)
         assert "Музей науки" in text and "Приказ № 42" in text
-        assert "Дата рождения" in text and "ознакомлен" in text
+        assert "Дата рождения" in text and "ознакомлен" not in text
+        assert ids["today"].strftime("%d.%m.%Y") not in text
+        assert (ids["today"] + timedelta(days=2)).strftime("%d.%m.%Y") not in text
         assert date(ids["today"].year - 13, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") not in text
     with app.app_context():
         page = SafetyJournalPage.query.one()
@@ -125,6 +127,13 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
     with app.app_context():
         assert trip_status(SafetyTripOrder.query.one()) == "printed"
         assert db.session.get(Task, task_id).status == Task.STATUS_DONE
+    assert client.post(page_url + "/pdf/reissue").status_code == 302
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        assert page.status == "generated" and len(page.revisions) == 2
+        assert trip_status(SafetyTripOrder.query.one()) == "generated"
+        assert db.session.get(Task, task_id).status != Task.STATUS_DONE
+    assert client.post(page_url + "/printed").status_code == 302
     login(ids["director"])
     assert client.post(f"/orders/{order_id}/edit", data=_order_form(ids, trip_destination="Новый музей")).status_code == 302
     with app.app_context():

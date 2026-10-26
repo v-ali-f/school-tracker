@@ -146,6 +146,8 @@ class SafetyJournalPage(db.Model):
     classes = db.relationship("SafetyJournalPageClass", back_populates="page")
     revisions = db.relationship("SafetyJournalPageRevision", back_populates="page", order_by="SafetyJournalPageRevision.version_number")
     events = db.relationship("SafetyJournalPageEvent", back_populates="page", order_by="SafetyJournalPageEvent.created_at")
+    paper_record = db.relationship("SafetyJournalPaperRecord", back_populates="page", uselist=False)
+    paper_scans = db.relationship("SafetyJournalPaperScan", back_populates="page", order_by="SafetyJournalPaperScan.version_number")
 
 
 class SafetyJournalPageClass(db.Model):

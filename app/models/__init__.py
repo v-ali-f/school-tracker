@@ -13,6 +13,7 @@ from .classroom import *
 from .safety_passport import *
 from .safety_journal import *
 from .safety_trip import *
+from .safety_paper import *
 from .control_works import *
 from .departments import *
 from .documents import *

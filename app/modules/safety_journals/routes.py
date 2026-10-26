@@ -8,6 +8,7 @@ from uuid import uuid4
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +17,7 @@ from app.models import (
     Building, SafetyInstructionVersion, SafetyJournalDraft, SafetyJournalDraftEvent,
     SafetyJournalPage, SafetyJournalPageClass, SafetyJournalPageEvent,
     SafetyJournalPageRevision, SafetyJournalParticipant,
+    SafetyJournalPaperRecord, SafetyJournalPaperScan,
     SafetyTripAssignment,
 )
 from app.models.safety_passport import utc_now
@@ -29,6 +31,7 @@ from app.services.safety_passport_service import is_admin, is_director, is_offic
 
 
 safety_journals_bp = Blueprint("safety_journals", __name__, url_prefix="/safety/journals")
+MAX_SCAN_BYTES = 20 * 1024 * 1024
 
 
 def _context():
@@ -65,6 +68,47 @@ def _storage():
     return path
 
 
+def _scan_storage():
+    path = _storage().parent / "paper_scans"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _paper_manager():
+    return is_officer(current_user) or is_director(current_user) or is_admin(current_user)
+
+
+def _paper_record(page):
+    record = page.paper_record
+    if record is None:
+        record = SafetyJournalPaperRecord(page_id=page.id)
+        db.session.add(record)
+        db.session.flush()
+    return record
+
+
+def _scan_upload():
+    uploaded = request.files.get("scan")
+    if uploaded is None or not uploaded.filename:
+        raise ValueError("Выберите скан в формате PDF, JPG или PNG.")
+    original_name = Path(uploaded.filename.replace("\\", "/")).name
+    if not original_name or len(original_name) > 255:
+        raise ValueError("Некорректное имя файла.")
+    content = uploaded.stream.read(MAX_SCAN_BYTES + 1)
+    if not content or len(content) > MAX_SCAN_BYTES:
+        raise ValueError("Скан пуст или превышает 20 МБ.")
+    suffix = Path(original_name).suffix.lower()
+    if suffix == ".pdf" and content.startswith(b"%PDF-") and b"%%EOF" in content[-1024:]:
+        mime = "application/pdf"
+    elif suffix in {".jpg", ".jpeg"} and content.startswith(b"\xff\xd8\xff") and content.rstrip().endswith(b"\xff\xd9"):
+        mime = "image/jpeg"
+    elif suffix == ".png" and content.startswith(b"\x89PNG\r\n\x1a\n") and b"IEND" in content[-20:]:
+        mime = "image/png"
+    else:
+        raise ValueError("Файл не соответствует формату PDF, JPG или PNG.")
+    return original_name, suffix, mime, content
+
+
 def _token(page, revision):
     return URLSafeTimedSerializer(current_app.secret_key, salt="safety-journal-pdf-v1").dumps({
         "page": page.id, "revision": revision.id, "user": current_user.id,
@@ -85,7 +129,11 @@ def index():
     trip_assigned = SafetyTripAssignment.query.filter_by(user_id=current_user.id, is_active=True).first() is not None
     if not manager and not can_create_journal(current_user) and not trip_assigned:
         abort(403)
-    query = SafetyJournalPage.query.options(selectinload(SafetyJournalPage.participants))
+    query = SafetyJournalPage.query.options(
+        selectinload(SafetyJournalPage.participants),
+        selectinload(SafetyJournalPage.paper_record),
+        selectinload(SafetyJournalPage.paper_scans),
+    )
     if not manager:
         query = query.filter_by(author_id=current_user.id)
     elif request.args.get("author_id", type=int):
@@ -355,7 +403,7 @@ def detail(page_id):
     db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="viewed"))
     db.session.commit()
     revision = page.revisions[-1]
-    return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, download_token=_token(page, revision), can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user))
+    return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, download_token=_token(page, revision), revision_tokens={item.id: _token(page, item) for item in page.revisions}, can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user), paper_manager=_paper_manager())
 
 
 @safety_journals_bp.route("/pages/<int:page_id>/based-on", methods=["POST"])
@@ -393,10 +441,13 @@ def based_on(page_id):
 
 
 @safety_journals_bp.route("/pages/<int:page_id>/pdf")
+@safety_journals_bp.route("/pages/<int:page_id>/pdf/revisions/<int:revision_id>")
 @login_required
-def download_pdf(page_id):
+def download_pdf(page_id, revision_id=None):
     page = _page_or_404(page_id)
-    revision = page.revisions[-1]
+    revision = db.session.get(SafetyJournalPageRevision, revision_id) if revision_id is not None else page.revisions[-1]
+    if revision is None or revision.page_id != page.id:
+        abort(404)
     try:
         values = URLSafeTimedSerializer(current_app.secret_key, salt="safety-journal-pdf-v1").loads(request.args.get("token", ""), max_age=900)
     except (BadSignature, SignatureExpired):
@@ -411,6 +462,51 @@ def download_pdf(page_id):
     response = send_file(path, mimetype="application/pdf", as_attachment=False, download_name=f"{page.number}.pdf")
     response.headers["Cache-Control"] = "private, no-store"
     return response
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/pdf/reissue", methods=["POST"])
+@login_required
+def reissue_pdf(page_id):
+    page = _page_or_404(page_id)
+    if page.author_id != current_user.id and not _paper_manager():
+        abort(403)
+    if page.status not in {"generated", "printed"}:
+        abort(409)
+    paper = page.paper_record
+    if paper and (paper.checked_at or paper.filed_at or page.paper_scans):
+        abort(409)
+    stored = None
+    try:
+        db.session.refresh(page, with_for_update=True)
+        revision_number = (db.session.query(func.max(SafetyJournalPageRevision.version_number)).filter_by(page_id=page.id).scalar() or 0) + 1
+        content = build_journal_pdf(page, page.participants)
+        stored = f"{uuid4().hex}.pdf"
+        with (_storage() / stored).open("xb") as destination:
+            destination.write(content)
+        db.session.add(SafetyJournalPageRevision(
+            page_id=page.id, version_number=revision_number, stored_filename=stored,
+            pdf_sha256=hashlib.sha256(content).hexdigest(), reason="Исправленный бланк: даты и подписи от руки",
+            created_by_id=current_user.id,
+        ))
+        if page.status == "printed":
+            page.status = "generated"
+            page.printed_at = None
+            if page.trip_assignment_id is not None and page.trip_assignment.current_page_id == page.id:
+                from app.services.safety_trip_service import reopen_assignment_task
+                reopen_assignment_task(page.trip_assignment)
+        if paper and paper.issue_at:
+            paper.issue_at = None
+            paper.issue_by_id = None
+            paper.issue_note = None
+        db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="pdf_reissued", details={"version": revision_number}))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        if stored:
+            (_storage() / stored).unlink(missing_ok=True)
+        raise
+    flash("Исправленный бланк создан. Распечатайте новую версию; прежняя сохранена в истории.", "success")
+    return redirect(url_for("safety_journals.detail", page_id=page.id))
 
 
 @safety_journals_bp.route("/pages/<int:page_id>/printed", methods=["POST"])
@@ -428,6 +524,140 @@ def confirm_printed(page_id):
     db.session.commit()
     flash("Печать подтверждена.", "success")
     return redirect(url_for("safety_journals.detail", page_id=page.id))
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/paper/check", methods=["POST"])
+@login_required
+def paper_check(page_id):
+    page = _page_or_404(page_id)
+    if not _paper_manager():
+        abort(403)
+    if page.status != "printed":
+        abort(409)
+    if not all(request.form.get(flag) == "on" for flag in ("dates_checked", "signatures_checked", "roster_checked")):
+        flash("Подтвердите сверку дат, подписей и состава на бумажном экземпляре.", "danger")
+        return redirect(url_for("safety_journals.detail", page_id=page.id))
+    record = _paper_record(page)
+    if record.filed_at is not None or record.checked_at is not None:
+        abort(409)
+    note = (request.form.get("note") or "").strip()
+    if len(note) > 2000:
+        flash("Примечание не должно превышать 2000 символов.", "danger")
+        return redirect(url_for("safety_journals.detail", page_id=page.id))
+    record.checked_at = utc_now()
+    record.checked_by_id = current_user.id
+    record.check_note = note or None
+    record.issue_at = None
+    record.issue_by_id = None
+    record.issue_note = None
+    db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="paper_checked", details={"note": note}))
+    db.session.commit()
+    flash("Бумажный экземпляр сверен.", "success")
+    return redirect(url_for("safety_journals.detail", page_id=page.id))
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/paper/issue", methods=["POST"])
+@login_required
+def paper_issue(page_id):
+    page = _page_or_404(page_id)
+    if not _paper_manager():
+        abort(403)
+    if page.status != "printed":
+        abort(409)
+    note = (request.form.get("issue_note") or "").strip()
+    if not note or len(note) > 2000:
+        flash("Опишите расхождение (до 2000 символов).", "danger")
+        return redirect(url_for("safety_journals.detail", page_id=page.id))
+    record = _paper_record(page)
+    if record.filed_at is not None:
+        abort(409)
+    record.checked_at = None
+    record.checked_by_id = None
+    record.check_note = None
+    record.issue_at = utc_now()
+    record.issue_by_id = current_user.id
+    record.issue_note = note
+    db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="paper_issue", details={"note": note}))
+    db.session.commit()
+    flash("Расхождение зафиксировано. Сверьте исправленный бумажный экземпляр повторно.", "warning")
+    return redirect(url_for("safety_journals.detail", page_id=page.id))
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/paper/file", methods=["POST"])
+@login_required
+def paper_file(page_id):
+    page = _page_or_404(page_id)
+    if not _paper_manager():
+        abort(403)
+    record = page.paper_record
+    if page.status != "printed" or record is None or record.checked_at is None or record.filed_at is not None:
+        abort(409)
+    binder_ref = (request.form.get("binder_ref") or "").strip()
+    sheet_ref = (request.form.get("sheet_ref") or "").strip()
+    if not binder_ref or len(binder_ref) > 255 or len(sheet_ref) > 80:
+        flash("Укажите место хранения (до 255 символов) и номер листа (до 80 символов).", "danger")
+        return redirect(url_for("safety_journals.detail", page_id=page.id))
+    record.binder_ref = binder_ref
+    record.sheet_ref = sheet_ref or None
+    record.filed_at = utc_now()
+    record.filed_by_id = current_user.id
+    db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="paper_filed", details={"binder_ref": binder_ref, "sheet_ref": sheet_ref}))
+    db.session.commit()
+    flash("Подшивка бумажного экземпляра зафиксирована.", "success")
+    return redirect(url_for("safety_journals.detail", page_id=page.id))
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/paper/scans", methods=["POST"])
+@login_required
+def paper_scan_upload(page_id):
+    page = _page_or_404(page_id)
+    if not _paper_manager():
+        abort(403)
+    record = page.paper_record
+    if page.status != "printed" or record is None or record.checked_at is None:
+        abort(409)
+    try:
+        original_name, suffix, mime, content = _scan_upload()
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("safety_journals.detail", page_id=page.id))
+    db.session.refresh(page, with_for_update=True)
+    version = (db.session.query(func.max(SafetyJournalPaperScan.version_number)).filter_by(page_id=page.id).scalar() or 0) + 1
+    stored = f"{uuid4().hex}{suffix}"
+    path = _scan_storage() / stored
+    try:
+        with path.open("xb") as destination:
+            destination.write(content)
+        db.session.add(SafetyJournalPaperScan(
+            page_id=page.id, version_number=version, stored_filename=stored,
+            original_filename=original_name, mime_type=mime,
+            file_sha256=hashlib.sha256(content).hexdigest(), uploaded_by_id=current_user.id,
+        ))
+        db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="paper_scan_uploaded", details={"version": version, "sha256": hashlib.sha256(content).hexdigest()}))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        path.unlink(missing_ok=True)
+        raise
+    flash("Скан сохранён. Предыдущие версии остаются в истории.", "success")
+    return redirect(url_for("safety_journals.detail", page_id=page.id))
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/paper/scans/<int:scan_id>")
+@login_required
+def paper_scan_download(page_id, scan_id):
+    page = _page_or_404(page_id)
+    scan = db.session.get(SafetyJournalPaperScan, scan_id)
+    if scan is None or scan.page_id != page.id:
+        abort(404)
+    path = _scan_storage() / scan.stored_filename
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != scan.file_sha256:
+        abort(409, "Сохранённый скан недоступен или повреждён.")
+    db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="paper_scan_downloaded", details={"version": scan.version_number}))
+    db.session.commit()
+    response = send_file(path, mimetype=scan.mime_type, as_attachment=True, download_name=scan.original_filename)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @safety_journals_bp.route("/pages/<int:page_id>/annul", methods=["POST"])

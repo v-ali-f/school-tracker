@@ -3,7 +3,6 @@
 from html import escape
 from io import BytesIO
 from pathlib import Path
-from datetime import date
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -75,9 +74,9 @@ def build_journal_pdf(page, participants):
             _paragraph(person.full_name_snapshot, table_cell),
             "",  # Birth date is written on the printed sheet by the teacher.
             _paragraph(person.class_name_snapshot, centered),
-            _paragraph(page.instructed_on.strftime("%d.%m.%Y"), centered),
+            "",  # The actual briefing date is entered on paper by hand.
             _paragraph(f"{page.instruction_number_snapshot} — {page.instruction_summary_snapshot}", table_cell),
-            _paragraph("ознакомлен" if person.signature_rule == "acquainted" else "", centered),
+            "",  # Signatures are placed on the printed sheet by hand.
             _paragraph(page.instructor_name_snapshot, table_cell),
             "",
         ])
@@ -103,7 +102,7 @@ def build_journal_pdf(page, participants):
         Spacer(1, 3 * mm),
         _paragraph(journal_title, heading),
         _paragraph(
-            f"№ {page.number} · дата инструктажа {page.instructed_on.strftime('%d.%m.%Y')} · группа {page.group_label}",
+            f"№ {page.number} · группа {page.group_label}",
             subheading,
         ),
         _paragraph(
@@ -113,14 +112,12 @@ def build_journal_pdf(page, participants):
         ),
     ]
     if trip:
-        order_date = date.fromisoformat(trip["order_date"]).strftime("%d.%m.%Y")
-        trip_date = date.fromisoformat(trip["trip_date"]).strftime("%d.%m.%Y")
         story.append(_paragraph(
-            f"Приказ № {trip['order_number']} от {order_date} · {trip['order_title']}",
+            f"Приказ № {trip['order_number']} · {trip['order_title']}",
             subheading,
         ))
         story.append(_paragraph(
-            f"{trip['trip_kind']} · {trip['destination']} · дата выезда {trip_date}",
+            f"{trip['trip_kind']} · {trip['destination']}",
             subheading,
         ))
     story.extend([Spacer(1, 4 * mm), table])
@@ -129,7 +126,7 @@ def build_journal_pdf(page, participants):
         canvas.saveState()
         canvas.setFont(FONT_NAME, 7)
         canvas.drawString(10 * mm, 7 * mm, f"Страница журнала № {page.number}")
-        canvas.drawCentredString(landscape(A4)[0] / 2, 7 * mm, f"{page.instructed_on.strftime('%d.%m.%Y')} · {page.instructor_name_snapshot}")
+        canvas.drawCentredString(landscape(A4)[0] / 2, 7 * mm, page.instructor_name_snapshot)
         canvas.drawRightString(landscape(A4)[0] - 10 * mm, 7 * mm, f"Лист {document.page}")
         canvas.restoreState()
 

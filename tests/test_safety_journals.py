@@ -139,7 +139,9 @@ def test_journal_roster_snapshot_pdf_and_print_confirmation(app, client, make_us
     assert pdf.status_code == 200 and pdf.data.startswith(b"%PDF")
     with pdfplumber.open(BytesIO(pdf.data)) as document:
         text = "\n".join(page.extract_text() or "" for page in document.pages)
-        assert "ознакомлен" in text
+        assert "ознакомлен" not in text
+        assert "дата инструктажа " not in text.lower()
+        assert ids["today"].strftime("%d.%m.%Y") not in text
         assert (ids["today"] - timedelta(days=14 * 365)).strftime("%d.%m.%Y") not in text
         assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") not in text
         assert "ГБОУ Школа Тест" in text

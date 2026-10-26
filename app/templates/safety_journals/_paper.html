@@ -1,0 +1,32 @@
+<div class="card card-body mb-4">
+  <h2 class="h5">Бумажный экземпляр</h2>
+  <p class="text-muted">Даты и подписи заполняются на распечатке от руки. Система хранит только отметки о сверке, месте подшивки и сканы.</p>
+  {% set paper = page.paper_record %}
+  {% if paper and paper.issue_at and not paper.checked_at %}<div class="alert alert-warning">Обнаружено расхождение: {{ paper.issue_note }}</div>{% endif %}
+  <dl class="row mb-3">
+    <dt class="col-md-3">Сверка</dt><dd class="col-md-9">{% if paper and paper.checked_at %}Проверено {{ paper.checked_at.strftime('%d.%m.%Y %H:%M') }} · {{ paper.checked_by.fio }}{% else %}Ожидается{% endif %}</dd>
+    <dt class="col-md-3">Подшивка</dt><dd class="col-md-9">{% if paper and paper.filed_at %}{{ paper.binder_ref }}{% if paper.sheet_ref %}, лист {{ paper.sheet_ref }}{% endif %} · {{ paper.filed_at.strftime('%d.%m.%Y %H:%M') }}{% else %}Ожидается{% endif %}</dd>
+    <dt class="col-md-3">Сканы</dt><dd class="col-md-9">{% if page.paper_scans %}{% for scan in page.paper_scans %}<div><a href="{{ url_for('safety_journals.paper_scan_download', page_id=page.id, scan_id=scan.id) }}">Версия {{ scan.version_number }} · {{ scan.original_filename }}</a> · {{ scan.uploaded_at.strftime('%d.%m.%Y %H:%M') }}</div>{% endfor %}{% else %}Не загружены{% endif %}</dd>
+  </dl>
+  {% if paper_manager and page.status == 'printed' %}
+    {% if not paper or not paper.checked_at %}
+    <form method="post" action="{{ url_for('safety_journals.paper_check', page_id=page.id) }}" class="border rounded p-3 mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h3 class="h6">Сверить распечатку</h3>
+      <label class="form-check"><input class="form-check-input" type="checkbox" name="roster_checked" required><span class="form-check-label">ФИО и состав сверены со страницей</span></label>
+      <label class="form-check"><input class="form-check-input" type="checkbox" name="dates_checked" required><span class="form-check-label">Рукописные даты проверены</span></label>
+      <label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="signatures_checked" required><span class="form-check-label">Живые подписи проверены</span></label>
+      <label class="form-label" for="paper-note">Примечание к сверке</label><textarea class="form-control mb-2" id="paper-note" name="note" maxlength="2000" rows="2"></textarea>
+      <button class="btn btn-primary">Подтвердить сверку</button>
+    </form>
+    {% endif %}
+    {% if not paper or not paper.filed_at %}
+    <details class="mb-3"><summary>Зафиксировать расхождение</summary><form method="post" action="{{ url_for('safety_journals.paper_issue', page_id=page.id) }}" class="mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="form-label">Что нужно исправить на бумаге</label><textarea class="form-control mb-2" name="issue_note" maxlength="2000" required></textarea><button class="btn btn-outline-warning">Записать расхождение</button></form></details>
+    {% endif %}
+    {% if paper and paper.checked_at and not paper.filed_at %}
+    <form method="post" action="{{ url_for('safety_journals.paper_file', page_id=page.id) }}" class="border rounded p-3 mb-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h3 class="h6">Подшить экземпляр</h3><div class="row g-2"><div class="col-md-8"><label class="form-label">Папка или место хранения</label><input class="form-control" name="binder_ref" maxlength="255" required></div><div class="col-md-4"><label class="form-label">Номер листа</label><input class="form-control" name="sheet_ref" maxlength="80"></div></div><button class="btn btn-outline-primary mt-2">Зафиксировать подшивку</button></form>
+    {% endif %}
+    {% if paper and paper.checked_at %}
+    <form method="post" action="{{ url_for('safety_journals.paper_scan_upload', page_id=page.id) }}" enctype="multipart/form-data" class="border rounded p-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h3 class="h6">Загрузить скан</h3><p class="text-muted">PDF, JPG или PNG до 20 МБ. Повторная загрузка создаёт новую версию и сохраняет прежнюю.</p><input class="form-control mb-2" type="file" name="scan" accept=".pdf,.jpg,.jpeg,.png" required><button class="btn btn-outline-primary">Сохранить скан</button></form>
+    {% endif %}
+  {% endif %}
+</div>
