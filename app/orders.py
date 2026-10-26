@@ -6,8 +6,9 @@ from sqlalchemy import bindparam, or_, text
 from sqlalchemy.orm import selectinload, joinedload
 
 from app.core.extensions import db
-from .models import SchoolOrder, OrderResponsible, OrderResponsibleLink, User
+from .models import SchoolOrder, OrderResponsible, OrderResponsibleLink, SafetyTripOrder, User
 from .permissions import has_any_role
+from app.services.safety_trip_service import parse_trip_data, sync_trip_order, cancel_trip, trip_status, STATUS_LABELS as TRIP_STATUS_LABELS
 
 orders_bp = Blueprint("orders", __name__)
 # Принимаем и /orders, и /orders/ (закладки пользователей ходят по обоим).
@@ -215,6 +216,11 @@ def registry():
     )
     items = query.distinct().order_by(SchoolOrder.order_date.desc(), SchoolOrder.number.desc()).all()
     _attach_responsible_display(items)
+    trip_ids = [item.id for item in items if item.section == "excursions"]
+    trip_map = {trip.order_id: trip for trip in SafetyTripOrder.query.filter(SafetyTripOrder.order_id.in_(trip_ids)).all()} if trip_ids else {}
+    for item in items:
+        if item.section == "excursions":
+            item.trip_status_label = TRIP_STATUS_LABELS[trip_status(trip_map[item.id])] if item.id in trip_map else "Не настроен"
     responsibles = OrderResponsible.query.order_by(OrderResponsible.section.asc()).all()
     users = _sorted_users()
     return render_template(
@@ -227,6 +233,8 @@ def registry():
         responsibles=responsibles,
         section_map=SECTION_MAP,
         responsible_id=responsible_id,
+        editable_codes=_allowed_order_sections("edit"),
+        can_manage_order_access=_is_orders_director(),
     )
 
 
@@ -250,6 +258,12 @@ def create():
             flash("Заполните номер, дату, название и доступное вам направление приказа.", "danger")
             return render_template("order_form.html", item=None, sections=editable_sections, users=users, selected_responsible_ids=responsible_user_ids)
 
+        try:
+            trip_data = parse_trip_data(request.form, order_date, responsible_user_ids) if section == "excursions" else None
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return render_template("order_form.html", item=None, sections=editable_sections, users=users, selected_responsible_ids=responsible_user_ids)
+
         item = SchoolOrder(
             number=number,
             title=title,
@@ -266,6 +280,8 @@ def create():
         db.session.add(item)
         db.session.flush()
         _sync_order_responsibles(item, responsible_user_ids)
+        if trip_data:
+            sync_trip_order(item, trip_data, responsible_user_ids, current_user.id)
         db.session.commit()
         flash("Приказ сохранён.", "success")
         return redirect(url_for("orders.registry", section=section))
@@ -284,6 +300,10 @@ def edit(order_id):
     editable_codes = _allowed_order_sections("edit")
     editable_sections = [(code, label) for code, label in SECTIONS if code in editable_codes]
     if request.method == "POST":
+        existing_trip = db.session.get(SafetyTripOrder, item.id)
+        if existing_trip is not None and request.form.get("trip_revision") != str(existing_trip.revision_number):
+            flash("Приказ о выезде уже изменён другим сотрудником. Обновите карточку.", "danger")
+            return redirect(url_for("orders.edit", order_id=item.id))
         number = (request.form.get("number") or "").strip()
         title = (request.form.get("title") or "").strip()
         section = (request.form.get("section") or item.section).strip()
@@ -298,6 +318,15 @@ def edit(order_id):
                 users=users,
                 selected_responsible_ids=responsible_user_ids,
             )
+        if item.section == "excursions" and section != "excursions":
+            flash("Направление зарегистрированного выезда нельзя изменить. Отмените приказ о выезде отдельно.", "danger")
+            return redirect(url_for("orders.edit", order_id=item.id))
+        try:
+            trip_data = parse_trip_data(request.form, order_date, responsible_user_ids) if section == "excursions" else None
+        except ValueError as exc:
+            flash(str(exc), "danger")
+            return render_template("order_form.html", item=item, sections=editable_sections, users=users, selected_responsible_ids=responsible_user_ids, trip_details=db.session.get(SafetyTripOrder, item.id))
+        prior_order_fields = (item.number, item.order_date, item.title)
         item.number = number
         item.title = title
         item.section = section
@@ -309,13 +338,20 @@ def edit(order_id):
         item.approved_by_deputy = bool(request.form.get("approved_by_deputy"))
         item.notes = (request.form.get("notes") or "").strip() or None
         _sync_order_responsibles(item, responsible_user_ids)
+        if trip_data:
+            try:
+                sync_trip_order(item, trip_data, responsible_user_ids, current_user.id, prior_order_fields=prior_order_fields)
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), "danger")
+                return redirect(url_for("orders.edit", order_id=item.id))
         db.session.commit()
         flash("Изменения сохранены.", "success")
         return redirect(url_for("orders.registry", section=item.section))
     selected = [link.user_id for link in getattr(item, "responsible_links", [])]
     if not selected and item.responsible_user_id:
         selected = [item.responsible_user_id]
-    return render_template("order_form.html", item=item, sections=editable_sections, users=users, selected_responsible_ids=selected)
+    return render_template("order_form.html", item=item, sections=editable_sections, users=users, selected_responsible_ids=selected, trip_details=db.session.get(SafetyTripOrder, item.id))
 
 
 @orders_bp.route("/orders/<int:order_id>/delete", methods=["POST"])
@@ -326,6 +362,12 @@ def delete(order_id):
     if not _can_edit_orders_section(item.section):
         abort(403)
     section = item.section
+    trip = db.session.get(SafetyTripOrder, item.id)
+    if trip is not None:
+        cancel_trip(trip, current_user.id)
+        db.session.commit()
+        flash("Приказ о выезде отменён; задачи и страницы журнала сохранены в истории.", "success")
+        return redirect(url_for("orders.registry", section=section))
     db.session.delete(item)
     db.session.commit()
     flash("Приказ удалён.", "success")

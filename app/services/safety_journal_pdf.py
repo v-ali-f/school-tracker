@@ -3,6 +3,7 @@
 from html import escape
 from io import BytesIO
 from pathlib import Path
+from datetime import date
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -95,10 +96,12 @@ def build_journal_pdf(page, participants):
         ("TOPPADDING", (0, 1), (-1, -1), 10),
         ("BOTTOMPADDING", (0, 1), (-1, -1), 10),
     ]))
+    trip = page.trip_snapshot or {}
+    journal_title = "Страница журнала инструктажа обучающихся при выезде" if page.kind == "trip" else "Страница журнала регистрации инструктажа обучающихся"
     story = [
         _paragraph(page.organization_name_snapshot, heading),
         Spacer(1, 3 * mm),
-        _paragraph("Страница журнала регистрации инструктажа обучающихся", heading),
+        _paragraph(journal_title, heading),
         _paragraph(
             f"№ {page.number} · дата инструктажа {page.instructed_on.strftime('%d.%m.%Y')} · группа {page.group_label}",
             subheading,
@@ -108,9 +111,19 @@ def build_journal_pdf(page, participants):
             f"(версия {page.instruction_version_number_snapshot})",
             subheading,
         ),
-        Spacer(1, 4 * mm),
-        table,
     ]
+    if trip:
+        order_date = date.fromisoformat(trip["order_date"]).strftime("%d.%m.%Y")
+        trip_date = date.fromisoformat(trip["trip_date"]).strftime("%d.%m.%Y")
+        story.append(_paragraph(
+            f"Приказ № {trip['order_number']} от {order_date} · {trip['order_title']}",
+            subheading,
+        ))
+        story.append(_paragraph(
+            f"{trip['trip_kind']} · {trip['destination']} · дата выезда {trip_date}",
+            subheading,
+        ))
+    story.extend([Spacer(1, 4 * mm), table])
 
     def footer(canvas, document):
         canvas.saveState()

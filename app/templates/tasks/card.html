@@ -16,6 +16,7 @@
       </a>
     </div>
     {% endif %}
+    {% if trip_order_id %}<div class="mt-2"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('safety_trips.detail', order_id=trip_order_id) }}">Открыть журнал выезда</a></div>{% endif %}
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tasks.my_tasks') }}"><i class="bi bi-arrow-left me-1"></i>К списку</a>

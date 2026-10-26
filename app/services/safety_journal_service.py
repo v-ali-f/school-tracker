@@ -176,6 +176,17 @@ def preview_payload(draft, author):
         raise ValueError("Выберите хотя бы один класс.")
     if not draft.selected_child_ids:
         raise ValueError("Добавьте хотя бы одного участника.")
+    trip = None
+    if draft.trip_assignment_id is not None:
+        from app.services.safety_trip_service import trip_snapshot
+        trip = draft.trip_order
+        assignment = draft.trip_assignment
+        if not trip or not assignment or not assignment.is_active or assignment.order_id != trip.order_id or assignment.user_id != author.id or trip.cancelled_at is not None:
+            raise ValueError("Назначение по выезду больше не действует.")
+        if draft.trip_order_revision != trip.revision_number:
+            raise ValueError("Приказ о выезде изменился. Создайте новый черновик из карточки выезда.")
+        if on_date > trip.trip_date:
+            raise ValueError("Инструктаж по выезду должен пройти не позднее даты выезда.")
     snapshots = participant_snapshots(on_date, draft.selected_child_ids)
     if not (author.last_name or "").strip() or not (author.first_name or "").strip():
         raise ValueError("Заполните полное ФИО в профиле педагога.")
@@ -199,5 +210,7 @@ def preview_payload(draft, author):
         "group_label": group_label,
         "participants": snapshots,
     }
+    if trip is not None:
+        payload["trip"] = trip_snapshot(trip, assignment)
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return payload, hashlib.sha256(encoded).hexdigest()

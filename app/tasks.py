@@ -1372,6 +1372,10 @@ def task_card(task_id):
         abort(403)
     comments = TaskComment.query.filter_by(task_id=task.id).order_by(TaskComment.created_at.desc()).all()
     history_entries = TaskHistory.query.filter_by(task_id=task.id).order_by(TaskHistory.created_at.desc()).all()
+    from app.models import SafetyTripAssignment
+    from app.services.safety_trip_service import can_view_trip
+    trip_assignment = SafetyTripAssignment.query.filter_by(task_id=task.id).first()
+    trip_order_id = trip_assignment.order_id if trip_assignment and can_view_trip(current_user, trip_assignment.trip) else None
 
     # Связанный инцидент (если задача создана из инцидента)
     linked_incident = None
@@ -1383,7 +1387,7 @@ def task_card(task_id):
     except Exception:
         linked_incident = None
 
-    return render_template('tasks/card.html', task=task, comments=comments, history_entries=history_entries, status_choices=Task.STATUS_CHOICES, can_edit=_can_edit_task(task), can_delete_task=_can_delete_task(task), counts=_task_counts(), attachment_groups=_attachment_groups(task), format_file_size=_format_file_size, can_delete_attachment=_can_delete_attachment, linked_incident=linked_incident)
+    return render_template('tasks/card.html', task=task, comments=comments, history_entries=history_entries, status_choices=Task.STATUS_CHOICES, can_edit=_can_edit_task(task) and trip_assignment is None, can_delete_task=_can_delete_task(task) and trip_assignment is None, counts=_task_counts(), attachment_groups=_attachment_groups(task), format_file_size=_format_file_size, can_delete_attachment=_can_delete_attachment, linked_incident=linked_incident, trip_order_id=trip_order_id)
 
 
 @tasks_bp.route('/<int:task_id>/edit', methods=['GET', 'POST'])
@@ -1392,6 +1396,9 @@ def edit_task(task_id):
     task = Task.query.get_or_404(task_id)
     if not _can_edit_task(task):
         abort(403)
+    from app.models import SafetyTripAssignment
+    if SafetyTripAssignment.query.filter_by(task_id=task.id).first() is not None:
+        abort(409, "Эта задача обновляется из приказа о выезде.")
 
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     selected_year_id = request.form.get('academic_year_id', type=int) if request.method == 'POST' else task.academic_year_id
@@ -1495,6 +1502,9 @@ def change_status(task_id):
         abort(404)
     if not _can_edit_task(task):
         abort(403)
+    from app.models import SafetyTripAssignment
+    if SafetyTripAssignment.query.filter_by(task_id=task.id).first() is not None:
+        abort(409, "Статус этой задачи определяется журналом выезда.")
     status = (request.form.get('status') or '').strip()
     if status not in Task.STATUS_CHOICES:
         flash('Недопустимый статус', 'danger')
@@ -1603,6 +1613,9 @@ def delete_task(task_id):
     task = Task.query.get_or_404(task_id)
     if not _can_delete_task(task):
         abort(403)
+    from app.models import SafetyTripAssignment
+    if SafetyTripAssignment.query.filter_by(task_id=task.id).first() is not None:
+        abort(409, "Задача связана с приказом о выезде и сохраняется в истории.")
 
     next_url = request.form.get('next') or request.args.get('next') or url_for('tasks.created_by_me')
 

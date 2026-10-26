@@ -1218,6 +1218,13 @@ def build_home_context():
             "endpoint": "safety_journals.index", "url": url_for("safety_journals.index"),
             "title": "Журналы инструктажей", "icon": "bi-journal-text",
         })
+    if not preview_role:
+        from app.models import SafetyTripAssignment
+        if is_officer(current_user) or is_director(current_user) or is_admin(current_user) or SafetyTripAssignment.query.filter_by(user_id=current_user.id, is_active=True).first() is not None:
+            sidebar_sections.append({
+                "endpoint": "safety_trips.index", "url": url_for("safety_trips.index"),
+                "title": "Выезды и экскурсии", "icon": "bi-bus-front",
+            })
     sidebar_admin_actions = unique_sidebar_items(page.get("admin_sections"))
 
     return {

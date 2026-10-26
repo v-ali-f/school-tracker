@@ -16,6 +16,7 @@ from app.models import (
     Building, SafetyInstructionVersion, SafetyJournalDraft, SafetyJournalDraftEvent,
     SafetyJournalPage, SafetyJournalPageClass, SafetyJournalPageEvent,
     SafetyJournalPageRevision, SafetyJournalParticipant,
+    SafetyTripAssignment,
 )
 from app.models.safety_passport import utc_now
 from app.services.safety_journal_pdf import build_journal_pdf
@@ -42,6 +43,8 @@ def _context():
 def _draft_or_404(draft_id):
     draft = db.session.get(SafetyJournalDraft, draft_id) or abort(404)
     if draft.author_id != current_user.id:
+        abort(403)
+    if draft.trip_assignment_id is not None and (draft.trip_assignment is None or draft.trip_assignment.user_id != current_user.id or not draft.trip_assignment.is_active):
         abort(403)
     return draft
 
@@ -79,7 +82,8 @@ def _event(draft, action, child_id=None, details=None):
 @login_required
 def index():
     manager = is_officer(current_user) or is_director(current_user) or is_admin(current_user)
-    if not manager and not can_create_journal(current_user):
+    trip_assigned = SafetyTripAssignment.query.filter_by(user_id=current_user.id, is_active=True).first() is not None
+    if not manager and not can_create_journal(current_user) and not trip_assigned:
         abort(403)
     query = SafetyJournalPage.query.options(selectinload(SafetyJournalPage.participants))
     if not manager:
@@ -102,7 +106,7 @@ def index():
     if status in {"generated", "printed", "annulled"}:
         query = query.filter_by(status=status)
     pages = query.order_by(SafetyJournalPage.created_at.desc(), SafetyJournalPage.id.desc()).limit(300).all()
-    drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) else []
+    drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) or trip_assigned else []
     return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), status=status, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
 
 
@@ -155,7 +159,7 @@ def edit(draft_id):
             pass
     return render_template(
         "safety_journals/edit.html", **_context(), draft=draft, classes=classes,
-        versions=versions, selected=selected, removed=removed, found=found,
+        versions=versions, selected=selected, removed=removed, found=found, trip=draft.trip_order,
         chosen_date=chosen_date, chosen_grade=chosen_grade, today=school_today(),
     )
 
@@ -170,6 +174,8 @@ def save_settings(draft_id):
         on_date = date.fromisoformat(request.form.get("instructed_on", ""))
         if on_date > school_today():
             raise ValueError("Дата инструктажа не может быть в будущем.")
+        if draft.trip_order_id is not None and (draft.trip_order.cancelled_at is not None or on_date > draft.trip_order.trip_date):
+            raise ValueError("Инструктаж по выезду должен пройти не позднее даты действующего выезда.")
         grade = int(request.form.get("grade", "0"))
         if grade not in range(1, 12):
             raise ValueError("Выберите параллель с 1 по 11 класс.")
@@ -254,15 +260,26 @@ def preview(draft_id):
 @login_required
 def generate(draft_id):
     draft = _draft_or_404(str(draft_id))
-    if not can_create_journal(current_user):
+    if draft.trip_assignment_id is None and not can_create_journal(current_user):
         abort(403)
     stored = None
     try:
         payload, digest = preview_payload(draft, current_user)
         if digest != request.form.get("preview_digest"):
             raise ValueError("Состав или данные изменились после предварительного просмотра. Проверьте страницу снова.")
+        if draft.trip_assignment_id is not None:
+            assignment = (
+                SafetyTripAssignment.query.filter_by(id=draft.trip_assignment_id)
+                .with_for_update().populate_existing().first()
+            )
+            existing = assignment.current_page if assignment else None
+            if existing is not None and existing.trip_order_revision == draft.trip_order_revision and existing.status != "annulled":
+                raise ValueError("Страница по этой редакции приказа уже сформирована.")
         page = SafetyJournalPage(
             number=f"TMP-{uuid4().hex}", source_draft_id=draft.id, author_id=current_user.id,
+            kind="trip" if "trip" in payload else "ordinary",
+            trip_order_id=draft.trip_order_id, trip_assignment_id=draft.trip_assignment_id,
+            trip_order_revision=draft.trip_order_revision, trip_snapshot=payload.get("trip"),
             instruction_version_id=draft.instruction_version_id,
             instructed_on=draft.instructed_on, group_label=payload["group_label"],
             organization_name_snapshot=payload["organization_name"],
@@ -272,11 +289,12 @@ def generate(draft_id):
             instruction_summary_snapshot=payload["instruction_summary"],
             instruction_file_sha256_snapshot=payload["instruction_file_sha256"],
             instruction_version_number_snapshot=payload["instruction_version_number"],
-            kind="ordinary", status="generated",
+            status="generated",
         )
         db.session.add(page)
         db.session.flush()
-        page.number = f"ОТ-{draft.instructed_on.year}-{page.id:06d}"
+        prefix = "ОТ-В" if page.kind == "trip" else "ОТ"
+        page.number = f"{prefix}-{draft.instructed_on.year}-{page.id:06d}"
         class_map = {}
         for sequence, person in enumerate(payload["participants"], 1):
             db.session.add(SafetyJournalParticipant(
@@ -301,6 +319,8 @@ def generate(draft_id):
             created_by_id=current_user.id,
         ))
         db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="generated", details={"count": len(payload["participants"])}))
+        if draft.trip_assignment_id is not None:
+            draft.trip_assignment.current_page_id = page.id
         draft.status = "generated"
         draft.page_id = page.id
         db.session.commit()
@@ -401,6 +421,9 @@ def confirm_printed(page_id):
         abort(409)
     page.status = "printed"
     page.printed_at = utc_now()
+    if page.trip_assignment_id is not None:
+        from app.services.safety_trip_service import complete_assignment_task
+        complete_assignment_task(page.trip_assignment, page)
     db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="printed_confirmed"))
     db.session.commit()
     flash("Печать подтверждена.", "success")
@@ -423,6 +446,10 @@ def annul(page_id):
     page.annulled_at = utc_now()
     page.annulled_by_id = current_user.id
     page.annul_reason = reason
+    if page.trip_assignment_id is not None and page.trip_assignment.current_page_id == page.id:
+        from app.services.safety_trip_service import reopen_assignment_task
+        page.trip_assignment.current_page_id = None
+        reopen_assignment_task(page.trip_assignment)
     db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="annulled", details={"reason": reason}))
     db.session.commit()
     flash("Страница аннулирована; PDF сохранён в истории.", "success")
