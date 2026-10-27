@@ -212,6 +212,9 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
         assert [person.child_id for person in page.participants] == [first]
         with pdfplumber.open(BytesIO(old_pdf)) as document:
             text = document.pages[0].extract_text()
+            for prefix in ("Вид инструктажа:", "Проводивший инструктаж:"):
+                line = next(item for item in document.pages[0].extract_text_lines() if item["text"].startswith(prefix))
+                assert abs((line["x0"] + line["x1"]) / 2 - document.pages[0].width / 2) < 8
         assert "Вид инструктажа: повторный" in text
         assert "Перед лабораторной работой" in text
         assert "Проводивший инструктаж: Тестов Пользователь" in text
