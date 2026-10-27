@@ -76,6 +76,8 @@ class SafetyJournalDraft(db.Model):
     subject = db.Column(db.String(120), nullable=True)
     briefing_kind = db.Column(db.String(80), nullable=True)
     header_note = db.Column(db.String(500), nullable=True)
+    journal_kind = db.Column(db.String(20), nullable=False, default="ordinary")
+    manual_trip = db.Column(db.JSON, nullable=True)
     instructed_on = db.Column(db.Date, nullable=True)
     grade = db.Column(db.Integer, nullable=True)
     class_ids = db.Column(db.JSON, nullable=False, default=list)

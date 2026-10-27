@@ -510,3 +510,83 @@ def test_pdf_repeats_nine_column_header_on_each_sheet(app, client, make_user, lo
             assert max(char["x1"] for char in sheet.chars) <= sheet.width - printable_margin
             assert min(line["x0"] for line in sheet.lines) >= printable_margin
             assert max(line["x1"] for line in sheet.lines) <= sheet.width - printable_margin
+
+
+def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    login(ids["viewer"])
+    assert client.post("/safety/journals/trips/new").status_code == 403
+    login(ids["officer"])
+    assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"]), content_type="multipart/form-data").status_code == 302
+    with app.app_context():
+        version_id = SafetyInstructionVersion.query.one().id
+    login(ids["teacher"])
+    registry = client.get("/safety/journals/trips")
+    assert registry.status_code == 200 and "Приказ не обязателен" in registry.get_data(as_text=True)
+    assert client.get("/safety/trips/").headers["Location"].endswith("/safety/journals/trips")
+    response = client.post("/safety/journals/trips/new")
+    assert response.status_code == 302
+    draft_url = response.headers["Location"]
+    editor = client.get(draft_url).get_data(as_text=True)
+    assert "Номер приказа" in editor and 'name="order_number"' in editor
+    choices = client.get(f"/safety/journals/trips/choices?grade=5&class_id={ids['class']}").get_json()
+    assert {item["id"] for item in choices["classes"]} == {ids["class"], ids["other_class"]}
+    assert f"version:{version_id}" in {item["id"] for item in choices["instructions"]}
+    data = {
+        "trip_kind": "Экскурсия", "destination": "Музей науки",
+        "trip_date": (ids["today"] + timedelta(days=1)).isoformat(), "order_number": "",
+        "briefing_kind": "целевой", "instruction_choice": f"version:{version_id}",
+        "child_ids": [str(ids["children"][0]), str(ids["children"][2])],
+    }
+    preview = client.post(f"{draft_url}/compose/preview", data=data)
+    assert preview.status_code == 200 and preview.data.startswith(b"%PDF")
+    with pdfplumber.open(BytesIO(preview.data)) as document:
+        pdf_text = document.pages[0].extract_text()
+        assert "Музей науки" in pdf_text and "Приказ №" not in pdf_text
+    generated = client.post(f"{draft_url}/compose", data=data)
+    assert generated.status_code == 302
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        page_id = page.id
+        assert page.kind == "trip" and page.trip_order_id is None and page.trip_assignment_id is None
+        assert page.trip_snapshot == {"trip_kind": "Экскурсия", "destination": "Музей науки",
+                                      "trip_date": data["trip_date"], "order_number": ""}
+        assert {item.class_name_snapshot for item in page.participants} == {"5А", "5Б"}
+    detail = client.get(generated.headers["Location"]).get_data(as_text=True)
+    assert "Исправить данные журнала" in detail and "Музей науки" in detail
+    assert "Карточка выезда" not in detail
+    correction = client.post(f"/safety/journals/pages/{page_id}/correct")
+    assert correction.status_code == 302
+    corrected = client.post(f"{correction.headers['Location']}/compose", data={**data, "order_number": "42"})
+    assert corrected.status_code == 302
+    with app.app_context():
+        page = db.session.get(SafetyJournalPage, page_id)
+        assert page.trip_snapshot["order_number"] == "42"
+        assert len(page.revisions) == 2
+
+
+def test_trip_can_use_reference_pdf_without_subject_or_order(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    content = b"%PDF-1.4 trip reference"
+    digest = hashlib.sha256(content).hexdigest()
+    folder = tmp_path / "safety" / "library"
+    folder.mkdir(parents=True)
+    (folder / f"{digest}.pdf").write_bytes(content)
+    (folder / "manifest.json").write_text(json.dumps([
+        {"id": digest, "title": "ИОТ-ВЫЕЗД Правила поведения в транспорте", "filename": "transport.pdf"}
+    ], ensure_ascii=False), encoding="utf-8")
+    login(ids["teacher"])
+    draft_url = client.post("/safety/journals/trips/new").headers["Location"]
+    choices = client.get("/safety/journals/trips/choices").get_json()
+    assert f"library:{digest}" in {item["id"] for item in choices["instructions"]}
+    data = {
+        "trip_kind": "Экскурсия", "destination": "Театр", "trip_date": ids["today"].isoformat(),
+        "briefing_kind": "целевой", "instruction_choice": f"library:{digest}",
+        "child_ids": [str(ids["children"][0])],
+    }
+    assert client.post(f"{draft_url}/compose/preview", data=data).status_code == 200
+    assert client.post(f"{draft_url}/compose", data=data).status_code == 302
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        assert page.kind == "trip" and page.library_item_id == digest
+        assert page.instruction_version_id is None and page.trip_snapshot["order_number"] == ""

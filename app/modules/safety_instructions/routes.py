@@ -58,6 +58,11 @@ def _library_items():
     return items
 
 
+def journal_library_items():
+    """List reference PDFs that can be chosen for a standalone trip journal."""
+    return _library_items()
+
+
 def library_suggestions(subject):
     """Find reference PDFs for a school subject, including Russian case endings."""
     normalized = subject.strip().casefold().replace("ё", "е")
@@ -84,13 +89,14 @@ def library_suggestions(subject):
     ]
 
 
-def journal_library_item(item_id, subject):
-    """Resolve a subject-matched PDF without claiming catalog approval."""
+def journal_library_item(item_id, subject=None):
+    """Resolve a reference PDF; subject matching applies to class journals."""
     if not re.fullmatch(r"[0-9a-f]{64}", item_id or ""):
         raise ValueError("Выберите инструкцию из перечня PDF.")
-    item = next((entry for entry in library_suggestions(subject) if entry.get("id") == item_id), None)
+    candidates = library_suggestions(subject) if subject else _library_items()
+    item = next((entry for entry in candidates if entry.get("id") == item_id), None)
     if item is None:
-        raise ValueError("Выбранный PDF не подходит для предмета или удалён из перечня.")
+        raise ValueError("Выбранный PDF не подходит для журнала или удалён из перечня.")
     path = _library_dir() / f"{item_id}.pdf"
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != item_id:
         raise ValueError("Файл инструкции недоступен или повреждён.")

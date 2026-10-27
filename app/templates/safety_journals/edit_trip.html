@@ -1,0 +1,35 @@
+{% extends "workspace_layout.html" %}
+{% block title %}{{ 'Исправить журнал выезда' if draft.page_id else 'Журнал выезда' }}{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3">
+  <div><div class="section-overline">Техника безопасности · выезды</div><h1 class="page-title">{{ 'Исправить журнал выезда' if draft.page_id else 'Сформировать журнал выезда' }}</h1><p class="page-sub">Укажите выезд, инструкцию и участников. Приказ выбирать не требуется; его номер можно вписать вручную, если он известен. Даты инструктажа и подписи в печатном журнале заполняются от руки.</p></div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('safety_journals.detail', page_id=draft.page_id) if draft.page_id else url_for('safety_journals.trips_index') }}">Назад к выездам</a>
+</div>
+<form id="trip-journal-compose" method="post" action="{{ url_for('safety_journals.compose', draft_id=draft.id) }}"
+      data-choices-url="{{ url_for('safety_journals.trip_choices') }}" data-preview-url="{{ url_for('safety_journals.compose_preview', draft_id=draft.id) }}"
+      data-selected-grade="{{ draft.grade or '' }}" data-selected-class="{{ draft.class_ids[0] if draft.class_ids else '' }}"
+      data-selected-students='{{ selected_students|tojson }}'
+      data-selected-instruction="{{ 'library:' ~ draft.library_item_id if draft.library_item_id else 'version:' ~ draft.instruction_version_id if draft.instruction_version_id else '' }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card card-body mb-3"><h2 class="h5">Выезд</h2><div class="row g-3">
+    <div class="col-md-4"><label class="form-label" for="trip-kind">Вид выезда</label><input class="form-control" id="trip-kind" name="trip_kind" list="trip-kind-options" maxlength="80" value="{{ (draft.manual_trip or {}).get('trip_kind', '') }}" placeholder="Например, экскурсия" required><datalist id="trip-kind-options"><option value="Экскурсия"><option value="Выездное занятие"><option value="Соревнование"><option value="Поход"></datalist></div>
+    <div class="col-md-4"><label class="form-label" for="trip-destination">Куда выезжаете</label><input class="form-control" id="trip-destination" name="destination" maxlength="200" value="{{ (draft.manual_trip or {}).get('destination', '') }}" placeholder="Место или маршрут" required></div>
+    <div class="col-md-4"><label class="form-label" for="trip-date">Дата выезда</label><input class="form-control" type="date" id="trip-date" name="trip_date" value="{{ (draft.manual_trip or {}).get('trip_date', today.isoformat()) }}" required></div>
+    <div class="col-md-4"><label class="form-label" for="trip-order-number">Номер приказа <span class="text-muted fw-normal">(необязательно)</span></label><input class="form-control" id="trip-order-number" name="order_number" maxlength="80" value="{{ (draft.manual_trip or {}).get('order_number', '') }}" placeholder="Можно оставить пустым"></div>
+    <div class="col-md-4"><label class="form-label" for="trip-briefing-kind">Вид инструктажа</label><select class="form-select" id="trip-briefing-kind" name="briefing_kind" required><option value="">Выберите вид</option>{% for value in ['первичный','повторный','внеплановый','целевой'] %}<option value="{{ value }}" {% if draft.briefing_kind == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}</select></div>
+    <div class="col-md-9"><label class="form-label" for="trip-instruction">Инструкция из каталога или перечня PDF</label><select class="form-select" id="trip-instruction" name="instruction_choice" required><option value="">Загружаю инструкции…</option></select></div>
+    <div class="col-md-3 d-flex align-items-end"><button type="button" class="btn btn-outline-primary w-100" id="trip-instruction-preview" data-bs-toggle="modal" data-bs-target="#safety-pdf-preview-modal" disabled>Просмотреть инструкцию</button></div>
+    <div class="col-12"><label class="form-label" for="trip-note">Дополнительная информация <span class="text-muted fw-normal">(необязательно, появится в шапке PDF)</span></label><textarea class="form-control" id="trip-note" name="header_note" rows="2" maxlength="500">{{ draft.header_note or '' }}</textarea></div>
+  </div></div>
+  <div class="card card-body mb-3"><h2 class="h5">Участники</h2><p class="small text-muted">Выберите класс и отметьте учеников. Можно последовательно добавить учеников из нескольких классов. Даты рождения показаны для переноса в распечатанный журнал.</p>
+    <div class="row g-2 mb-3"><div class="col-md-4"><label class="form-label" for="trip-grade">Параллель</label><select class="form-select" id="trip-grade"><option value="">Выберите параллель</option></select></div><div class="col-md-4"><label class="form-label" for="trip-class">Класс</label><select class="form-select" id="trip-class" disabled><option value="">Сначала выберите параллель</option></select></div><div class="col-md-4 d-flex align-items-end"><button type="button" class="btn btn-outline-secondary w-100" id="trip-select-all" disabled>Добавить весь класс</button></div></div>
+    <div class="registry-matrix-card"><div class="registry-table-scroll" tabindex="0" aria-label="Список класса"><table class="registry-matrix registry-matrix-medium"><colgroup><col style="width:70px"><col><col style="width:150px"></colgroup><thead><tr><th>Включить</th><th>Ученик</th><th>Дата рождения</th></tr></thead><tbody id="trip-roster"><tr><td colspan="3" class="registry-empty-row">Выберите класс.</td></tr></tbody></table></div></div>
+    <div class="mt-3"><h3 class="h6">В журнале <span id="trip-selected-count">0</span></h3><div id="trip-selected-list" class="small text-muted">Пока никто не выбран.</div></div>
+    <div id="trip-selected-inputs"></div>
+  </div>
+  <div id="trip-choice-message" class="small mb-2" role="status"></div>
+  <div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-primary" id="trip-preview" disabled>Предпросмотр журнала</button><button class="btn btn-primary" id="trip-submit" disabled>{{ 'Сохранить исправления' if draft.page_id else 'Сформировать журнал' }}</button></div>
+</form>
+{% include "safety_instructions/_pdf_preview_modal.html" %}
+<script src="{{ url_for('static', filename='js/safety_journal_trip.js') }}?v=20261027_1" defer></script>
+{% endblock %}

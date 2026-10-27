@@ -1,4 +1,4 @@
-"""Teacher drafts and immutable ordinary safety journal pages."""
+"""Teacher drafts and immutable safety journal pages for classes and trips."""
 
 import hashlib
 from datetime import date
@@ -126,8 +126,10 @@ def _event(draft, action, child_id=None, details=None):
 
 
 @safety_journals_bp.route("/")
+@safety_journals_bp.route("/trips", endpoint="trips_index")
 @login_required
 def index():
+    trip_section = request.endpoint == "safety_journals.trips_index"
     manager = is_officer(current_user) or is_director(current_user) or is_admin(current_user)
     trip_assigned = SafetyTripAssignment.query.filter_by(user_id=current_user.id, is_active=True).first() is not None
     if not manager and not can_create_journal(current_user) and not trip_assigned:
@@ -156,12 +158,14 @@ def index():
     status = request.args.get("status", "")
     if status in {"generated", "printed", "annulled"}:
         query = query.filter_by(status=status)
-    kind = request.args.get("kind", "")
+    kind = "trip" if trip_section else request.args.get("kind", "")
     if kind in {"ordinary", "trip"}:
         query = query.filter_by(kind=kind)
     pages = query.order_by(SafetyJournalPage.created_at.desc(), SafetyJournalPage.id.desc()).limit(300).all()
     drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) or trip_assigned else []
-    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
+    if trip_section:
+        drafts = [item for item in drafts if item.journal_kind == "trip" or item.trip_order_id is not None]
+    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, trip_section=trip_section, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
 
 
 @safety_journals_bp.route("/new", methods=["POST"])
@@ -173,6 +177,22 @@ def create():
     db.session.add(draft)
     db.session.flush()
     _event(draft, "created")
+    db.session.commit()
+    return redirect(url_for("safety_journals.edit", draft_id=draft.id))
+
+
+@safety_journals_bp.route("/trips/new", methods=["POST"])
+@login_required
+def create_trip():
+    if not can_create_journal(current_user):
+        abort(403)
+    draft = SafetyJournalDraft(
+        id=str(uuid4()), author_id=current_user.id, journal_kind="trip",
+        instructed_on=school_today(), class_ids=[], selected_child_ids=[], removed_child_ids=[],
+    )
+    db.session.add(draft)
+    db.session.flush()
+    _event(draft, "created", details={"kind": "trip"})
     db.session.commit()
     return redirect(url_for("safety_journals.edit", draft_id=draft.id))
 
@@ -189,7 +209,7 @@ def edit(draft_id):
         chosen_date = draft.instructed_on or school_today()
     chosen_grade = request.args.get("grade", type=int) or draft.grade
     try:
-        trip = draft.trip_order_id is not None
+        trip = draft.trip_order_id is not None or draft.journal_kind == "trip"
         all_classes = journal_classes_for_user(chosen_date, current_user, trip=trip)
         grades = sorted({item.grade for item in all_classes if item.grade})
         classes = [item for item in all_classes if item.grade == chosen_grade] if chosen_grade else []
@@ -226,12 +246,17 @@ def edit(draft_id):
             removed = [removed_map[int(child_id)] for child_id in draft.removed_child_ids]
         except ValueError:
             pass
+    template = ("safety_journals/edit.html" if draft.trip_order_id is not None else
+        "safety_journals/edit_trip.html" if draft.journal_kind == "trip" else "safety_journals/edit_ordinary.html")
     return render_template(
-        "safety_journals/edit.html" if draft.trip_order_id is not None else "safety_journals/edit_ordinary.html",
+        template,
         **_context(), draft=draft, classes=classes,
         versions=versions, subjects=subjects, grades=grades, chosen_class=chosen_class, library_items=library_items,
         chosen_subject=chosen_subject,
         class_roster=class_roster, selected=selected, removed=removed, found=found, trip=draft.trip_order,
+        selected_students=[{"id": item.child_id, "name": item.child.fio, "class_name": item.school_class.name,
+                            "birth_date": item.child.birth_date.strftime("%d.%m.%Y") if item.child.birth_date else ""}
+                           for item in selected],
         chosen_date=chosen_date, chosen_grade=chosen_grade, today=school_today(),
         manager_mode=is_admin(current_user) or is_director(current_user),
         can_manage_instructions=can_manage_instructions(current_user),
@@ -292,6 +317,46 @@ def choices():
         return jsonify({"error": str(exc)}), 400
 
 
+@safety_journals_bp.route("/trips/choices")
+@login_required
+def trip_choices():
+    if not can_create_journal(current_user):
+        abort(403)
+    try:
+        on_date = school_today()
+        all_classes = journal_classes_for_user(on_date, current_user, trip=True)
+        grade = request.args.get("grade", type=int)
+        classes = [item for item in all_classes if item.grade == grade] if grade else []
+        class_id = request.args.get("class_id", type=int)
+        classroom = next((item for item in classes if item.id == class_id), None)
+        roster = roster_for_classes(on_date, [classroom.id]) if classroom else {}
+        from app.modules.safety_instructions.routes import journal_library_items
+        versions = effective_instruction_versions(on_date)
+        instructions = [{
+            "id": f"version:{item.id}", "label": f"{item.instruction.number} — {item.title_snapshot}",
+            "preview_url": url_for("safety_instructions.download_original", version_id=item.id, inline=1) if item.file_mime_type == "application/pdf" else "",
+            "download_url": url_for("safety_instructions.download_original", version_id=item.id),
+        } for item in versions]
+        known_hashes = {item.file_sha256 for item in versions}
+        instructions.extend({
+            "id": f"library:{item['id']}", "label": item["title"],
+            "preview_url": url_for("safety_instructions.library_pdf", item_id=item["id"]),
+            "download_url": url_for("safety_instructions.library_pdf", item_id=item["id"], download=1),
+        } for item in journal_library_items() if item["id"] not in known_hashes)
+        response = jsonify({
+            "grades": sorted({item.grade for item in all_classes if item.grade}),
+            "classes": [{"id": item.id, "name": item.name} for item in classes],
+            "instructions": instructions,
+            "roster": [{"id": item.child_id, "name": item.child.fio, "class_name": item.school_class.name,
+                        "birth_date": item.child.birth_date.strftime("%d.%m.%Y") if item.child.birth_date else ""}
+                       for item in sorted(roster.values(), key=lambda row: row.child.fio.casefold())],
+        })
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 @safety_journals_bp.route("/drafts/<uuid:draft_id>/compose", methods=["POST"])
 @login_required
 def compose(draft_id):
@@ -299,7 +364,7 @@ def compose(draft_id):
     if draft.status != "draft" or draft.trip_order_id is not None or not can_create_journal(current_user):
         abort(409)
     try:
-        _populate_ordinary_draft(draft)
+        _populate_trip_draft(draft) if draft.journal_kind == "trip" else _populate_ordinary_draft(draft)
         _event(draft, "composed", details={"class_id": draft.class_ids[0], "version_id": draft.instruction_version_id,
                                             "library_item_id": draft.library_item_id, "count": len(draft.selected_child_ids)})
         db.session.commit()
@@ -308,6 +373,59 @@ def compose(draft_id):
         flash(str(exc), "danger")
         return redirect(url_for("safety_journals.edit", draft_id=draft.id))
     return _generate_page(draft)
+
+
+def _populate_trip_draft(draft):
+    trip_kind = (request.form.get("trip_kind") or "").strip()
+    destination = (request.form.get("destination") or "").strip()
+    order_number = (request.form.get("order_number") or "").strip()
+    note = (request.form.get("header_note") or "").strip()
+    briefing_kind = (request.form.get("briefing_kind") or "").strip().casefold()
+    try:
+        trip_date = date.fromisoformat(request.form.get("trip_date") or "")
+    except ValueError as exc:
+        raise ValueError("Укажите дату выезда.") from exc
+    if not trip_kind or len(trip_kind) > 80 or not destination or len(destination) > 200:
+        raise ValueError("Укажите вид и место выезда.")
+    if len(order_number) > 80 or len(note) > 500:
+        raise ValueError("Сократите номер приказа или дополнительную информацию.")
+    if briefing_kind not in {"первичный", "повторный", "внеплановый", "целевой"}:
+        raise ValueError("Выберите вид инструктажа.")
+    choice = (request.form.get("instruction_choice") or "").strip()
+    version_id, library_item_id = None, None
+    if choice.startswith("library:"):
+        library_item_id = choice.partition(":")[2]
+        from app.modules.safety_instructions.routes import journal_library_item
+        journal_library_item(library_item_id)
+    else:
+        try:
+            version_id = int(choice.partition(":")[2] if choice.startswith("version:") else choice)
+        except ValueError as exc:
+            raise ValueError("Выберите инструкцию для выезда.") from exc
+        if not instruction_is_effective(db.session.get(SafetyInstructionVersion, version_id), draft.instructed_on):
+            raise ValueError("Выбранная инструкция больше не действует.")
+    try:
+        child_ids = [int(value) for value in request.form.getlist("child_ids")]
+    except ValueError as exc:
+        raise ValueError("Обновите список участников выезда.") from exc
+    enrollments = selected_enrollments(draft.instructed_on, child_ids)
+    classes = {item.id: item for item in journal_classes_for_user(draft.instructed_on, current_user, trip=True)}
+    class_ids = sorted({item.school_class_id for item in enrollments.values()})
+    if not set(class_ids).issubset(classes):
+        raise ValueError("Один из выбранных классов больше не доступен.")
+    draft.grade = classes[class_ids[0]].grade
+    draft.class_ids = class_ids
+    draft.selected_child_ids = child_ids
+    draft.removed_child_ids = []
+    draft.subject = trip_kind
+    draft.instruction_version_id = version_id
+    draft.library_item_id = library_item_id
+    draft.briefing_kind = briefing_kind
+    draft.header_note = note
+    draft.manual_trip = {"trip_kind": trip_kind, "destination": destination,
+                         "trip_date": trip_date.isoformat(), "order_number": order_number}
+    db.session.flush()
+    db.session.expire(draft, ["instruction_version"])
 
 
 def _populate_ordinary_draft(draft):
@@ -363,10 +481,10 @@ def compose_preview(draft_id):
     if draft.status != "draft" or draft.trip_order_id is not None or not can_create_journal(current_user):
         abort(409)
     try:
-        _populate_ordinary_draft(draft)
+        _populate_trip_draft(draft) if draft.journal_kind == "trip" else _populate_ordinary_draft(draft)
         payload, _ = preview_payload(draft, current_user)
         page = SimpleNamespace(
-            number="ПРЕДПРОСМОТР", kind="ordinary", trip_snapshot=None,
+            number="ПРЕДПРОСМОТР", kind=draft.journal_kind, trip_snapshot=payload.get("trip"),
             instruction_version=draft.instruction_version,
             organization_name_snapshot=payload["organization_name"],
             instructor_name_snapshot=payload["instructor_name"], group_label=payload["group_label"],
@@ -392,7 +510,8 @@ def compose_preview(draft_id):
 
 def _correct_page(draft, payload):
     page = db.session.get(SafetyJournalPage, draft.page_id)
-    if page is None or page.kind != "ordinary" or page.author_id != current_user.id or page.status not in {"generated", "printed"}:
+    if (page is None or page.trip_order_id is not None or page.author_id != current_user.id
+            or page.status not in {"generated", "printed"}):
         abort(409)
     db.session.refresh(page, with_for_update=True)
     paper = page.paper_record
@@ -414,6 +533,7 @@ def _correct_page(draft, payload):
     page.instruction_version_number_snapshot = payload["instruction_version_number"]
     page.briefing_kind_snapshot = payload["briefing_kind"]
     page.header_note_snapshot = payload["header_note"]
+    page.trip_snapshot = payload.get("trip")
     SafetyJournalParticipant.query.filter_by(page_id=page.id).delete(synchronize_session=False)
     SafetyJournalPageClass.query.filter_by(page_id=page.id).delete(synchronize_session=False)
     db.session.expire(page, ["participants", "classes"])
@@ -703,7 +823,7 @@ def detail(page_id):
     db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="viewed"))
     db.session.commit()
     revision = page.revisions[-1]
-    can_correct = (page.kind == "ordinary" and page.author_id == current_user.id and page.status in {"generated", "printed"}
+    can_correct = (page.trip_order_id is None and page.author_id == current_user.id and page.status in {"generated", "printed"}
                    and not (page.paper_record and (page.paper_record.checked_at or page.paper_record.filed_at or page.paper_scans)))
     return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, download_token=_token(page, revision), revision_tokens={item.id: _token(page, item) for item in page.revisions}, can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user), paper_manager=_paper_manager(), can_correct=can_correct)
 
@@ -712,16 +832,17 @@ def detail(page_id):
 @login_required
 def start_correction(page_id):
     page = _page_or_404(page_id)
-    if (page.kind != "ordinary" or page.author_id != current_user.id or page.status not in {"generated", "printed"}
+    if (page.trip_order_id is not None or page.author_id != current_user.id or page.status not in {"generated", "printed"}
             or (page.paper_record and (page.paper_record.checked_at or page.paper_record.filed_at or page.paper_scans))):
         abort(409)
     existing = SafetyJournalDraft.query.filter_by(author_id=current_user.id, page_id=page.id, status="draft").first()
     if existing:
         return redirect(url_for("safety_journals.edit", draft_id=existing.id))
     class_id = page.classes[0].class_id if page.classes else None
-    classroom = next((item for item in journal_classes_for_user(page.instructed_on, current_user) if item.id == class_id), None)
+    classroom = next((item for item in journal_classes_for_user(page.instructed_on, current_user, trip=page.kind == "trip") if item.id == class_id), None)
     draft = SafetyJournalDraft(
         id=str(uuid4()), author_id=current_user.id, page_id=page.id,
+        journal_kind=page.kind, manual_trip=page.trip_snapshot if page.kind == "trip" else None,
         instructed_on=page.instructed_on, grade=classroom.grade if classroom else None,
         instruction_version_id=page.instruction_version_id,
         library_item_id=page.library_item_id, subject=page.subject_snapshot,

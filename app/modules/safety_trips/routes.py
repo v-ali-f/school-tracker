@@ -1,14 +1,13 @@
-"""Excursion journals for employees named in school orders."""
+"""Legacy order-linked excursion journal routes."""
 
 from uuid import uuid4
 
 from flask import Blueprint, abort, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
-from sqlalchemy.orm import selectinload
 
 from app.core.extensions import db
-from app.models import SafetyJournalDraft, SafetyJournalDraftEvent, SafetyTripAssignment, SafetyTripOrder
-from app.services.safety_passport_service import is_admin, is_director, is_officer, school_today
+from app.models import SafetyJournalDraft, SafetyJournalDraftEvent, SafetyTripOrder
+from app.services.safety_passport_service import school_today
 from app.services.safety_trip_service import STATUS_LABELS, active_assignment, can_view_trip, trip_status
 
 
@@ -27,17 +26,7 @@ def _context():
 @safety_trips_bp.route("/")
 @login_required
 def index():
-    manager = is_officer(current_user) or is_director(current_user) or is_admin(current_user)
-    query = SafetyTripOrder.query.options(selectinload(SafetyTripOrder.assignments))
-    if not manager:
-        query = query.join(SafetyTripAssignment).filter(
-            SafetyTripAssignment.user_id == current_user.id,
-            SafetyTripAssignment.is_active.is_(True),
-        )
-    trips = query.order_by(SafetyTripOrder.trip_date.desc(), SafetyTripOrder.order_id.desc()).limit(300).all()
-    if not manager and not trips:
-        abort(403)
-    return render_template("safety_trips/index.html", **_context(), trips=trips, status_labels=STATUS_LABELS, trip_status=trip_status)
+    return redirect(url_for("safety_journals.trips_index"))
 
 
 @safety_trips_bp.route("/orders/<int:order_id>")

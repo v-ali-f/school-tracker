@@ -295,7 +295,7 @@ def preview_payload(draft, author):
         if version or draft.trip_assignment_id is not None:
             raise ValueError("Укажите один источник инструкции.")
         from app.modules.safety_instructions.routes import journal_library_item
-        library_item = journal_library_item(draft.library_item_id, subject)
+        library_item = journal_library_item(draft.library_item_id, None if draft.journal_kind == "trip" else subject)
         library_full_title = (library_item.get("title") or "").strip()
         library_number, _, library_title = library_full_title.partition(" ")
         library_title = library_title.strip() or library_full_title
@@ -313,7 +313,7 @@ def preview_payload(draft, author):
         raise ValueError("Выберите хотя бы один класс.")
     if not draft.selected_child_ids:
         raise ValueError("Добавьте хотя бы одного участника.")
-    if draft.trip_assignment_id is None:
+    if draft.trip_assignment_id is None and draft.journal_kind != "trip":
         allowed_classes = {item.id: item for item in journal_classes_for_user(on_date, author)}
         if len(draft.class_ids) != 1 or draft.class_ids[0] not in allowed_classes:
             raise ValueError("Выбранный класс больше не доступен в нагрузке.")
@@ -322,6 +322,12 @@ def preview_payload(draft, author):
         if version and version.instruction.category.strip().casefold() != subject.casefold():
             raise ValueError("Инструкция не соответствует выбранному предмету.")
     trip = None
+    if draft.journal_kind == "trip" and draft.trip_order_id is None:
+        trip = draft.manual_trip or {}
+        if not trip.get("trip_kind") or not trip.get("destination") or not trip.get("trip_date"):
+            raise ValueError("Укажите вид, место и дату выезда.")
+        if not set(draft.class_ids).issubset({item.id for item in journal_classes_for_user(on_date, author, trip=True)}):
+            raise ValueError("Один из классов выезда больше не доступен.")
     if draft.trip_assignment_id is not None:
         from app.services.safety_trip_service import trip_snapshot
         trip = draft.trip_order
@@ -333,6 +339,9 @@ def preview_payload(draft, author):
         if on_date > trip.trip_date:
             raise ValueError("Инструктаж по выезду должен пройти не позднее даты выезда.")
     snapshots = participant_snapshots(on_date, draft.selected_child_ids)
+    if draft.journal_kind == "trip" and draft.trip_order_id is None:
+        if {item["class_id"] for item in snapshots} != set(draft.class_ids):
+            raise ValueError("Состав классов выезда изменился. Обновите список участников.")
     if not (author.last_name or "").strip() or not (author.first_name or "").strip():
         raise ValueError("Заполните полное ФИО в профиле педагога.")
     org_name = organization_full_name()
@@ -359,7 +368,9 @@ def preview_payload(draft, author):
         "group_label": group_label,
         "participants": snapshots,
     }
-    if trip is not None:
+    if draft.trip_assignment_id is not None:
         payload["trip"] = trip_snapshot(trip, assignment)
+    elif trip is not None:
+        payload["trip"] = trip
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return payload, hashlib.sha256(encoded).hexdigest()

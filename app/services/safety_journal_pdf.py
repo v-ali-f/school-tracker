@@ -123,16 +123,19 @@ def build_journal_pdf(page, participants):
             f"Вид инструктажа: {page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind}",
             subheading,
         ),
-        _paragraph(f"Предмет: {getattr(page, 'subject_snapshot', None) or (page.instruction_version.instruction.category if page.instruction_version else '')}", subheading),
+        _paragraph(f"{'Мероприятие' if page.kind == 'trip' else 'Предмет'}: {getattr(page, 'subject_snapshot', None) or (page.instruction_version.instruction.category if page.instruction_version else '')}", subheading),
         _paragraph(f"Проводивший инструктаж: {page.instructor_name_snapshot}", subheading),
     ]
     if trip:
+        if trip.get("order_number"):
+            order_label = f"Приказ № {trip['order_number']}"
+            if trip.get("order_date"):
+                order_label += f" от {trip['order_date']}"
+            if trip.get("order_title"):
+                order_label += f" · {trip['order_title']}"
+            story.append(_paragraph(order_label, subheading))
         story.append(_paragraph(
-            f"Приказ № {trip['order_number']} · {trip['order_title']}",
-            subheading,
-        ))
-        story.append(_paragraph(
-            f"{trip['trip_kind']} · {trip['destination']}",
+            f"{trip['trip_kind']} · {trip['destination']} · дата выезда {trip['trip_date']}",
             subheading,
         ))
     if page.header_note_snapshot:
