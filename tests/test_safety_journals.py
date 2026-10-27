@@ -2,6 +2,8 @@
 
 from datetime import date, datetime, timedelta
 from io import BytesIO
+import hashlib
+import json
 import re
 from html import unescape
 from types import SimpleNamespace
@@ -68,6 +70,34 @@ def _instruction_form(today, **extra):
     }
     values.update(extra)
     return values
+
+
+def test_teacher_can_view_print_and_download_reference_pdf(app, client, make_user, login, tmp_path):
+    teacher_id = make_user("TEACHER")
+    viewer_id = make_user("VIEWER")
+    app.config["UPLOAD_FOLDER"] = str(tmp_path)
+    folder = tmp_path / "safety" / "library"
+    folder.mkdir(parents=True)
+    content = b"%PDF-1.4 example reference"
+    digest = hashlib.sha256(content).hexdigest()
+    (folder / f"{digest}.pdf").write_bytes(content)
+    (folder / "manifest.json").write_text(json.dumps([
+        {"id": digest, "title": "ИОП-01 Вводный инструктаж", "filename": "ИОП-01.pdf"}
+    ], ensure_ascii=False), encoding="utf-8")
+
+    login(teacher_id)
+    assert "ИОП-01" in client.get("/safety/instructions/library").get_data(as_text=True)
+    inline = client.get(f"/safety/instructions/library/{digest}/pdf")
+    assert inline.status_code == 200 and inline.data == content
+    assert inline.headers["Content-Disposition"].startswith("inline;")
+    downloaded = client.get(f"/safety/instructions/library/{digest}/pdf?download=1")
+    assert downloaded.status_code == 200
+    assert downloaded.headers["Content-Disposition"].startswith("attachment;")
+    assert client.get("/safety/instructions/library/not-an-id/pdf").status_code == 404
+    (folder / f"{digest}.pdf").write_bytes(b"changed")
+    assert client.get(f"/safety/instructions/library/{digest}/pdf").status_code == 409
+    login(viewer_id)
+    assert client.get("/safety/instructions/library").status_code == 403
 
 
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):

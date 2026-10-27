@@ -1,0 +1,15 @@
+{% extends "workspace_layout.html" %}
+{% block title %}Библиотека инструкций по охране труда{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-4">
+  <div><div class="section-overline">Охрана труда</div><h1 class="page-title">Библиотека инструкций</h1><p class="page-sub">Исходные PDF для ознакомления, скачивания и печати. Статус действующей инструкции для журнала указывается отдельно в каталоге утверждённых версий.</p></div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('safety_instructions.index') }}">К каталогу</a>
+</div>
+<div class="card card-body">
+  {% if items %}
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Документ</th><th class="text-end">Действия</th></tr></thead><tbody>
+    {% for item in items %}<tr><td>{{ item.title }}<small class="d-block text-muted">{{ item.filename }}</small></td><td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id) }}">Открыть и распечатать</a> <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id, download=1) }}">Скачать</a></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="text-muted mb-0">PDF пока не загружены.</p>{% endif %}
+</div>
+{% endblock %}

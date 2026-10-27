@@ -1,6 +1,8 @@
 """Approved instruction catalog. Originals are stored by version and never overwritten."""
 
 import hashlib
+import json
+import re
 from datetime import date, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -32,6 +34,59 @@ def _store_dir():
     path = Path(base) / "safety" / "instructions"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _library_dir():
+    return Path(current_app.config["UPLOAD_FOLDER"]) / "safety" / "library"
+
+
+def _library_items():
+    manifest = _library_dir() / "manifest.json"
+    if not manifest.is_file():
+        return []
+    try:
+        items = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        current_app.logger.exception("Unable to read safety instruction library manifest")
+        abort(503)
+    if not isinstance(items, list):
+        abort(503)
+    return items
+
+
+@safety_instructions_bp.route("/library")
+@login_required
+def library():
+    if not _can_read():
+        abort(403)
+    from app.modules.hub.routes import build_home_context
+    return render_template(
+        "safety_instructions/library.html", workspace_nav=build_home_context(),
+        workspace_context_title="Охрана труда", workspace_context_subtitle="Библиотека инструкций",
+        items=_library_items(),
+    )
+
+
+@safety_instructions_bp.route("/library/<item_id>/pdf")
+@login_required
+def library_pdf(item_id):
+    if not _can_read():
+        abort(403)
+    if not re.fullmatch(r"[0-9a-f]{64}", item_id):
+        abort(404)
+    item = next((entry for entry in _library_items() if entry.get("id") == item_id), None)
+    if item is None:
+        abort(404)
+    path = _library_dir() / f"{item_id}.pdf"
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != item_id:
+        abort(409, "Файл инструкции недоступен или повреждён.")
+    response = send_file(
+        path, mimetype="application/pdf", as_attachment=request.args.get("download") == "1",
+        download_name=item["filename"],
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 def _uploaded_original():
