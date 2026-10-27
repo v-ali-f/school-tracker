@@ -291,6 +291,12 @@ def preview_payload(draft, author):
     version = draft.instruction_version
     if not instruction_is_effective(version, on_date):
         raise ValueError("Выберите действующую на эту дату инструкцию.")
+    briefing_kind = (draft.briefing_kind or version.instruction.briefing_kind or "").strip().casefold()
+    if briefing_kind not in {"первичный", "повторный", "внеплановый", "целевой"}:
+        raise ValueError("Выберите вид инструктажа.")
+    header_note = (draft.header_note or "").strip()
+    if len(header_note) > 500:
+        raise ValueError("Дополнительная информация должна быть не длиннее 500 символов.")
     if not draft.class_ids:
         raise ValueError("Выберите хотя бы один класс.")
     if not draft.selected_child_ids:
@@ -331,6 +337,8 @@ def preview_payload(draft, author):
         "instruction_summary": version.summary,
         "instruction_file_sha256": version.file_sha256,
         "instruction_version_number": version.version_number,
+        "briefing_kind": briefing_kind,
+        "header_note": header_note,
         "organization_name": org_name,
         "instructor_name": author.fio,
         "group_label": group_label,

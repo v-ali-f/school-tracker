@@ -104,10 +104,10 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
     digest = re.search(r'name="preview_digest" value="([^"]+)"', preview.get_data(as_text=True)).group(1)
     created = client.post(f"{draft_url}/generate", data={"preview_digest": digest})
     assert created.status_code == 302
-    page_url = created.headers["Location"]
+    page_url = created.headers["Location"].split("?", 1)[0]
     detail = client.get(page_url)
     assert detail.status_code == 200
-    pdf_link = unescape(re.search(r'href="([^"]+/pdf\?token=[^"]+)"', detail.get_data(as_text=True)).group(1))
+    pdf_link = unescape(re.search(r'data-pdf-url="([^"]+/pdf\?token=[^"]+)"', detail.get_data(as_text=True)).group(1))
     pdf = client.get(pdf_link)
     assert pdf.status_code == 200
     with pdfplumber.open(BytesIO(pdf.data)) as document:
@@ -162,7 +162,7 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
     new_digest = re.search(r'name="preview_digest" value="([^"]+)"', new_preview.get_data(as_text=True)).group(1)
     new_page_response = client.post(f"{new_draft_url}/generate", data={"preview_digest": new_digest})
     assert new_page_response.status_code == 302
-    new_page_url = new_page_response.headers["Location"]
+    new_page_url = new_page_response.headers["Location"].split("?", 1)[0]
     assert client.post(new_page_url + "/printed").status_code == 302
     with app.app_context():
         pages = SafetyJournalPage.query.order_by(SafetyJournalPage.id).all()

@@ -161,17 +161,18 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
     response = client.post("/safety/journals/new")
     assert response.status_code == 302
     draft_url = response.headers["Location"]
-    classes = client.get(f"{draft_url}?grade=5").get_data(as_text=True)
-    assert "5А" in classes
-    chooser = client.get(f"{draft_url}?grade=5&class_id={ids['class']}&subject=Физика").get_data(as_text=True)
-    assert "Физика" in chooser and "ИОТ-1" in chooser
+    form = client.get(draft_url).get_data(as_text=True)
+    assert 'id="journal-compose"' in form and 'id="journal-instruction-preview"' in form
+    choices = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Физика").json
+    assert any(item["name"] == "5А" for item in choices["classes"])
+    assert "Физика" in choices["subjects"] and choices["instructions"][0]["label"].startswith("ИОТ-1")
     assert client.post(f"{draft_url}/settings", data={
         "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     }).status_code == 302
     first, second, _ = ids["children"]
-    roster = client.get(draft_url).get_data(as_text=True)
-    assert f'value="{first}"' in roster and f'value="{second}"' in roster
+    roster = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Физика").json["roster"]
+    assert {item["id"] for item in roster} == {first, second}
     assert client.post(f"{draft_url}/participants/select", data={"child_ids": [str(first)]}).status_code == 302
     with app.app_context():
         draft = SafetyJournalDraft.query.one()
@@ -187,6 +188,53 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
         assert [person.child_id for person in page.participants] == [first]
 
 
+def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    admin_id = make_user("ADMIN")
+    login(admin_id)
+    assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"], category="Физика"), content_type="multipart/form-data").status_code == 302
+    with app.app_context():
+        version_id = SafetyInstructionVersion.query.one().id
+    draft_url = client.post("/safety/journals/new").headers["Location"]
+    first, second, _ = ids["children"]
+    created = client.post(f"{draft_url}/compose", data={
+        "grade": "5", "class_id": str(ids["class"]), "subject": "Физика",
+        "instruction_version_id": str(version_id), "briefing_kind": "повторный",
+        "header_note": "Перед лабораторной работой", "child_ids": [str(first)],
+    })
+    assert created.status_code == 302 and "preview=1" in created.headers["Location"]
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        page_id = page.id
+        old_revision = page.revisions[0]
+        old_pdf = (tmp_path / "safety" / "journal_pages" / old_revision.stored_filename).read_bytes()
+        assert page.briefing_kind_snapshot == "повторный" and page.header_note_snapshot == "Перед лабораторной работой"
+        assert [person.child_id for person in page.participants] == [first]
+        with pdfplumber.open(BytesIO(old_pdf)) as document:
+            text = document.pages[0].extract_text()
+        assert "Вид инструктажа: повторный" in text
+        assert "Перед лабораторной работой" in text
+        assert "Проводивший инструктаж: Тестов Пользователь" in text
+    detail = client.get(created.headers["Location"]).get_data(as_text=True)
+    assert 'id="safety-pdf-preview-modal"' in detail and "Исправить данные журнала" in detail
+    assert client.get("/safety/journals/").get_data(as_text=True).count("preview=1") >= 1
+    correction = client.post(f"/safety/journals/pages/{page_id}/correct")
+    assert correction.status_code == 302
+    corrected = client.post(f"{correction.headers['Location']}/compose", data={
+        "grade": "5", "class_id": str(ids["class"]), "subject": "Физика",
+        "instruction_version_id": str(version_id), "briefing_kind": "внеплановый",
+        "header_note": "Исправленная тема", "child_ids": [str(second)],
+    })
+    assert corrected.status_code == 302 and "preview=1" in corrected.headers["Location"]
+    with app.app_context():
+        page = db.session.get(SafetyJournalPage, page_id)
+        assert page.briefing_kind_snapshot == "внеплановый"
+        assert page.header_note_snapshot == "Исправленная тема"
+        assert [person.child_id for person in page.participants] == [second]
+        assert len(page.revisions) == 2
+        assert (tmp_path / "safety" / "journal_pages" / page.revisions[0].stored_filename).read_bytes() == old_pdf
+
+
 def test_teacher_classes_and_subjects_follow_personal_load(app, client, make_user, login, tmp_path):
     ids = _setup(app, make_user, tmp_path)
     login(ids["officer"])
@@ -195,10 +243,9 @@ def test_teacher_classes_and_subjects_follow_personal_load(app, client, make_use
         version_id = SafetyInstructionVersion.query.one().id
     login(ids["teacher"])
     draft_url = client.post("/safety/journals/new").headers["Location"]
-    classes = client.get(f"{draft_url}?grade=5").get_data(as_text=True)
-    assert "5А" in classes and "5Б" not in classes
-    subjects = client.get(f"{draft_url}?grade=5&class_id={ids['class']}").get_data(as_text=True)
-    assert "Физика" in subjects
+    choices = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}").json
+    assert [item["name"] for item in choices["classes"]] == ["5А"]
+    assert "Физика" in choices["subjects"]
     client.post(f"{draft_url}/settings", data={
         "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["other_class"])],
@@ -270,10 +317,13 @@ def test_library_pdf_is_suggested_and_can_return_to_journal_after_confirmation(a
     login(admin_id)
     draft_url = client.post("/safety/journals/new").headers["Location"]
     form_url = f"{draft_url}?grade=5&class_id={ids['class']}&subject=Информатика"
-    chooser = client.get(form_url).get_data(as_text=True)
-    assert "ИОП-04-23-Об" in chooser and "ИОП-31-23-Об" in chooser and "ИОП-32-23-Об" in chooser
-    assert "ИОП-07-23-Об" not in chooser
-    assert "Подтвердить для журнала" in chooser
+    chooser = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Информатика").json
+    suggestion_titles = [item["title"] for item in chooser["suggestions"]]
+    assert any("ИОП-04-23-Об" in item for item in suggestion_titles)
+    assert any("ИОП-31-23-Об" in item for item in suggestion_titles)
+    assert any("ИОП-32-23-Об" in item for item in suggestion_titles)
+    assert not any("ИОП-07-23-Об" in item for item in suggestion_titles)
+    assert any(item["catalog_url"] for item in chooser["suggestions"])
     assert client.get(f"/safety/instructions/library/{items[1]['id']}/catalog?subject=Информатика&draft_id={draft_url.rsplit('/', 1)[-1]}&grade=5&class_id={ids['class']}&instructed_on={ids['today'].isoformat()}").get_data(as_text=True).count('value="Информатика"') >= 1
     response = client.post(f"/safety/instructions/library/{items[1]['id']}/catalog", data={
         "csrf_token": "", "draft_id": draft_url.rsplit("/", 1)[-1], "grade": "5",
@@ -285,8 +335,8 @@ def test_library_pdf_is_suggested_and_can_return_to_journal_after_confirmation(a
         "effective_from": (ids["today"] - timedelta(days=5)).isoformat(),
     })
     assert response.status_code == 302 and response.headers["Location"].startswith(draft_url)
-    chooser = client.get(response.headers["Location"]).get_data(as_text=True)
-    assert "ИОП-31-23-Об" in chooser and "Показать список класса" in chooser
+    chooser = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Информатика").json
+    assert any("ИОП-31-23-Об" in item["label"] for item in chooser["instructions"])
 
 
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):
@@ -357,10 +407,10 @@ def test_journal_roster_snapshot_pdf_and_print_confirmation(app, client, make_us
         assert SafetyJournalPage.query.count() == 0
     generated = client.post(f"{draft_url}/generate", data={"preview_digest": digest})
     assert generated.status_code == 302
-    page_url = generated.headers["Location"]
+    page_url = generated.headers["Location"].split("?", 1)[0]
     detail = client.get(page_url)
     assert detail.status_code == 200
-    pdf_link = unescape(re.search(r'href="([^"]+/pdf\?token=[^"]+)"', detail.get_data(as_text=True)).group(1))
+    pdf_link = unescape(re.search(r'data-pdf-url="([^"]+/pdf\?token=[^"]+)"', detail.get_data(as_text=True)).group(1))
     pdf = client.get(pdf_link)
     assert pdf.status_code == 200 and pdf.data.startswith(b"%PDF")
     with pdfplumber.open(BytesIO(pdf.data)) as document:

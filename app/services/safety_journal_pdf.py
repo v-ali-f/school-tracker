@@ -77,7 +77,7 @@ def build_journal_pdf(page, participants):
             "",  # The actual briefing date is entered on paper by hand.
             _paragraph(f"{page.instruction_number_snapshot} — {page.instruction_summary_snapshot}", table_cell),
             "",  # Signatures are placed on the printed sheet by hand.
-            _paragraph(page.instructor_name_snapshot, table_cell),
+            _paragraph(page.instructor_name_snapshot, centered),
             "",
         ])
     available_width = landscape(A4)[0] - 20 * mm
@@ -110,6 +110,11 @@ def build_journal_pdf(page, participants):
             f"(версия {page.instruction_version_number_snapshot})",
             subheading,
         ),
+        _paragraph(
+            f"Вид инструктажа: {page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind}",
+            subheading,
+        ),
+        _paragraph(f"Проводивший инструктаж: {page.instructor_name_snapshot}", subheading),
     ]
     if trip:
         story.append(_paragraph(
@@ -120,6 +125,8 @@ def build_journal_pdf(page, participants):
             f"{trip['trip_kind']} · {trip['destination']}",
             subheading,
         ))
+    if page.header_note_snapshot:
+        story.append(_paragraph(page.header_note_snapshot, subheading))
     story.extend([Spacer(1, 4 * mm), table])
 
     def footer(canvas, document):

@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import func
@@ -225,7 +225,8 @@ def edit(draft_id):
         except ValueError:
             pass
     return render_template(
-        "safety_journals/edit.html", **_context(), draft=draft, classes=classes,
+        "safety_journals/edit.html" if draft.trip_order_id is not None else "safety_journals/edit_ordinary.html",
+        **_context(), draft=draft, classes=classes,
         versions=versions, subjects=subjects, grades=grades, chosen_class=chosen_class, library_items=library_items,
         chosen_subject=chosen_subject,
         class_roster=class_roster, selected=selected, removed=removed, found=found, trip=draft.trip_order,
@@ -234,6 +235,179 @@ def edit(draft_id):
         can_manage_instructions=can_manage_instructions(current_user),
         admin_mode=(is_admin(current_user) or is_director(current_user)) and not current_user.has_role("TEACHER"),
     )
+
+
+@safety_journals_bp.route("/choices")
+@login_required
+def choices():
+    if not can_create_journal(current_user):
+        abort(403)
+    try:
+        on_date = date.fromisoformat(request.args.get("on_date", "")) if request.args.get("on_date") else school_today()
+        if on_date > school_today():
+            raise ValueError("Дата учёта не может быть в будущем.")
+        grade = request.args.get("grade", type=int)
+        all_classes = journal_classes_for_user(on_date, current_user)
+        classes = [item for item in all_classes if item.grade == grade] if grade else []
+        class_id = request.args.get("class_id", type=int)
+        classroom = next((item for item in classes if item.id == class_id), None)
+        subjects = journal_subjects_for_class(on_date, current_user, classroom) if classroom else []
+        requested_subject = (request.args.get("subject") or "").strip()
+        subject = next((item for item in subjects if item.casefold() == requested_subject.casefold()), "")
+        versions = [
+            item for item in effective_instruction_versions(on_date)
+            if subject and item.instruction.category.strip().casefold() == subject.casefold()
+        ]
+        roster = roster_for_classes(on_date, [classroom.id]) if classroom else {}
+        from app.modules.safety_instructions.routes import library_suggestions
+        suggestions = library_suggestions(subject) if subject else []
+        response = jsonify({
+            "grades": sorted({item.grade for item in all_classes if item.grade}),
+            "classes": [{"id": item.id, "name": item.name} for item in classes],
+            "subjects": subjects,
+            "instructions": [{
+                "id": item.id, "label": f"{item.instruction.number} — {item.title_snapshot}",
+                "kind": item.instruction.briefing_kind,
+                "preview_url": url_for("safety_instructions.download_original", version_id=item.id, inline=1) if item.file_mime_type == "application/pdf" else "",
+                "download_url": url_for("safety_instructions.download_original", version_id=item.id),
+            } for item in versions],
+            "roster": [{
+                "id": item.child_id, "name": item.child.fio,
+                "class_name": item.school_class.name,
+                "birth_date": item.child.birth_date.strftime("%d.%m.%Y") if item.child.birth_date else "",
+            } for item in sorted(roster.values(), key=lambda row: row.child.fio.casefold())],
+            "suggestions": [{
+                "title": item["title"], "preview_url": url_for("safety_instructions.library_pdf", item_id=item["id"]),
+                "download_url": url_for("safety_instructions.library_pdf", item_id=item["id"], download=1),
+                "catalog_url": url_for("safety_instructions.add_library_to_catalog", item_id=item["id"], subject=subject, draft_id=request.args.get("draft_id", ""), grade=grade, class_id=class_id, instructed_on=on_date.isoformat()) if can_manage_instructions(current_user) and not item["in_catalog"] else "",
+            } for item in suggestions],
+        })
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@safety_journals_bp.route("/drafts/<uuid:draft_id>/compose", methods=["POST"])
+@login_required
+def compose(draft_id):
+    draft = _draft_or_404(str(draft_id))
+    if draft.status != "draft" or draft.trip_order_id is not None or not can_create_journal(current_user):
+        abort(409)
+    try:
+        on_date = draft.instructed_on or school_today()
+        grade = int(request.form.get("grade", "0"))
+        class_id = int(request.form.get("class_id", "0"))
+        version_id = int(request.form.get("instruction_version_id", "0"))
+        subject = (request.form.get("subject") or "").strip()
+        kind = (request.form.get("briefing_kind") or "").strip().casefold()
+        note = (request.form.get("header_note") or "").strip()
+        child_ids = [int(value) for value in request.form.getlist("child_ids")]
+        if kind not in {"первичный", "повторный", "внеплановый", "целевой"}:
+            raise ValueError("Выберите вид инструктажа.")
+        if len(note) > 500:
+            raise ValueError("Дополнительная информация должна быть не длиннее 500 символов.")
+        classes = journal_classes_for_user(on_date, current_user, grade)
+        classroom = next((item for item in classes if item.id == class_id), None)
+        if classroom is None:
+            raise ValueError("Выберите доступный класс.")
+        subjects = journal_subjects_for_class(on_date, current_user, classroom)
+        if not any(item.casefold() == subject.casefold() for item in subjects):
+            raise ValueError("Выберите предмет из учебного плана или вашей нагрузки.")
+        version = db.session.get(SafetyInstructionVersion, version_id)
+        if not instruction_is_effective(version, on_date) or version.instruction.category.strip().casefold() != subject.casefold():
+            raise ValueError("Выберите действующую инструкцию по предмету.")
+        roster = roster_for_classes(on_date, [class_id])
+        if not child_ids or len(child_ids) > 120 or len(set(child_ids)) != len(child_ids) or not set(child_ids).issubset(roster):
+            raise ValueError("Выберите от 1 до 120 обучающихся из списка класса.")
+        draft.grade = grade
+        draft.class_ids = [class_id]
+        draft.instruction_version_id = version_id
+        draft.briefing_kind = kind
+        draft.header_note = note
+        draft.selected_child_ids = child_ids
+        draft.removed_child_ids = sorted(set(roster) - set(child_ids))
+        _event(draft, "composed", details={"class_id": class_id, "version_id": version_id, "count": len(child_ids)})
+        db.session.commit()
+    except (ValueError, TypeError) as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+        return redirect(url_for("safety_journals.edit", draft_id=draft.id))
+    return _generate_page(draft)
+
+
+def _correct_page(draft, payload):
+    page = db.session.get(SafetyJournalPage, draft.page_id)
+    if page is None or page.kind != "ordinary" or page.author_id != current_user.id or page.status not in {"generated", "printed"}:
+        abort(409)
+    db.session.refresh(page, with_for_update=True)
+    paper = page.paper_record
+    if paper and (paper.checked_at or paper.filed_at or page.paper_scans):
+        abort(409)
+    old = {"instruction": page.instruction_number_snapshot, "class": page.group_label,
+           "kind": page.briefing_kind_snapshot, "participants": len(page.participants)}
+    page.instruction_version_id = draft.instruction_version_id
+    page.instructed_on = draft.instructed_on
+    page.group_label = payload["group_label"]
+    page.organization_name_snapshot = payload["organization_name"]
+    page.instructor_name_snapshot = payload["instructor_name"]
+    page.instruction_number_snapshot = payload["instruction_number"]
+    page.instruction_title_snapshot = payload["instruction_title"]
+    page.instruction_summary_snapshot = payload["instruction_summary"]
+    page.instruction_file_sha256_snapshot = payload["instruction_file_sha256"]
+    page.instruction_version_number_snapshot = payload["instruction_version_number"]
+    page.briefing_kind_snapshot = payload["briefing_kind"]
+    page.header_note_snapshot = payload["header_note"]
+    SafetyJournalParticipant.query.filter_by(page_id=page.id).delete(synchronize_session=False)
+    SafetyJournalPageClass.query.filter_by(page_id=page.id).delete(synchronize_session=False)
+    db.session.expire(page, ["participants", "classes"])
+    class_map = {}
+    for sequence, person in enumerate(payload["participants"], 1):
+        db.session.add(SafetyJournalParticipant(
+            page_id=page.id, sequence=sequence, child_id=person["child_id"],
+            full_name_snapshot=person["full_name"], birth_date_snapshot=date.fromisoformat(person["birth_date"]),
+            class_name_snapshot=person["class_name"], class_id_snapshot=person["class_id"],
+            signature_rule=person["signature_rule"],
+        ))
+        class_map[person["class_id"]] = person
+    for person in class_map.values():
+        db.session.add(SafetyJournalPageClass(
+            page_id=page.id, class_id=person["class_id"],
+            class_name_snapshot=person["class_name"], building_id_snapshot=person["building_id"],
+        ))
+    db.session.flush()
+    db.session.expire(page, ["participants", "classes"])
+    revision_number = (db.session.query(func.max(SafetyJournalPageRevision.version_number)).filter_by(page_id=page.id).scalar() or 0) + 1
+    content = build_journal_pdf(page, page.participants)
+    stored = f"{uuid4().hex}.pdf"
+    try:
+        with (_storage() / stored).open("xb") as destination:
+            destination.write(content)
+        db.session.add(SafetyJournalPageRevision(
+            page_id=page.id, version_number=revision_number, stored_filename=stored,
+            pdf_sha256=hashlib.sha256(content).hexdigest(), reason="Исправлены сведения журнала",
+            created_by_id=current_user.id,
+        ))
+        page.status = "generated"
+        page.printed_at = None
+        if paper and paper.issue_at:
+            paper.issue_at = None
+            paper.issue_by_id = None
+            paper.issue_note = None
+        db.session.add(SafetyJournalPageEvent(
+            page_id=page.id, actor_id=current_user.id, action="corrected",
+            details={"from": old, "to": {"instruction": payload["instruction_number"],
+                     "class": payload["group_label"], "kind": payload["briefing_kind"],
+                     "participants": len(payload["participants"]), "revision": revision_number}},
+        ))
+        draft.status = "generated"
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        (_storage() / stored).unlink(missing_ok=True)
+        raise
+    flash("Журнал исправлен. Новая версия PDF готова к печати; прежняя сохранена.", "success")
+    return redirect(url_for("safety_journals.detail", page_id=page.id, preview=1))
 
 
 @safety_journals_bp.route("/drafts/<uuid:draft_id>/settings", methods=["POST"])
@@ -368,12 +542,16 @@ def preview(draft_id):
 @login_required
 def generate(draft_id):
     draft = _draft_or_404(str(draft_id))
+    return _generate_page(draft, require_digest=True)
+
+
+def _generate_page(draft, *, require_digest=False):
     if draft.trip_assignment_id is None and not can_create_journal(current_user):
         abort(403)
     stored = None
     try:
         payload, digest = preview_payload(draft, current_user)
-        if digest != request.form.get("preview_digest"):
+        if require_digest and digest != request.form.get("preview_digest"):
             raise ValueError("Состав или данные изменились после предварительного просмотра. Проверьте страницу снова.")
         if draft.trip_assignment_id is not None:
             assignment = (
@@ -383,6 +561,8 @@ def generate(draft_id):
             existing = assignment.current_page if assignment else None
             if existing is not None and existing.trip_order_revision == draft.trip_order_revision and existing.status != "annulled":
                 raise ValueError("Страница по этой редакции приказа уже сформирована.")
+        if draft.page_id is not None:
+            return _correct_page(draft, payload)
         page = SafetyJournalPage(
             number=f"TMP-{uuid4().hex}", source_draft_id=draft.id, author_id=current_user.id,
             kind="trip" if "trip" in payload else "ordinary",
@@ -397,6 +577,8 @@ def generate(draft_id):
             instruction_summary_snapshot=payload["instruction_summary"],
             instruction_file_sha256_snapshot=payload["instruction_file_sha256"],
             instruction_version_number_snapshot=payload["instruction_version_number"],
+            briefing_kind_snapshot=payload["briefing_kind"],
+            header_note_snapshot=payload["header_note"],
             status="generated",
         )
         db.session.add(page)
@@ -433,22 +615,22 @@ def generate(draft_id):
         draft.page_id = page.id
         db.session.commit()
         flash("Страница сформирована. Откройте PDF и подтвердите печать после распечатки.", "success")
-        return redirect(url_for("safety_journals.detail", page_id=page.id))
+        return redirect(url_for("safety_journals.detail", page_id=page.id, preview=1))
     except ValueError as exc:
         db.session.rollback()
         if stored:
             (_storage() / stored).unlink(missing_ok=True)
         flash(str(exc), "danger")
-        return redirect(url_for("safety_journals.preview", draft_id=draft.id))
+        return redirect(url_for("safety_journals.preview" if require_digest else "safety_journals.edit", draft_id=draft.id))
     except IntegrityError:
         db.session.rollback()
         if stored:
             (_storage() / stored).unlink(missing_ok=True)
-        existing = SafetyJournalPage.query.filter_by(source_draft_id=str(draft_id)).first()
+        existing = SafetyJournalPage.query.filter_by(source_draft_id=str(draft.id)).first()
         if existing:
             return redirect(url_for("safety_journals.detail", page_id=existing.id))
         flash("Страница уже формируется в другой вкладке. Обновите черновик.", "danger")
-        return redirect(url_for("safety_journals.edit", draft_id=draft_id))
+        return redirect(url_for("safety_journals.edit", draft_id=draft.id))
     except Exception:
         db.session.rollback()
         if stored:
@@ -463,7 +645,38 @@ def detail(page_id):
     db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="viewed"))
     db.session.commit()
     revision = page.revisions[-1]
-    return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, download_token=_token(page, revision), revision_tokens={item.id: _token(page, item) for item in page.revisions}, can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user), paper_manager=_paper_manager())
+    can_correct = (page.kind == "ordinary" and page.author_id == current_user.id and page.status in {"generated", "printed"}
+                   and not (page.paper_record and (page.paper_record.checked_at or page.paper_record.filed_at or page.paper_scans)))
+    return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, download_token=_token(page, revision), revision_tokens={item.id: _token(page, item) for item in page.revisions}, can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user), paper_manager=_paper_manager(), can_correct=can_correct)
+
+
+@safety_journals_bp.route("/pages/<int:page_id>/correct", methods=["POST"])
+@login_required
+def start_correction(page_id):
+    page = _page_or_404(page_id)
+    if (page.kind != "ordinary" or page.author_id != current_user.id or page.status not in {"generated", "printed"}
+            or (page.paper_record and (page.paper_record.checked_at or page.paper_record.filed_at or page.paper_scans))):
+        abort(409)
+    existing = SafetyJournalDraft.query.filter_by(author_id=current_user.id, page_id=page.id, status="draft").first()
+    if existing:
+        return redirect(url_for("safety_journals.edit", draft_id=existing.id))
+    class_id = page.classes[0].class_id if page.classes else None
+    classroom = next((item for item in journal_classes_for_user(page.instructed_on, current_user) if item.id == class_id), None)
+    draft = SafetyJournalDraft(
+        id=str(uuid4()), author_id=current_user.id, page_id=page.id,
+        instructed_on=page.instructed_on, grade=classroom.grade if classroom else None,
+        instruction_version_id=page.instruction_version_id,
+        briefing_kind=page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind,
+        header_note=page.header_note_snapshot,
+        class_ids=[class_id] if class_id else [],
+        selected_child_ids=[item.child_id for item in page.participants if item.child_id is not None],
+        removed_child_ids=[],
+    )
+    db.session.add(draft)
+    db.session.flush()
+    _event(draft, "correction_started", details={"page_id": page.id})
+    db.session.commit()
+    return redirect(url_for("safety_journals.edit", draft_id=draft.id))
 
 
 @safety_journals_bp.route("/pages/<int:page_id>/based-on", methods=["POST"])
@@ -519,7 +732,7 @@ def download_pdf(page_id, revision_id=None):
         abort(409, "Сохранённый PDF недоступен или повреждён.")
     db.session.add(SafetyJournalPageEvent(page_id=page.id, actor_id=current_user.id, action="downloaded", details={"revision": revision.version_number}))
     db.session.commit()
-    response = send_file(path, mimetype="application/pdf", as_attachment=False, download_name=f"{page.number}.pdf")
+    response = send_file(path, mimetype="application/pdf", as_attachment=request.args.get("download") == "1", download_name=f"{page.number}.pdf")
     response.headers["Cache-Control"] = "private, no-store"
     return response
 
