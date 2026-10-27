@@ -12,6 +12,7 @@ from zipfile import BadZipFile, ZipFile
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from app.core.extensions import db
 from app.models import SafetyInstruction, SafetyInstructionAccessEvent, SafetyInstructionVersion, SafetyJournalDraft, SafetyTripAssignment
@@ -249,11 +250,29 @@ def index():
     if not _can_read():
         abort(403)
     from app.modules.hub.routes import build_home_context
-    instructions = SafetyInstruction.query.order_by(SafetyInstruction.number).all()
+    query = (request.args.get("q") or "").strip()[:120]
+    instructions = SafetyInstruction.query.options(selectinload(SafetyInstruction.versions)).order_by(SafetyInstruction.number).all()
+    if query:
+        term = query.casefold()
+        instructions = [item for item in instructions if term in item.number.casefold() or term in item.title.casefold() or term in item.category.casefold()]
     return render_template(
         "safety_instructions/index.html", workspace_nav=build_home_context(),
         workspace_context_title="Техника безопасности", workspace_context_subtitle="Инструкции",
-        instructions=instructions, can_manage=can_manage_instructions(current_user), today=school_today(),
+        instructions=instructions, query=query, can_manage=can_manage_instructions(current_user), today=school_today(),
+    )
+
+
+@safety_instructions_bp.route("/<int:instruction_id>")
+@login_required
+def detail(instruction_id):
+    if not _can_read():
+        abort(403)
+    instruction = db.session.get(SafetyInstruction, instruction_id) or abort(404)
+    from app.modules.hub.routes import build_home_context
+    return render_template(
+        "safety_instructions/detail.html", workspace_nav=build_home_context(),
+        workspace_context_title="Техника безопасности", workspace_context_subtitle="Инструкция",
+        instruction=instruction, can_manage=can_manage_instructions(current_user), today=school_today(),
     )
 
 
@@ -316,7 +335,7 @@ def add_version(instruction_id):
         if stored:
             (_store_dir() / stored).unlink(missing_ok=True)
         flash(str(exc) if isinstance(exc, ValueError) else "Версия уже изменена. Обновите страницу.", "danger")
-    return redirect(url_for("safety_instructions.index"))
+    return redirect(url_for("safety_instructions.detail", instruction_id=instruction_id))
 
 
 @safety_instructions_bp.route("/versions/<int:version_id>/archive", methods=["POST"])
@@ -329,7 +348,7 @@ def archive(version_id):
     db.session.add(SafetyInstructionAccessEvent(version_id=version.id, actor_id=current_user.id, action="archived"))
     db.session.commit()
     flash("Версия перенесена в архив. Исторические журналы сохранятся.", "success")
-    return redirect(url_for("safety_instructions.index"))
+    return redirect(url_for("safety_instructions.detail", instruction_id=version.instruction_id))
 
 
 @safety_instructions_bp.route("/versions/<int:version_id>/original")

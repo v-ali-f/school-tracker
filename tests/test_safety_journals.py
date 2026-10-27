@@ -94,6 +94,7 @@ def test_teacher_can_view_print_and_download_reference_pdf(app, client, make_use
 
     login(teacher_id)
     assert "ИОП-01" in client.get("/safety/instructions/library").get_data(as_text=True)
+    assert "registry-matrix" in client.get("/safety/instructions/library").get_data(as_text=True)
     assert "ИОП-01" in client.get("/safety/instructions/library?q=ИОП-01").get_data(as_text=True)
     assert "По запросу ничего не найдено" in client.get("/safety/instructions/library?q=несуществующая").get_data(as_text=True)
     inline = client.get(f"/safety/instructions/library/{digest}/pdf")
@@ -291,6 +292,10 @@ def test_catalog_rights_versions_and_immutable_original(app, client, make_user, 
     assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"]), content_type="multipart/form-data").status_code == 403
     login(ids["officer"])
     assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"]), content_type="multipart/form-data").status_code == 302
+    registry = client.get("/safety/instructions/?q=ИОТ-1").get_data(as_text=True)
+    assert "registry-matrix" in registry and "ИОТ-1" in registry
+    detail = client.get("/safety/instructions/1").get_data(as_text=True)
+    assert "Добавить новую версию" in detail and "registry-matrix" in detail
     with app.app_context():
         version = SafetyInstructionVersion.query.one()
         old_id, old_hash, old_file = version.id, version.file_sha256, version.stored_filename
