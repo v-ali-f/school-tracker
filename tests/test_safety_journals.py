@@ -12,11 +12,15 @@ import pdfplumber
 
 from app.core.extensions import db
 from app.models import (
-    AcademicYear, Child, ChildEnrollment, OrganizationSettings, SafetyInstruction,
+    AcademicYear, Child, ChildEnrollment, EducationActivity, EducationPlan,
+    EducationPlanLine, OrganizationSettings, PopulationSnapshot,
+    PopulationSnapshotClass, SafetyInstruction,
     SafetyInstructionAccessEvent, SafetyInstructionVersion, SafetyJournalDraft,
     SafetyJournalDraftEvent, SafetyJournalPage, SafetyJournalPageEvent,
-    SafetyOfficerAssignment, SchoolClass, User,
+    SafetyOfficerAssignment, SchoolClass, TariffCycle, TariffVersion, TeacherLoad,
+    TeachingGroup, TeachingGroupClass, User, WorkloadAssignment, WorkloadNeed,
 )
+from app.services.safety_journal_service import journal_classes_for_user, journal_subjects_for_class
 from app.services.safety_passport_service import school_today
 from app.services.safety_journal_pdf import build_journal_pdf
 
@@ -51,11 +55,14 @@ def _setup(app, make_user, tmp_path):
             ChildEnrollment(child_id=children[2].id, academic_year_id=year.id, school_class_id=second_class.id, enrolled_at=enrolled_at),
             OrganizationSettings(full_name="ГБОУ Школа Тест", is_active=True),
             SafetyOfficerAssignment(user_id=officer_id, assigned_by_id=director_id, valid_from=today - timedelta(days=1), can_manage_instructions=True),
+            TeacherLoad(teacher_id=teacher_id, academic_year_id=year.id, class_name="5А", grade=5, subject_name="Общие", hours=2),
+            TeacherLoad(teacher_id=teacher_id, academic_year_id=year.id, class_name="5А", grade=5, subject_name="Физика", hours=2),
+            TeacherLoad(teacher_id=other_id, academic_year_id=year.id, class_name="5Б", grade=5, subject_name="Общие", hours=2),
         ])
         db.session.commit()
         return {
             "director": director_id, "officer": officer_id, "teacher": teacher_id,
-            "other": other_id, "viewer": viewer_id, "class": first_class.id,
+            "other": other_id, "viewer": viewer_id, "class": first_class.id, "other_class": second_class.id,
             "children": [child.id for child in children], "today": today,
         }
 
@@ -150,8 +157,10 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
     response = client.post("/safety/journals/new")
     assert response.status_code == 302
     draft_url = response.headers["Location"]
-    chooser = client.get(f"{draft_url}?subject=Физика&grade=5").get_data(as_text=True)
-    assert "Физика" in chooser and "ИОТ-1" in chooser and "5А" in chooser
+    classes = client.get(f"{draft_url}?grade=5").get_data(as_text=True)
+    assert "5А" in classes
+    chooser = client.get(f"{draft_url}?grade=5&class_id={ids['class']}&subject=Физика").get_data(as_text=True)
+    assert "Физика" in chooser and "ИОТ-1" in chooser
     assert client.post(f"{draft_url}/settings", data={
         "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
@@ -172,6 +181,63 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
         page = SafetyJournalPage.query.one()
         assert page.author_id == admin_id and page.instruction_number_snapshot == "ИОТ-1"
         assert [person.child_id for person in page.participants] == [first]
+
+
+def test_teacher_classes_and_subjects_follow_personal_load(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    login(ids["officer"])
+    assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"], category="Физика"), content_type="multipart/form-data").status_code == 302
+    with app.app_context():
+        version_id = SafetyInstructionVersion.query.one().id
+    login(ids["teacher"])
+    draft_url = client.post("/safety/journals/new").headers["Location"]
+    classes = client.get(f"{draft_url}?grade=5").get_data(as_text=True)
+    assert "5А" in classes and "5Б" not in classes
+    subjects = client.get(f"{draft_url}?grade=5&class_id={ids['class']}").get_data(as_text=True)
+    assert "Физика" in subjects
+    client.post(f"{draft_url}/settings", data={
+        "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
+        "instruction_version_id": str(version_id), "class_ids": [str(ids["other_class"])],
+    })
+    with app.app_context():
+        assert SafetyJournalDraft.query.one().class_ids == []
+    client.post(f"{draft_url}/settings", data={
+        "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Математика",
+        "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
+    })
+    with app.app_context():
+        assert SafetyJournalDraft.query.one().class_ids == []
+
+
+def test_current_workload_matrix_drives_teacher_classes_and_admin_plan_subjects(app, make_user, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    admin_id = make_user("ADMIN")
+    other_teacher_id = make_user("TEACHER")
+    with app.app_context():
+        year = AcademicYear.query.one()
+        organization = OrganizationSettings.query.one()
+        classroom = db.session.get(SchoolClass, ids["class"])
+        teacher = db.session.get(User, ids["teacher"])
+        admin = db.session.get(User, admin_id)
+        other_teacher = db.session.get(User, other_teacher_id)
+        activity = EducationActivity(organization_id=organization.id, code="PHYSICS", name="Физика", activity_kind="SUBJECT")
+        cycle = TariffCycle(organization_id=organization.id, academic_year_id=year.id, code="TEST", name="Тестовая нагрузка")
+        version = TariffVersion(tariff_cycle=cycle, version_no=1, status="DRAFT")
+        plan = EducationPlan(tariff_version=version, plan_kind="CURRICULUM", name="План 5 класса", scope_code="ALL")
+        line = EducationPlanLine(education_plan=plan, education_activity=activity, component_kind="MANDATORY", weekly_hours=2)
+        snapshot = PopulationSnapshot(tariff_version=version, revision_no=1, snapshot_date=ids["today"], checksum="test")
+        snapshot_class = PopulationSnapshotClass(population_snapshot=snapshot, source_school_class=classroom, name_snapshot="5А", grade_snapshot=5, student_count=2)
+        group = TeachingGroup(tariff_version=version, education_activity=activity, group_type="CLASS", code="5A-PHYSICS", name="Физика 5А", valid_from=ids["today"] - timedelta(days=1), valid_to=ids["today"] + timedelta(days=1), source_plan_line=line, status="READY")
+        link = TeachingGroupClass(teaching_group=group, population_snapshot_class=snapshot_class)
+        need = WorkloadNeed(tariff_version=version, teaching_group=group, education_activity=activity, date_from=group.valid_from, date_to=group.valid_to, weekly_hours=2, annual_hours=70)
+        assignment = WorkloadAssignment(tariff_version=version, workload_need=need, employee_user_id=teacher.id, assignment_kind="MAIN", date_from=group.valid_from, date_to=group.valid_to, weekly_hours=2, annual_hours=70, status="DRAFT")
+        db.session.add_all([activity, cycle, version, plan, line, snapshot, snapshot_class, group, link, need, assignment])
+        db.session.commit()
+        teacher_classes = journal_classes_for_user(ids["today"], teacher)
+        assert [item.id for item in teacher_classes] == [classroom.id]
+        assert journal_subjects_for_class(ids["today"], teacher, classroom) == ["Физика"]
+        assert journal_subjects_for_class(ids["today"], admin, classroom) == ["Физика"]
+        assert journal_classes_for_user(ids["today"], other_teacher) == []
 
 
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):

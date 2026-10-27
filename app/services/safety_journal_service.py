@@ -2,14 +2,18 @@
 
 import hashlib
 import json
+import re
 from datetime import datetime, time
 
-from sqlalchemy import or_
+from sqlalchemy import case, or_
 from sqlalchemy.orm import joinedload
 
+from app.core.extensions import db
 from app.models import (
-    AcademicYear, ChildEnrollment,
-    SafetyInstructionVersion, SchoolClass,
+    AcademicYear, ChildEnrollment, EducationPlan, EducationPlanLine,
+    PopulationSnapshotClass, SafetyInstructionVersion, SchoolClass,
+    TariffCycle, TariffVersion, TeacherLoad, TeachingGroup, TeachingGroupClass,
+    WorkloadAssignment,
 )
 from app.services.org_settings_service import get_active_organization_settings
 from app.services.safety_passport_service import (
@@ -71,6 +75,121 @@ def available_classes(on_date=None, grade=None):
     if grade:
         query = query.filter(SchoolClass.grade == grade)
     return query.order_by(SchoolClass.grade, SchoolClass.name).all()
+
+
+def _workload_version(year):
+    organization = get_active_organization_settings()
+    query = TariffVersion.query.join(TariffCycle).filter(TariffCycle.academic_year_id == year.id)
+    if organization is not None:
+        query = query.filter(TariffCycle.organization_id == organization.id)
+    return query.order_by(
+        case((TariffVersion.status == "DRAFT", 0), (TariffVersion.status == "EFFECTIVE", 1), else_=2),
+        TariffVersion.version_no.desc(),
+    ).first()
+
+
+def _legacy_class_tokens(value):
+    return {
+        re.sub(r"\s+", "", token).replace("ё", "е").casefold()
+        for token in re.split(r"[,;|/\n]+", value or "")
+        if token.strip()
+    }
+
+
+def _legacy_teacher_subjects(year, user, classes):
+    rows = TeacherLoad.query.filter(
+        TeacherLoad.is_archived.is_(False),
+        or_(TeacherLoad.academic_year_id == year.id, TeacherLoad.academic_year_id.is_(None)),
+    )
+    if not (is_admin(user) or is_director(user)):
+        rows = rows.filter(TeacherLoad.teacher_id == user.id)
+    subjects = {item.id: set() for item in classes}
+    normalized = {item.id: re.sub(r"\s+", "", item.name).replace("ё", "е").casefold() for item in classes}
+    for load in rows.all():
+        name = (load.education_activity.name if load.education_activity else load.subject_name or (load.subject.name if load.subject else "")).strip()
+        if not name:
+            continue
+        tokens = _legacy_class_tokens(load.class_name)
+        for classroom in classes:
+            if normalized[classroom.id] in tokens:
+                subjects[classroom.id].add(name)
+    return subjects
+
+
+def _group_class_ids(group):
+    groups = [group]
+    if group.group_type == "METAGROUP":
+        groups.extend(link.source_group for link in group.metagroup_sources)
+    return {
+        link.population_snapshot_class.source_school_class_id
+        for item in groups for link in item.source_classes
+        if link.population_snapshot_class.source_school_class_id is not None
+    }
+
+
+def _teacher_subjects_from_workload(on_date, user, version):
+    rows = WorkloadAssignment.query.filter(
+        WorkloadAssignment.tariff_version_id == version.id,
+        WorkloadAssignment.employee_user_id == user.id,
+        WorkloadAssignment.status != "CANCELLED",
+        WorkloadAssignment.assignment_kind != "VACANCY",
+        WorkloadAssignment.date_from <= on_date,
+        WorkloadAssignment.date_to >= on_date,
+    ).all()
+    result = {}
+    for assignment in rows:
+        need = assignment.workload_need
+        group = need.teaching_group if need else None
+        if not group or not (need.date_from <= on_date <= need.date_to and group.valid_from <= on_date <= group.valid_to):
+            continue
+        if group.status == "CLOSED" or group.source_plan_line.education_plan.plan_kind != "CURRICULUM":
+            continue
+        name = (need.education_activity.name or "").strip()
+        for class_id in _group_class_ids(group):
+            result.setdefault(class_id, set()).add(name)
+    return result
+
+
+def journal_classes_for_user(on_date, user, grade=None, *, trip=False):
+    classes = available_classes(on_date, grade)
+    if trip or is_admin(user) or is_director(user):
+        return classes
+    year = year_for_date(on_date)
+    version = _workload_version(year)
+    subjects = (
+        _teacher_subjects_from_workload(on_date, user, version)
+        if version else _legacy_teacher_subjects(year, user, classes)
+    )
+    return [item for item in classes if subjects.get(item.id)]
+
+
+def journal_subjects_for_class(on_date, user, classroom, *, trip=False):
+    if trip:
+        return sorted({item.instruction.category for item in effective_instruction_versions(on_date)}, key=str.casefold)
+    year = year_for_date(on_date)
+    version = _workload_version(year)
+    if version is None:
+        subjects = _legacy_teacher_subjects(year, user, [classroom]).get(classroom.id, set())
+    elif is_admin(user) or is_director(user):
+        groups = (
+            TeachingGroup.query
+            .join(TeachingGroupClass, TeachingGroupClass.teaching_group_id == TeachingGroup.id)
+            .join(PopulationSnapshotClass, PopulationSnapshotClass.id == TeachingGroupClass.population_snapshot_class_id)
+            .join(EducationPlanLine, EducationPlanLine.id == TeachingGroup.source_plan_line_id)
+            .join(EducationPlan, EducationPlan.id == EducationPlanLine.education_plan_id)
+            .filter(
+                TeachingGroup.tariff_version_id == version.id,
+                PopulationSnapshotClass.source_school_class_id == classroom.id,
+                EducationPlan.plan_kind == "CURRICULUM",
+                TeachingGroup.status != "CLOSED",
+                TeachingGroup.valid_from <= on_date,
+                TeachingGroup.valid_to >= on_date,
+            ).all()
+        )
+        subjects = {group.education_activity.name for group in groups}
+    else:
+        subjects = _teacher_subjects_from_workload(on_date, user, version).get(classroom.id, set())
+    return sorted((name for name in subjects if name), key=str.casefold)
 
 
 def _enrollments_on_date(on_date, class_ids=None, child_ids=None):
@@ -176,6 +295,13 @@ def preview_payload(draft, author):
         raise ValueError("Выберите хотя бы один класс.")
     if not draft.selected_child_ids:
         raise ValueError("Добавьте хотя бы одного участника.")
+    if draft.trip_assignment_id is None:
+        allowed_classes = {item.id: item for item in journal_classes_for_user(on_date, author)}
+        if len(draft.class_ids) != 1 or draft.class_ids[0] not in allowed_classes:
+            raise ValueError("Выбранный класс больше не доступен в нагрузке.")
+        subject = version.instruction.category.strip()
+        if not any(item.strip().casefold() == subject.casefold() for item in journal_subjects_for_class(on_date, author, allowed_classes[draft.class_ids[0]])):
+            raise ValueError("Выбранный предмет больше не доступен для класса.")
     trip = None
     if draft.trip_assignment_id is not None:
         from app.services.safety_trip_service import trip_snapshot

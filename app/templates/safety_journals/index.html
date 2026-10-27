@@ -6,7 +6,7 @@
   <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{{ url_for('safety_instructions.library') }}">PDF инструкции</a><a class="btn btn-outline-secondary" href="{{ url_for('safety_instructions.index') }}">Каталог для журналов</a></div>
 </div>
 <div class="row g-3 mb-3">
-  <div class="col-lg-6"><div class="card card-body h-100"><h2 class="h5">На занятиях и лабораторных работах</h2><p class="small text-muted mb-2">Педагог выбирает действующую инструкцию, класс и обучающихся, затем формирует страницу для печати.</p>
+  <div class="col-lg-6"><div class="card card-body h-100"><h2 class="h5">На занятиях и лабораторных работах</h2><p class="small text-muted mb-2">Выберите параллель и класс, предмет из нагрузки педагога или учебного плана класса, затем инструкцию и обучающихся.</p>
     {% if can_create %}<form method="post" action="{{ url_for('safety_journals.create') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary btn-sm">Сформировать журнал для класса</button></form>
     {% if not has_effective_instructions %}<p class="small mb-0 mt-2">Перед печатью нужно подтвердить действующую инструкцию в <a href="{{ url_for('safety_instructions.library') }}">библиотеке PDF</a>.</p>{% endif %}
     {% else %}<p class="small mb-0">Страницу проводимого инструктажа создаёт педагог или администратор.</p>{% endif %}

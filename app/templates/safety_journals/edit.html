@@ -2,34 +2,58 @@
 {% block title %}Новая страница журнала{% endblock %}
 {% block workspace_content %}
 <div class="page-head mb-3">
-  <div><div class="section-overline">Техника безопасности · журнал инструктажа</div><h1 class="page-title">Новая страница журнала</h1><p class="page-sub">Выберите предмет и инструкцию, затем класс и участников. Даты и подписи в PDF остаются пустыми для заполнения от руки.</p></div>
+  <div><div class="section-overline">Техника безопасности · журнал инструктажа</div><h1 class="page-title">Новая страница журнала</h1><p class="page-sub">Выберите параллель и класс, затем предмет из учебного плана или нагрузки и инструкцию. Даты и подписи в PDF остаются пустыми для заполнения от руки.</p></div>
   <a class="btn btn-outline-secondary" href="{{ url_for('safety_journals.index') }}">К журналам</a>
 </div>
 {% if admin_mode %}<div class="alert alert-info">Вы создаёте страницу как администратор. В графе «Проводивший» будет указано ваше ФИО. Для фактически проведённого педагогом инструктажа страницу должен сформировать сам педагог.</div>{% endif %}
 {% if trip %}<div class="alert alert-info">Выезд по приказу № {{ trip.order.number }} от {{ trip.order.order_date.strftime('%d.%m.%Y') }}: {{ trip.trip_kind }}, {{ trip.destination }}, {{ trip.trip_date.strftime('%d.%m.%Y') }}. Реквизиты переносятся в журнал автоматически.</div>{% endif %}
 
 <div class="card card-body mb-3">
-  <h2 class="h5">1. Предмет и класс</h2>
+  <h2 class="h5">1. Параллель и класс</h2>
   <p class="small text-muted">Дата учёта нужна только для подбора состава и действующей инструкции; в печатной графе дата будет пустой.</p>
   <form method="get" class="row g-2 align-items-end">
-    <div class="col-md-3"><label class="form-label" for="journal-subject">Предмет или категория</label><select class="form-select" id="journal-subject" name="subject" required><option value="">Выберите</option>{% for category in categories %}<option value="{{ category }}" {% if chosen_subject == category %}selected{% endif %}>{{ category }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label" for="journal-grade">Параллель</label><select class="form-select" id="journal-grade" name="grade" required><option value="">Выберите</option>{% for grade in range(1,12) %}<option value="{{ grade }}" {% if chosen_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label" for="journal-date">Дата учёта</label><input class="form-control" id="journal-date" type="date" name="instructed_on" value="{{ chosen_date.isoformat() }}" max="{{ today.isoformat() }}" required></div>
-    <div class="col-md-3"><button class="btn btn-outline-primary w-100">Показать инструкции и классы</button></div>
+    <div class="col-md-4"><label class="form-label" for="journal-grade">Параллель</label><select class="form-select" id="journal-grade" name="grade" required><option value="">Выберите</option>{% for grade in grades %}<option value="{{ grade }}" {% if chosen_grade == grade %}selected{% endif %}>{{ grade }} класс</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="journal-date">Дата учёта</label><input class="form-control" id="journal-date" type="date" name="instructed_on" value="{{ chosen_date.isoformat() }}" max="{{ today.isoformat() }}" required></div>
+    <div class="col-md-4"><button class="btn btn-outline-primary w-100">Показать классы</button></div>
   </form>
-  {% if not categories %}<p class="small mb-0 mt-3">На эту дату нет действующих инструкций. Администратор или ответственный может добавить проверенный PDF через <a href="{{ url_for('safety_instructions.library') }}">библиотеку инструкций</a>.</p>{% endif %}
+  {% if not grades %}<p class="small mb-0 mt-3">{{ 'Классы на выбранную дату не найдены.' if manager_mode else 'Классы в вашей нагрузке на выбранную дату не найдены. Проверьте назначение нагрузки и учебный год.' }}</p>{% endif %}
+  {% if chosen_grade and not trip %}
+  <form method="get" class="row g-2 align-items-end mt-2">
+    <input type="hidden" name="grade" value="{{ chosen_grade }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}">
+    <div class="col-md-8"><label class="form-label" for="journal-class">Класс {{ 'из вашей нагрузки' if not manager_mode else '' }}</label><select class="form-select" id="journal-class" name="class_id" required><option value="">Выберите класс</option>{% for classroom in classes %}<option value="{{ classroom.id }}" {% if chosen_class and chosen_class.id == classroom.id %}selected{% endif %}>{{ classroom.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><button class="btn btn-outline-primary w-100">Показать предметы</button></div>
+  </form>
+  {% endif %}
 </div>
 
 <div class="card card-body mb-3">
-  <h2 class="h5">2. Инструкция и классы</h2>
-  {% if chosen_subject and chosen_grade and classes and versions %}
-  <form method="post" action="{{ url_for('safety_journals.save_settings', draft_id=draft.id) }}" class="row g-3">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}"><input type="hidden" name="grade" value="{{ chosen_grade }}"><input type="hidden" name="subject" value="{{ chosen_subject }}">
-    <div class="col-12"><label class="form-label" for="journal-instruction">Номер и название инструкции</label><select class="form-select" id="journal-instruction" name="instruction_version_id" required><option value="">Выберите инструкцию</option>{% for version in versions %}<option value="{{ version.id }}" {% if draft.instruction_version_id == version.id %}selected{% endif %}>{{ version.instruction.number }} — {{ version.title_snapshot }} (версия {{ version.version_number }})</option>{% endfor %}</select></div>
-    <div class="col-12"><label class="form-label d-block">Класс</label><div class="d-flex flex-wrap gap-3">{% for classroom in classes %}<label class="form-check"><input class="form-check-input" type="checkbox" name="class_ids" value="{{ classroom.id }}" {% if classroom.id in draft.class_ids %}checked{% endif %}><span class="form-check-label">{{ classroom.name }}</span></label>{% endfor %}</div></div>
-    <div class="col-12"><button class="btn btn-primary">Показать список класса</button></div>
-  </form>
-  {% else %}<p class="text-muted mb-0">Сначала выберите предмет, параллель и дату учёта. Для них должны быть доступны действующая инструкция и класс.</p>{% endif %}
+  <h2 class="h5">2. Предмет и инструкция</h2>
+  {% if trip %}
+    {% if chosen_grade and classes and versions %}
+    <form method="post" action="{{ url_for('safety_journals.save_settings', draft_id=draft.id) }}" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}"><input type="hidden" name="grade" value="{{ chosen_grade }}">
+      <div class="col-12"><label class="form-label" for="journal-instruction">Номер и название инструкции</label><select class="form-select" id="journal-instruction" name="instruction_version_id" required><option value="">Выберите инструкцию</option>{% for version in versions %}<option value="{{ version.id }}" {% if draft.instruction_version_id == version.id %}selected{% endif %}>{{ version.instruction.number }} — {{ version.title_snapshot }}</option>{% endfor %}</select></div>
+      <div class="col-12"><label class="form-label d-block">Классы выезда</label><div class="d-flex flex-wrap gap-3">{% for classroom in classes %}<label class="form-check"><input class="form-check-input" type="checkbox" name="class_ids" value="{{ classroom.id }}" {% if classroom.id in draft.class_ids %}checked{% endif %}><span class="form-check-label">{{ classroom.name }}</span></label>{% endfor %}</div></div>
+      <div class="col-12"><button class="btn btn-primary">Показать список участников</button></div>
+    </form>
+    {% else %}<p class="text-muted mb-0">Выберите параллель; для выезда нужна действующая инструкция.</p>{% endif %}
+  {% elif chosen_class %}
+    <form method="get" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="grade" value="{{ chosen_grade }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}"><input type="hidden" name="class_id" value="{{ chosen_class.id }}">
+      <div class="col-md-8"><label class="form-label" for="journal-subject">Предмет {{ 'из учебного плана класса' if manager_mode else 'из вашей нагрузки' }}</label><select class="form-select" id="journal-subject" name="subject" required><option value="">Выберите предмет</option>{% for subject in subjects %}<option value="{{ subject }}" {% if chosen_subject == subject %}selected{% endif %}>{{ subject }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><button class="btn btn-outline-primary w-100">Показать инструкции</button></div>
+    </form>
+    {% if not subjects %}<p class="small mb-0">Для этого класса предметы в {{ 'учебном плане' if manager_mode else 'вашей нагрузке' }} не найдены.</p>{% endif %}
+    {% if chosen_subject %}
+      {% if versions %}
+      <form method="post" action="{{ url_for('safety_journals.save_settings', draft_id=draft.id) }}" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}"><input type="hidden" name="grade" value="{{ chosen_grade }}"><input type="hidden" name="subject" value="{{ chosen_subject }}"><input type="hidden" name="class_ids" value="{{ chosen_class.id }}">
+        <div class="col-md-9"><label class="form-label" for="journal-instruction">Номер и название инструкции</label><select class="form-select" id="journal-instruction" name="instruction_version_id" required><option value="">Выберите инструкцию</option>{% for version in versions %}<option value="{{ version.id }}" {% if draft.instruction_version_id == version.id %}selected{% endif %}>{{ version.instruction.number }} — {{ version.title_snapshot }} (версия {{ version.version_number }})</option>{% endfor %}</select></div>
+        <div class="col-md-3"><button class="btn btn-primary w-100">Показать список класса</button></div>
+      </form>
+      {% else %}<p class="small mb-0">Для предмета «{{ chosen_subject }}» нет действующей инструкции. Добавьте проверенный PDF в <a href="{{ url_for('safety_instructions.library') }}">каталог инструкций</a> с этим предметом.</p>{% endif %}
+    {% endif %}
+  {% else %}<p class="text-muted mb-0">Сначала выберите параллель и класс.</p>{% endif %}
 </div>
 
 {% if draft.class_ids %}

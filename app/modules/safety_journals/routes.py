@@ -24,7 +24,8 @@ from app.models.safety_passport import utc_now
 from app.services.safety_journal_pdf import build_journal_pdf
 from app.services.safety_journal_service import (
     available_classes, can_create_journal, can_view_page, effective_instruction_versions,
-    instruction_is_effective, preview_payload, roster_for_classes, search_students,
+    instruction_is_effective, journal_classes_for_user, journal_subjects_for_class,
+    preview_payload, roster_for_classes, search_students,
     selected_enrollments,
 )
 from app.services.safety_passport_service import is_admin, is_director, is_officer, school_today
@@ -186,14 +187,20 @@ def edit(draft_id):
         chosen_date = draft.instructed_on or school_today()
     chosen_grade = request.args.get("grade", type=int) or draft.grade
     try:
-        classes = available_classes(chosen_date, chosen_grade)
+        trip = draft.trip_order_id is not None
+        all_classes = journal_classes_for_user(chosen_date, current_user, trip=trip)
+        grades = sorted({item.grade for item in all_classes if item.grade})
+        classes = [item for item in all_classes if item.grade == chosen_grade] if chosen_grade else []
+        chosen_class_id = request.args.get("class_id", type=int) or (draft.class_ids[0] if draft.class_ids else None)
+        chosen_class = next((item for item in classes if item.id == chosen_class_id), None)
+        subjects = journal_subjects_for_class(chosen_date, current_user, chosen_class, trip=trip) if chosen_class or trip else []
         active_versions = effective_instruction_versions(chosen_date)
-        categories = sorted({item.instruction.category for item in active_versions}, key=str.casefold)
         chosen_subject = (request.args.get("subject") or (draft.instruction_version.instruction.category if draft.instruction_version else "")).strip()
-        versions = [item for item in active_versions if item.instruction.category == chosen_subject] if chosen_subject else []
+        chosen_subject = next((item for item in subjects if item.casefold() == chosen_subject.casefold()), "")
+        versions = active_versions if trip else [item for item in active_versions if item.instruction.category.strip().casefold() == chosen_subject.casefold()] if chosen_subject else []
         roster = roster_for_classes(chosen_date, draft.class_ids) if draft.class_ids else {}
     except ValueError as exc:
-        classes, versions, categories, chosen_subject, roster = [], [], [], "", {}
+        classes, versions, subjects, grades, chosen_class, chosen_subject, roster = [], [], [], [], None, "", {}
         flash(str(exc), "danger")
     class_roster = sorted(roster.values(), key=lambda item: (item.child.fio.casefold(), item.child_id))
     selected = [roster.get(int(child_id)) for child_id in draft.selected_child_ids if int(child_id) in roster]
@@ -214,9 +221,11 @@ def edit(draft_id):
             pass
     return render_template(
         "safety_journals/edit.html", **_context(), draft=draft, classes=classes,
-        versions=versions, categories=categories, chosen_subject=chosen_subject,
+        versions=versions, subjects=subjects, grades=grades, chosen_class=chosen_class,
+        chosen_subject=chosen_subject,
         class_roster=class_roster, selected=selected, removed=removed, found=found, trip=draft.trip_order,
         chosen_date=chosen_date, chosen_grade=chosen_grade, today=school_today(),
+        manager_mode=is_admin(current_user) or is_director(current_user),
         admin_mode=(is_admin(current_user) or is_director(current_user)) and not current_user.has_role("TEACHER"),
     )
 
@@ -239,15 +248,20 @@ def save_settings(draft_id):
         class_ids = [int(value) for value in request.form.getlist("class_ids")]
         if not class_ids or len(class_ids) != len(set(class_ids)):
             raise ValueError("Выберите один или несколько классов без повторов.")
-        classes = available_classes(on_date, grade)
+        if draft.trip_order_id is None and len(class_ids) != 1:
+            raise ValueError("Для предметного журнала выберите один класс.")
+        classes = journal_classes_for_user(on_date, current_user, grade, trip=draft.trip_order_id is not None)
         if not set(class_ids).issubset({item.id for item in classes}):
-            raise ValueError("Выбранный класс не относится к этой параллели и дате.")
+            raise ValueError("Класс недоступен в вашей нагрузке или на дату учёта.")
         version = db.session.get(SafetyInstructionVersion, int(request.form.get("instruction_version_id", "0")))
         if not instruction_is_effective(version, on_date):
             raise ValueError("Инструкция не действует на дату инструктажа.")
-        subject = (request.form.get("subject") or "").strip()
-        if subject and version.instruction.category != subject:
-            raise ValueError("Выберите инструкцию по указанному предмету.")
+        if draft.trip_order_id is None:
+            classroom = next(item for item in classes if item.id == class_ids[0])
+            subject = (request.form.get("subject") or version.instruction.category).strip()
+            allowed_subjects = journal_subjects_for_class(on_date, current_user, classroom)
+            if not any(item.casefold() == subject.casefold() for item in allowed_subjects) or version.instruction.category.strip().casefold() != subject.casefold():
+                raise ValueError("Выберите предмет из учебного плана или нагрузки класса и инструкцию к нему.")
         roster = roster_for_classes(on_date, class_ids)
         if not roster or len(roster) > 120:
             raise ValueError("В выбранных классах должно быть от 1 до 120 обучающихся.")
