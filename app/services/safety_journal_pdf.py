@@ -58,8 +58,8 @@ def build_journal_pdf(page, participants):
     stream = BytesIO()
     doc = SimpleDocTemplate(
         stream, pagesize=landscape(A4),
-        leftMargin=18 * mm, rightMargin=18 * mm,
-        topMargin=15 * mm, bottomMargin=15 * mm,
+        leftMargin=12 * mm, rightMargin=12 * mm,
+        topMargin=10 * mm, bottomMargin=10 * mm,
         title=f"Журнал инструктажа {page.number}",
         author=page.instructor_name_snapshot,
     )
@@ -142,9 +142,9 @@ def build_journal_pdf(page, participants):
     def footer(canvas, document):
         canvas.saveState()
         canvas.setFont(FONT_NAME, 7)
-        canvas.drawString(18 * mm, 9 * mm, f"Страница журнала № {page.number}")
-        canvas.drawCentredString(landscape(A4)[0] / 2, 9 * mm, page.instructor_name_snapshot)
-        canvas.drawRightString(landscape(A4)[0] - 18 * mm, 9 * mm, f"Лист {document.page}")
+        canvas.drawString(12 * mm, 7 * mm, f"Страница журнала № {page.number}")
+        canvas.drawCentredString(landscape(A4)[0] / 2, 7 * mm, page.instructor_name_snapshot)
+        canvas.drawRightString(landscape(A4)[0] - 12 * mm, 7 * mm, f"Лист {document.page}")
         canvas.restoreState()
 
     doc.build(story, onFirstPage=footer, onLaterPages=footer)

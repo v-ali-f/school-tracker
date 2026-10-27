@@ -505,7 +505,7 @@ def test_pdf_repeats_nine_column_header_on_each_sheet(app, client, make_user, lo
             assert "Дата рождения" in text
             assert "Подпись" in text
             assert "Иванов Иван Иванович" in text
-            printable_margin = 17 * 72 / 25.4
+            printable_margin = 11 * 72 / 25.4
             assert min(char["x0"] for char in sheet.chars) >= printable_margin
             assert max(char["x1"] for char in sheet.chars) <= sheet.width - printable_margin
             assert min(line["x0"] for line in sheet.lines) >= printable_margin
