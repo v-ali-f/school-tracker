@@ -94,11 +94,14 @@ def test_teacher_can_view_print_and_download_reference_pdf(app, client, make_use
 
     login(teacher_id)
     assert "ИОП-01" in client.get("/safety/instructions/library").get_data(as_text=True)
-    assert "registry-matrix" in client.get("/safety/instructions/library").get_data(as_text=True)
+    library_html = client.get("/safety/instructions/library").get_data(as_text=True)
+    assert "registry-matrix" in library_html and 'id="safety-pdf-preview-modal"' in library_html
+    assert 'data-bs-target="#safety-pdf-preview-modal"' in library_html
     assert "ИОП-01" in client.get("/safety/instructions/library?q=ИОП-01").get_data(as_text=True)
     assert "По запросу ничего не найдено" in client.get("/safety/instructions/library?q=несуществующая").get_data(as_text=True)
     inline = client.get(f"/safety/instructions/library/{digest}/pdf")
     assert inline.status_code == 200 and inline.data == content
+    assert inline.headers["Content-Disposition"].startswith("inline")
     assert inline.headers["Content-Disposition"].startswith("inline;")
     downloaded = client.get(f"/safety/instructions/library/{digest}/pdf?download=1")
     assert downloaded.status_code == 200
@@ -296,10 +299,13 @@ def test_catalog_rights_versions_and_immutable_original(app, client, make_user, 
     assert "registry-matrix" in registry and "ИОТ-1" in registry
     detail = client.get("/safety/instructions/1").get_data(as_text=True)
     assert "Добавить новую версию" in detail and "registry-matrix" in detail
+    assert 'id="safety-pdf-preview-modal"' in detail
     with app.app_context():
         version = SafetyInstructionVersion.query.one()
         old_id, old_hash, old_file = version.id, version.file_sha256, version.stored_filename
     assert client.get(f"/safety/instructions/versions/{old_id}/original").data.startswith(b"%PDF")
+    inline = client.get(f"/safety/instructions/versions/{old_id}/original?inline=1")
+    assert inline.status_code == 200 and inline.headers["Content-Disposition"].startswith("inline")
     assert client.post("/safety/instructions/1/versions", data=_instruction_form(
         ids["today"], title="Новая редакция", effective_from=(ids["today"] + timedelta(days=1)).isoformat(),
     ), content_type="multipart/form-data").status_code == 302
@@ -311,7 +317,7 @@ def test_catalog_rights_versions_and_immutable_original(app, client, make_user, 
         assert instruction.versions[0].stored_filename == old_file
         assert instruction.versions[0].title_snapshot == "Безопасность на уроке"
         assert instruction.versions[1].title_snapshot == "Новая редакция"
-        assert [event.action for event in SafetyInstructionAccessEvent.query.order_by(SafetyInstructionAccessEvent.id)] == ["created", "download", "new_version"]
+        assert [event.action for event in SafetyInstructionAccessEvent.query.order_by(SafetyInstructionAccessEvent.id)] == ["created", "download", "preview", "new_version"]
     login(ids["viewer"])
     assert client.get(f"/safety/instructions/versions/{old_id}/original").status_code == 403
 

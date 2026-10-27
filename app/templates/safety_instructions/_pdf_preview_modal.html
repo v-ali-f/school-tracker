@@ -1,0 +1,30 @@
+<style>
+  .safety-pdf-dialog { max-width: min(1180px, 96vw); }
+  .safety-pdf-dialog .modal-content { height: min(900px, 92vh); }
+  .safety-pdf-dialog .modal-body { min-height: 0; }
+  .safety-pdf-frame { width: 100%; height: 100%; border: 0; background: #f8fafc; }
+  @media (max-width: 575.98px) {
+    .safety-pdf-dialog { max-width: 100vw; }
+    .safety-pdf-dialog .modal-content { height: 100vh; }
+  }
+</style>
+<div class="modal fade" id="safety-pdf-preview-modal" tabindex="-1" aria-labelledby="safety-pdf-preview-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down safety-pdf-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title fs-6 text-truncate" id="safety-pdf-preview-title">Инструкция</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body p-0"><iframe class="safety-pdf-frame" id="safety-pdf-preview-frame" title="Просмотр PDF инструкции" src="about:blank"></iframe></div>
+      <div class="modal-footer py-2 justify-content-between">
+        <span class="small text-muted" id="safety-pdf-print-hint" hidden>Если диалог печати не открылся, нажмите значок печати в просмотрщике PDF.</span>
+        <div class="d-flex gap-2 ms-auto">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="safety-pdf-print" disabled><i class="bi bi-printer me-1"></i>Печать</button>
+          <a class="btn btn-outline-secondary btn-sm" id="safety-pdf-download" href="#"><i class="bi bi-download me-1"></i>Скачать</a>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/safety_pdf_preview.js') }}?v=20261027_1" defer></script>

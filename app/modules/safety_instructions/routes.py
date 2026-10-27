@@ -360,8 +360,9 @@ def download_original(version_id):
     path = _store_dir() / version.stored_filename
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != version.file_sha256:
         abort(409, "Оригинал инструкции недоступен или повреждён.")
-    db.session.add(SafetyInstructionAccessEvent(version_id=version.id, actor_id=current_user.id, action="download"))
+    inline = request.args.get("inline") == "1" and version.file_mime_type == "application/pdf"
+    db.session.add(SafetyInstructionAccessEvent(version_id=version.id, actor_id=current_user.id, action="preview" if inline else "download"))
     db.session.commit()
-    response = send_file(path, mimetype=version.file_mime_type, as_attachment=True, download_name=version.original_filename)
+    response = send_file(path, mimetype=version.file_mime_type, as_attachment=not inline, download_name=version.original_filename)
     response.headers["Cache-Control"] = "private, no-store"
     return response
