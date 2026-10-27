@@ -375,6 +375,9 @@ def test_catalog_rights_versions_and_immutable_original(app, client, make_user, 
     assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"]), content_type="multipart/form-data").status_code == 302
     registry = client.get("/safety/instructions/?q=ИОТ-1").get_data(as_text=True)
     assert "registry-matrix" in registry and "ИОТ-1" in registry
+    assert 'aria-label="Просмотреть PDF ИОТ-1"' in registry
+    assert 'data-bs-target="#safety-pdf-preview-modal"' in registry
+    assert 'id="safety-pdf-preview-modal"' in registry
     detail = client.get("/safety/instructions/1").get_data(as_text=True)
     assert "Добавить новую версию" in detail and "registry-matrix" in detail
     assert 'id="safety-pdf-preview-modal"' in detail
@@ -502,3 +505,8 @@ def test_pdf_repeats_nine_column_header_on_each_sheet(app, client, make_user, lo
             assert "Дата рождения" in text
             assert "Подпись" in text
             assert "Иванов Иван Иванович" in text
+            printable_margin = 17 * 72 / 25.4
+            assert min(char["x0"] for char in sheet.chars) >= printable_margin
+            assert max(char["x1"] for char in sheet.chars) <= sheet.width - printable_margin
+            assert min(line["x0"] for line in sheet.lines) >= printable_margin
+            assert max(line["x1"] for line in sheet.lines) <= sheet.width - printable_margin

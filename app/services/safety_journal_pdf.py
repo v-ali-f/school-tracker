@@ -44,14 +44,22 @@ def _paragraph(value, style):
     return Paragraph(escape(str(value or "")).replace("\n", "<br/>"), style)
 
 
+def _instruction_label(number, title):
+    number = (number or "").strip()
+    title = (title or "").strip()
+    if title.casefold().startswith(number.casefold()) and number:
+        title = title[len(number):].lstrip(" -—:№")
+    return f"{number} — {title}" if title else number
+
+
 def build_journal_pdf(page, participants):
     """Return immutable PDF bytes from already frozen page and participant data."""
     _register_fonts()
     stream = BytesIO()
     doc = SimpleDocTemplate(
         stream, pagesize=landscape(A4),
-        leftMargin=10 * mm, rightMargin=10 * mm,
-        topMargin=12 * mm, bottomMargin=12 * mm,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        topMargin=15 * mm, bottomMargin=15 * mm,
         title=f"Журнал инструктажа {page.number}",
         author=page.instructor_name_snapshot,
     )
@@ -75,13 +83,14 @@ def build_journal_pdf(page, participants):
             "",  # Birth date is written on the printed sheet by the teacher.
             _paragraph(person.class_name_snapshot, centered),
             "",  # The actual briefing date is entered on paper by hand.
-            _paragraph(f"{page.instruction_number_snapshot} — {page.instruction_summary_snapshot}", table_cell),
+            _paragraph(_instruction_label(page.instruction_number_snapshot, page.instruction_summary_snapshot), table_cell),
             "",  # Signatures are placed on the printed sheet by hand.
             _paragraph(page.instructor_name_snapshot, centered),
             "",
         ])
-    available_width = landscape(A4)[0] - 20 * mm
-    proportions = [0.035, 0.17, 0.09, 0.055, 0.075, 0.26, 0.11, 0.14, 0.065]
+    # ReportLab's document frame adds 6 pt padding on each side.
+    available_width = doc.width - 12
+    proportions = [0.035, 0.17, 0.09, 0.055, 0.075, 0.25, 0.11, 0.135, 0.08]
     widths = [available_width * part for part in proportions]
     table = LongTable(rows, colWidths=widths, repeatRows=1, hAlign="LEFT")
     table.setStyle(TableStyle([
@@ -92,8 +101,8 @@ def build_journal_pdf(page, participants):
         ("RIGHTPADDING", (0, 0), (-1, -1), 3),
         ("TOPPADDING", (0, 0), (-1, 0), 5),
         ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
-        ("TOPPADDING", (0, 1), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 10),
+        ("TOPPADDING", (0, 1), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
     ]))
     trip = page.trip_snapshot or {}
     journal_title = "Страница журнала инструктажа обучающихся при выезде" if page.kind == "trip" else "Страница журнала регистрации инструктажа обучающихся"
@@ -106,7 +115,7 @@ def build_journal_pdf(page, participants):
             subheading,
         ),
         _paragraph(
-            f"Инструкция: {page.instruction_number_snapshot} — {page.instruction_title_snapshot} "
+            f"Инструкция: {_instruction_label(page.instruction_number_snapshot, page.instruction_title_snapshot)} "
             + (f"(версия {page.instruction_version_number_snapshot})" if page.instruction_version_number_snapshot else "(PDF из перечня)"),
             subheading,
         ),
@@ -133,9 +142,9 @@ def build_journal_pdf(page, participants):
     def footer(canvas, document):
         canvas.saveState()
         canvas.setFont(FONT_NAME, 7)
-        canvas.drawString(10 * mm, 7 * mm, f"Страница журнала № {page.number}")
-        canvas.drawCentredString(landscape(A4)[0] / 2, 7 * mm, page.instructor_name_snapshot)
-        canvas.drawRightString(landscape(A4)[0] - 10 * mm, 7 * mm, f"Лист {document.page}")
+        canvas.drawString(18 * mm, 9 * mm, f"Страница журнала № {page.number}")
+        canvas.drawCentredString(landscape(A4)[0] / 2, 9 * mm, page.instructor_name_snapshot)
+        canvas.drawRightString(landscape(A4)[0] - 18 * mm, 9 * mm, f"Лист {document.page}")
         canvas.restoreState()
 
     doc.build(story, onFirstPage=footer, onLaterPages=footer)

@@ -296,9 +296,10 @@ def preview_payload(draft, author):
             raise ValueError("Укажите один источник инструкции.")
         from app.modules.safety_instructions.routes import journal_library_item
         library_item = journal_library_item(draft.library_item_id, subject)
-        library_title = (library_item.get("title") or "").strip()
-        library_number = library_title.partition(" ")[0]
-        if not library_title or len(library_title) > 500 or len(library_number) > 80:
+        library_full_title = (library_item.get("title") or "").strip()
+        library_number, _, library_title = library_full_title.partition(" ")
+        library_title = library_title.strip() or library_full_title
+        if not library_full_title or len(library_title) > 500 or len(library_number) > 80:
             raise ValueError("У PDF из перечня нет корректного номера или названия.")
     elif not instruction_is_effective(version, on_date):
         raise ValueError("Выберите действующую на эту дату инструкцию.")
