@@ -187,11 +187,15 @@ def edit(draft_id):
     chosen_grade = request.args.get("grade", type=int) or draft.grade
     try:
         classes = available_classes(chosen_date, chosen_grade)
-        versions = effective_instruction_versions(chosen_date)
+        active_versions = effective_instruction_versions(chosen_date)
+        categories = sorted({item.instruction.category for item in active_versions}, key=str.casefold)
+        chosen_subject = (request.args.get("subject") or (draft.instruction_version.instruction.category if draft.instruction_version else "")).strip()
+        versions = [item for item in active_versions if item.instruction.category == chosen_subject] if chosen_subject else []
         roster = roster_for_classes(chosen_date, draft.class_ids) if draft.class_ids else {}
     except ValueError as exc:
-        classes, versions, roster = [], [], {}
+        classes, versions, categories, chosen_subject, roster = [], [], [], "", {}
         flash(str(exc), "danger")
+    class_roster = sorted(roster.values(), key=lambda item: (item.child.fio.casefold(), item.child_id))
     selected = [roster.get(int(child_id)) for child_id in draft.selected_child_ids if int(child_id) in roster]
     # Students from another class are resolved separately.
     if draft.selected_child_ids:
@@ -210,8 +214,10 @@ def edit(draft_id):
             pass
     return render_template(
         "safety_journals/edit.html", **_context(), draft=draft, classes=classes,
-        versions=versions, selected=selected, removed=removed, found=found, trip=draft.trip_order,
+        versions=versions, categories=categories, chosen_subject=chosen_subject,
+        class_roster=class_roster, selected=selected, removed=removed, found=found, trip=draft.trip_order,
         chosen_date=chosen_date, chosen_grade=chosen_grade, today=school_today(),
+        admin_mode=(is_admin(current_user) or is_director(current_user)) and not current_user.has_role("TEACHER"),
     )
 
 
@@ -224,7 +230,7 @@ def save_settings(draft_id):
     try:
         on_date = date.fromisoformat(request.form.get("instructed_on", ""))
         if on_date > school_today():
-            raise ValueError("Дата инструктажа не может быть в будущем.")
+            raise ValueError("Дата учёта не может быть в будущем.")
         if draft.trip_order_id is not None and (draft.trip_order.cancelled_at is not None or on_date > draft.trip_order.trip_date):
             raise ValueError("Инструктаж по выезду должен пройти не позднее даты действующего выезда.")
         grade = int(request.form.get("grade", "0"))
@@ -239,6 +245,9 @@ def save_settings(draft_id):
         version = db.session.get(SafetyInstructionVersion, int(request.form.get("instruction_version_id", "0")))
         if not instruction_is_effective(version, on_date):
             raise ValueError("Инструкция не действует на дату инструктажа.")
+        subject = (request.form.get("subject") or "").strip()
+        if subject and version.instruction.category != subject:
+            raise ValueError("Выберите инструкцию по указанному предмету.")
         roster = roster_for_classes(on_date, class_ids)
         if not roster or len(roster) > 120:
             raise ValueError("В выбранных классах должно быть от 1 до 120 обучающихся.")
@@ -251,6 +260,34 @@ def save_settings(draft_id):
         _event(draft, "settings_saved", details={"class_ids": class_ids, "version_id": version.id, "count": len(roster)})
         db.session.commit()
         flash("Параметры сохранены. Проверьте список участников.", "success")
+    except (ValueError, TypeError) as exc:
+        db.session.rollback()
+        flash(str(exc), "danger")
+    return redirect(url_for("safety_journals.edit", draft_id=draft.id))
+
+
+@safety_journals_bp.route("/drafts/<uuid:draft_id>/participants/select", methods=["POST"])
+@login_required
+def select_participants(draft_id):
+    draft = _draft_or_404(str(draft_id))
+    if draft.status != "draft" or not draft.class_ids or not draft.instructed_on:
+        abort(409)
+    try:
+        selected_ids = [int(value) for value in request.form.getlist("child_ids")]
+        if len(selected_ids) != len(set(selected_ids)):
+            raise ValueError("Ученик выбран несколько раз.")
+        roster = roster_for_classes(draft.instructed_on, draft.class_ids)
+        if not set(selected_ids).issubset(roster):
+            raise ValueError("Список класса изменился. Обновите страницу.")
+        external_ids = set(draft.selected_child_ids or []) - set(roster)
+        combined = sorted(set(selected_ids) | external_ids)
+        if len(combined) > 120:
+            raise ValueError("В одной странице допустимо не более 120 участников.")
+        draft.selected_child_ids = combined
+        draft.removed_child_ids = sorted(set(roster) - set(selected_ids))
+        _event(draft, "participants_selected", details={"count": len(combined)})
+        db.session.commit()
+        flash("Состав журнала сохранён.", "success")
     except (ValueError, TypeError) as exc:
         db.session.rollback()
         flash(str(exc), "danger")

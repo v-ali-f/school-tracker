@@ -7,9 +7,9 @@
 </div>
 <div class="row g-3 mb-3">
   <div class="col-lg-6"><div class="card card-body h-100"><h2 class="h5">На занятиях и лабораторных работах</h2><p class="small text-muted mb-2">Педагог выбирает действующую инструкцию, класс и обучающихся, затем формирует страницу для печати.</p>
-    {% if can_create and has_effective_instructions %}<form method="post" action="{{ url_for('safety_journals.create') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary btn-sm">Новый инструктаж на занятии</button></form>
-    {% elif can_create %}<p class="small mb-0">Для новой страницы ответственному нужно добавить действующую инструкцию в <a href="{{ url_for('safety_instructions.index') }}">каталог для журналов</a>.</p>
-    {% else %}<p class="small mb-0">Страницу проводимого инструктажа создаёт педагог. Ответственный и директор видят общий реестр и бумажное оформление.</p>{% endif %}
+    {% if can_create %}<form method="post" action="{{ url_for('safety_journals.create') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary btn-sm">Сформировать журнал для класса</button></form>
+    {% if not has_effective_instructions %}<p class="small mb-0 mt-2">Перед печатью нужно подтвердить действующую инструкцию в <a href="{{ url_for('safety_instructions.library') }}">библиотеке PDF</a>.</p>{% endif %}
+    {% else %}<p class="small mb-0">Страницу проводимого инструктажа создаёт педагог или администратор.</p>{% endif %}
   </div></div>
   <div class="col-lg-6"><div class="card card-body h-100"><h2 class="h5">Выезды и экскурсии</h2><p class="small text-muted mb-2">Страница создаётся назначенным сотрудником из приказа о выезде; сведения о выезде подставляются автоматически.</p>
     {% if can_view_trips %}<div><a class="btn btn-outline-primary btn-sm" href="{{ url_for('safety_trips.index') }}">Открыть выезды и экскурсии</a></div>{% else %}<p class="small mb-0">Выезды станут доступны после назначения вас ответственным в приказе.</p>{% endif %}

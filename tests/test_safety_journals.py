@@ -113,7 +113,9 @@ def test_officer_can_confirm_library_pdf_for_ordinary_journal(app, client, make_
         {"id": digest, "title": "ИОП-19-23-Об Инструкция в кабинете физики", "filename": "ИОП-19-23-Об.pdf"}
     ], ensure_ascii=False), encoding="utf-8")
     login(ids["teacher"])
-    assert "Новый инструктаж на занятии" not in client.get("/safety/journals/").get_data(as_text=True)
+    before = client.get("/safety/journals/").get_data(as_text=True)
+    assert "Сформировать журнал для класса" in before
+    assert "Перед печатью нужно подтвердить действующую инструкцию" in before
     assert client.get(f"/safety/instructions/library/{digest}/catalog").status_code == 403
 
     login(ids["officer"])
@@ -131,8 +133,45 @@ def test_officer_can_confirm_library_pdf_for_ordinary_journal(app, client, make_
         assert version.file_sha256 == digest and version.original_filename == "ИОП-19-23-Об.pdf"
 
     login(ids["teacher"])
-    assert "Новый инструктаж на занятии" in client.get("/safety/journals/").get_data(as_text=True)
+    after = client.get("/safety/journals/").get_data(as_text=True)
+    assert "Сформировать журнал для класса" in after
+    assert "Перед печатью нужно подтвердить действующую инструкцию" not in after
     assert client.post("/safety/journals/new").status_code == 302
+
+
+def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    admin_id = make_user("ADMIN")
+    login(admin_id)
+    assert client.post("/safety/instructions/new", data=_instruction_form(ids["today"], category="Физика"), content_type="multipart/form-data").status_code == 302
+    with app.app_context():
+        version_id = SafetyInstructionVersion.query.one().id
+    assert "Сформировать журнал для класса" in client.get("/safety/journals/").get_data(as_text=True)
+    response = client.post("/safety/journals/new")
+    assert response.status_code == 302
+    draft_url = response.headers["Location"]
+    chooser = client.get(f"{draft_url}?subject=Физика&grade=5").get_data(as_text=True)
+    assert "Физика" in chooser and "ИОТ-1" in chooser and "5А" in chooser
+    assert client.post(f"{draft_url}/settings", data={
+        "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
+        "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
+    }).status_code == 302
+    first, second, _ = ids["children"]
+    roster = client.get(draft_url).get_data(as_text=True)
+    assert f'value="{first}"' in roster and f'value="{second}"' in roster
+    assert client.post(f"{draft_url}/participants/select", data={"child_ids": [str(first)]}).status_code == 302
+    with app.app_context():
+        draft = SafetyJournalDraft.query.one()
+        assert draft.selected_child_ids == [first]
+    preview = client.get(f"{draft_url}/preview")
+    assert preview.status_code == 200
+    digest = re.search(r'name="preview_digest" value="([^"]+)"', preview.get_data(as_text=True)).group(1)
+    generated = client.post(f"{draft_url}/generate", data={"preview_digest": digest})
+    assert generated.status_code == 302
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        assert page.author_id == admin_id and page.instruction_number_snapshot == "ИОТ-1"
+        assert [person.child_id for person in page.participants] == [first]
 
 
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):

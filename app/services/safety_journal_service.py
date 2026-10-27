@@ -18,7 +18,7 @@ from app.services.safety_passport_service import (
 
 
 def can_create_journal(user):
-    return bool(role_codes(user).intersection({"TEACHER", "CLASS_TEACHER"}))
+    return bool(role_codes(user).intersection({"TEACHER", "CLASS_TEACHER", "ADMIN", "DIRECTOR"}))
 
 
 def can_view_page(user, page):
@@ -168,7 +168,7 @@ def preview_payload(draft, author):
         raise ValueError("Эта страница уже сформирована.")
     on_date = draft.instructed_on
     if on_date is None or on_date > school_today():
-        raise ValueError("Укажите дату проведённого инструктажа.")
+        raise ValueError("Укажите дату учёта для подбора состава и инструкции.")
     version = draft.instruction_version
     if not instruction_is_effective(version, on_date):
         raise ValueError("Выберите действующую на эту дату инструкцию.")

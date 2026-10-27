@@ -84,6 +84,8 @@ def is_officer(user, on_date=None):
 
 
 def can_manage_instructions(user, on_date=None):
+    if is_admin(user) or is_director(user):
+        return True
     on_date = on_date or school_today()
     return (
         SafetyOfficerAssignment.query
