@@ -5,11 +5,12 @@
   <div><div class="section-overline">Охрана труда</div><h1 class="page-title">Библиотека инструкций</h1><p class="page-sub">Исходные PDF для ознакомления, скачивания и печати. Статус действующей инструкции для журнала указывается отдельно в каталоге утверждённых версий.</p></div>
   <a class="btn btn-outline-secondary" href="{{ url_for('safety_instructions.index') }}">К каталогу</a>
 </div>
+<form class="registry-filter-panel" method="get" action="{{ url_for('safety_instructions.library') }}"><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label" for="instruction-search">Поиск по номеру или названию</label><input class="form-control" type="search" id="instruction-search" name="q" value="{{ query }}" placeholder="Например, ИОП-19 или физика"></div><div class="col-md-2"><button class="btn btn-outline-primary w-100">Найти</button></div><div class="col-md-2 small text-muted">Найдено: {{ items|length }} из {{ total }}</div></div></form>
 <div class="card card-body">
   {% if items %}
   <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Документ</th><th class="text-end">Действия</th></tr></thead><tbody>
-    {% for item in items %}<tr><td>{{ item.title }}<small class="d-block text-muted">{{ item.filename }}</small></td><td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id) }}">Открыть и распечатать</a> <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id, download=1) }}">Скачать</a></td></tr>{% endfor %}
+    {% for item in items %}<tr><td>{{ item.title }}</td><td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id) }}">Открыть и распечатать</a> <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id, download=1) }}">Скачать</a></td></tr>{% endfor %}
   </tbody></table></div>
-  {% else %}<p class="text-muted mb-0">PDF пока не загружены.</p>{% endif %}
+  {% else %}<p class="text-muted mb-0">{{ 'По запросу ничего не найдено.' if query else 'PDF пока не загружены.' }}</p>{% endif %}
 </div>
 {% endblock %}

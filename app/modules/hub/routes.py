@@ -1215,6 +1215,10 @@ def build_home_context():
     from app.services.safety_passport_service import is_admin, is_director, is_officer
     if not preview_role and (can_create_journal(current_user) or is_officer(current_user) or is_director(current_user) or is_admin(current_user)):
         sidebar_sections.append({
+            "endpoint": "safety_instructions.library", "url": url_for("safety_instructions.library"),
+            "title": "PDF инструкции по ОТ", "icon": "bi-file-earmark-pdf",
+        })
+        sidebar_sections.append({
             "endpoint": "safety_journals.index", "url": url_for("safety_journals.index"),
             "title": "Журналы инструктажей", "icon": "bi-journal-text",
         })

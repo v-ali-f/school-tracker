@@ -107,7 +107,7 @@ def can_view(user, classroom):
 
 
 def can_edit(user, classroom):
-    return is_assigned_teacher(user, classroom)
+    return bool(classroom.is_active and (is_director(user) or is_admin(user) or is_assigned_teacher(user, classroom)))
 
 
 def can_access_registry(user):

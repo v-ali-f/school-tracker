@@ -56,6 +56,13 @@ def test_passport_stays_with_classroom_after_teacher_change_and_review(
     })
     with app.app_context():
         assert SafetyOfficerAssignment.query.count() == 1
+    client.post("/safety/passports/officers", data={
+        "user_id": director_id, "valid_from": "2026-02-01", "can_manage_instructions": "1",
+    })
+    with app.app_context():
+        assignments = SafetyOfficerAssignment.query.all()
+        assert len(assignments) == 2
+        assert any(item.user_id == director_id and item.can_manage_instructions for item in assignments)
     login(officer_id)
     assert client.get(f"/safety/passports/{classroom_id}").status_code == 200
     assert client.get(f"/safety/passports/{classroom_id}/print").status_code == 200
@@ -121,6 +128,32 @@ def test_concurrent_edit_is_rejected_and_only_officer_reviews(app, client, make_
         passport = SafetyPassport.query.filter_by(classroom_id=classroom_id).one()
         assert passport.current_revision_number == 1
         assert passport.revisions[0].data["purpose"] == "Учебные занятия"
+
+
+def test_director_and_admin_can_edit_active_classroom_passport(app, client, make_user, login):
+    director_id = make_user("DIRECTOR")
+    admin_id = make_user("ADMIN")
+    viewer_id = make_user("VIEWER")
+    with app.app_context():
+        building = Building(name="Корпус")
+        db.session.add(building)
+        db.session.flush()
+        classroom = SchoolClassroom(building_id=building.id, name="Кабинет 205")
+        db.session.add(classroom)
+        db.session.commit()
+        classroom_id = classroom.id
+
+    login(director_id)
+    assert 'id="passport-form"' in client.get(f"/safety/passports/{classroom_id}").get_data(as_text=True)
+    assert client.post(f"/safety/passports/{classroom_id}/save", data=_save_form()).status_code == 302
+    login(admin_id)
+    assert 'id="passport-form"' in client.get(f"/safety/passports/{classroom_id}").get_data(as_text=True)
+    assert client.post(f"/safety/passports/{classroom_id}/save", data=_save_form(1, purpose="Уточнение администратора")).status_code == 302
+    with app.app_context():
+        passport = SafetyPassport.query.filter_by(classroom_id=classroom_id).one()
+        assert passport.current_revision_number == 2
+    login(viewer_id)
+    assert client.post(f"/safety/passports/{classroom_id}/save", data=_save_form(2)).status_code == 403
 
 
 def test_document_with_russian_name_is_private(app, client, make_user, login, tmp_path):

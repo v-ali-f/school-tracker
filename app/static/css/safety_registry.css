@@ -1,0 +1,76 @@
+/* Compact register tables for the occupational safety workspace. */
+.safety-registry-page .registry-filter-panel {
+  margin-bottom: 10px;
+}
+
+.safety-registry-page .registry-filter-panel .form-control,
+.safety-registry-page .registry-filter-panel .form-select,
+.safety-registry-page .registry-filter-panel .btn {
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.safety-registry-page .table-responsive {
+  border: 1px solid #c9d6e6;
+  border-radius: 7px;
+  overflow-x: auto;
+}
+
+.safety-registry-page .table-responsive > table {
+  width: 100%;
+  margin-bottom: 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  color: #29364d;
+}
+
+.safety-registry-page .table-responsive > table thead th {
+  height: 29px;
+  padding: 3px 6px;
+  border: 1px solid #c9d6e6;
+  background: #f1f4f8;
+  color: #667287;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.safety-registry-page .table-responsive > table tbody td,
+.safety-registry-page .table-responsive > table tbody th {
+  height: 25px;
+  padding: 2px 6px;
+  border: 1px solid #d6dfeb;
+  background: #fff;
+  color: #29364d;
+  font-size: 12px;
+  line-height: 1.15;
+  vertical-align: middle;
+}
+
+.safety-registry-page .table-responsive > table tbody tr:nth-child(even) td,
+.safety-registry-page .table-responsive > table tbody tr:nth-child(even) th {
+  background: #fbfcfe;
+}
+
+.safety-registry-page .table-responsive > table tbody tr:hover td,
+.safety-registry-page .table-responsive > table tbody tr:hover th {
+  background: #f3f7fc;
+}
+
+.safety-registry-page .table-responsive > table .btn-sm {
+  min-height: 23px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.safety-registry-page .table-responsive > table .form-control,
+.safety-registry-page .table-responsive > table .form-select {
+  min-height: 27px;
+  padding: 2px 5px;
+  font-size: 11px;
+}

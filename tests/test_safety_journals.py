@@ -87,6 +87,8 @@ def test_teacher_can_view_print_and_download_reference_pdf(app, client, make_use
 
     login(teacher_id)
     assert "ИОП-01" in client.get("/safety/instructions/library").get_data(as_text=True)
+    assert "ИОП-01" in client.get("/safety/instructions/library?q=ИОП-01").get_data(as_text=True)
+    assert "По запросу ничего не найдено" in client.get("/safety/instructions/library?q=несуществующая").get_data(as_text=True)
     inline = client.get(f"/safety/instructions/library/{digest}/pdf")
     assert inline.status_code == 200 and inline.data == content
     assert inline.headers["Content-Disposition"].startswith("inline;")

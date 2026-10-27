@@ -60,10 +60,13 @@ def library():
     if not _can_read():
         abort(403)
     from app.modules.hub.routes import build_home_context
+    query = (request.args.get("q") or "").strip()[:120]
+    items = _library_items()
+    matching = [item for item in items if query.casefold() in item["title"].casefold()] if query else items
     return render_template(
         "safety_instructions/library.html", workspace_nav=build_home_context(),
         workspace_context_title="Охрана труда", workspace_context_subtitle="Библиотека инструкций",
-        items=_library_items(),
+        items=matching, total=len(items), query=query,
     )
 
 

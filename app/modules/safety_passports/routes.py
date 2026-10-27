@@ -245,7 +245,10 @@ def officers():
                 SafetyOfficerAssignment.revoked_at.is_(None),
                 or_(SafetyOfficerAssignment.valid_to.is_(None), SafetyOfficerAssignment.valid_to >= valid_from),
             ).all()
-            if any(valid_to is None or item.valid_from <= valid_to for item in overlapping):
+            concurrent = [item for item in overlapping if valid_to is None or item.valid_from <= valid_to]
+            if any(item.user_id == user.id for item in concurrent):
+                flash("Сотрудник уже назначен на выбранный период.", "danger")
+            elif not is_director(user) and any(not is_director(item.user) for item in concurrent):
                 flash("На выбранный период уже назначен ответственный за ОТ.", "danger")
             else:
                 db.session.add(SafetyOfficerAssignment(
