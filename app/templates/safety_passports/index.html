@@ -2,8 +2,8 @@
 {% block title %}Паспорта кабинетов{% endblock %}
 {% block workspace_content %}
 <div class="page-head mb-4">
-  <div><div class="section-overline">Охрана труда</div><h1 class="page-title">Паспорта кабинетов</h1><p class="page-sub">Один паспорт сохраняется за кабинетом при смене ответственного и учебного года.</p></div>
-  <div class="d-flex gap-2"><a class="btn btn-primary" href="{{ url_for('safety_instructions.library') }}"><i class="bi bi-file-earmark-pdf me-1"></i>PDF инструкции</a>{% if manager and current_user.has_role('DIRECTOR') %}<a class="btn btn-outline-primary" href="{{ url_for('safety_passports.officers') }}">Ответственные за ОТ</a>{% endif %}</div>
+  <div><div class="section-overline">Кабинеты</div><h1 class="page-title">Паспорта кабинетов</h1><p class="page-sub">Один паспорт сохраняется за кабинетом при смене ответственного и учебного года.</p></div>
+  {% if manager and current_user.has_role('DIRECTOR') %}<div><a class="btn btn-outline-primary" href="{{ url_for('safety_passports.officers') }}">Ответственные за ОТ</a></div>{% endif %}
 </div>
 
 {% if manager %}

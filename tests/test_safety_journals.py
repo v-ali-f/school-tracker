@@ -102,6 +102,39 @@ def test_teacher_can_view_print_and_download_reference_pdf(app, client, make_use
     assert client.get("/safety/instructions/library").status_code == 403
 
 
+def test_officer_can_confirm_library_pdf_for_ordinary_journal(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    folder = tmp_path / "safety" / "library"
+    folder.mkdir(parents=True)
+    content = b"%PDF-1.4 approved original"
+    digest = hashlib.sha256(content).hexdigest()
+    (folder / f"{digest}.pdf").write_bytes(content)
+    (folder / "manifest.json").write_text(json.dumps([
+        {"id": digest, "title": "ИОП-19-23-Об Инструкция в кабинете физики", "filename": "ИОП-19-23-Об.pdf"}
+    ], ensure_ascii=False), encoding="utf-8")
+    login(ids["teacher"])
+    assert "Новый инструктаж на занятии" not in client.get("/safety/journals/").get_data(as_text=True)
+    assert client.get(f"/safety/instructions/library/{digest}/catalog").status_code == 403
+
+    login(ids["officer"])
+    assert client.get(f"/safety/instructions/library/{digest}/catalog").status_code == 200
+    approved_on = (ids["today"] - timedelta(days=10)).isoformat()
+    response = client.post(f"/safety/instructions/library/{digest}/catalog", data={
+        "number": "ИОП-19-23-Об", "title": "Инструкция в кабинете физики",
+        "category": "Физика", "briefing_kind": "первичный",
+        "approval_basis": "Утверждение на первом листе", "summary": "Правила работы в кабинете физики",
+        "approved_on": approved_on, "effective_from": approved_on,
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        version = SafetyInstructionVersion.query.one()
+        assert version.file_sha256 == digest and version.original_filename == "ИОП-19-23-Об.pdf"
+
+    login(ids["teacher"])
+    assert "Новый инструктаж на занятии" in client.get("/safety/journals/").get_data(as_text=True)
+    assert client.post("/safety/journals/new").status_code == 302
+
+
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):
     ids = _setup(app, make_user, tmp_path)
     login(ids["teacher"])

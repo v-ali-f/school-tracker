@@ -1,0 +1,19 @@
+{% extends "workspace_layout.html" %}
+{% block title %}Добавить инструкцию в каталог журналов{% endblock %}
+{% block workspace_content %}
+<div class="page-head mb-3"><div><div class="section-overline">Техника безопасности · инструкции</div><h1 class="page-title">Добавить в каталог журналов</h1><p class="page-sub">Проверьте первый лист PDF и заполните реквизиты утверждения. После сохранения инструкция станет доступна педагогам для новых страниц журнала с указанной даты.</p></div><a class="btn btn-outline-secondary" href="{{ url_for('safety_instructions.library') }}">К библиотеке</a></div>
+<div class="card card-body mb-3"><strong>{{ item.title }}</strong><div class="mt-2"><a target="_blank" rel="noopener" href="{{ url_for('safety_instructions.library_pdf', item_id=item.id) }}">Открыть исходный PDF</a></div></div>
+<form method="post" class="card card-body"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="row g-3">
+  <div class="col-md-3"><label class="form-label">Номер инструкции</label><input class="form-control" name="number" value="{{ form.get('number') or number }}" maxlength="80" required></div>
+  <div class="col-md-9"><label class="form-label">Название</label><input class="form-control" name="title" value="{{ form.get('title') or title }}" maxlength="500" required></div>
+  <div class="col-md-4"><label class="form-label">Предмет или категория</label><input class="form-control" name="category" value="{{ form.get('category','') }}" maxlength="120" placeholder="Например, физика" required></div>
+  <div class="col-md-4"><label class="form-label">Вид инструктажа</label><select class="form-select" name="briefing_kind" required><option value="">Выберите</option>{% for kind in ['первичный','повторный','внеплановый','целевой'] %}<option value="{{ kind }}" {% if form.get('briefing_kind') == kind %}selected{% endif %}>{{ kind|capitalize }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label">Кабинет или мероприятие</label><input class="form-control" name="scope" value="{{ form.get('scope','') }}" maxlength="2000"></div>
+  <div class="col-md-6"><label class="form-label">Основание утверждения</label><input class="form-control" name="approval_basis" value="{{ form.get('approval_basis','') }}" maxlength="500" placeholder="Приказ, подпись или другой реквизит из документа" required></div>
+  <div class="col-md-3"><label class="form-label">Дата утверждения</label><input class="form-control" type="date" name="approved_on" value="{{ form.get('approved_on','') }}" required></div>
+  <div class="col-md-3"><label class="form-label">Действует с</label><input class="form-control" type="date" name="effective_from" value="{{ form.get('effective_from','') }}" required></div>
+  <div class="col-md-3"><label class="form-label">Действует по, если указано</label><input class="form-control" type="date" name="effective_to" value="{{ form.get('effective_to','') }}"></div>
+  <div class="col-md-9"><label class="form-label">Краткое содержание для журнала</label><input class="form-control" name="summary" value="{{ form.get('summary','') }}" maxlength="500" required></div>
+  <div class="col-12"><button class="btn btn-primary">Подтвердить реквизиты и добавить</button></div>
+</div></form>
+{% endblock %}

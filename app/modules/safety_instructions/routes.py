@@ -14,7 +14,7 @@ from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
-from app.models import SafetyInstruction, SafetyInstructionAccessEvent, SafetyInstructionVersion
+from app.models import SafetyInstruction, SafetyInstructionAccessEvent, SafetyInstructionVersion, SafetyTripAssignment
 from app.services.safety_journal_service import can_create_journal
 from app.services.safety_passport_service import can_manage_instructions, is_admin, is_director, is_officer, school_today
 
@@ -24,7 +24,10 @@ MAX_FILE_BYTES = 15 * 1024 * 1024
 
 
 def _can_read():
-    return can_create_journal(current_user) or is_officer(current_user) or is_director(current_user) or is_admin(current_user)
+    return bool(
+        can_create_journal(current_user) or is_officer(current_user) or is_director(current_user)
+        or is_admin(current_user) or SafetyTripAssignment.query.filter_by(user_id=current_user.id, is_active=True).first()
+    )
 
 
 def _store_dir():
@@ -54,6 +57,18 @@ def _library_items():
     return items
 
 
+def _library_item(item_id):
+    if not re.fullmatch(r"[0-9a-f]{64}", item_id):
+        abort(404)
+    item = next((entry for entry in _library_items() if entry.get("id") == item_id), None)
+    if item is None:
+        abort(404)
+    path = _library_dir() / f"{item_id}.pdf"
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != item_id:
+        abort(409, "Файл инструкции недоступен или повреждён.")
+    return item, path
+
+
 @safety_instructions_bp.route("/library")
 @login_required
 def library():
@@ -65,8 +80,9 @@ def library():
     matching = [item for item in items if query.casefold() in item["title"].casefold()] if query else items
     return render_template(
         "safety_instructions/library.html", workspace_nav=build_home_context(),
-        workspace_context_title="Охрана труда", workspace_context_subtitle="Библиотека инструкций",
+        workspace_context_title="Техника безопасности", workspace_context_subtitle="Библиотека инструкций",
         items=matching, total=len(items), query=query,
+        can_manage=can_manage_instructions(current_user),
     )
 
 
@@ -75,14 +91,7 @@ def library():
 def library_pdf(item_id):
     if not _can_read():
         abort(403)
-    if not re.fullmatch(r"[0-9a-f]{64}", item_id):
-        abort(404)
-    item = next((entry for entry in _library_items() if entry.get("id") == item_id), None)
-    if item is None:
-        abort(404)
-    path = _library_dir() / f"{item_id}.pdf"
-    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != item_id:
-        abort(409, "Файл инструкции недоступен или повреждён.")
+    item, path = _library_item(item_id)
     response = send_file(
         path, mimetype="application/pdf", as_attachment=request.args.get("download") == "1",
         download_name=item["filename"],
@@ -90,6 +99,30 @@ def library_pdf(item_id):
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@safety_instructions_bp.route("/library/<item_id>/catalog", methods=["GET", "POST"])
+@login_required
+def add_library_to_catalog(item_id):
+    if not can_manage_instructions(current_user):
+        abort(403)
+    item, path = _library_item(item_id)
+    suggested_number, _, suggested_title = item["title"].partition(" ")
+    if request.method == "POST":
+        try:
+            data = _parse_form()
+            _save_new_instruction(data, item["filename"], ".pdf", "application/pdf", path.read_bytes())
+            flash("Инструкция добавлена в каталог для журналов.", "success")
+            return redirect(url_for("safety_instructions.index"))
+        except (ValueError, IntegrityError) as exc:
+            flash(str(exc) if isinstance(exc, ValueError) else "Инструкция уже изменена. Обновите страницу.", "danger")
+    from app.modules.hub.routes import build_home_context
+    return render_template(
+        "safety_instructions/from_library.html", workspace_nav=build_home_context(),
+        workspace_context_title="Техника безопасности", workspace_context_subtitle="Добавить в каталог",
+        item=item, number=suggested_number, title=suggested_title or item["title"],
+        form=request.form if request.method == "POST" else {},
+    )
 
 
 def _uploaded_original():
@@ -141,32 +174,11 @@ def _parse_form():
     return fields
 
 
-@safety_instructions_bp.route("/")
-@login_required
-def index():
-    if not _can_read():
-        abort(403)
-    from app.modules.hub.routes import build_home_context
-    instructions = SafetyInstruction.query.order_by(SafetyInstruction.number).all()
-    return render_template(
-        "safety_instructions/index.html", workspace_nav=build_home_context(),
-        workspace_context_title="Охрана труда", workspace_context_subtitle="Инструкции",
-        instructions=instructions, can_manage=can_manage_instructions(current_user), today=school_today(),
-    )
-
-
-@safety_instructions_bp.route("/new", methods=["POST"])
-@login_required
-def create():
-    if not can_manage_instructions(current_user):
-        abort(403)
-    stored = None
+def _save_new_instruction(data, name, suffix, mime, content):
+    if SafetyInstruction.query.filter_by(number=data["number"]).first():
+        raise ValueError("Инструкция с таким номером уже есть. Добавьте новую версию.")
+    stored = f"{uuid4().hex}{suffix}"
     try:
-        data = _parse_form()
-        if SafetyInstruction.query.filter_by(number=data["number"]).first():
-            raise ValueError("Инструкция с таким номером уже есть. Добавьте новую версию.")
-        name, suffix, mime, content = _uploaded_original()
-        stored = f"{uuid4().hex}{suffix}"
         (_store_dir() / stored).write_bytes(content)
         instruction = SafetyInstruction(
             number=data["number"], title=data["title"], category=data["category"],
@@ -188,11 +200,37 @@ def create():
         db.session.flush()
         db.session.add(SafetyInstructionAccessEvent(version_id=version.id, actor_id=current_user.id, action="created"))
         db.session.commit()
+    except Exception:
+        db.session.rollback()
+        (_store_dir() / stored).unlink(missing_ok=True)
+        raise
+
+
+@safety_instructions_bp.route("/")
+@login_required
+def index():
+    if not _can_read():
+        abort(403)
+    from app.modules.hub.routes import build_home_context
+    instructions = SafetyInstruction.query.order_by(SafetyInstruction.number).all()
+    return render_template(
+        "safety_instructions/index.html", workspace_nav=build_home_context(),
+        workspace_context_title="Техника безопасности", workspace_context_subtitle="Инструкции",
+        instructions=instructions, can_manage=can_manage_instructions(current_user), today=school_today(),
+    )
+
+
+@safety_instructions_bp.route("/new", methods=["POST"])
+@login_required
+def create():
+    if not can_manage_instructions(current_user):
+        abort(403)
+    try:
+        data = _parse_form()
+        name, suffix, mime, content = _uploaded_original()
+        _save_new_instruction(data, name, suffix, mime, content)
         flash("Инструкция добавлена.", "success")
     except (ValueError, IntegrityError) as exc:
-        db.session.rollback()
-        if stored:
-            (_store_dir() / stored).unlink(missing_ok=True)
         flash(str(exc) if isinstance(exc, ValueError) else "Инструкция уже изменена. Обновите страницу.", "danger")
     return redirect(url_for("safety_instructions.index"))
 

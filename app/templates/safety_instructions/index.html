@@ -1,7 +1,7 @@
 {% extends "workspace_layout.html" %}
 {% block title %}Инструкции по охране труда{% endblock %}
 {% block workspace_content %}
-<div class="page-head mb-4"><div><div class="section-overline">Охрана труда</div><h1 class="page-title">Инструкции</h1><p class="page-sub">Утверждённые версии для журналов инструктажа. Оригиналы и история версий сохраняются.</p></div><div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{{ url_for('safety_instructions.library') }}">Библиотека PDF</a><a class="btn btn-outline-secondary" href="{{ url_for('safety_journals.index') }}">К журналам</a></div></div>
+<div class="page-head mb-4"><div><div class="section-overline">Техника безопасности</div><h1 class="page-title">Каталог инструкций для журналов</h1><p class="page-sub">Утверждённые версии для журналов инструктажа. Оригиналы и история версий сохраняются.</p></div><div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{{ url_for('safety_instructions.library') }}">Библиотека PDF</a><a class="btn btn-outline-secondary" href="{{ url_for('safety_journals.index') }}">К журналам</a></div></div>
 {% if can_manage %}
 <details class="card card-body mb-4"><summary class="h5">Добавить инструкцию</summary>
   <form method="post" enctype="multipart/form-data" action="{{ url_for('safety_instructions.create') }}" class="row g-3 mt-1">

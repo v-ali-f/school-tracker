@@ -38,7 +38,7 @@ def _context():
     from app.modules.hub.routes import build_home_context
     return {
         "workspace_nav": build_home_context(),
-        "workspace_context_title": "Охрана труда",
+        "workspace_context_title": "Техника безопасности",
         "workspace_context_subtitle": "Журналы инструктажей",
     }
 
@@ -153,9 +153,12 @@ def index():
     status = request.args.get("status", "")
     if status in {"generated", "printed", "annulled"}:
         query = query.filter_by(status=status)
+    kind = request.args.get("kind", "")
+    if kind in {"ordinary", "trip"}:
+        query = query.filter_by(kind=kind)
     pages = query.order_by(SafetyJournalPage.created_at.desc(), SafetyJournalPage.id.desc()).limit(300).all()
     drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) or trip_assigned else []
-    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), status=status, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
+    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, has_effective_instructions=bool(effective_instruction_versions(school_today())), status=status, kind=kind, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
 
 
 @safety_journals_bp.route("/new", methods=["POST"])

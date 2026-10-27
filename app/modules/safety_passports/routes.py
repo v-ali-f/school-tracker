@@ -47,7 +47,7 @@ def _workspace_context():
     from app.modules.hub.routes import build_home_context
     return {
         "workspace_nav": build_home_context(),
-        "workspace_context_title": "Охрана труда",
+        "workspace_context_title": "Паспорта кабинетов",
         "workspace_context_subtitle": "Паспорта кабинетов",
     }
 
