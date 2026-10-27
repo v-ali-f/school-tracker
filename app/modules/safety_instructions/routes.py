@@ -14,7 +14,7 @@ from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
 from app.core.extensions import db
-from app.models import SafetyInstruction, SafetyInstructionAccessEvent, SafetyInstructionVersion, SafetyTripAssignment
+from app.models import SafetyInstruction, SafetyInstructionAccessEvent, SafetyInstructionVersion, SafetyJournalDraft, SafetyTripAssignment
 from app.services.safety_journal_service import can_create_journal
 from app.services.safety_passport_service import can_manage_instructions, is_admin, is_director, is_officer, school_today
 
@@ -55,6 +55,32 @@ def _library_items():
     if not isinstance(items, list):
         abort(503)
     return items
+
+
+def library_suggestions(subject):
+    """Find reference PDFs for a school subject, including Russian case endings."""
+    normalized = subject.strip().casefold().replace("ё", "е")
+    aliases = {
+        "информатика": ("информатик",),
+        "физика": ("физик",),
+        "химия": ("хим",),
+        "биология": ("биолог",),
+        "технология": ("технолог",),
+        "физическая культура": ("физическ", "физкультур"),
+    }
+    terms = aliases.get(normalized) or tuple(
+        word[:-2] if word.endswith(("ия", "ие")) else word[:-1] if word.endswith(("а", "я", "и", "ы")) else word
+        for word in re.findall(r"[а-яa-z]+", normalized)
+        if len(word) >= 5
+    )
+    if not terms:
+        return []
+    known_hashes = {row.file_sha256 for row in SafetyInstructionVersion.query.with_entities(SafetyInstructionVersion.file_sha256).all()}
+    return [
+        {**item, "in_catalog": item.get("id") in known_hashes}
+        for item in _library_items()
+        if any(term in item.get("title", "").casefold().replace("ё", "е") for term in terms)
+    ]
 
 
 def _library_item(item_id):
@@ -108,11 +134,20 @@ def add_library_to_catalog(item_id):
         abort(403)
     item, path = _library_item(item_id)
     suggested_number, _, suggested_title = item["title"].partition(" ")
+    subject = (request.values.get("subject") or "").strip()[:120]
+    draft_id = (request.values.get("draft_id") or "").strip()
+    draft = SafetyJournalDraft.query.filter_by(id=draft_id, author_id=current_user.id, status="draft").first() if draft_id else None
     if request.method == "POST":
         try:
             data = _parse_form()
             _save_new_instruction(data, item["filename"], ".pdf", "application/pdf", path.read_bytes())
             flash("Инструкция добавлена в каталог для журналов.", "success")
+            if draft:
+                return redirect(url_for(
+                    "safety_journals.edit", draft_id=draft.id, grade=request.form.get("grade"),
+                    class_id=request.form.get("class_id"), instructed_on=request.form.get("instructed_on"),
+                    subject=data["category"],
+                ))
             return redirect(url_for("safety_instructions.index"))
         except (ValueError, IntegrityError) as exc:
             flash(str(exc) if isinstance(exc, ValueError) else "Инструкция уже изменена. Обновите страницу.", "danger")
@@ -121,7 +156,9 @@ def add_library_to_catalog(item_id):
         "safety_instructions/from_library.html", workspace_nav=build_home_context(),
         workspace_context_title="Техника безопасности", workspace_context_subtitle="Добавить в каталог",
         item=item, number=suggested_number, title=suggested_title or item["title"],
-        form=request.form if request.method == "POST" else {},
+        form=request.form if request.method == "POST" else {}, subject=subject,
+        draft_id=draft.id if draft else "", grade=request.values.get("grade", ""),
+        class_id=request.values.get("class_id", ""), instructed_on=request.values.get("instructed_on", ""),
     )
 
 

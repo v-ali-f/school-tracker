@@ -240,6 +240,51 @@ def test_current_workload_matrix_drives_teacher_classes_and_admin_plan_subjects(
         assert journal_classes_for_user(ids["today"], other_teacher) == []
 
 
+def test_library_pdf_is_suggested_and_can_return_to_journal_after_confirmation(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    admin_id = make_user("ADMIN")
+    with app.app_context():
+        year = AcademicYear.query.one()
+        db.session.add(TeacherLoad(teacher_id=ids["teacher"], academic_year_id=year.id, class_name="5А", grade=5, subject_name="Информатика", hours=2))
+        db.session.commit()
+    folder = tmp_path / "safety" / "library"
+    folder.mkdir(parents=True)
+    titles = [
+        "ИОП-04-23-Об Вводный инструктаж в кабинете информатики",
+        "ИОП-31-23-Об Инструкция по ОТ в кабинете информатики",
+        "ИОП-32-23-Об Инструкция по ОТ при выполнении практических работ в кабинете информатики",
+        "ИОП-07-23-Об Инструкция по ОТ в кабинете химии",
+    ]
+    items = []
+    for number, title in enumerate(titles):
+        content = f"%PDF-1.4 example {number}".encode()
+        digest = hashlib.sha256(content).hexdigest()
+        (folder / f"{digest}.pdf").write_bytes(content)
+        items.append({"id": digest, "title": title, "filename": f"{number}.pdf"})
+    (folder / "manifest.json").write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+
+    login(admin_id)
+    draft_url = client.post("/safety/journals/new").headers["Location"]
+    form_url = f"{draft_url}?grade=5&class_id={ids['class']}&subject=Информатика"
+    chooser = client.get(form_url).get_data(as_text=True)
+    assert "ИОП-04-23-Об" in chooser and "ИОП-31-23-Об" in chooser and "ИОП-32-23-Об" in chooser
+    assert "ИОП-07-23-Об" not in chooser
+    assert "Подтвердить для журнала" in chooser
+    assert client.get(f"/safety/instructions/library/{items[1]['id']}/catalog?subject=Информатика&draft_id={draft_url.rsplit('/', 1)[-1]}&grade=5&class_id={ids['class']}&instructed_on={ids['today'].isoformat()}").get_data(as_text=True).count('value="Информатика"') >= 1
+    response = client.post(f"/safety/instructions/library/{items[1]['id']}/catalog", data={
+        "csrf_token": "", "draft_id": draft_url.rsplit("/", 1)[-1], "grade": "5",
+        "class_id": str(ids["class"]), "instructed_on": ids["today"].isoformat(),
+        "number": "ИОП-31-23-Об", "title": "Инструкция по ОТ в кабинете информатики",
+        "category": "Информатика", "briefing_kind": "первичный",
+        "approval_basis": "Приказ № 1", "summary": "Правила работы в кабинете",
+        "approved_on": (ids["today"] - timedelta(days=5)).isoformat(),
+        "effective_from": (ids["today"] - timedelta(days=5)).isoformat(),
+    })
+    assert response.status_code == 302 and response.headers["Location"].startswith(draft_url)
+    chooser = client.get(response.headers["Location"]).get_data(as_text=True)
+    assert "ИОП-31-23-Об" in chooser and "Показать список класса" in chooser
+
+
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):
     ids = _setup(app, make_user, tmp_path)
     login(ids["teacher"])

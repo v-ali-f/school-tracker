@@ -28,7 +28,7 @@ from app.services.safety_journal_service import (
     preview_payload, roster_for_classes, search_students,
     selected_enrollments,
 )
-from app.services.safety_passport_service import is_admin, is_director, is_officer, school_today
+from app.services.safety_passport_service import can_manage_instructions, is_admin, is_director, is_officer, school_today
 
 
 safety_journals_bp = Blueprint("safety_journals", __name__, url_prefix="/safety/journals")
@@ -198,9 +198,14 @@ def edit(draft_id):
         chosen_subject = (request.args.get("subject") or (draft.instruction_version.instruction.category if draft.instruction_version else "")).strip()
         chosen_subject = next((item for item in subjects if item.casefold() == chosen_subject.casefold()), "")
         versions = active_versions if trip else [item for item in active_versions if item.instruction.category.strip().casefold() == chosen_subject.casefold()] if chosen_subject else []
+        if chosen_subject and not trip:
+            from app.modules.safety_instructions.routes import library_suggestions
+            library_items = library_suggestions(chosen_subject)
+        else:
+            library_items = []
         roster = roster_for_classes(chosen_date, draft.class_ids) if draft.class_ids else {}
     except ValueError as exc:
-        classes, versions, subjects, grades, chosen_class, chosen_subject, roster = [], [], [], [], None, "", {}
+        classes, versions, subjects, grades, chosen_class, chosen_subject, library_items, roster = [], [], [], [], None, "", [], {}
         flash(str(exc), "danger")
     class_roster = sorted(roster.values(), key=lambda item: (item.child.fio.casefold(), item.child_id))
     selected = [roster.get(int(child_id)) for child_id in draft.selected_child_ids if int(child_id) in roster]
@@ -221,11 +226,12 @@ def edit(draft_id):
             pass
     return render_template(
         "safety_journals/edit.html", **_context(), draft=draft, classes=classes,
-        versions=versions, subjects=subjects, grades=grades, chosen_class=chosen_class,
+        versions=versions, subjects=subjects, grades=grades, chosen_class=chosen_class, library_items=library_items,
         chosen_subject=chosen_subject,
         class_roster=class_roster, selected=selected, removed=removed, found=found, trip=draft.trip_order,
         chosen_date=chosen_date, chosen_grade=chosen_grade, today=school_today(),
         manager_mode=is_admin(current_user) or is_director(current_user),
+        can_manage_instructions=can_manage_instructions(current_user),
         admin_mode=(is_admin(current_user) or is_director(current_user)) and not current_user.has_role("TEACHER"),
     )
 
