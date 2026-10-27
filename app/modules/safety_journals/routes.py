@@ -2,7 +2,9 @@
 
 import hashlib
 from datetime import date
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
@@ -159,7 +161,7 @@ def index():
         query = query.filter_by(kind=kind)
     pages = query.order_by(SafetyJournalPage.created_at.desc(), SafetyJournalPage.id.desc()).limit(300).all()
     drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) or trip_assigned else []
-    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, has_effective_instructions=bool(effective_instruction_versions(school_today())), status=status, kind=kind, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
+    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
 
 
 @safety_journals_bp.route("/new", methods=["POST"])
@@ -195,7 +197,7 @@ def edit(draft_id):
         chosen_class = next((item for item in classes if item.id == chosen_class_id), None)
         subjects = journal_subjects_for_class(chosen_date, current_user, chosen_class, trip=trip) if chosen_class or trip else []
         active_versions = effective_instruction_versions(chosen_date)
-        chosen_subject = (request.args.get("subject") or (draft.instruction_version.instruction.category if draft.instruction_version else "")).strip()
+        chosen_subject = (request.args.get("subject") or draft.subject or (draft.instruction_version.instruction.category if draft.instruction_version else "")).strip()
         chosen_subject = next((item for item in subjects if item.casefold() == chosen_subject.casefold()), "")
         versions = active_versions if trip else [item for item in active_versions if item.instruction.category.strip().casefold() == chosen_subject.casefold()] if chosen_subject else []
         if chosen_subject and not trip:
@@ -261,26 +263,28 @@ def choices():
         roster = roster_for_classes(on_date, [classroom.id]) if classroom else {}
         from app.modules.safety_instructions.routes import library_suggestions
         suggestions = library_suggestions(subject) if subject else []
+        instructions = [{
+            "id": f"version:{item.id}", "label": f"{item.instruction.number} — {item.title_snapshot}",
+            "source": "catalog",
+            "preview_url": url_for("safety_instructions.download_original", version_id=item.id, inline=1) if item.file_mime_type == "application/pdf" else "",
+            "download_url": url_for("safety_instructions.download_original", version_id=item.id),
+        } for item in versions]
+        known_hashes = {item.file_sha256 for item in versions}
+        instructions.extend({
+            "id": f"library:{item['id']}", "label": item["title"], "source": "library",
+            "preview_url": url_for("safety_instructions.library_pdf", item_id=item["id"]),
+            "download_url": url_for("safety_instructions.library_pdf", item_id=item["id"], download=1),
+        } for item in suggestions if item["id"] not in known_hashes)
         response = jsonify({
             "grades": sorted({item.grade for item in all_classes if item.grade}),
             "classes": [{"id": item.id, "name": item.name} for item in classes],
             "subjects": subjects,
-            "instructions": [{
-                "id": item.id, "label": f"{item.instruction.number} — {item.title_snapshot}",
-                "kind": item.instruction.briefing_kind,
-                "preview_url": url_for("safety_instructions.download_original", version_id=item.id, inline=1) if item.file_mime_type == "application/pdf" else "",
-                "download_url": url_for("safety_instructions.download_original", version_id=item.id),
-            } for item in versions],
+            "instructions": instructions,
             "roster": [{
                 "id": item.child_id, "name": item.child.fio,
                 "class_name": item.school_class.name,
                 "birth_date": item.child.birth_date.strftime("%d.%m.%Y") if item.child.birth_date else "",
             } for item in sorted(roster.values(), key=lambda row: row.child.fio.casefold())],
-            "suggestions": [{
-                "title": item["title"], "preview_url": url_for("safety_instructions.library_pdf", item_id=item["id"]),
-                "download_url": url_for("safety_instructions.library_pdf", item_id=item["id"], download=1),
-                "catalog_url": url_for("safety_instructions.add_library_to_catalog", item_id=item["id"], subject=subject, draft_id=request.args.get("draft_id", ""), grade=grade, class_id=class_id, instructed_on=on_date.isoformat()) if can_manage_instructions(current_user) and not item["in_catalog"] else "",
-            } for item in suggestions],
         })
         response.headers["Cache-Control"] = "private, no-store"
         return response
@@ -295,45 +299,95 @@ def compose(draft_id):
     if draft.status != "draft" or draft.trip_order_id is not None or not can_create_journal(current_user):
         abort(409)
     try:
-        on_date = draft.instructed_on or school_today()
-        grade = int(request.form.get("grade", "0"))
-        class_id = int(request.form.get("class_id", "0"))
-        version_id = int(request.form.get("instruction_version_id", "0"))
-        subject = (request.form.get("subject") or "").strip()
-        kind = (request.form.get("briefing_kind") or "").strip().casefold()
-        note = (request.form.get("header_note") or "").strip()
-        child_ids = [int(value) for value in request.form.getlist("child_ids")]
-        if kind not in {"первичный", "повторный", "внеплановый", "целевой"}:
-            raise ValueError("Выберите вид инструктажа.")
-        if len(note) > 500:
-            raise ValueError("Дополнительная информация должна быть не длиннее 500 символов.")
-        classes = journal_classes_for_user(on_date, current_user, grade)
-        classroom = next((item for item in classes if item.id == class_id), None)
-        if classroom is None:
-            raise ValueError("Выберите доступный класс.")
-        subjects = journal_subjects_for_class(on_date, current_user, classroom)
-        if not any(item.casefold() == subject.casefold() for item in subjects):
-            raise ValueError("Выберите предмет из учебного плана или вашей нагрузки.")
-        version = db.session.get(SafetyInstructionVersion, version_id)
-        if not instruction_is_effective(version, on_date) or version.instruction.category.strip().casefold() != subject.casefold():
-            raise ValueError("Выберите действующую инструкцию по предмету.")
-        roster = roster_for_classes(on_date, [class_id])
-        if not child_ids or len(child_ids) > 120 or len(set(child_ids)) != len(child_ids) or not set(child_ids).issubset(roster):
-            raise ValueError("Выберите от 1 до 120 обучающихся из списка класса.")
-        draft.grade = grade
-        draft.class_ids = [class_id]
-        draft.instruction_version_id = version_id
-        draft.briefing_kind = kind
-        draft.header_note = note
-        draft.selected_child_ids = child_ids
-        draft.removed_child_ids = sorted(set(roster) - set(child_ids))
-        _event(draft, "composed", details={"class_id": class_id, "version_id": version_id, "count": len(child_ids)})
+        _populate_ordinary_draft(draft)
+        _event(draft, "composed", details={"class_id": draft.class_ids[0], "version_id": draft.instruction_version_id,
+                                            "library_item_id": draft.library_item_id, "count": len(draft.selected_child_ids)})
         db.session.commit()
     except (ValueError, TypeError) as exc:
         db.session.rollback()
         flash(str(exc), "danger")
         return redirect(url_for("safety_journals.edit", draft_id=draft.id))
     return _generate_page(draft)
+
+
+def _populate_ordinary_draft(draft):
+    on_date = draft.instructed_on or school_today()
+    grade = int(request.form.get("grade", "0"))
+    class_id = int(request.form.get("class_id", "0"))
+    subject = (request.form.get("subject") or "").strip()
+    kind = (request.form.get("briefing_kind") or "").strip().casefold()
+    note = (request.form.get("header_note") or "").strip()
+    child_ids = [int(value) for value in request.form.getlist("child_ids")]
+    choice = (request.form.get("instruction_choice") or request.form.get("instruction_version_id") or "").strip()
+    if kind not in {"первичный", "повторный", "внеплановый", "целевой"}:
+        raise ValueError("Выберите вид инструктажа.")
+    if len(note) > 500:
+        raise ValueError("Дополнительная информация должна быть не длиннее 500 символов.")
+    classes = journal_classes_for_user(on_date, current_user, grade)
+    classroom = next((item for item in classes if item.id == class_id), None)
+    if classroom is None:
+        raise ValueError("Выберите доступный класс.")
+    subjects = journal_subjects_for_class(on_date, current_user, classroom)
+    if not any(item.casefold() == subject.casefold() for item in subjects):
+        raise ValueError("Выберите предмет из учебного плана или вашей нагрузки.")
+    version_id, library_item_id = None, None
+    if choice.startswith("library:"):
+        library_item_id = choice.partition(":")[2]
+        from app.modules.safety_instructions.routes import journal_library_item
+        journal_library_item(library_item_id, subject)
+    else:
+        version_id = int(choice.partition(":")[2] if choice.startswith("version:") else choice)
+        version = db.session.get(SafetyInstructionVersion, version_id)
+        if not instruction_is_effective(version, on_date) or version.instruction.category.strip().casefold() != subject.casefold():
+            raise ValueError("Выберите действующую инструкцию по предмету.")
+    roster = roster_for_classes(on_date, [class_id])
+    if not child_ids or len(child_ids) > 120 or len(set(child_ids)) != len(child_ids) or not set(child_ids).issubset(roster):
+        raise ValueError("Выберите от 1 до 120 обучающихся из списка класса.")
+    draft.grade = grade
+    draft.class_ids = [class_id]
+    draft.subject = subject
+    draft.instruction_version_id = version_id
+    draft.library_item_id = library_item_id
+    draft.briefing_kind = kind
+    draft.header_note = note
+    draft.selected_child_ids = child_ids
+    draft.removed_child_ids = sorted(set(roster) - set(child_ids))
+    db.session.flush()
+    db.session.expire(draft, ["instruction_version"])
+
+
+@safety_journals_bp.route("/drafts/<uuid:draft_id>/compose/preview", methods=["POST"])
+@login_required
+def compose_preview(draft_id):
+    draft = _draft_or_404(str(draft_id))
+    if draft.status != "draft" or draft.trip_order_id is not None or not can_create_journal(current_user):
+        abort(409)
+    try:
+        _populate_ordinary_draft(draft)
+        payload, _ = preview_payload(draft, current_user)
+        page = SimpleNamespace(
+            number="ПРЕДПРОСМОТР", kind="ordinary", trip_snapshot=None,
+            instruction_version=draft.instruction_version,
+            organization_name_snapshot=payload["organization_name"],
+            instructor_name_snapshot=payload["instructor_name"], group_label=payload["group_label"],
+            instruction_number_snapshot=payload["instruction_number"],
+            instruction_title_snapshot=payload["instruction_title"],
+            instruction_summary_snapshot=payload["instruction_summary"],
+            instruction_version_number_snapshot=payload["instruction_version_number"],
+            briefing_kind_snapshot=payload["briefing_kind"], header_note_snapshot=payload["header_note"],
+            subject_snapshot=payload["subject"],
+        )
+        people = [SimpleNamespace(sequence=index, full_name_snapshot=person["full_name"],
+                                  class_name_snapshot=person["class_name"])
+                  for index, person in enumerate(payload["participants"], 1)]
+        content = build_journal_pdf(page, people)
+    except (ValueError, TypeError) as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    db.session.rollback()
+    response = send_file(BytesIO(content), mimetype="application/pdf", as_attachment=False, download_name="предпросмотр-журнала.pdf")
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 def _correct_page(draft, payload):
@@ -347,6 +401,8 @@ def _correct_page(draft, payload):
     old = {"instruction": page.instruction_number_snapshot, "class": page.group_label,
            "kind": page.briefing_kind_snapshot, "participants": len(page.participants)}
     page.instruction_version_id = draft.instruction_version_id
+    page.library_item_id = draft.library_item_id
+    page.subject_snapshot = payload["subject"]
     page.instructed_on = draft.instructed_on
     page.group_label = payload["group_label"]
     page.organization_name_snapshot = payload["organization_name"]
@@ -569,6 +625,8 @@ def _generate_page(draft, *, require_digest=False):
             trip_order_id=draft.trip_order_id, trip_assignment_id=draft.trip_assignment_id,
             trip_order_revision=draft.trip_order_revision, trip_snapshot=payload.get("trip"),
             instruction_version_id=draft.instruction_version_id,
+            library_item_id=draft.library_item_id,
+            subject_snapshot=payload["subject"],
             instructed_on=draft.instructed_on, group_label=payload["group_label"],
             organization_name_snapshot=payload["organization_name"],
             instructor_name_snapshot=payload["instructor_name"],
@@ -666,6 +724,7 @@ def start_correction(page_id):
         id=str(uuid4()), author_id=current_user.id, page_id=page.id,
         instructed_on=page.instructed_on, grade=classroom.grade if classroom else None,
         instruction_version_id=page.instruction_version_id,
+        library_item_id=page.library_item_id, subject=page.subject_snapshot,
         briefing_kind=page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind,
         header_note=page.header_note_snapshot,
         class_ids=[class_id] if class_id else [],
@@ -701,6 +760,7 @@ def based_on(page_id):
         id=str(uuid4()), author_id=current_user.id, instructed_on=today,
         grade=valid_classes[class_ids[0]].grade if class_ids else None,
         instruction_version_id=page.instruction_version_id if instruction_is_effective(page.instruction_version, today) else None,
+        library_item_id=page.library_item_id, subject=page.subject_snapshot,
         class_ids=class_ids, selected_child_ids=[], removed_child_ids=[],
     )
     if class_ids:

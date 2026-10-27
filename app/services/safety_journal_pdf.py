@@ -107,13 +107,14 @@ def build_journal_pdf(page, participants):
         ),
         _paragraph(
             f"Инструкция: {page.instruction_number_snapshot} — {page.instruction_title_snapshot} "
-            f"(версия {page.instruction_version_number_snapshot})",
+            + (f"(версия {page.instruction_version_number_snapshot})" if page.instruction_version_number_snapshot else "(PDF из перечня)"),
             subheading,
         ),
         _paragraph(
             f"Вид инструктажа: {page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind}",
             subheading,
         ),
+        _paragraph(f"Предмет: {getattr(page, 'subject_snapshot', None) or (page.instruction_version.instruction.category if page.instruction_version else '')}", subheading),
         _paragraph(f"Проводивший инструктаж: {page.instructor_name_snapshot}", subheading),
     ]
     if trip:

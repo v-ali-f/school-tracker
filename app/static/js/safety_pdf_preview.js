@@ -13,6 +13,9 @@
     if (!trigger || !trigger.dataset.pdfUrl) return;
     title.textContent = trigger.dataset.pdfTitle || 'Инструкция';
     download.href = trigger.dataset.pdfDownloadUrl || trigger.dataset.pdfUrl;
+    const previewOnly = trigger.dataset.pdfPreviewOnly === '1';
+    printButton.hidden = previewOnly;
+    download.hidden = previewOnly;
     hint.hidden = true;
     printButton.disabled = true;
     frame.src = trigger.dataset.pdfUrl;
@@ -37,5 +40,7 @@
     printButton.disabled = true;
     hint.hidden = true;
     download.removeAttribute('href');
+    printButton.hidden = false;
+    download.hidden = false;
   });
 })();

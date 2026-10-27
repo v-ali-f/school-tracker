@@ -289,9 +289,20 @@ def preview_payload(draft, author):
     if on_date is None or on_date > school_today():
         raise ValueError("Укажите дату учёта для подбора состава и инструкции.")
     version = draft.instruction_version
-    if not instruction_is_effective(version, on_date):
+    library_item = None
+    subject = (draft.subject or (version.instruction.category if version else "")).strip()
+    if draft.library_item_id:
+        if version or draft.trip_assignment_id is not None:
+            raise ValueError("Укажите один источник инструкции.")
+        from app.modules.safety_instructions.routes import journal_library_item
+        library_item = journal_library_item(draft.library_item_id, subject)
+        library_title = (library_item.get("title") or "").strip()
+        library_number = library_title.partition(" ")[0]
+        if not library_title or len(library_title) > 500 or len(library_number) > 80:
+            raise ValueError("У PDF из перечня нет корректного номера или названия.")
+    elif not instruction_is_effective(version, on_date):
         raise ValueError("Выберите действующую на эту дату инструкцию.")
-    briefing_kind = (draft.briefing_kind or version.instruction.briefing_kind or "").strip().casefold()
+    briefing_kind = (draft.briefing_kind or (version.instruction.briefing_kind if version else "")).strip().casefold()
     if briefing_kind not in {"первичный", "повторный", "внеплановый", "целевой"}:
         raise ValueError("Выберите вид инструктажа.")
     header_note = (draft.header_note or "").strip()
@@ -305,9 +316,10 @@ def preview_payload(draft, author):
         allowed_classes = {item.id: item for item in journal_classes_for_user(on_date, author)}
         if len(draft.class_ids) != 1 or draft.class_ids[0] not in allowed_classes:
             raise ValueError("Выбранный класс больше не доступен в нагрузке.")
-        subject = version.instruction.category.strip()
         if not any(item.strip().casefold() == subject.casefold() for item in journal_subjects_for_class(on_date, author, allowed_classes[draft.class_ids[0]])):
             raise ValueError("Выбранный предмет больше не доступен для класса.")
+        if version and version.instruction.category.strip().casefold() != subject.casefold():
+            raise ValueError("Инструкция не соответствует выбранному предмету.")
     trip = None
     if draft.trip_assignment_id is not None:
         from app.services.safety_trip_service import trip_snapshot
@@ -331,12 +343,14 @@ def preview_payload(draft, author):
         raise ValueError("Для одной страницы выбрано слишком много разных классов.")
     payload = {
         "date": on_date.isoformat(),
-        "instruction_version_id": version.id,
-        "instruction_number": version.instruction.number,
-        "instruction_title": version.title_snapshot,
-        "instruction_summary": version.summary,
-        "instruction_file_sha256": version.file_sha256,
-        "instruction_version_number": version.version_number,
+        "instruction_version_id": version.id if version else None,
+        "library_item_id": draft.library_item_id if library_item else None,
+        "subject": subject,
+        "instruction_number": version.instruction.number if version else library_number,
+        "instruction_title": version.title_snapshot if version else library_title,
+        "instruction_summary": version.summary if version else library_title,
+        "instruction_file_sha256": version.file_sha256 if version else draft.library_item_id,
+        "instruction_version_number": version.version_number if version else 0,
         "briefing_kind": briefing_kind,
         "header_note": header_note,
         "organization_name": org_name,

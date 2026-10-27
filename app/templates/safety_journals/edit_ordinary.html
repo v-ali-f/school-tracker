@@ -7,9 +7,9 @@
 </div>
 {% if admin_mode %}<div class="alert alert-info">Вы создаёте журнал как администратор. В графе «Проводивший» будет указано ваше ФИО.</div>{% endif %}
 <form id="journal-compose" method="post" action="{{ url_for('safety_journals.compose', draft_id=draft.id) }}"
-      data-choices-url="{{ url_for('safety_journals.choices') }}" data-draft-id="{{ draft.id }}"
+      data-choices-url="{{ url_for('safety_journals.choices') }}" data-preview-url="{{ url_for('safety_journals.compose_preview', draft_id=draft.id) }}" data-draft-id="{{ draft.id }}"
       data-selected-grade="{{ draft.grade or '' }}" data-selected-class="{{ draft.class_ids[0] if draft.class_ids else '' }}"
-      data-selected-subject="{{ chosen_subject }}" data-selected-instruction="{{ draft.instruction_version_id or '' }}"
+      data-selected-subject="{{ chosen_subject }}" data-selected-instruction="{{ 'library:' ~ draft.library_item_id if draft.library_item_id else 'version:' ~ draft.instruction_version_id if draft.instruction_version_id else '' }}"
       data-selected-children='{{ draft.selected_child_ids|tojson }}'>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="card card-body mb-3">
@@ -17,17 +17,16 @@
       <div class="col-md-4"><label class="form-label" for="journal-grade">Параллель</label><select class="form-select" id="journal-grade" name="grade" required><option value="">Выберите параллель</option></select></div>
       <div class="col-md-4"><label class="form-label" for="journal-class">Класс</label><select class="form-select" id="journal-class" name="class_id" required disabled><option value="">Сначала выберите параллель</option></select></div>
       <div class="col-md-4"><label class="form-label" for="journal-subject">Предмет</label><select class="form-select" id="journal-subject" name="subject" required disabled><option value="">Сначала выберите класс</option></select></div>
-      <div class="col-md-9"><label class="form-label" for="journal-instruction">Инструкция</label><select class="form-select" id="journal-instruction" name="instruction_version_id" required disabled><option value="">Сначала выберите предмет</option></select></div>
+      <div class="col-md-9"><label class="form-label" for="journal-instruction">Инструкция из каталога или перечня PDF</label><select class="form-select" id="journal-instruction" name="instruction_choice" required disabled><option value="">Сначала выберите предмет</option></select></div>
       <div class="col-md-3 d-flex align-items-end"><button type="button" class="btn btn-outline-primary w-100" id="journal-instruction-preview" data-bs-toggle="modal" data-bs-target="#safety-pdf-preview-modal" disabled>Просмотреть инструкцию</button></div>
       <div class="col-md-6"><label class="form-label" for="journal-kind">Вид инструктажа</label><select class="form-select" id="journal-kind" name="briefing_kind" required><option value="">Выберите вид</option>{% for value in ['первичный','повторный','внеплановый','целевой'] %}<option value="{{ value }}" {% if draft.briefing_kind == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}</select></div>
       <div class="col-12"><label class="form-label" for="journal-note">Дополнительная информация <span class="text-muted fw-normal">(необязательно, появится в шапке PDF)</span></label><textarea class="form-control" id="journal-note" name="header_note" rows="2" maxlength="500" placeholder="Например: тема лабораторной работы">{{ draft.header_note or '' }}</textarea></div>
     </div>
     <div id="journal-choice-message" class="small mt-3" role="status"></div>
-    <div id="journal-suggestions" class="mt-3" hidden></div>
   </div>
   <div class="card card-body mb-3"><div class="d-flex align-items-center justify-content-between gap-2"><h2 class="h5 mb-0">Обучающиеся <span id="journal-selected-count" class="text-muted">0</span></h2><button type="button" class="btn btn-sm btn-outline-secondary" id="journal-select-all" disabled>Выбрать всех</button></div><p class="small text-muted mt-2 mb-2">Отметьте учеников для журнала. Даты рождения показаны здесь для переноса в распечатанный журнал; в PDF графы остаются пустыми.</p><div class="registry-matrix-card"><div class="registry-table-scroll" tabindex="0" aria-label="Список учеников"><table class="registry-matrix registry-matrix-medium"><colgroup><col style="width:70px"><col><col style="width:145px"></colgroup><thead><tr><th>Включить</th><th>Ученик</th><th>Дата рождения</th></tr></thead><tbody id="journal-roster"><tr><td colspan="3" class="registry-empty-row">Выберите класс.</td></tr></tbody></table></div></div></div>
-  <button class="btn btn-primary" id="journal-submit" disabled>{{ 'Сохранить исправления и открыть журнал' if draft.page_id else 'Сформировать и открыть журнал' }}</button>
+  <div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-primary" id="journal-preview" disabled>Предпросмотр журнала</button><button type="submit" class="btn btn-primary" id="journal-submit" disabled>{{ 'Сохранить исправления и открыть журнал' if draft.page_id else 'Сформировать журнал' }}</button></div>
 </form>
 {% include "safety_instructions/_pdf_preview_modal.html" %}
-<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261027_1" defer></script>
+<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261027_2" defer></script>
 {% endblock %}

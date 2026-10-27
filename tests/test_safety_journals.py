@@ -9,6 +9,7 @@ from html import unescape
 from types import SimpleNamespace
 
 import pdfplumber
+from reportlab.pdfgen import canvas
 
 from app.core.extensions import db
 from app.models import (
@@ -126,7 +127,7 @@ def test_officer_can_confirm_library_pdf_for_ordinary_journal(app, client, make_
     login(ids["teacher"])
     before = client.get("/safety/journals/").get_data(as_text=True)
     assert "Сформировать журнал для класса" in before
-    assert "Перед печатью нужно подтвердить действующую инструкцию" in before
+    assert "Инструкции доступны из каталога и перечня PDF" in before
     assert client.get(f"/safety/instructions/library/{digest}/catalog").status_code == 403
 
     login(ids["officer"])
@@ -146,7 +147,7 @@ def test_officer_can_confirm_library_pdf_for_ordinary_journal(app, client, make_
     login(ids["teacher"])
     after = client.get("/safety/journals/").get_data(as_text=True)
     assert "Сформировать журнал для класса" in after
-    assert "Перед печатью нужно подтвердить действующую инструкцию" not in after
+    assert "Инструкции доступны из каталога и перечня PDF" in after
     assert client.post("/safety/journals/new").status_code == 302
 
 
@@ -163,6 +164,7 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
     draft_url = response.headers["Location"]
     form = client.get(draft_url).get_data(as_text=True)
     assert 'id="journal-compose"' in form and 'id="journal-instruction-preview"' in form
+    assert 'id="journal-preview"' in form and 'id="journal-submit"' in form
     choices = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Физика").json
     assert any(item["name"] == "5А" for item in choices["classes"])
     assert "Физика" in choices["subjects"] and choices["instructions"][0]["label"].startswith("ИОТ-1")
@@ -294,7 +296,7 @@ def test_current_workload_matrix_drives_teacher_classes_and_admin_plan_subjects(
         assert journal_classes_for_user(ids["today"], other_teacher) == []
 
 
-def test_library_pdf_is_suggested_and_can_return_to_journal_after_confirmation(app, client, make_user, login, tmp_path):
+def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_confirmation(app, client, make_user, login, tmp_path):
     ids = _setup(app, make_user, tmp_path)
     admin_id = make_user("ADMIN")
     with app.app_context():
@@ -311,35 +313,58 @@ def test_library_pdf_is_suggested_and_can_return_to_journal_after_confirmation(a
     ]
     items = []
     for number, title in enumerate(titles):
-        content = f"%PDF-1.4 example {number}".encode()
+        stream = BytesIO()
+        document = canvas.Canvas(stream)
+        document.drawString(72, 720, f"Instruction {number}")
+        document.save()
+        content = stream.getvalue()
         digest = hashlib.sha256(content).hexdigest()
         (folder / f"{digest}.pdf").write_bytes(content)
         items.append({"id": digest, "title": title, "filename": f"{number}.pdf"})
     (folder / "manifest.json").write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
 
     login(admin_id)
+    chooser = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Информатика").json
+    labels = [item["label"] for item in chooser["instructions"]]
+    assert any("ИОП-04-23-Об" in item for item in labels)
+    assert any("ИОП-31-23-Об" in item for item in labels)
+    assert any("ИОП-32-23-Об" in item for item in labels)
+    assert not any("ИОП-07-23-Об" in item for item in labels)
+    assert all(item["source"] == "library" for item in chooser["instructions"])
+
+    login(ids["teacher"])
     draft_url = client.post("/safety/journals/new").headers["Location"]
-    form_url = f"{draft_url}?grade=5&class_id={ids['class']}&subject=Информатика"
-    chooser = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Информатика").json
-    suggestion_titles = [item["title"] for item in chooser["suggestions"]]
-    assert any("ИОП-04-23-Об" in item for item in suggestion_titles)
-    assert any("ИОП-31-23-Об" in item for item in suggestion_titles)
-    assert any("ИОП-32-23-Об" in item for item in suggestion_titles)
-    assert not any("ИОП-07-23-Об" in item for item in suggestion_titles)
-    assert any(item["catalog_url"] for item in chooser["suggestions"])
-    assert client.get(f"/safety/instructions/library/{items[1]['id']}/catalog?subject=Информатика&draft_id={draft_url.rsplit('/', 1)[-1]}&grade=5&class_id={ids['class']}&instructed_on={ids['today'].isoformat()}").get_data(as_text=True).count('value="Информатика"') >= 1
-    response = client.post(f"/safety/instructions/library/{items[1]['id']}/catalog", data={
-        "csrf_token": "", "draft_id": draft_url.rsplit("/", 1)[-1], "grade": "5",
-        "class_id": str(ids["class"]), "instructed_on": ids["today"].isoformat(),
-        "number": "ИОП-31-23-Об", "title": "Инструкция по ОТ в кабинете информатики",
-        "category": "Информатика", "briefing_kind": "первичный",
-        "approval_basis": "Приказ № 1", "summary": "Правила работы в кабинете",
-        "approved_on": (ids["today"] - timedelta(days=5)).isoformat(),
-        "effective_from": (ids["today"] - timedelta(days=5)).isoformat(),
+    choice = f"library:{items[1]['id']}"
+    data = {"grade": "5", "class_id": str(ids["class"]), "subject": "Информатика",
+            "instruction_choice": choice, "briefing_kind": "первичный",
+            "child_ids": [str(ids["children"][0])], "header_note": "Практическая работа"}
+    assert client.post(f"{draft_url}/compose/preview", data={**data, "instruction_choice": f"library:{items[3]['id']}"}).status_code == 400
+    preview = client.post(f"{draft_url}/compose/preview", data=data)
+    assert preview.status_code == 200 and preview.data.startswith(b"%PDF")
+    assert preview.headers["Content-Disposition"].startswith("inline")
+    with app.app_context():
+        assert SafetyJournalPage.query.count() == 0
+        assert SafetyInstructionVersion.query.count() == 0
+    created = client.post(f"{draft_url}/compose", data=data)
+    assert created.status_code == 302 and "preview=1" in created.headers["Location"]
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        page_id = page.id
+        assert page.library_item_id == items[1]["id"] and page.instruction_version_id is None
+        assert page.subject_snapshot == "Информатика" and page.instruction_number_snapshot == "ИОП-31-23-Об"
+        assert page.instruction_file_sha256_snapshot == items[1]["id"]
+        assert SafetyInstructionVersion.query.count() == 0
+    detail = client.get(created.headers["Location"]).get_data(as_text=True)
+    assert "PDF из перечня" in detail and "Практическая работа" in detail
+    correction = client.post(f"/safety/journals/pages/{page_id}/correct")
+    assert correction.status_code == 302
+    corrected = client.post(f"{correction.headers['Location']}/compose", data={
+        **data, "instruction_choice": f"library:{items[2]['id']}", "header_note": "Уточнённая работа",
     })
-    assert response.status_code == 302 and response.headers["Location"].startswith(draft_url)
-    chooser = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Информатика").json
-    assert any("ИОП-31-23-Об" in item["label"] for item in chooser["instructions"])
+    assert corrected.status_code == 302
+    with app.app_context():
+        page = db.session.get(SafetyJournalPage, page_id)
+        assert page.library_item_id == items[2]["id"] and len(page.revisions) == 2
 
 
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):
@@ -467,6 +492,7 @@ def test_pdf_repeats_nine_column_header_on_each_sheet(app, client, make_user, lo
             instruction_title_snapshot="Безопасность на уроке", instruction_summary_snapshot="Правила поведения в кабинете",
             instruction_file_sha256_snapshot=version.file_sha256, instruction_version_number_snapshot=1,
         )
+        page.instruction_version = version
         people = [SimpleNamespace(sequence=n, full_name_snapshot=f"Ученик {n}", class_name_snapshot="5А", signature_rule="handwritten") for n in range(1, 81)]
         content = build_journal_pdf(page, people)
     with pdfplumber.open(BytesIO(content)) as document:

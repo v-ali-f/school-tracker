@@ -10,9 +10,9 @@
   const roster = document.getElementById('journal-roster');
   const count = document.getElementById('journal-selected-count');
   const selectAll = document.getElementById('journal-select-all');
+  const previewJournal = document.getElementById('journal-preview');
   const submit = document.getElementById('journal-submit');
   const message = document.getElementById('journal-choice-message');
-  const suggestions = document.getElementById('journal-suggestions');
   const initial = {
     grade: form.dataset.selectedGrade, classroom: form.dataset.selectedClass,
     subject: form.dataset.selectedSubject, instruction: form.dataset.selectedInstruction,
@@ -20,6 +20,8 @@
   };
   let versions = [];
   let requestNumber = 0;
+  let previewReady = false;
+  let previewUrl = '';
 
   const fill = (select, items, placeholder, value, label = item => String(item), key = item => String(item)) => {
     select.replaceChildren(new Option(placeholder, ''));
@@ -32,9 +34,13 @@
   const refreshCount = () => {
     const checked = roster.querySelectorAll('input[name="child_ids"]:checked').length;
     count.textContent = `· выбрано ${checked}`;
-    submit.disabled = !(grade.value && classroom.value && subject.value && instruction.value && kind.value && checked);
+    const complete = Boolean(grade.value && classroom.value && subject.value && instruction.value && kind.value && checked);
+    previewJournal.disabled = !complete;
+    submit.disabled = !complete || !previewReady;
     selectAll.disabled = !roster.querySelector('input[name="child_ids"]');
   };
+
+  const invalidate = () => { previewReady = false; refreshCount(); };
 
   const showRoster = (items, selected) => {
     roster.replaceChildren();
@@ -62,44 +68,6 @@
     refreshCount();
   };
 
-  const showSuggestions = items => {
-    suggestions.replaceChildren();
-    suggestions.hidden = !items.length;
-    if (!items.length) return;
-    const title = document.createElement('h3');
-    title.className = 'h6';
-    title.textContent = 'Подходящие PDF из перечня';
-    suggestions.append(title);
-    for (const item of items) {
-      const row = document.createElement('div');
-      row.className = 'd-flex align-items-center justify-content-between gap-2 py-2 border-top flex-wrap';
-      const name = document.createElement('span');
-      name.textContent = item.title;
-      row.append(name);
-      const actions = document.createElement('span');
-      actions.className = 'd-flex gap-2';
-      const view = document.createElement('button');
-      view.type = 'button';
-      view.className = 'btn btn-sm btn-outline-primary';
-      view.textContent = 'Просмотреть';
-      view.dataset.bsToggle = 'modal';
-      view.dataset.bsTarget = '#safety-pdf-preview-modal';
-      view.dataset.pdfUrl = item.preview_url;
-      view.dataset.pdfDownloadUrl = item.download_url;
-      view.dataset.pdfTitle = item.title;
-      actions.append(view);
-      if (item.catalog_url) {
-        const approve = document.createElement('a');
-        approve.className = 'btn btn-sm btn-outline-success';
-        approve.href = item.catalog_url;
-        approve.textContent = 'Подтвердить для журнала';
-        actions.append(approve);
-      }
-      row.append(actions);
-      suggestions.append(row);
-    }
-  };
-
   const updatePreview = () => {
     const item = versions.find(version => String(version.id) === instruction.value);
     preview.disabled = !item || !item.preview_url;
@@ -110,7 +78,7 @@
     } else {
       delete preview.dataset.pdfUrl;
     }
-    refreshCount();
+    invalidate();
   };
 
   const load = async (preserve = false, defaultAll = false) => {
@@ -134,25 +102,52 @@
       const subjectValue = preserve ? initial.subject : subject.value;
       fill(subject, data.subjects, 'Выберите предмет', subjectValue);
       versions = data.instructions;
-      fill(instruction, versions, 'Выберите инструкцию', preserve ? initial.instruction : instruction.value, item => item.label, item => String(item.id));
+      fill(instruction, versions, 'Выберите инструкцию', preserve ? initial.instruction : instruction.value,
+        item => `${item.label} · ${item.source === 'library' ? 'PDF из перечня' : 'каталог'}`, item => String(item.id));
       const selected = preserve ? initial.children : new Set([...roster.querySelectorAll('input[name="child_ids"]:checked')].map(item => item.value));
       showRoster(data.roster, defaultAll || (preserve && !selected.size && !form.dataset.selectedInstruction)
         ? new Set(data.roster.map(item => String(item.id))) : selected);
-      showSuggestions(data.suggestions);
-      message.textContent = subject.value && !versions.length ? 'Действующей инструкции по предмету пока нет. Посмотрите подходящие PDF ниже.' : '';
+      message.textContent = subject.value && !versions.length ? 'Для предмета не найдено подходящих инструкций в каталоге и перечне PDF.' : '';
       updatePreview();
     } catch (error) {
       if (current === requestNumber) { message.textContent = error.message; submit.disabled = true; }
     }
   };
 
-  grade.addEventListener('change', () => { classroom.value = ''; subject.value = ''; instruction.value = ''; load(false, true); });
-  classroom.addEventListener('change', () => { subject.value = ''; instruction.value = ''; load(false, true); });
-  subject.addEventListener('change', () => { instruction.value = ''; load(); });
+  grade.addEventListener('change', () => { classroom.value = ''; subject.value = ''; instruction.value = ''; invalidate(); load(false, true); });
+  classroom.addEventListener('change', () => { subject.value = ''; instruction.value = ''; invalidate(); load(false, true); });
+  subject.addEventListener('change', () => { instruction.value = ''; invalidate(); load(); });
   instruction.addEventListener('change', updatePreview);
-  kind.addEventListener('change', refreshCount);
-  roster.addEventListener('change', refreshCount);
-  selectAll.addEventListener('click', () => { roster.querySelectorAll('input[name="child_ids"]').forEach(input => { input.checked = true; }); refreshCount(); });
+  kind.addEventListener('change', invalidate);
+  roster.addEventListener('change', invalidate);
+  document.getElementById('journal-note').addEventListener('input', invalidate);
+  selectAll.addEventListener('click', () => { roster.querySelectorAll('input[name="child_ids"]').forEach(input => { input.checked = true; }); invalidate(); });
+  previewJournal.addEventListener('click', async () => {
+    if (previewJournal.disabled) return;
+    const data = new FormData(form);
+    const fingerprint = JSON.stringify([...data.entries()]);
+    previewJournal.disabled = true;
+    message.textContent = 'Готовлю предварительный просмотр…';
+    try {
+      const response = await fetch(form.dataset.previewUrl, {method: 'POST', body: data, headers: {'Accept': 'application/pdf'}});
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Не удалось подготовить журнал.');
+      }
+      const blob = await response.blob();
+      if (fingerprint !== JSON.stringify([...new FormData(form).entries()])) return;
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(blob);
+      previewJournal.dataset.pdfUrl = previewUrl;
+      previewJournal.dataset.pdfTitle = 'Предпросмотр журнала';
+      previewJournal.dataset.pdfPreviewOnly = '1';
+      previewReady = true;
+      message.textContent = 'Проверьте бланк. После закрытия просмотра нажмите «Сформировать журнал».';
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('safety-pdf-preview-modal')).show(previewJournal);
+    } catch (error) { message.textContent = error.message; }
+    finally { refreshCount(); }
+  });
   form.addEventListener('submit', event => { if (submit.disabled) event.preventDefault(); });
+  window.addEventListener('pagehide', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); });
   load(true);
 })();
