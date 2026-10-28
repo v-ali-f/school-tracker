@@ -144,9 +144,10 @@ def build_journal_pdf(page, participants):
     def footer(canvas, document):
         canvas.saveState()
         canvas.setFont(FONT_NAME, 7)
-        canvas.drawString(12 * mm, 7 * mm, f"Страница журнала № {page.number}")
-        canvas.drawCentredString(landscape(A4)[0] / 2, 7 * mm, page.instructor_name_snapshot)
-        canvas.drawRightString(landscape(A4)[0] - 12 * mm, 7 * mm, f"Лист {document.page}")
+        right = landscape(A4)[0] - 12 * mm
+        blank_width = 16 * mm
+        canvas.drawRightString(right - blank_width - 2 * mm, 7 * mm, "Лист №")
+        canvas.line(right - blank_width, 6.5 * mm, right, 6.5 * mm)
         canvas.restoreState()
 
     doc.build(story, onFirstPage=footer, onLaterPages=footer)

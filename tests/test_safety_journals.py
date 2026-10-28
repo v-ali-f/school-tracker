@@ -537,6 +537,9 @@ def test_pdf_repeats_nine_column_header_on_each_sheet(app, client, make_user, lo
         assert len(document.pages) > 1
         for sheet in document.pages:
             text = sheet.extract_text() or ""
+            footer_text = sheet.crop((0, sheet.height - 28, sheet.width, sheet.height)).extract_text() or ""
+            assert footer_text.strip() == "Лист №"
+            assert "Страница журнала №" not in text
             assert "Дата рождения" in text
             assert "02.01.2012" in text
             assert "Подпись" in text
