@@ -138,6 +138,8 @@ def index():
         selectinload(SafetyJournalPage.participants),
         selectinload(SafetyJournalPage.paper_record),
         selectinload(SafetyJournalPage.paper_scans),
+        selectinload(SafetyJournalPage.revisions),
+        selectinload(SafetyJournalPage.instruction_version),
     )
     if not manager:
         query = query.filter_by(author_id=current_user.id)
@@ -165,7 +167,8 @@ def index():
     drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) or trip_assigned else []
     if trip_section:
         drafts = [item for item in drafts if item.journal_kind == "trip" or item.trip_order_id is not None]
-    return render_template("safety_journals/index.html", **_context(), pages=pages, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, trip_section=trip_section, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
+    preview_tokens = {page.id: _token(page, page.revisions[-1]) for page in pages if page.revisions}
+    return render_template("safety_journals/index.html", **_context(), pages=pages, preview_tokens=preview_tokens, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, trip_section=trip_section, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
 
 
 @safety_journals_bp.route("/new", methods=["POST"])

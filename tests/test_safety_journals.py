@@ -225,7 +225,13 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
         assert "Проводивший инструктаж: Тестов Пользователь" in text
     detail = client.get(created.headers["Location"]).get_data(as_text=True)
     assert 'id="safety-pdf-preview-modal"' in detail and "Исправить данные журнала" in detail
-    assert client.get("/safety/journals/").get_data(as_text=True).count("preview=1") >= 1
+    registry = client.get("/safety/journals/").get_data(as_text=True)
+    assert 'id="safety-pdf-preview-modal"' in registry
+    assert f'aria-label="Просмотреть журнал ОТ-{ids["today"].year}-{page_id:06d}"' in registry
+    assert 'aria-label="Просмотреть инструкцию ИОТ-1"' in registry
+    assert f'data-pdf-url="/safety/instructions/versions/{version_id}/original?inline=1"' in registry
+    journal_pdf_url = unescape(re.search(r'data-pdf-url="([^"]+/pdf\?token=[^"]+)"', registry).group(1))
+    assert client.get(journal_pdf_url).data.startswith(b"%PDF")
     correction = client.post(f"/safety/journals/pages/{page_id}/correct")
     assert correction.status_code == 302
     corrected = client.post(f"{correction.headers['Location']}/compose", data={
@@ -364,6 +370,9 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
         assert SafetyInstructionVersion.query.count() == 0
     detail = client.get(created.headers["Location"]).get_data(as_text=True)
     assert "PDF из перечня" in detail and "Практическая работа" in detail
+    registry = client.get("/safety/journals/").get_data(as_text=True)
+    assert 'aria-label="Просмотреть инструкцию ИОП-31-23-Об"' in registry
+    assert f'data-pdf-url="/safety/instructions/library/{items[1]["id"]}/pdf"' in registry
     correction = client.post(f"/safety/journals/pages/{page_id}/correct")
     assert correction.status_code == 302
     corrected = client.post(f"{correction.headers['Location']}/compose", data={
@@ -564,6 +573,9 @@ def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user,
     detail = client.get(generated.headers["Location"]).get_data(as_text=True)
     assert "Исправить данные журнала" in detail and "Музей науки" in detail
     assert "Карточка выезда" not in detail
+    trip_registry = client.get("/safety/journals/trips").get_data(as_text=True)
+    assert 'aria-label="Просмотреть инструкцию ИОТ-1"' in trip_registry
+    assert f'aria-label="Просмотреть журнал ОТ-В-{ids["today"].year}-{page_id:06d}"' in trip_registry
     correction = client.post(f"/safety/journals/pages/{page_id}/correct")
     assert correction.status_code == 302
     corrected = client.post(f"{correction.headers['Location']}/compose", data={**data, "order_number": "42"})
