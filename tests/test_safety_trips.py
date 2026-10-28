@@ -99,10 +99,10 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
         "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     }).status_code == 302
-    preview = client.get(f"{draft_url}/preview")
-    assert preview.status_code == 200
-    digest = re.search(r'name="preview_digest" value="([^"]+)"', preview.get_data(as_text=True)).group(1)
-    created = client.post(f"{draft_url}/generate", data={"preview_digest": digest})
+    editor = client.get(draft_url).get_data(as_text=True)
+    assert 'name="direct" value="1"' in editor
+    assert "Сформировать журнал и открыть PDF" in editor
+    created = client.post(f"{draft_url}/generate", data={"direct": "1"})
     assert created.status_code == 302
     page_url = created.headers["Location"].split("?", 1)[0]
     detail = client.get(page_url)

@@ -2,9 +2,7 @@
 
 import hashlib
 from datetime import date, datetime, timezone
-from io import BytesIO
 from pathlib import Path
-from types import SimpleNamespace
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -515,41 +513,6 @@ def _populate_ordinary_draft(draft):
     db.session.expire(draft, ["instruction_version"])
 
 
-@safety_journals_bp.route("/drafts/<uuid:draft_id>/compose/preview", methods=["POST"])
-@login_required
-def compose_preview(draft_id):
-    draft = _draft_or_404(str(draft_id))
-    if draft.status != "draft" or draft.trip_order_id is not None or not can_create_journal(current_user):
-        abort(409)
-    try:
-        _populate_trip_draft(draft) if draft.journal_kind == "trip" else _populate_ordinary_draft(draft)
-        payload, _ = preview_payload(draft, current_user)
-        page = SimpleNamespace(
-            number="ПРЕДПРОСМОТР", kind=draft.journal_kind, trip_snapshot=payload.get("trip"),
-            instruction_version=draft.instruction_version,
-            organization_name_snapshot=payload["organization_name"],
-            instructor_name_snapshot=payload["instructor_name"], group_label=payload["group_label"],
-            instruction_number_snapshot=payload["instruction_number"],
-            instruction_title_snapshot=payload["instruction_title"],
-            instruction_summary_snapshot=payload["instruction_summary"],
-            instruction_version_number_snapshot=payload["instruction_version_number"],
-            briefing_kind_snapshot=payload["briefing_kind"], header_note_snapshot=payload["header_note"],
-            subject_snapshot=payload["subject"],
-        )
-        people = [SimpleNamespace(sequence=index, full_name_snapshot=person["full_name"],
-                                  birth_date_snapshot=date.fromisoformat(person["birth_date"]),
-                                  class_name_snapshot=person["class_name"])
-                  for index, person in enumerate(payload["participants"], 1)]
-        content = build_journal_pdf(page, people)
-    except (ValueError, TypeError) as exc:
-        db.session.rollback()
-        return jsonify({"error": str(exc)}), 400
-    db.session.rollback()
-    response = send_file(BytesIO(content), mimetype="application/pdf", as_attachment=False, download_name="предпросмотр-журнала.pdf")
-    response.headers["Cache-Control"] = "private, no-store"
-    return response
-
-
 def _correct_page(draft, payload):
     page = db.session.get(SafetyJournalPage, draft.page_id)
     if (page is None or page.trip_order_id is not None or page.author_id != current_user.id
@@ -763,7 +726,7 @@ def preview(draft_id):
 @login_required
 def generate(draft_id):
     draft = _draft_or_404(str(draft_id))
-    return _generate_page(draft, require_digest=True)
+    return _generate_page(draft, require_digest=request.form.get("direct") != "1")
 
 
 def _generate_page(draft, *, require_digest=False):

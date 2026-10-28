@@ -10,14 +10,12 @@
   const selectedInputs = document.getElementById('trip-selected-inputs');
   const selectedCount = document.getElementById('trip-selected-count');
   const selectAll = document.getElementById('trip-select-all');
-  const preview = document.getElementById('trip-preview');
   const submit = document.getElementById('trip-submit');
   const message = document.getElementById('trip-choice-message');
   const selected = new Map(JSON.parse(form.dataset.selectedStudents || '[]').map(item => [String(item.id), item]));
   let currentRoster = [];
   let instructions = [];
   let requestNumber = 0;
-  let previewUrl = '';
 
   const invalidate = () => { refresh(); };
   const refresh = () => {
@@ -44,7 +42,6 @@
       selectedInputs.append(hidden);
     }
     const complete = selected.size > 0 && instruction.value && form.checkValidity();
-    preview.disabled = !complete;
     submit.disabled = !complete;
     selectAll.disabled = currentRoster.length === 0;
   };
@@ -70,9 +67,13 @@
         else selected.delete(String(item.id));
         invalidate();
       });
-      row.insertCell().append(checkbox);
+      const checkboxCell = row.insertCell();
+      checkboxCell.className = 'registry-cell-center';
+      checkboxCell.append(checkbox);
       row.insertCell().textContent = item.name;
-      row.insertCell().textContent = item.birth_date || 'Не указана';
+      const birthDateCell = row.insertCell();
+      birthDateCell.className = 'registry-cell-center';
+      birthDateCell.textContent = item.birth_date || 'Не указана';
     }
     refresh();
   };
@@ -117,7 +118,7 @@
       updateInstruction();
       message.textContent = instructions.length ? '' : 'Нет доступных инструкций. Добавьте PDF в перечень инструкций.';
     } catch (error) {
-      if (current === requestNumber) { message.textContent = error.message; preview.disabled = true; submit.disabled = true; }
+      if (current === requestNumber) { message.textContent = error.message; submit.disabled = true; }
     }
   };
 
@@ -126,31 +127,6 @@
   instruction.addEventListener('change', updateInstruction);
   selectAll.addEventListener('click', () => { currentRoster.forEach(item => selected.set(String(item.id), item)); drawRoster(); invalidate(); });
   form.querySelectorAll('input, select, textarea').forEach(field => field.addEventListener('input', invalidate));
-  preview.addEventListener('click', async () => {
-    if (preview.disabled) return;
-    const data = new FormData(form);
-    const fingerprint = JSON.stringify([...data.entries()]);
-    preview.disabled = true;
-    message.textContent = 'Готовлю предварительный просмотр…';
-    try {
-      const response = await fetch(form.dataset.previewUrl, {method: 'POST', body: data, headers: {'Accept': 'application/pdf'}});
-      if (!response.ok) {
-        const result = await response.json().catch(() => ({}));
-        throw new Error(result.error || 'Не удалось подготовить журнал.');
-      }
-      const blob = await response.blob();
-      if (fingerprint !== JSON.stringify([...new FormData(form).entries()])) return;
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      previewUrl = URL.createObjectURL(blob);
-      preview.dataset.pdfUrl = previewUrl;
-      preview.dataset.pdfTitle = 'Предпросмотр журнала выезда';
-      preview.dataset.pdfPreviewOnly = '1';
-      message.textContent = 'Проверьте бланк. Журнал можно сформировать после закрытия просмотра.';
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('safety-pdf-preview-modal')).show(preview);
-    } catch (error) { message.textContent = error.message; }
-    finally { refresh(); }
-  });
   form.addEventListener('submit', event => { if (submit.disabled) event.preventDefault(); });
-  window.addEventListener('pagehide', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); });
   load(true);
 })();

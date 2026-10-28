@@ -7,7 +7,7 @@
 </div>
 {% if admin_mode %}<div class="alert alert-info">Вы создаёте журнал как администратор. В графе «Проводивший» будет указано ваше ФИО.</div>{% endif %}
 <form id="journal-compose" method="post" action="{{ url_for('safety_journals.compose', draft_id=draft.id) }}"
-      data-choices-url="{{ url_for('safety_journals.choices') }}" data-preview-url="{{ url_for('safety_journals.compose_preview', draft_id=draft.id) }}" data-draft-id="{{ draft.id }}"
+      data-choices-url="{{ url_for('safety_journals.choices') }}" data-draft-id="{{ draft.id }}"
       data-selected-grade="{{ draft.grade or '' }}" data-selected-class="{{ draft.class_ids[0] if draft.class_ids else '' }}"
       data-selected-subject="{{ chosen_subject }}" data-selected-instruction="{{ 'library:' ~ draft.library_item_id if draft.library_item_id else 'version:' ~ draft.instruction_version_id if draft.instruction_version_id else '' }}"
       data-selected-children='{{ draft.selected_child_ids|tojson }}'>
@@ -25,9 +25,9 @@
     </div>
     <div id="journal-choice-message" class="small mt-3" role="status"></div>
   </div>
-  <div class="card card-body mb-3"><div class="d-flex align-items-center justify-content-between gap-2"><h2 class="h5 mb-0">Обучающиеся <span id="journal-selected-count" class="text-muted">0</span></h2><button type="button" class="btn btn-sm btn-outline-secondary" id="journal-select-all" disabled>Выбрать всех</button></div><p class="small text-muted mt-2 mb-2">Отметьте учеников для журнала. Их даты рождения автоматически появятся в печатном PDF.</p><div class="registry-matrix-card"><div class="registry-table-scroll" tabindex="0" aria-label="Список учеников"><table class="registry-matrix registry-matrix-medium"><colgroup><col style="width:70px"><col><col style="width:145px"></colgroup><thead><tr><th>Включить</th><th>Ученик</th><th>Дата рождения</th></tr></thead><tbody id="journal-roster"><tr><td colspan="3" class="registry-empty-row">Выберите класс.</td></tr></tbody></table></div></div></div>
-  <div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-primary" id="journal-preview" disabled>Предпросмотр журнала</button><button type="submit" class="btn btn-primary" id="journal-submit" disabled>{{ 'Сохранить исправления и открыть журнал' if draft.page_id else 'Сформировать журнал' }}</button></div>
+  <div class="card card-body mb-3"><div class="d-flex align-items-center justify-content-between gap-2"><h2 class="h5 mb-0">Обучающиеся <span id="journal-selected-count" class="text-muted">0</span></h2><button type="button" class="btn btn-sm btn-outline-secondary" id="journal-select-all" disabled>Выбрать всех</button></div><p class="small text-muted mt-2 mb-2">Отметьте учеников для журнала. Их даты рождения автоматически появятся в печатном PDF.</p><div class="registry-matrix-card"><div class="registry-table-scroll" tabindex="0" aria-label="Список учеников"><table class="registry-matrix registry-matrix-medium"><colgroup><col style="width:56px"><col><col style="width:145px"></colgroup><thead><tr><th aria-label="Включить ученика"></th><th>Ученик</th><th>Дата рождения</th></tr></thead><tbody id="journal-roster"><tr><td colspan="3" class="registry-empty-row">Выберите класс.</td></tr></tbody></table></div></div></div>
+  <div class="d-flex gap-2 flex-wrap"><button type="submit" class="btn btn-primary" id="journal-submit" disabled>{{ 'Сохранить исправления и открыть журнал' if draft.page_id else 'Сформировать журнал' }}</button></div>
 </form>
 {% include "safety_instructions/_pdf_preview_modal.html" %}
-<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261028_2" defer></script>
+<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261028_3" defer></script>
 {% endblock %}

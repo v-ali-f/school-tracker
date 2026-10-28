@@ -11,7 +11,6 @@
   const roster = document.getElementById('journal-roster');
   const count = document.getElementById('journal-selected-count');
   const selectAll = document.getElementById('journal-select-all');
-  const previewJournal = document.getElementById('journal-preview');
   const submit = document.getElementById('journal-submit');
   const message = document.getElementById('journal-choice-message');
   const initial = {
@@ -21,7 +20,6 @@
   };
   let versions = [];
   let requestNumber = 0;
-  let previewUrl = '';
 
   const fill = (select, items, placeholder, value, label = item => String(item), key = item => String(item)) => {
     select.replaceChildren(new Option(placeholder, ''));
@@ -35,7 +33,6 @@
     const checked = roster.querySelectorAll('input[name="child_ids"]:checked').length;
     count.textContent = `· выбрано ${checked}`;
     const complete = Boolean(grade.value && classroom.value && subject.value && instruction.value && kind.value && briefingAt.value && briefingAt.validity.valid && checked);
-    previewJournal.disabled = !complete;
     submit.disabled = !complete;
     selectAll.disabled = !roster.querySelector('input[name="child_ids"]');
   };
@@ -61,9 +58,12 @@
       checkbox.className = 'form-check-input';
       checkbox.setAttribute('aria-label', `Включить ${item.name}`);
       checkbox.checked = selected.has(String(item.id));
+      checkboxCell.className = 'registry-cell-center';
       checkboxCell.append(checkbox);
       row.insertCell().textContent = item.name;
-      row.insertCell().textContent = item.birth_date || 'Не указана';
+      const birthDateCell = row.insertCell();
+      birthDateCell.className = 'registry-cell-center';
+      birthDateCell.textContent = item.birth_date || 'Не указана';
     }
     refreshCount();
   };
@@ -123,31 +123,6 @@
   roster.addEventListener('change', invalidate);
   document.getElementById('journal-note').addEventListener('input', invalidate);
   selectAll.addEventListener('click', () => { roster.querySelectorAll('input[name="child_ids"]').forEach(input => { input.checked = true; }); invalidate(); });
-  previewJournal.addEventListener('click', async () => {
-    if (previewJournal.disabled) return;
-    const data = new FormData(form);
-    const fingerprint = JSON.stringify([...data.entries()]);
-    previewJournal.disabled = true;
-    message.textContent = 'Готовлю предварительный просмотр…';
-    try {
-      const response = await fetch(form.dataset.previewUrl, {method: 'POST', body: data, headers: {'Accept': 'application/pdf'}});
-      if (!response.ok) {
-        const result = await response.json().catch(() => ({}));
-        throw new Error(result.error || 'Не удалось подготовить журнал.');
-      }
-      const blob = await response.blob();
-      if (fingerprint !== JSON.stringify([...new FormData(form).entries()])) return;
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      previewUrl = URL.createObjectURL(blob);
-      previewJournal.dataset.pdfUrl = previewUrl;
-      previewJournal.dataset.pdfTitle = 'Предпросмотр журнала';
-      previewJournal.dataset.pdfPreviewOnly = '1';
-      message.textContent = 'Проверьте бланк. Журнал можно сформировать после закрытия просмотра.';
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('safety-pdf-preview-modal')).show(previewJournal);
-    } catch (error) { message.textContent = error.message; }
-    finally { refreshCount(); }
-  });
   form.addEventListener('submit', event => { if (submit.disabled) event.preventDefault(); });
-  window.addEventListener('pagehide', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); });
   load(true);
 })();

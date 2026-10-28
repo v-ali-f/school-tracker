@@ -164,7 +164,7 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
     draft_url = response.headers["Location"]
     form = client.get(draft_url).get_data(as_text=True)
     assert 'id="journal-compose"' in form and 'id="journal-instruction-preview"' in form
-    assert 'id="journal-preview"' in form and 'id="journal-submit"' in form
+    assert 'id="journal-preview"' not in form and 'id="journal-submit"' in form
     assert 'name="briefing_at"' in form and 'type="datetime-local"' in form
     choices = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Физика").json
     assert any(item["name"] == "5А" for item in choices["classes"])
@@ -366,15 +366,11 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
     data = {"grade": "5", "class_id": str(ids["class"]), "subject": "Информатика",
             "instruction_choice": choice, "briefing_kind": "первичный", "briefing_at": f'{ids["today"].isoformat()}T10:30',
             "child_ids": [str(ids["children"][0])], "header_note": "Практическая работа"}
-    assert client.post(f"{draft_url}/compose/preview", data={**data, "instruction_choice": f"library:{items[3]['id']}"}).status_code == 400
-    preview = client.post(f"{draft_url}/compose/preview", data=data)
-    assert preview.status_code == 200 and preview.data.startswith(b"%PDF")
-    assert preview.headers["Content-Disposition"].startswith("inline")
-    with pdfplumber.open(BytesIO(preview.data)) as document:
-        preview_text = document.pages[0].extract_text()
-        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in preview_text
-        assert "Инструкция: ИОП-31-23-Об — Инструкция по ОТ в кабинете информатики" in preview_text
-        assert "PDF из перечня" not in preview_text
+    editor = client.get(draft_url).get_data(as_text=True)
+    assert 'id="journal-preview"' not in editor and 'id="journal-submit"' in editor
+    assert client.post(f"{draft_url}/compose/preview", data=data).status_code == 404
+    invalid = client.post(f"{draft_url}/compose", data={**data, "instruction_choice": f"library:{items[3]['id']}"})
+    assert invalid.status_code == 302
     with app.app_context():
         assert SafetyJournalPage.query.count() == 0
         assert SafetyInstructionVersion.query.count() == 0
@@ -389,6 +385,13 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
         assert SafetyInstructionVersion.query.count() == 0
     detail = client.get(created.headers["Location"]).get_data(as_text=True)
     assert "PDF из перечня" in detail and "Практическая работа" in detail
+    pdf_link = unescape(re.search(r'data-pdf-url="([^" ]+/pdf\?token=[^"]+)"', detail).group(1))
+    with pdfplumber.open(BytesIO(client.get(pdf_link).data)) as document:
+        pdf_text = document.pages[0].extract_text()
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in pdf_text
+        assert "Инструкция: ИОП-31-23-Об — Инструкция по ОТ в кабинете информатики" in pdf_text
+        assert f"ОТ-{ids['today'].year}-{page_id:06d}" in pdf_text
+        assert "ПРЕДПРОСМОТР" not in pdf_text
     registry = client.get("/safety/journals/").get_data(as_text=True)
     assert 'aria-label="Просмотреть инструкцию ИОП-31-23-Об"' in registry
     assert f'data-pdf-url="/safety/instructions/library/{items[1]["id"]}/pdf"' in registry
@@ -396,11 +399,13 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
     assert correction.status_code == 302
     corrected = client.post(f"{correction.headers['Location']}/compose", data={
         **data, "instruction_choice": f"library:{items[2]['id']}", "header_note": "Уточнённая работа",
+        "child_ids": [str(ids["children"][0]), str(ids["children"][1])],
     })
     assert corrected.status_code == 302
     with app.app_context():
         page = db.session.get(SafetyJournalPage, page_id)
         assert page.library_item_id == items[2]["id"] and len(page.revisions) == 2
+        assert {item.child_id for item in page.participants} == set(ids["children"][:2])
 
 
 def test_catalog_rights_versions_and_immutable_original(app, client, make_user, login, tmp_path):
@@ -568,6 +573,7 @@ def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user,
     draft_url = response.headers["Location"]
     editor = client.get(draft_url).get_data(as_text=True)
     assert "Номер приказа" in editor and 'name="order_number"' in editor
+    assert 'id="trip-preview"' not in editor and 'id="trip-submit"' in editor
     choices = client.get(f"/safety/journals/trips/choices?grade=5&class_id={ids['class']}").get_json()
     assert {item["id"] for item in choices["classes"]} == {ids["class"], ids["other_class"]}
     assert f"version:{version_id}" in {item["id"] for item in choices["instructions"]}
@@ -577,12 +583,7 @@ def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user,
         "briefing_kind": "целевой", "briefing_at": f'{ids["today"].isoformat()}T10:30', "instruction_choice": f"version:{version_id}",
         "child_ids": [str(ids["children"][0]), str(ids["children"][2])],
     }
-    preview = client.post(f"{draft_url}/compose/preview", data=data)
-    assert preview.status_code == 200 and preview.data.startswith(b"%PDF")
-    with pdfplumber.open(BytesIO(preview.data)) as document:
-        pdf_text = document.pages[0].extract_text()
-        assert "Музей науки" in pdf_text and "Приказ №" not in pdf_text
-        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in pdf_text
+    assert client.post(f"{draft_url}/compose/preview", data=data).status_code == 404
     generated = client.post(f"{draft_url}/compose", data=data)
     assert generated.status_code == 302
     with app.app_context():
@@ -595,17 +596,27 @@ def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user,
     detail = client.get(generated.headers["Location"]).get_data(as_text=True)
     assert "Исправить данные журнала" in detail and "Музей науки" in detail
     assert "Карточка выезда" not in detail
+    pdf_link = unescape(re.search(r'data-pdf-url="([^" ]+/pdf\?token=[^"]+)"', detail).group(1))
+    with pdfplumber.open(BytesIO(client.get(pdf_link).data)) as document:
+        pdf_text = document.pages[0].extract_text()
+        assert "Музей науки" in pdf_text and "Приказ №" not in pdf_text
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in pdf_text
+        assert f"ОТ-В-{ids['today'].year}-{page_id:06d}" in pdf_text
+        assert "ПРЕДПРОСМОТР" not in pdf_text
     trip_registry = client.get("/safety/journals/trips").get_data(as_text=True)
     assert 'aria-label="Просмотреть инструкцию ИОТ-1"' in trip_registry
     assert f'aria-label="Просмотреть журнал ОТ-В-{ids["today"].year}-{page_id:06d}"' in trip_registry
     correction = client.post(f"/safety/journals/pages/{page_id}/correct")
     assert correction.status_code == 302
-    corrected = client.post(f"{correction.headers['Location']}/compose", data={**data, "order_number": "42"})
+    corrected = client.post(f"{correction.headers['Location']}/compose", data={
+        **data, "order_number": "42", "child_ids": [str(ids["children"][0])],
+    })
     assert corrected.status_code == 302
     with app.app_context():
         page = db.session.get(SafetyJournalPage, page_id)
         assert page.trip_snapshot["order_number"] == "42"
         assert len(page.revisions) == 2
+        assert [item.child_id for item in page.participants] == [ids["children"][0]]
 
 
 def test_trip_can_use_reference_pdf_without_subject_or_order(app, client, make_user, login, tmp_path):
@@ -627,7 +638,7 @@ def test_trip_can_use_reference_pdf_without_subject_or_order(app, client, make_u
         "briefing_kind": "целевой", "briefing_at": f'{ids["today"].isoformat()}T10:30', "instruction_choice": f"library:{digest}",
         "child_ids": [str(ids["children"][0])],
     }
-    assert client.post(f"{draft_url}/compose/preview", data=data).status_code == 200
+    assert client.post(f"{draft_url}/compose/preview", data=data).status_code == 404
     assert client.post(f"{draft_url}/compose", data=data).status_code == 302
     with app.app_context():
         page = SafetyJournalPage.query.one()
