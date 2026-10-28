@@ -24,7 +24,7 @@ from app.models import (
 from app.models.safety_passport import utc_now
 from app.services.safety_journal_pdf import build_journal_pdf
 from app.services.safety_journal_service import (
-    available_classes, can_create_journal, can_view_page, effective_instruction_versions,
+    CLASS_TEACHER_SUBJECT, available_classes, can_create_journal, can_view_page, effective_instruction_versions,
     instruction_is_effective, journal_classes_for_user, journal_subjects_for_class,
     preview_payload, roster_for_classes, search_students,
     selected_enrollments,
@@ -192,7 +192,7 @@ def index():
     if status in {"generated", "printed", "annulled"}:
         query = query.filter_by(status=status)
     kind = "trip" if trip_section else request.args.get("kind", "")
-    if kind in {"ordinary", "trip"}:
+    if kind in {"ordinary", "class_teacher", "trip"}:
         query = query.filter_by(kind=kind)
     pages = query.order_by(SafetyJournalPage.created_at.desc(), SafetyJournalPage.id.desc()).limit(300).all()
     drafts = SafetyJournalDraft.query.filter_by(author_id=current_user.id, status="draft").order_by(SafetyJournalDraft.updated_at.desc()).all() if can_create_journal(current_user) or trip_assigned else []
@@ -207,7 +207,11 @@ def index():
 def create():
     if not can_create_journal(current_user):
         abort(403)
-    draft = SafetyJournalDraft(id=str(uuid4()), author_id=current_user.id, instructed_on=school_today(), class_ids=[], selected_child_ids=[], removed_child_ids=[])
+    journal_kind = request.form.get("journal_kind", "ordinary")
+    if journal_kind not in {"ordinary", "class_teacher"}:
+        abort(400)
+    draft = SafetyJournalDraft(id=str(uuid4()), author_id=current_user.id, journal_kind=journal_kind,
+                               instructed_on=school_today(), class_ids=[], selected_child_ids=[], removed_child_ids=[])
     db.session.add(draft)
     db.session.flush()
     _event(draft, "created")
@@ -244,19 +248,20 @@ def edit(draft_id):
     chosen_grade = request.args.get("grade", type=int) or draft.grade
     try:
         trip = draft.trip_order_id is not None or draft.journal_kind == "trip"
-        all_classes = journal_classes_for_user(chosen_date, current_user, trip=trip)
+        all_classes = journal_classes_for_user(chosen_date, current_user, trip=trip,
+                                               homeroom=draft.journal_kind == "class_teacher")
         grades = sorted({item.grade for item in all_classes if item.grade})
         classes = [item for item in all_classes if item.grade == chosen_grade] if chosen_grade else []
         chosen_class_id = request.args.get("class_id", type=int) or (draft.class_ids[0] if draft.class_ids else None)
         chosen_class = next((item for item in classes if item.id == chosen_class_id), None)
-        subjects = journal_subjects_for_class(chosen_date, current_user, chosen_class, trip=trip) if chosen_class or trip else []
+        subjects = journal_subjects_for_class(chosen_date, current_user, chosen_class, trip=trip) if (chosen_class or trip) and draft.journal_kind != "class_teacher" else []
         active_versions = effective_instruction_versions(chosen_date)
         chosen_subject = (request.args.get("subject") or draft.subject or (draft.instruction_version.instruction.category if draft.instruction_version else "")).strip()
-        chosen_subject = next((item for item in subjects if item.casefold() == chosen_subject.casefold()), "")
+        chosen_subject = CLASS_TEACHER_SUBJECT if draft.journal_kind == "class_teacher" else next((item for item in subjects if item.casefold() == chosen_subject.casefold()), "")
         versions = active_versions if trip else [item for item in active_versions if item.instruction.category.strip().casefold() == chosen_subject.casefold()] if chosen_subject else []
         if chosen_subject and not trip:
-            from app.modules.safety_instructions.routes import library_suggestions
-            library_items = library_suggestions(chosen_subject)
+            from app.modules.safety_instructions.routes import library_items_for_section, library_suggestions
+            library_items = library_items_for_section("class_teacher") if draft.journal_kind == "class_teacher" else library_suggestions(chosen_subject)
         else:
             library_items = []
         roster = roster_for_classes(chosen_date, draft.class_ids) if draft.class_ids else {}
@@ -309,20 +314,23 @@ def choices():
         if on_date > school_today():
             raise ValueError("Дата учёта не может быть в будущем.")
         grade = request.args.get("grade", type=int)
-        all_classes = journal_classes_for_user(on_date, current_user)
+        journal_kind = request.args.get("journal_kind", "ordinary")
+        if journal_kind not in {"ordinary", "class_teacher"}:
+            raise ValueError("Выберите вид журнала.")
+        all_classes = journal_classes_for_user(on_date, current_user, homeroom=journal_kind == "class_teacher")
         classes = [item for item in all_classes if item.grade == grade] if grade else []
         class_id = request.args.get("class_id", type=int)
         classroom = next((item for item in classes if item.id == class_id), None)
-        subjects = journal_subjects_for_class(on_date, current_user, classroom) if classroom else []
+        subjects = journal_subjects_for_class(on_date, current_user, classroom) if classroom and journal_kind == "ordinary" else []
         requested_subject = (request.args.get("subject") or "").strip()
-        subject = next((item for item in subjects if item.casefold() == requested_subject.casefold()), "")
+        subject = CLASS_TEACHER_SUBJECT if journal_kind == "class_teacher" else next((item for item in subjects if item.casefold() == requested_subject.casefold()), "")
         versions = [
             item for item in effective_instruction_versions(on_date)
             if subject and item.instruction.category.strip().casefold() == subject.casefold()
         ]
         roster = roster_for_classes(on_date, [classroom.id]) if classroom else {}
-        from app.modules.safety_instructions.routes import library_suggestions
-        suggestions = library_suggestions(subject) if subject else []
+        from app.modules.safety_instructions.routes import library_items_for_section, library_suggestions
+        suggestions = library_items_for_section("class_teacher") if journal_kind == "class_teacher" else library_suggestions(subject) if subject else []
         instructions = [{
             "id": f"version:{item.id}", "label": f"{item.instruction.number} — {item.title_snapshot}",
             "source": "catalog",
@@ -470,7 +478,7 @@ def _populate_ordinary_draft(draft):
     on_date = draft.instructed_on or school_today()
     grade = int(request.form.get("grade", "0"))
     class_id = int(request.form.get("class_id", "0"))
-    subject = (request.form.get("subject") or "").strip()
+    subject = CLASS_TEACHER_SUBJECT if draft.journal_kind == "class_teacher" else (request.form.get("subject") or "").strip()
     kind = (request.form.get("briefing_kind") or "").strip().casefold()
     note = (request.form.get("header_note") or "").strip()
     child_ids = [int(value) for value in request.form.getlist("child_ids")]
@@ -479,18 +487,19 @@ def _populate_ordinary_draft(draft):
         raise ValueError("Выберите вид инструктажа.")
     if len(note) > 500:
         raise ValueError("Дополнительная информация должна быть не длиннее 500 символов.")
-    classes = journal_classes_for_user(on_date, current_user, grade)
+    classes = journal_classes_for_user(on_date, current_user, grade, homeroom=draft.journal_kind == "class_teacher")
     classroom = next((item for item in classes if item.id == class_id), None)
     if classroom is None:
         raise ValueError("Выберите доступный класс.")
-    subjects = journal_subjects_for_class(on_date, current_user, classroom)
-    if not any(item.casefold() == subject.casefold() for item in subjects):
+    subjects = journal_subjects_for_class(on_date, current_user, classroom) if draft.journal_kind != "class_teacher" else []
+    if draft.journal_kind != "class_teacher" and not any(item.casefold() == subject.casefold() for item in subjects):
         raise ValueError("Выберите предмет из учебного плана или вашей нагрузки.")
     version_id, library_item_id = None, None
     if choice.startswith("library:"):
         library_item_id = choice.partition(":")[2]
         from app.modules.safety_instructions.routes import journal_library_item
-        journal_library_item(library_item_id, subject)
+        journal_library_item(library_item_id, None if draft.journal_kind == "class_teacher" else subject,
+                             section="class_teacher" if draft.journal_kind == "class_teacher" else None)
     else:
         version_id = int(choice.partition(":")[2] if choice.startswith("version:") else choice)
         version = db.session.get(SafetyInstructionVersion, version_id)
@@ -749,7 +758,7 @@ def _generate_page(draft, *, require_digest=False):
             return _correct_page(draft, payload)
         page = SafetyJournalPage(
             number=f"TMP-{uuid4().hex}", source_draft_id=draft.id, author_id=current_user.id,
-            kind="trip" if "trip" in payload else "ordinary",
+            kind=draft.journal_kind if draft.journal_kind == "class_teacher" else "trip" if "trip" in payload else "ordinary",
             trip_order_id=draft.trip_order_id, trip_assignment_id=draft.trip_assignment_id,
             trip_order_revision=draft.trip_order_revision, trip_snapshot=payload.get("trip"),
             instruction_version_id=draft.instruction_version_id,
@@ -770,7 +779,7 @@ def _generate_page(draft, *, require_digest=False):
         )
         db.session.add(page)
         db.session.flush()
-        prefix = "ОТ-В" if page.kind == "trip" else "ОТ"
+        prefix = "ОТ-В" if page.kind == "trip" else "ОТ-КР" if page.kind == "class_teacher" else "ОТ"
         page.number = f"{prefix}-{draft.instructed_on.year}-{page.id:06d}"
         class_map = {}
         for sequence, person in enumerate(payload["participants"], 1):
@@ -848,7 +857,8 @@ def start_correction(page_id):
     if existing:
         return redirect(url_for("safety_journals.edit", draft_id=existing.id))
     class_id = page.classes[0].class_id if page.classes else None
-    classroom = next((item for item in journal_classes_for_user(page.instructed_on, current_user, trip=page.kind == "trip") if item.id == class_id), None)
+    classroom = next((item for item in journal_classes_for_user(page.instructed_on, current_user,
+                      trip=page.kind == "trip", homeroom=page.kind == "class_teacher") if item.id == class_id), None)
     draft = SafetyJournalDraft(
         id=str(uuid4()), author_id=current_user.id, page_id=page.id,
         journal_kind=page.kind, manual_trip=page.trip_snapshot if page.kind == "trip" else None,
@@ -889,6 +899,7 @@ def based_on(page_id):
             class_ids = []
     draft = SafetyJournalDraft(
         id=str(uuid4()), author_id=current_user.id, instructed_on=today,
+        journal_kind=page.kind,
         grade=valid_classes[class_ids[0]].grade if class_ids else None,
         instruction_version_id=page.instruction_version_id if instruction_is_effective(page.instruction_version, today) else None,
         library_item_id=page.library_item_id, subject=page.subject_snapshot,

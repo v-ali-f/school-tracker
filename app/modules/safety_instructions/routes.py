@@ -63,6 +63,11 @@ def journal_library_items():
     return _library_items()
 
 
+def library_items_for_section(section):
+    """List reference PDFs explicitly assigned to a journal section."""
+    return [item for item in _library_items() if item.get("section") == section]
+
+
 def library_suggestions(subject):
     """Find reference PDFs for a school subject, including Russian case endings."""
     normalized = subject.strip().casefold().replace("ё", "е")
@@ -85,15 +90,16 @@ def library_suggestions(subject):
     return [
         {**item, "in_catalog": item.get("id") in known_hashes}
         for item in _library_items()
+        if item.get("section") != "class_teacher"
         if any(term in item.get("title", "").casefold().replace("ё", "е") for term in terms)
     ]
 
 
-def journal_library_item(item_id, subject=None):
+def journal_library_item(item_id, subject=None, section=None):
     """Resolve a reference PDF; subject matching applies to class journals."""
     if not re.fullmatch(r"[0-9a-f]{64}", item_id or ""):
         raise ValueError("Выберите инструкцию из перечня PDF.")
-    candidates = library_suggestions(subject) if subject else _library_items()
+    candidates = library_items_for_section(section) if section else library_suggestions(subject) if subject else _library_items()
     item = next((entry for entry in candidates if entry.get("id") == item_id), None)
     if item is None:
         raise ValueError("Выбранный PDF не подходит для журнала или удалён из перечня.")
@@ -122,12 +128,14 @@ def library():
         abort(403)
     from app.modules.hub.routes import build_home_context
     query = (request.args.get("q") or "").strip()[:120]
+    section = request.args.get("section") if request.args.get("section") == "class_teacher" else ""
     items = _library_items()
-    matching = [item for item in items if query.casefold() in item["title"].casefold()] if query else items
+    matching = [item for item in items if (not section or item.get("section") == section)
+                and (not query or query.casefold() in item["title"].casefold())]
     return render_template(
         "safety_instructions/library.html", workspace_nav=build_home_context(),
         workspace_context_title="Техника безопасности", workspace_context_subtitle="Библиотека инструкций",
-        items=matching, total=len(items), query=query,
+        items=matching, total=len(items), query=query, section=section,
         can_manage=can_manage_instructions(current_user),
     )
 

@@ -644,3 +644,71 @@ def test_trip_can_use_reference_pdf_without_subject_or_order(app, client, make_u
         page = SafetyJournalPage.query.one()
         assert page.kind == "trip" and page.library_item_id == digest
         assert page.instruction_version_id is None and page.trip_snapshot["order_number"] == ""
+
+
+def test_class_teacher_journal_uses_own_instructions_without_subject(app, client, make_user, login, tmp_path):
+    ids = _setup(app, make_user, tmp_path)
+    class_teacher_id = make_user("CLASS_TEACHER")
+    with app.app_context():
+        db.session.get(SchoolClass, ids["class"]).teacher_user_id = class_teacher_id
+        db.session.commit()
+    folder = tmp_path / "safety" / "library"
+    folder.mkdir(parents=True)
+    items = []
+    for number, section in (("ИОТ-01-2023", "class_teacher"), ("ИОП-99", "ordinary")):
+        stream = BytesIO()
+        document = canvas.Canvas(stream)
+        document.drawString(72, 720, number)
+        document.save()
+        content = stream.getvalue()
+        digest = hashlib.sha256(content).hexdigest()
+        (folder / f"{digest}.pdf").write_bytes(content)
+        items.append({"id": digest, "title": f"{number} Правила безопасности", "filename": f"{number}.pdf", "section": section})
+    (folder / "manifest.json").write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+    with app.app_context():
+        from app.modules.safety_instructions.routes import library_suggestions
+        assert [item["id"] for item in library_suggestions("Правила безопасности")] == [items[1]["id"]]
+
+    login(class_teacher_id)
+    library = client.get("/safety/instructions/library?section=class_teacher").get_data(as_text=True)
+    assert "ИОТ-01-2023" in library and "ИОП-99" not in library
+    assert "Сформировать журнал классного руководства" in client.get("/safety/journals/").get_data(as_text=True)
+    draft_url = client.post("/safety/journals/new", data={"journal_kind": "class_teacher"}).headers["Location"]
+    editor = client.get(draft_url).get_data(as_text=True)
+    assert 'data-journal-kind="class_teacher"' in editor and 'name="subject"' not in editor
+    choices = client.get(f"/safety/journals/choices?journal_kind=class_teacher&grade=5&class_id={ids['class']}").json
+    assert [item["id"] for item in choices["classes"]] == [ids["class"]]
+    assert choices["subjects"] == []
+    assert [item["id"] for item in choices["instructions"]] == [f"library:{items[0]['id']}"]
+    data = {"grade": "5", "class_id": str(ids["class"]), "instruction_choice": f"library:{items[1]['id']}",
+            "briefing_kind": "целевой", "briefing_at": f'{ids["today"].isoformat()}T10:30',
+            "child_ids": [str(ids["children"][0])]}
+    assert client.post(f"{draft_url}/compose", data=data).status_code == 302
+    with app.app_context():
+        assert SafetyJournalPage.query.count() == 0
+    data["instruction_choice"] = f"library:{items[0]['id']}"
+    created = client.post(f"{draft_url}/compose", data=data)
+    assert created.status_code == 302 and "preview=1" in created.headers["Location"]
+    with app.app_context():
+        page = SafetyJournalPage.query.one()
+        assert page.kind == "class_teacher" and page.subject_snapshot == "Классное руководство"
+        assert page.number.startswith("ОТ-КР-") and page.author_id == class_teacher_id
+        page_id = page.id
+    detail = client.get(created.headers["Location"]).get_data(as_text=True)
+    pdf_link = unescape(re.search(r'data-pdf-url="([^" ]+/pdf\?token=[^"]+)"', detail).group(1))
+    with pdfplumber.open(BytesIO(client.get(pdf_link).data)) as document:
+        text = document.pages[0].extract_text()
+        assert "Направление: Классное руководство" in text
+        assert "ИОТ-01-2023" in text and "ПРЕДПРОСМОТР" not in text
+    correction = client.post(f"/safety/journals/pages/{page_id}/correct")
+    assert correction.status_code == 302
+    data["child_ids"] = [str(ids["children"][1])]
+    assert client.post(f"{correction.headers['Location']}/compose", data=data).status_code == 302
+    with app.app_context():
+        page = db.session.get(SafetyJournalPage, page_id)
+        assert len(page.revisions) == 2
+        assert [person.child_id for person in page.participants] == [ids["children"][1]]
+
+    login(ids["teacher"])
+    teacher_choices = client.get(f"/safety/journals/choices?journal_kind=class_teacher&grade=5&class_id={ids['class']}").json
+    assert f"library:{items[0]['id']}" in {item["id"] for item in teacher_choices["instructions"]}

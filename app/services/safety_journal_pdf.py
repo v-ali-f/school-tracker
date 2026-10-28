@@ -105,7 +105,11 @@ def build_journal_pdf(page, participants):
         ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
     ]))
     trip = page.trip_snapshot or {}
-    journal_title = "Страница журнала инструктажа обучающихся при выезде" if page.kind == "trip" else "Страница журнала регистрации инструктажа обучающихся"
+    journal_title = (
+        "Страница журнала инструктажа обучающихся при выезде" if page.kind == "trip" else
+        "Страница журнала инструктажа по классному руководству" if page.kind == "class_teacher" else
+        "Страница журнала регистрации инструктажа обучающихся"
+    )
     story = [
         _paragraph(page.organization_name_snapshot, heading),
         Spacer(1, 3 * mm),
@@ -122,7 +126,7 @@ def build_journal_pdf(page, participants):
             f"Вид инструктажа: {page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind}",
             subheading,
         ),
-        _paragraph(f"{'Мероприятие' if page.kind == 'trip' else 'Предмет'}: {getattr(page, 'subject_snapshot', None) or (page.instruction_version.instruction.category if page.instruction_version else '')}", subheading),
+        _paragraph(f"{'Мероприятие' if page.kind == 'trip' else 'Направление' if page.kind == 'class_teacher' else 'Предмет'}: {getattr(page, 'subject_snapshot', None) or (page.instruction_version.instruction.category if page.instruction_version else '')}", subheading),
         _paragraph(f"Проводивший инструктаж: {page.instructor_name_snapshot}", subheading),
     ]
     if trip:

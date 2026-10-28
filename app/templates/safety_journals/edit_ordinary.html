@@ -2,22 +2,22 @@
 {% block title %}{{ 'Исправить журнал' if draft.page_id else 'Сформировать журнал' }}{% endblock %}
 {% block workspace_content %}
 <div class="page-head mb-3">
-  <div><div class="section-overline">Техника безопасности · журнал инструктажа</div><h1 class="page-title">{{ 'Исправить журнал' if draft.page_id else 'Сформировать журнал' }}</h1><p class="page-sub">Выберите класс, предмет, инструкцию, вид инструктажа и учеников. Даты рождения напечатаются в журнале; даты инструктажа и подписи заполняются от руки.</p></div>
+  <div><div class="section-overline">Техника безопасности · {{ 'классное руководство' if draft.journal_kind == 'class_teacher' else 'журнал инструктажа' }}</div><h1 class="page-title">{{ 'Исправить журнал' if draft.page_id else 'Сформировать журнал' }}{{ ' классного руководства' if draft.journal_kind == 'class_teacher' else '' }}</h1><p class="page-sub">{{ 'Выберите класс, инструкцию из перечня классного руководителя, вид инструктажа и учеников.' if draft.journal_kind == 'class_teacher' else 'Выберите класс, предмет, инструкцию, вид инструктажа и учеников.' }} Даты рождения напечатаются в журнале; даты инструктажа и подписи заполняются от руки.</p></div>
   <a class="btn btn-outline-secondary" href="{{ url_for('safety_journals.detail', page_id=draft.page_id) if draft.page_id else url_for('safety_journals.index') }}">Назад</a>
 </div>
 {% if admin_mode %}<div class="alert alert-info">Вы создаёте журнал как администратор. В графе «Проводивший» будет указано ваше ФИО.</div>{% endif %}
 <form id="journal-compose" method="post" action="{{ url_for('safety_journals.compose', draft_id=draft.id) }}"
-      data-choices-url="{{ url_for('safety_journals.choices') }}" data-draft-id="{{ draft.id }}"
+      data-choices-url="{{ url_for('safety_journals.choices') }}" data-draft-id="{{ draft.id }}" data-journal-kind="{{ draft.journal_kind }}"
       data-selected-grade="{{ draft.grade or '' }}" data-selected-class="{{ draft.class_ids[0] if draft.class_ids else '' }}"
       data-selected-subject="{{ chosen_subject }}" data-selected-instruction="{{ 'library:' ~ draft.library_item_id if draft.library_item_id else 'version:' ~ draft.instruction_version_id if draft.instruction_version_id else '' }}"
       data-selected-children='{{ draft.selected_child_ids|tojson }}'>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="card card-body mb-3">
     <div class="row g-3">
-      <div class="col-md-4"><label class="form-label" for="journal-grade">Параллель</label><select class="form-select" id="journal-grade" name="grade" required><option value="">Выберите параллель</option></select></div>
-      <div class="col-md-4"><label class="form-label" for="journal-class">Класс</label><select class="form-select" id="journal-class" name="class_id" required disabled><option value="">Сначала выберите параллель</option></select></div>
-      <div class="col-md-4"><label class="form-label" for="journal-subject">Предмет</label><select class="form-select" id="journal-subject" name="subject" required disabled><option value="">Сначала выберите класс</option></select></div>
-      <div class="col-md-9"><label class="form-label" for="journal-instruction">Инструкция из каталога или перечня PDF</label><select class="form-select" id="journal-instruction" name="instruction_choice" required disabled><option value="">Сначала выберите предмет</option></select></div>
+      <div class="{{ 'col-md-6' if draft.journal_kind == 'class_teacher' else 'col-md-4' }}"><label class="form-label" for="journal-grade">Параллель</label><select class="form-select" id="journal-grade" name="grade" required><option value="">Выберите параллель</option></select></div>
+      <div class="{{ 'col-md-6' if draft.journal_kind == 'class_teacher' else 'col-md-4' }}"><label class="form-label" for="journal-class">Класс</label><select class="form-select" id="journal-class" name="class_id" required disabled><option value="">Сначала выберите параллель</option></select></div>
+      {% if draft.journal_kind != 'class_teacher' %}<div class="col-md-4"><label class="form-label" for="journal-subject">Предмет</label><select class="form-select" id="journal-subject" name="subject" required disabled><option value="">Сначала выберите класс</option></select></div>{% endif %}
+      <div class="col-md-9"><label class="form-label" for="journal-instruction">{{ 'Инструкция для классного руководства' if draft.journal_kind == 'class_teacher' else 'Инструкция из каталога или перечня PDF' }}</label><select class="form-select" id="journal-instruction" name="instruction_choice" required disabled><option value="">{{ 'Выберите инструкцию' if draft.journal_kind == 'class_teacher' else 'Сначала выберите предмет' }}</option></select></div>
       <div class="col-md-3 d-flex align-items-end"><button type="button" class="btn btn-outline-primary w-100" id="journal-instruction-preview" data-bs-toggle="modal" data-bs-target="#safety-pdf-preview-modal" disabled>Просмотреть инструкцию</button></div>
       <div class="col-md-6"><label class="form-label" for="journal-kind">Вид инструктажа</label><select class="form-select" id="journal-kind" name="briefing_kind" required><option value="">Выберите вид</option>{% for value in ['первичный','повторный','внеплановый','целевой'] %}<option value="{{ value }}" {% if draft.briefing_kind == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}</select></div>
       <div class="col-md-6"><label class="form-label" for="journal-briefing-at">Дата и время проведения инструктажа</label><input class="form-control" id="journal-briefing-at" type="datetime-local" name="briefing_at" value="{{ briefing_input }}" required><div class="form-text">Сохраняется в реестре. В печатном журнале дату впишите от руки.</div></div>
@@ -29,5 +29,5 @@
   <div class="d-flex gap-2 flex-wrap"><button type="submit" class="btn btn-primary" id="journal-submit" disabled>{{ 'Сохранить исправления и открыть журнал' if draft.page_id else 'Сформировать журнал' }}</button></div>
 </form>
 {% include "safety_instructions/_pdf_preview_modal.html" %}
-<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261028_3" defer></script>
+<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261028_4" defer></script>
 {% endblock %}

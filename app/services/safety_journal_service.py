@@ -20,6 +20,8 @@ from app.services.safety_passport_service import (
     is_admin, is_director, is_officer, role_codes, school_today,
 )
 
+CLASS_TEACHER_SUBJECT = "Классное руководство"
+
 
 def can_create_journal(user):
     return bool(role_codes(user).intersection({"TEACHER", "CLASS_TEACHER", "ADMIN", "DIRECTOR"}))
@@ -150,7 +152,7 @@ def _teacher_subjects_from_workload(on_date, user, version):
     return result
 
 
-def journal_classes_for_user(on_date, user, grade=None, *, trip=False):
+def journal_classes_for_user(on_date, user, grade=None, *, trip=False, homeroom=False):
     classes = available_classes(on_date, grade)
     if trip or is_admin(user) or is_director(user):
         return classes
@@ -160,7 +162,7 @@ def journal_classes_for_user(on_date, user, grade=None, *, trip=False):
         _teacher_subjects_from_workload(on_date, user, version)
         if version else _legacy_teacher_subjects(year, user, classes)
     )
-    return [item for item in classes if subjects.get(item.id)]
+    return [item for item in classes if subjects.get(item.id) or (homeroom and item.teacher_user_id == user.id)]
 
 
 def journal_subjects_for_class(on_date, user, classroom, *, trip=False):
@@ -297,7 +299,11 @@ def preview_payload(draft, author):
         if version or draft.trip_assignment_id is not None:
             raise ValueError("Укажите один источник инструкции.")
         from app.modules.safety_instructions.routes import journal_library_item
-        library_item = journal_library_item(draft.library_item_id, None if draft.journal_kind == "trip" else subject)
+        library_item = journal_library_item(
+            draft.library_item_id,
+            None if draft.journal_kind in {"trip", "class_teacher"} else subject,
+            section="class_teacher" if draft.journal_kind == "class_teacher" else None,
+        )
         library_full_title = (library_item.get("title") or "").strip()
         library_number, _, library_title = library_full_title.partition(" ")
         library_title = library_title.strip() or library_full_title
@@ -316,10 +322,13 @@ def preview_payload(draft, author):
     if not draft.selected_child_ids:
         raise ValueError("Добавьте хотя бы одного участника.")
     if draft.trip_assignment_id is None and draft.journal_kind != "trip":
-        allowed_classes = {item.id: item for item in journal_classes_for_user(on_date, author)}
+        allowed_classes = {item.id: item for item in journal_classes_for_user(on_date, author, homeroom=draft.journal_kind == "class_teacher")}
         if len(draft.class_ids) != 1 or draft.class_ids[0] not in allowed_classes:
             raise ValueError("Выбранный класс больше не доступен в нагрузке.")
-        if not any(item.strip().casefold() == subject.casefold() for item in journal_subjects_for_class(on_date, author, allowed_classes[draft.class_ids[0]])):
+        if draft.journal_kind == "class_teacher":
+            if subject != CLASS_TEACHER_SUBJECT:
+                raise ValueError("Выберите инструкцию для классного руководства.")
+        elif not any(item.strip().casefold() == subject.casefold() for item in journal_subjects_for_class(on_date, author, allowed_classes[draft.class_ids[0]])):
             raise ValueError("Выбранный предмет больше не доступен для класса.")
         if version and version.instruction.category.strip().casefold() != subject.casefold():
             raise ValueError("Инструкция не соответствует выбранному предмету.")

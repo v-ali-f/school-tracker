@@ -4,6 +4,8 @@
   const grade = document.getElementById('journal-grade');
   const classroom = document.getElementById('journal-class');
   const subject = document.getElementById('journal-subject');
+  const classTeacher = form.dataset.journalKind === 'class_teacher';
+  const selectedSubject = () => classTeacher ? 'Классное руководство' : subject.value;
   const instruction = document.getElementById('journal-instruction');
   const kind = document.getElementById('journal-kind');
   const briefingAt = document.getElementById('journal-briefing-at');
@@ -32,7 +34,7 @@
   const refreshCount = () => {
     const checked = roster.querySelectorAll('input[name="child_ids"]:checked').length;
     count.textContent = `· выбрано ${checked}`;
-    const complete = Boolean(grade.value && classroom.value && subject.value && instruction.value && kind.value && briefingAt.value && briefingAt.validity.valid && checked);
+    const complete = Boolean(grade.value && classroom.value && selectedSubject() && instruction.value && kind.value && briefingAt.value && briefingAt.validity.valid && checked);
     submit.disabled = !complete;
     selectAll.disabled = !roster.querySelector('input[name="child_ids"]');
   };
@@ -87,7 +89,8 @@
     const query = new URLSearchParams({
       grade: preserve ? initial.grade : grade.value,
       class_id: preserve ? initial.classroom : classroom.value,
-      subject: preserve ? initial.subject : subject.value,
+      subject: preserve ? initial.subject : selectedSubject(),
+      journal_kind: form.dataset.journalKind,
       draft_id: form.dataset.draftId,
     });
     try {
@@ -99,24 +102,28 @@
       fill(grade, data.grades, 'Выберите параллель', gradeValue, item => `${item} класс`);
       const classValue = preserve ? initial.classroom : classroom.value;
       fill(classroom, data.classes, 'Выберите класс', classValue, item => item.name, item => String(item.id));
-      const subjectValue = preserve ? initial.subject : subject.value;
-      fill(subject, data.subjects, 'Выберите предмет', subjectValue);
+      if (!classTeacher) {
+        const subjectValue = preserve ? initial.subject : subject.value;
+        fill(subject, data.subjects, 'Выберите предмет', subjectValue);
+      }
       versions = data.instructions;
       fill(instruction, versions, 'Выберите инструкцию', preserve ? initial.instruction : instruction.value,
         item => `${item.label} · ${item.source === 'library' ? 'PDF из перечня' : 'каталог'}`, item => String(item.id));
       const selected = preserve ? initial.children : new Set([...roster.querySelectorAll('input[name="child_ids"]:checked')].map(item => item.value));
       showRoster(data.roster, defaultAll || (preserve && !selected.size && !form.dataset.selectedInstruction)
         ? new Set(data.roster.map(item => String(item.id))) : selected);
-      message.textContent = subject.value && !versions.length ? 'Для предмета не найдено подходящих инструкций в каталоге и перечне PDF.' : '';
+      message.textContent = selectedSubject() && !versions.length
+        ? classTeacher ? 'Инструкции классного руководства пока не загружены.' : 'Для предмета не найдено подходящих инструкций в каталоге и перечне PDF.'
+        : '';
       updatePreview();
     } catch (error) {
       if (current === requestNumber) { message.textContent = error.message; submit.disabled = true; }
     }
   };
 
-  grade.addEventListener('change', () => { classroom.value = ''; subject.value = ''; instruction.value = ''; invalidate(); load(false, true); });
-  classroom.addEventListener('change', () => { subject.value = ''; instruction.value = ''; invalidate(); load(false, true); });
-  subject.addEventListener('change', () => { instruction.value = ''; invalidate(); load(); });
+  grade.addEventListener('change', () => { classroom.value = ''; if (subject) subject.value = ''; instruction.value = ''; invalidate(); load(false, true); });
+  classroom.addEventListener('change', () => { if (subject) subject.value = ''; instruction.value = ''; invalidate(); load(false, true); });
+  if (subject) subject.addEventListener('change', () => { instruction.value = ''; invalidate(); load(); });
   instruction.addEventListener('change', updatePreview);
   kind.addEventListener('change', invalidate);
   briefingAt.addEventListener('input', invalidate);
