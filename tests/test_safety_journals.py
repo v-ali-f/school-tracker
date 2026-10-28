@@ -218,6 +218,8 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
                 line = next(item for item in document.pages[0].extract_text_lines() if item["text"].startswith(prefix))
                 assert abs((line["x0"] + line["x1"]) / 2 - document.pages[0].width / 2) < 8
         assert "Вид инструктажа: повторный" in text
+        assert "Инструкция: ИОТ-1 — Безопасность на уроке" in text
+        assert "(версия 1)" not in text
         assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in text
         assert "Перед лабораторной работой" in text
         assert "Проводивший инструктаж: Тестов Пользователь" in text
@@ -344,7 +346,10 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
     assert preview.status_code == 200 and preview.data.startswith(b"%PDF")
     assert preview.headers["Content-Disposition"].startswith("inline")
     with pdfplumber.open(BytesIO(preview.data)) as document:
-        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in document.pages[0].extract_text()
+        preview_text = document.pages[0].extract_text()
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in preview_text
+        assert "Инструкция: ИОП-31-23-Об — Инструкция по ОТ в кабинете информатики" in preview_text
+        assert "PDF из перечня" not in preview_text
     with app.app_context():
         assert SafetyJournalPage.query.count() == 0
         assert SafetyInstructionVersion.query.count() == 0

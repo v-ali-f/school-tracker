@@ -115,8 +115,7 @@ def build_journal_pdf(page, participants):
             subheading,
         ),
         _paragraph(
-            f"Инструкция: {_instruction_label(page.instruction_number_snapshot, page.instruction_title_snapshot)} "
-            + (f"(версия {page.instruction_version_number_snapshot})" if page.instruction_version_number_snapshot else "(PDF из перечня)"),
+            f"Инструкция: {_instruction_label(page.instruction_number_snapshot, page.instruction_title_snapshot)}",
             subheading,
         ),
         _paragraph(
