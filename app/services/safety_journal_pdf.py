@@ -80,7 +80,7 @@ def build_journal_pdf(page, participants):
         rows.append([
             _paragraph(person.sequence, centered),
             _paragraph(person.full_name_snapshot, table_cell),
-            "",  # Birth date is written on the printed sheet by the teacher.
+            _paragraph(person.birth_date_snapshot.strftime("%d.%m.%Y"), centered),
             _paragraph(person.class_name_snapshot, centered),
             "",  # The actual briefing date is entered on paper by hand.
             _paragraph(_instruction_label(page.instruction_number_snapshot, page.instruction_summary_snapshot), table_cell),

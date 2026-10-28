@@ -218,6 +218,7 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
                 line = next(item for item in document.pages[0].extract_text_lines() if item["text"].startswith(prefix))
                 assert abs((line["x0"] + line["x1"]) / 2 - document.pages[0].width / 2) < 8
         assert "Вид инструктажа: повторный" in text
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in text
         assert "Перед лабораторной работой" in text
         assert "Проводивший инструктаж: Тестов Пользователь" in text
     detail = client.get(created.headers["Location"]).get_data(as_text=True)
@@ -342,6 +343,8 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
     preview = client.post(f"{draft_url}/compose/preview", data=data)
     assert preview.status_code == 200 and preview.data.startswith(b"%PDF")
     assert preview.headers["Content-Disposition"].startswith("inline")
+    with pdfplumber.open(BytesIO(preview.data)) as document:
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in document.pages[0].extract_text()
     with app.app_context():
         assert SafetyJournalPage.query.count() == 0
         assert SafetyInstructionVersion.query.count() == 0
@@ -449,8 +452,7 @@ def test_journal_roster_snapshot_pdf_and_print_confirmation(app, client, make_us
         assert "ознакомлен" not in text
         assert "дата инструктажа " not in text.lower()
         assert ids["today"].strftime("%d.%m.%Y") not in text
-        assert (ids["today"] - timedelta(days=14 * 365)).strftime("%d.%m.%Y") not in text
-        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") not in text
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in text
         assert "ГБОУ Школа Тест" in text
     assert client.get(page_url + "/pdf").status_code == 403
     with app.app_context():
@@ -496,13 +498,14 @@ def test_pdf_repeats_nine_column_header_on_each_sheet(app, client, make_user, lo
             instruction_file_sha256_snapshot=version.file_sha256, instruction_version_number_snapshot=1,
         )
         page.instruction_version = version
-        people = [SimpleNamespace(sequence=n, full_name_snapshot=f"Ученик {n}", class_name_snapshot="5А", signature_rule="handwritten") for n in range(1, 81)]
+        people = [SimpleNamespace(sequence=n, full_name_snapshot=f"Ученик {n}", birth_date_snapshot=date(2012, 1, 2), class_name_snapshot="5А", signature_rule="handwritten") for n in range(1, 81)]
         content = build_journal_pdf(page, people)
     with pdfplumber.open(BytesIO(content)) as document:
         assert len(document.pages) > 1
         for sheet in document.pages:
             text = sheet.extract_text() or ""
             assert "Дата рождения" in text
+            assert "02.01.2012" in text
             assert "Подпись" in text
             assert "Иванов Иван Иванович" in text
             printable_margin = 11 * 72 / 25.4
@@ -543,6 +546,7 @@ def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user,
     with pdfplumber.open(BytesIO(preview.data)) as document:
         pdf_text = document.pages[0].extract_text()
         assert "Музей науки" in pdf_text and "Приказ №" not in pdf_text
+        assert date(ids["today"].year - 14, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in pdf_text
     generated = client.post(f"{draft_url}/compose", data=data)
     assert generated.status_code == 302
     with app.app_context():

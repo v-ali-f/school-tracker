@@ -496,6 +496,7 @@ def compose_preview(draft_id):
             subject_snapshot=payload["subject"],
         )
         people = [SimpleNamespace(sequence=index, full_name_snapshot=person["full_name"],
+                                  birth_date_snapshot=date.fromisoformat(person["birth_date"]),
                                   class_name_snapshot=person["class_name"])
                   for index, person in enumerate(payload["participants"], 1)]
         content = build_journal_pdf(page, people)

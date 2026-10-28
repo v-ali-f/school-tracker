@@ -17,10 +17,9 @@
   let currentRoster = [];
   let instructions = [];
   let requestNumber = 0;
-  let previewReady = false;
   let previewUrl = '';
 
-  const invalidate = () => { previewReady = false; refresh(); };
+  const invalidate = () => { refresh(); };
   const refresh = () => {
     selectedCount.textContent = String(selected.size);
     selectedList.replaceChildren();
@@ -46,7 +45,7 @@
     }
     const complete = selected.size > 0 && instruction.value && form.checkValidity();
     preview.disabled = !complete;
-    submit.disabled = !complete || !previewReady;
+    submit.disabled = !complete;
     selectAll.disabled = currentRoster.length === 0;
   };
 
@@ -146,8 +145,7 @@
       preview.dataset.pdfUrl = previewUrl;
       preview.dataset.pdfTitle = 'Предпросмотр журнала выезда';
       preview.dataset.pdfPreviewOnly = '1';
-      previewReady = true;
-      message.textContent = 'Проверьте журнал. После закрытия просмотра нажмите «Сформировать журнал».';
+      message.textContent = 'Проверьте бланк. Журнал можно сформировать после закрытия просмотра.';
       bootstrap.Modal.getOrCreateInstance(document.getElementById('safety-pdf-preview-modal')).show(preview);
     } catch (error) { message.textContent = error.message; }
     finally { refresh(); }

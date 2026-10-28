@@ -20,7 +20,6 @@
   };
   let versions = [];
   let requestNumber = 0;
-  let previewReady = false;
   let previewUrl = '';
 
   const fill = (select, items, placeholder, value, label = item => String(item), key = item => String(item)) => {
@@ -36,11 +35,11 @@
     count.textContent = `· выбрано ${checked}`;
     const complete = Boolean(grade.value && classroom.value && subject.value && instruction.value && kind.value && checked);
     previewJournal.disabled = !complete;
-    submit.disabled = !complete || !previewReady;
+    submit.disabled = !complete;
     selectAll.disabled = !roster.querySelector('input[name="child_ids"]');
   };
 
-  const invalidate = () => { previewReady = false; refreshCount(); };
+  const invalidate = () => { refreshCount(); };
 
   const showRoster = (items, selected) => {
     roster.replaceChildren();
@@ -141,8 +140,7 @@
       previewJournal.dataset.pdfUrl = previewUrl;
       previewJournal.dataset.pdfTitle = 'Предпросмотр журнала';
       previewJournal.dataset.pdfPreviewOnly = '1';
-      previewReady = true;
-      message.textContent = 'Проверьте бланк. После закрытия просмотра нажмите «Сформировать журнал».';
+      message.textContent = 'Проверьте бланк. Журнал можно сформировать после закрытия просмотра.';
       bootstrap.Modal.getOrCreateInstance(document.getElementById('safety-pdf-preview-modal')).show(previewJournal);
     } catch (error) { message.textContent = error.message; }
     finally { refreshCount(); }

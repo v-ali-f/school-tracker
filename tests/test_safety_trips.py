@@ -116,7 +116,7 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
         assert "Дата рождения" in text and "ознакомлен" not in text
         assert ids["today"].strftime("%d.%m.%Y") not in text
         assert (ids["today"] + timedelta(days=2)).strftime("%d.%m.%Y") not in text
-        assert date(ids["today"].year - 13, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") not in text
+        assert date(ids["today"].year - 13, ids["today"].month, ids["today"].day).strftime("%d.%m.%Y") in text
     with app.app_context():
         page = SafetyJournalPage.query.one()
         assert page.kind == "trip" and page.trip_snapshot["order_number"] == "42"
