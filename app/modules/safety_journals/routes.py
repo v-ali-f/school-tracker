@@ -1,11 +1,12 @@
 """Teacher drafts and immutable safety journal pages for classes and trips."""
 
 import hashlib
-from datetime import date
+from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
@@ -35,6 +36,38 @@ from app.services.safety_passport_service import can_manage_instructions, is_adm
 
 safety_journals_bp = Blueprint("safety_journals", __name__, url_prefix="/safety/journals")
 MAX_SCAN_BYTES = 20 * 1024 * 1024
+
+
+def _school_zone():
+    try:
+        return ZoneInfo(current_app.config.get("SCHOOL_TIMEZONE", "Europe/Moscow"))
+    except KeyError:
+        return timezone.utc
+
+
+def _local_time(value):
+    if value is None:
+        return "—"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(_school_zone()).strftime("%d.%m.%Y %H:%M")
+
+
+def _briefing_input(value):
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(_school_zone()).strftime("%Y-%m-%dT%H:%M")
+
+
+def _briefing_from_form():
+    raw = (request.form.get("briefing_at") or "").strip()
+    try:
+        local_value = datetime.strptime(raw, "%Y-%m-%dT%H:%M")
+    except ValueError as exc:
+        raise ValueError("Укажите дату и время проведения инструктажа.") from exc
+    return local_value.replace(tzinfo=_school_zone()).astimezone(timezone.utc)
 
 
 def _context():
@@ -168,7 +201,7 @@ def index():
     if trip_section:
         drafts = [item for item in drafts if item.journal_kind == "trip" or item.trip_order_id is not None]
     preview_tokens = {page.id: _token(page, page.revisions[-1]) for page in pages if page.revisions}
-    return render_template("safety_journals/index.html", **_context(), pages=pages, preview_tokens=preview_tokens, drafts=drafts, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, trip_section=trip_section, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
+    return render_template("safety_journals/index.html", **_context(), pages=pages, preview_tokens=preview_tokens, drafts=drafts, local_time=_local_time, manager=manager, can_create=can_create_journal(current_user), can_view_trips=manager or trip_assigned, status=status, kind=kind, trip_section=trip_section, buildings=Building.query.order_by(Building.name).all() if manager else [], building_id=building_id)
 
 
 @safety_journals_bp.route("/new", methods=["POST"])
@@ -261,6 +294,7 @@ def edit(draft_id):
                             "birth_date": item.child.birth_date.strftime("%d.%m.%Y") if item.child.birth_date else ""}
                            for item in selected],
         chosen_date=chosen_date, chosen_grade=chosen_grade, today=school_today(),
+        briefing_input=_briefing_input(draft.briefing_at),
         manager_mode=is_admin(current_user) or is_director(current_user),
         can_manage_instructions=can_manage_instructions(current_user),
         admin_mode=(is_admin(current_user) or is_director(current_user)) and not current_user.has_role("TEACHER"),
@@ -379,6 +413,7 @@ def compose(draft_id):
 
 
 def _populate_trip_draft(draft):
+    briefing_at = _briefing_from_form()
     trip_kind = (request.form.get("trip_kind") or "").strip()
     destination = (request.form.get("destination") or "").strip()
     order_number = (request.form.get("order_number") or "").strip()
@@ -424,6 +459,7 @@ def _populate_trip_draft(draft):
     draft.instruction_version_id = version_id
     draft.library_item_id = library_item_id
     draft.briefing_kind = briefing_kind
+    draft.briefing_at = briefing_at
     draft.header_note = note
     draft.manual_trip = {"trip_kind": trip_kind, "destination": destination,
                          "trip_date": trip_date.isoformat(), "order_number": order_number}
@@ -432,6 +468,7 @@ def _populate_trip_draft(draft):
 
 
 def _populate_ordinary_draft(draft):
+    briefing_at = _briefing_from_form()
     on_date = draft.instructed_on or school_today()
     grade = int(request.form.get("grade", "0"))
     class_id = int(request.form.get("class_id", "0"))
@@ -470,6 +507,7 @@ def _populate_ordinary_draft(draft):
     draft.instruction_version_id = version_id
     draft.library_item_id = library_item_id
     draft.briefing_kind = kind
+    draft.briefing_at = briefing_at
     draft.header_note = note
     draft.selected_child_ids = child_ids
     draft.removed_child_ids = sorted(set(roster) - set(child_ids))
@@ -527,6 +565,7 @@ def _correct_page(draft, payload):
     page.library_item_id = draft.library_item_id
     page.subject_snapshot = payload["subject"]
     page.instructed_on = draft.instructed_on
+    page.briefing_at = draft.briefing_at
     page.group_label = payload["group_label"]
     page.organization_name_snapshot = payload["organization_name"]
     page.instructor_name_snapshot = payload["instructor_name"]
@@ -597,6 +636,7 @@ def save_settings(draft_id):
     if draft.status != "draft":
         abort(409)
     try:
+        briefing_at = _briefing_from_form()
         on_date = date.fromisoformat(request.form.get("instructed_on", ""))
         if on_date > school_today():
             raise ValueError("Дата учёта не может быть в будущем.")
@@ -626,6 +666,7 @@ def save_settings(draft_id):
         if not roster or len(roster) > 120:
             raise ValueError("В выбранных классах должно быть от 1 до 120 обучающихся.")
         draft.instructed_on = on_date
+        draft.briefing_at = briefing_at
         draft.grade = grade
         draft.instruction_version_id = version.id
         draft.class_ids = class_ids
@@ -715,7 +756,7 @@ def preview(draft_id):
     except ValueError as exc:
         flash(str(exc), "danger")
         return redirect(url_for("safety_journals.edit", draft_id=draft.id))
-    return render_template("safety_journals/preview.html", **_context(), draft=draft, payload=payload, digest=digest)
+    return render_template("safety_journals/preview.html", **_context(), draft=draft, payload=payload, digest=digest, local_time=_local_time)
 
 
 @safety_journals_bp.route("/drafts/<uuid:draft_id>/generate", methods=["POST"])
@@ -751,7 +792,8 @@ def _generate_page(draft, *, require_digest=False):
             instruction_version_id=draft.instruction_version_id,
             library_item_id=draft.library_item_id,
             subject_snapshot=payload["subject"],
-            instructed_on=draft.instructed_on, group_label=payload["group_label"],
+            instructed_on=draft.instructed_on, briefing_at=draft.briefing_at,
+            group_label=payload["group_label"],
             organization_name_snapshot=payload["organization_name"],
             instructor_name_snapshot=payload["instructor_name"],
             instruction_number_snapshot=payload["instruction_number"],
@@ -829,7 +871,7 @@ def detail(page_id):
     revision = page.revisions[-1]
     can_correct = (page.trip_order_id is None and page.author_id == current_user.id and page.status in {"generated", "printed"}
                    and not (page.paper_record and (page.paper_record.checked_at or page.paper_record.filed_at or page.paper_scans)))
-    return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, download_token=_token(page, revision), revision_tokens={item.id: _token(page, item) for item in page.revisions}, can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user), paper_manager=_paper_manager(), can_correct=can_correct)
+    return render_template("safety_journals/detail.html", **_context(), page=page, revision=revision, local_time=_local_time, download_token=_token(page, revision), revision_tokens={item.id: _token(page, item) for item in page.revisions}, can_annul=page.author_id == current_user.id or is_officer(current_user), can_create=can_create_journal(current_user), paper_manager=_paper_manager(), can_correct=can_correct)
 
 
 @safety_journals_bp.route("/pages/<int:page_id>/correct", methods=["POST"])
@@ -847,7 +889,8 @@ def start_correction(page_id):
     draft = SafetyJournalDraft(
         id=str(uuid4()), author_id=current_user.id, page_id=page.id,
         journal_kind=page.kind, manual_trip=page.trip_snapshot if page.kind == "trip" else None,
-        instructed_on=page.instructed_on, grade=classroom.grade if classroom else None,
+        instructed_on=page.instructed_on, briefing_at=page.briefing_at,
+        grade=classroom.grade if classroom else None,
         instruction_version_id=page.instruction_version_id,
         library_item_id=page.library_item_id, subject=page.subject_snapshot,
         briefing_kind=page.briefing_kind_snapshot or page.instruction_version.instruction.briefing_kind,

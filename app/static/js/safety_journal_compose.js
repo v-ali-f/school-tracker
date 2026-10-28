@@ -6,6 +6,7 @@
   const subject = document.getElementById('journal-subject');
   const instruction = document.getElementById('journal-instruction');
   const kind = document.getElementById('journal-kind');
+  const briefingAt = document.getElementById('journal-briefing-at');
   const preview = document.getElementById('journal-instruction-preview');
   const roster = document.getElementById('journal-roster');
   const count = document.getElementById('journal-selected-count');
@@ -33,7 +34,7 @@
   const refreshCount = () => {
     const checked = roster.querySelectorAll('input[name="child_ids"]:checked').length;
     count.textContent = `· выбрано ${checked}`;
-    const complete = Boolean(grade.value && classroom.value && subject.value && instruction.value && kind.value && checked);
+    const complete = Boolean(grade.value && classroom.value && subject.value && instruction.value && kind.value && briefingAt.value && briefingAt.validity.valid && checked);
     previewJournal.disabled = !complete;
     submit.disabled = !complete;
     selectAll.disabled = !roster.querySelector('input[name="child_ids"]');
@@ -118,6 +119,7 @@
   subject.addEventListener('change', () => { instruction.value = ''; invalidate(); load(); });
   instruction.addEventListener('change', updatePreview);
   kind.addEventListener('change', invalidate);
+  briefingAt.addEventListener('input', invalidate);
   roster.addEventListener('change', invalidate);
   document.getElementById('journal-note').addEventListener('input', invalidate);
   selectAll.addEventListener('click', () => { roster.querySelectorAll('input[name="child_ids"]').forEach(input => { input.checked = true; }); invalidate(); });

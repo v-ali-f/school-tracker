@@ -285,6 +285,8 @@ def organization_full_name():
 def preview_payload(draft, author):
     if draft.status != "draft":
         raise ValueError("Эта страница уже сформирована.")
+    if draft.briefing_at is None:
+        raise ValueError("Укажите дату и время проведения инструктажа.")
     on_date = draft.instructed_on
     if on_date is None or on_date > school_today():
         raise ValueError("Укажите дату учёта для подбора состава и инструкции.")
@@ -353,6 +355,7 @@ def preview_payload(draft, author):
         raise ValueError("Для одной страницы выбрано слишком много разных классов.")
     payload = {
         "date": on_date.isoformat(),
+        "briefing_at": draft.briefing_at.isoformat(),
         "instruction_version_id": version.id if version else None,
         "library_item_id": draft.library_item_id if library_item else None,
         "subject": subject,

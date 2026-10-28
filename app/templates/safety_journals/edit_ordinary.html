@@ -20,6 +20,7 @@
       <div class="col-md-9"><label class="form-label" for="journal-instruction">Инструкция из каталога или перечня PDF</label><select class="form-select" id="journal-instruction" name="instruction_choice" required disabled><option value="">Сначала выберите предмет</option></select></div>
       <div class="col-md-3 d-flex align-items-end"><button type="button" class="btn btn-outline-primary w-100" id="journal-instruction-preview" data-bs-toggle="modal" data-bs-target="#safety-pdf-preview-modal" disabled>Просмотреть инструкцию</button></div>
       <div class="col-md-6"><label class="form-label" for="journal-kind">Вид инструктажа</label><select class="form-select" id="journal-kind" name="briefing_kind" required><option value="">Выберите вид</option>{% for value in ['первичный','повторный','внеплановый','целевой'] %}<option value="{{ value }}" {% if draft.briefing_kind == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label" for="journal-briefing-at">Дата и время проведения инструктажа</label><input class="form-control" id="journal-briefing-at" type="datetime-local" name="briefing_at" value="{{ briefing_input }}" required><div class="form-text">Сохраняется в реестре. В печатном журнале дату впишите от руки.</div></div>
       <div class="col-12"><label class="form-label" for="journal-note">Дополнительная информация <span class="text-muted fw-normal">(необязательно, появится в шапке PDF)</span></label><textarea class="form-control" id="journal-note" name="header_note" rows="2" maxlength="500" placeholder="Например: тема лабораторной работы">{{ draft.header_note or '' }}</textarea></div>
     </div>
     <div id="journal-choice-message" class="small mt-3" role="status"></div>
@@ -28,5 +29,5 @@
   <div class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-outline-primary" id="journal-preview" disabled>Предпросмотр журнала</button><button type="submit" class="btn btn-primary" id="journal-submit" disabled>{{ 'Сохранить исправления и открыть журнал' if draft.page_id else 'Сформировать журнал' }}</button></div>
 </form>
 {% include "safety_instructions/_pdf_preview_modal.html" %}
-<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261028_1" defer></script>
+<script src="{{ url_for('static', filename='js/safety_journal_compose.js') }}?v=20261028_2" defer></script>
 {% endblock %}

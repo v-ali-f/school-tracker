@@ -19,12 +19,12 @@ def _page(app, client, login, ids):
     login(ids["teacher"])
     draft_url = client.post("/safety/journals/new").headers["Location"]
     assert client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5",
         "instruction_version_id": version_id, "class_ids": [ids["class"]],
     }).status_code == 302
     preview = client.get(f"{draft_url}/preview").get_data(as_text=True)
     digest = re.search(r'name="preview_digest" value="([^"]+)"', preview).group(1)
-    return client.post(f"{draft_url}/generate", data={"preview_digest": digest}).headers["Location"]
+    return client.post(f"{draft_url}/generate", data={"preview_digest": digest}).headers["Location"].split("?", 1)[0]
 
 
 def test_paper_review_filing_scans_and_corrected_pdf(app, client, make_user, login, tmp_path):

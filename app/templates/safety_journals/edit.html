@@ -2,7 +2,7 @@
 {% block title %}Новая страница журнала{% endblock %}
 {% block workspace_content %}
 <div class="page-head mb-3">
-  <div><div class="section-overline">Техника безопасности · журнал инструктажа</div><h1 class="page-title">Новая страница журнала</h1><p class="page-sub">Выберите параллель и класс, затем предмет из учебного плана или нагрузки и инструкцию. Даты и подписи в PDF остаются пустыми для заполнения от руки.</p></div>
+  <div><div class="section-overline">Техника безопасности · журнал инструктажа</div><h1 class="page-title">Новая страница журнала</h1><p class="page-sub">Выберите параллель и класс, затем предмет из учебного плана или нагрузки и инструкцию. Дата инструктажа и подписи в PDF остаются пустыми для заполнения от руки.</p></div>
   <a class="btn btn-outline-secondary" href="{{ url_for('safety_journals.index') }}">К журналам</a>
 </div>
 {% if admin_mode %}<div class="alert alert-info">Вы создаёте страницу как администратор. В графе «Проводивший» будет указано ваше ФИО. Для фактически проведённого педагогом инструктажа страницу должен сформировать сам педагог.</div>{% endif %}
@@ -32,6 +32,7 @@
     {% if chosen_grade and classes and versions %}
     <form method="post" action="{{ url_for('safety_journals.save_settings', draft_id=draft.id) }}" class="row g-3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}"><input type="hidden" name="grade" value="{{ chosen_grade }}">
+      <div class="col-12"><label class="form-label" for="trip-order-briefing-at">Дата и время проведения инструктажа</label><input class="form-control" id="trip-order-briefing-at" type="datetime-local" name="briefing_at" value="{{ briefing_input }}" required><div class="form-text">Будет показано в реестре; в бумажном журнале дату впишите от руки.</div></div>
       <div class="col-12"><label class="form-label" for="journal-instruction">Номер и название инструкции</label><select class="form-select" id="journal-instruction" name="instruction_version_id" required><option value="">Выберите инструкцию</option>{% for version in versions %}<option value="{{ version.id }}" {% if draft.instruction_version_id == version.id %}selected{% endif %}>{{ version.instruction.number }} — {{ version.title_snapshot }}</option>{% endfor %}</select></div>
       <div class="col-12"><label class="form-label d-block">Классы выезда</label><div class="d-flex flex-wrap gap-3">{% for classroom in classes %}<label class="form-check"><input class="form-check-input" type="checkbox" name="class_ids" value="{{ classroom.id }}" {% if classroom.id in draft.class_ids %}checked{% endif %}><span class="form-check-label">{{ classroom.name }}</span></label>{% endfor %}</div></div>
       <div class="col-12"><button class="btn btn-primary">Показать список участников</button></div>
@@ -48,6 +49,7 @@
       {% if versions %}
       <form method="post" action="{{ url_for('safety_journals.save_settings', draft_id=draft.id) }}" class="row g-2 align-items-end">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="instructed_on" value="{{ chosen_date.isoformat() }}"><input type="hidden" name="grade" value="{{ chosen_grade }}"><input type="hidden" name="subject" value="{{ chosen_subject }}"><input type="hidden" name="class_ids" value="{{ chosen_class.id }}">
+        <div class="col-12"><label class="form-label" for="journal-settings-briefing-at">Дата и время проведения инструктажа</label><input class="form-control" id="journal-settings-briefing-at" type="datetime-local" name="briefing_at" value="{{ briefing_input }}" required><div class="form-text">Будет показано в реестре; в бумажном журнале дату впишите от руки.</div></div>
         <div class="col-md-9"><label class="form-label" for="journal-instruction">Номер и название инструкции</label><select class="form-select" id="journal-instruction" name="instruction_version_id" required><option value="">Выберите инструкцию</option>{% for version in versions %}<option value="{{ version.id }}" {% if draft.instruction_version_id == version.id %}selected{% endif %}>{{ version.instruction.number }} — {{ version.title_snapshot }} (версия {{ version.version_number }})</option>{% endfor %}</select></div>
         <div class="col-md-3"><button class="btn btn-primary w-100">Показать список класса</button></div>
       </form>

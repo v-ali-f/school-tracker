@@ -165,11 +165,12 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
     form = client.get(draft_url).get_data(as_text=True)
     assert 'id="journal-compose"' in form and 'id="journal-instruction-preview"' in form
     assert 'id="journal-preview"' in form and 'id="journal-submit"' in form
+    assert 'name="briefing_at"' in form and 'type="datetime-local"' in form
     choices = client.get(f"/safety/journals/choices?grade=5&class_id={ids['class']}&subject=Физика").json
     assert any(item["name"] == "5А" for item in choices["classes"])
     assert "Физика" in choices["subjects"] and choices["instructions"][0]["label"].startswith("ИОТ-1")
     assert client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5", "subject": "Физика",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     }).status_code == 302
     first, second, _ = ids["children"]
@@ -187,7 +188,12 @@ def test_admin_can_select_subject_class_students_and_generate_pdf(app, client, m
     with app.app_context():
         page = SafetyJournalPage.query.one()
         assert page.author_id == admin_id and page.instruction_number_snapshot == "ИОТ-1"
+        assert page.briefing_at.hour == 7 and page.briefing_at.minute == 30
         assert [person.child_id for person in page.participants] == [first]
+        page.briefing_at = None  # Existing pages had no teacher-entered time.
+        db.session.commit()
+    old_registry = client.get("/safety/journals/").get_data(as_text=True)
+    assert '<td class="registry-cell-nowrap">—</td>' in old_registry
 
 
 def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, make_user, login, tmp_path):
@@ -199,9 +205,17 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
         version_id = SafetyInstructionVersion.query.one().id
     draft_url = client.post("/safety/journals/new").headers["Location"]
     first, second, _ = ids["children"]
-    created = client.post(f"{draft_url}/compose", data={
+    missing_time = client.post(f"{draft_url}/compose", data={
         "grade": "5", "class_id": str(ids["class"]), "subject": "Физика",
         "instruction_version_id": str(version_id), "briefing_kind": "повторный",
+        "child_ids": [str(first)],
+    })
+    assert missing_time.status_code == 302 and "drafts" in missing_time.headers["Location"]
+    with app.app_context():
+        assert SafetyJournalPage.query.count() == 0
+    created = client.post(f"{draft_url}/compose", data={
+        "grade": "5", "class_id": str(ids["class"]), "subject": "Физика",
+        "instruction_version_id": str(version_id), "briefing_kind": "повторный", "briefing_at": f'{ids["today"].isoformat()}T10:30',
         "header_note": "Перед лабораторной работой", "child_ids": [str(first)],
     })
     assert created.status_code == 302 and "preview=1" in created.headers["Location"]
@@ -211,6 +225,7 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
         old_revision = page.revisions[0]
         old_pdf = (tmp_path / "safety" / "journal_pages" / old_revision.stored_filename).read_bytes()
         assert page.briefing_kind_snapshot == "повторный" and page.header_note_snapshot == "Перед лабораторной работой"
+        assert page.briefing_at.hour == 7 and page.briefing_at.minute == 30
         assert [person.child_id for person in page.participants] == [first]
         with pdfplumber.open(BytesIO(old_pdf)) as document:
             text = document.pages[0].extract_text()
@@ -225,8 +240,11 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
         assert "Проводивший инструктаж: Тестов Пользователь" in text
     detail = client.get(created.headers["Location"]).get_data(as_text=True)
     assert 'id="safety-pdf-preview-modal"' in detail and "Исправить данные журнала" in detail
+    assert f'{ids["today"].strftime("%d.%m.%Y")} 10:30' in detail
     registry = client.get("/safety/journals/").get_data(as_text=True)
     assert 'id="safety-pdf-preview-modal"' in registry
+    assert "Создан" in registry and "Инструктаж проведён" in registry
+    assert f'{ids["today"].strftime("%d.%m.%Y")} 10:30' in registry
     assert f'aria-label="Просмотреть журнал ОТ-{ids["today"].year}-{page_id:06d}"' in registry
     assert 'aria-label="Просмотреть инструкцию ИОТ-1"' in registry
     assert f'data-pdf-url="/safety/instructions/versions/{version_id}/original?inline=1"' in registry
@@ -236,13 +254,14 @@ def test_one_form_creates_and_corrects_journal_with_pdf_history(app, client, mak
     assert correction.status_code == 302
     corrected = client.post(f"{correction.headers['Location']}/compose", data={
         "grade": "5", "class_id": str(ids["class"]), "subject": "Физика",
-        "instruction_version_id": str(version_id), "briefing_kind": "внеплановый",
+        "instruction_version_id": str(version_id), "briefing_kind": "внеплановый", "briefing_at": f'{ids["today"].isoformat()}T11:15',
         "header_note": "Исправленная тема", "child_ids": [str(second)],
     })
     assert corrected.status_code == 302 and "preview=1" in corrected.headers["Location"]
     with app.app_context():
         page = db.session.get(SafetyJournalPage, page_id)
         assert page.briefing_kind_snapshot == "внеплановый"
+        assert page.briefing_at.hour == 8 and page.briefing_at.minute == 15
         assert page.header_note_snapshot == "Исправленная тема"
         assert [person.child_id for person in page.participants] == [second]
         assert len(page.revisions) == 2
@@ -261,13 +280,13 @@ def test_teacher_classes_and_subjects_follow_personal_load(app, client, make_use
     assert [item["name"] for item in choices["classes"]] == ["5А"]
     assert "Физика" in choices["subjects"]
     client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Физика",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5", "subject": "Физика",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["other_class"])],
     })
     with app.app_context():
         assert SafetyJournalDraft.query.one().class_ids == []
     client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5", "subject": "Математика",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5", "subject": "Математика",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     })
     with app.app_context():
@@ -345,7 +364,7 @@ def test_library_pdf_can_be_selected_previewed_and_generated_without_catalog_con
     draft_url = client.post("/safety/journals/new").headers["Location"]
     choice = f"library:{items[1]['id']}"
     data = {"grade": "5", "class_id": str(ids["class"]), "subject": "Информатика",
-            "instruction_choice": choice, "briefing_kind": "первичный",
+            "instruction_choice": choice, "briefing_kind": "первичный", "briefing_at": f'{ids["today"].isoformat()}T10:30',
             "child_ids": [str(ids["children"][0])], "header_note": "Практическая работа"}
     assert client.post(f"{draft_url}/compose/preview", data={**data, "instruction_choice": f"library:{items[3]['id']}"}).status_code == 400
     preview = client.post(f"{draft_url}/compose/preview", data=data)
@@ -431,7 +450,7 @@ def test_journal_roster_snapshot_pdf_and_print_confirmation(app, client, make_us
     draft_url = response.headers["Location"]
     assert client.get(draft_url).status_code == 200
     settings = client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     })
     assert settings.status_code == 302
@@ -552,7 +571,7 @@ def test_teacher_creates_and_corrects_trip_without_order(app, client, make_user,
     data = {
         "trip_kind": "Экскурсия", "destination": "Музей науки",
         "trip_date": (ids["today"] + timedelta(days=1)).isoformat(), "order_number": "",
-        "briefing_kind": "целевой", "instruction_choice": f"version:{version_id}",
+        "briefing_kind": "целевой", "briefing_at": f'{ids["today"].isoformat()}T10:30', "instruction_choice": f"version:{version_id}",
         "child_ids": [str(ids["children"][0]), str(ids["children"][2])],
     }
     preview = client.post(f"{draft_url}/compose/preview", data=data)
@@ -602,7 +621,7 @@ def test_trip_can_use_reference_pdf_without_subject_or_order(app, client, make_u
     assert f"library:{digest}" in {item["id"] for item in choices["instructions"]}
     data = {
         "trip_kind": "Экскурсия", "destination": "Театр", "trip_date": ids["today"].isoformat(),
-        "briefing_kind": "целевой", "instruction_choice": f"library:{digest}",
+        "briefing_kind": "целевой", "briefing_at": f'{ids["today"].isoformat()}T10:30', "instruction_choice": f"library:{digest}",
         "child_ids": [str(ids["children"][0])],
     }
     assert client.post(f"{draft_url}/compose/preview", data=data).status_code == 200

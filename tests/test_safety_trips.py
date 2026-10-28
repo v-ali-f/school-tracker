@@ -96,7 +96,7 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
     draft_url = response.headers["Location"]
     assert client.get(draft_url).status_code == 200
     assert client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     }).status_code == 302
     preview = client.get(f"{draft_url}/preview")
@@ -155,7 +155,7 @@ def test_excursion_order_creates_task_and_private_journal(app, client, make_user
         assert SafetyJournalDraft.query.count() == 2
         assert SafetyJournalDraft.query.order_by(SafetyJournalDraft.created_at.desc()).first().trip_order_revision == 2
     assert client.post(f"{new_draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     }).status_code == 302
     new_preview = client.get(f"{new_draft_url}/preview")
@@ -232,7 +232,7 @@ def test_changed_order_invalidates_trip_preview(app, client, make_user, login, t
     login(ids["teacher"])
     draft_url = client.post(f"/safety/trips/orders/{order_id}/drafts").headers["Location"]
     client.post(f"{draft_url}/settings", data={
-        "instructed_on": ids["today"].isoformat(), "grade": "5",
+        "instructed_on": ids["today"].isoformat(), "briefing_at": f'{ids["today"].isoformat()}T10:30', "grade": "5",
         "instruction_version_id": str(version_id), "class_ids": [str(ids["class"])],
     })
     preview = client.get(f"{draft_url}/preview")
