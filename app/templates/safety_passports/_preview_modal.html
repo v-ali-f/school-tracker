@@ -1,0 +1,28 @@
+<style>
+  .passport-preview-dialog { max-width: min(1180px, 96vw); }
+  .passport-preview-dialog .modal-content { height: min(940px, 94vh); }
+  .passport-preview-dialog .modal-body { min-height: 0; }
+  .passport-preview-frame { width: 100%; height: 100%; border: 0; background: #e9edf2; }
+  @media (max-width: 767.98px) {
+    .passport-preview-dialog { max-width: 100vw; }
+    .passport-preview-dialog .modal-content { height: 100vh; }
+  }
+</style>
+<div class="modal fade" id="passport-preview-modal" tabindex="-1" aria-labelledby="passport-preview-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-md-down passport-preview-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title fs-6 text-truncate" id="passport-preview-title">Предпросмотр паспорта {{ classroom.name }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body p-0">
+        <iframe class="passport-preview-frame" id="passport-preview-frame" title="Печатный вид паспорта {{ classroom.name }}" src="about:blank" data-preview-url="{{ url_for('safety_passports.print_passport', classroom_id=classroom.id, embedded=1) }}"></iframe>
+      </div>
+      <div class="modal-footer py-2">
+        <span class="small text-muted me-auto">Пробная форма для согласования</span>
+        <button type="button" class="btn btn-primary btn-sm" id="passport-preview-print" disabled><i class="bi bi-printer me-1" aria-hidden="true"></i>Печать</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>

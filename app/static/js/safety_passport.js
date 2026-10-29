@@ -18,3 +18,34 @@ document.addEventListener('click', (event) => {
     else row.remove();
   }
 });
+
+const passportPreviewModal = document.getElementById('passport-preview-modal');
+if (passportPreviewModal) {
+  const frame = document.getElementById('passport-preview-frame');
+  const printButton = document.getElementById('passport-preview-print');
+
+  passportPreviewModal.addEventListener('show.bs.modal', () => {
+    printButton.disabled = true;
+    frame.src = frame.dataset.previewUrl;
+  });
+
+  frame.addEventListener('load', () => {
+    try {
+      const expectedUrl = new URL(frame.dataset.previewUrl, window.location.href).href;
+      printButton.disabled = frame.contentWindow.location.href !== expectedUrl;
+    } catch (_error) {
+      printButton.disabled = true;
+    }
+  });
+
+  printButton.addEventListener('click', () => {
+    if (printButton.disabled) return;
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  });
+
+  passportPreviewModal.addEventListener('hidden.bs.modal', () => {
+    printButton.disabled = true;
+    frame.src = 'about:blank';
+  });
+}

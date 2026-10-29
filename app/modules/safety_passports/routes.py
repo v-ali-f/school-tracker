@@ -357,4 +357,9 @@ def print_passport(classroom_id):
     if not can_view(current_user, classroom):
         abort(403)
     passport = SafetyPassport.query.filter_by(classroom_id=classroom.id).first()
-    return render_template("safety_passports/print.html", **_detail_context(classroom, passport), now=school_today())
+    return render_template(
+        "safety_passports/print.html",
+        **_detail_context(classroom, passport),
+        now=school_today(),
+        embedded=request.args.get("embedded") == "1",
+    )
