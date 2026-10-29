@@ -55,11 +55,7 @@ def _within_year(course, year, start, end):
 
 
 def _effective(query, model, as_of):
-    return query.filter(
-        model.is_active.is_(True),
-        or_(model.start_date.is_(None), model.start_date <= as_of),
-        or_(model.end_date.is_(None), model.end_date >= as_of),
-    )
+    return query.filter(model.is_active.is_(True))
 
 
 def staff_snapshot(*, as_of: date, year: AcademicYear | None, allowed_building_ids: set[int],

@@ -45,6 +45,7 @@ class Building(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     short_name = db.Column(db.String(50), nullable=True)
     address = db.Column(db.String(255), nullable=True)
+    is_preschool = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
     matrix_tone = db.Column(
         db.Integer,
         nullable=False,

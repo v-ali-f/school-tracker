@@ -4,14 +4,14 @@
 {% block workspace_content %}
 <div class="registry-workspace-page">
   {{ page_header('Группы дошкольного отделения', 'Общие учебные годы и здания школы', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
-  <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-outline-secondary" href="{{ url_for('children.buildings_registry') }}">Общий реестр зданий</a><a class="btn btn-outline-secondary" href="{{ url_for('preschool.staff') }}">Сотрудники по зданиям</a><a class="btn btn-outline-secondary" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Реестр воспитанников</a></div>
+  <div class="d-flex flex-wrap gap-2 mb-3">{% if can_edit_group_metadata %}<a class="btn btn-outline-secondary" href="{{ url_for('children.buildings_registry') }}">Общий реестр зданий</a>{% endif %}{% if can_manage_preschool_staff %}<a class="btn btn-outline-secondary" href="{{ url_for('preschool.staff') }}">Сотрудники по зданиям</a>{% endif %}<a class="btn btn-outline-secondary" href="{{ url_for('preschool.children_registry', academic_year_id=year.id) }}">Реестр воспитанников</a></div>
   <section class="registry-matrix-card p-3 mb-3">
     <form method="get" class="row g-2 align-items-end">
       <div class="col-md-4"><label class="form-label" for="groupYear">Учебный год</label><select class="form-select" id="groupYear" name="academic_year_id">{% for item in all_years %}<option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Показать</button></div>
     </form>
   </section>
-  <details class="registry-matrix-card p-3 mb-3">
+  {% if can_edit_group_metadata %}<details class="registry-matrix-card p-3 mb-3">
     <summary class="fw-semibold">Добавить группу</summary>
     <form method="post" class="row g-2 mt-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="academic_year_id" value="{{ year.id }}">
@@ -20,14 +20,16 @@
       <div class="col-md-4"><label class="form-label" for="newGroupAge">Возрастная группа</label><select class="form-select" id="newGroupAge" name="age_level"><option value="">Не указана</option>{% for item in age_levels %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select></div>
       <div class="col-12"><button class="btn btn-primary" type="submit">Добавить группу</button></div>
     </form>
-  </details>
+  </details>{% endif %}
   <section class="registry-matrix-card">
     {% if items %}
       <div class="table-responsive"><table class="table table-hover align-middle registry-matrix mb-0">
-        <thead><tr><th>Здание</th><th>Группа</th><th>Возрастная группа</th><th>Воспитатели</th><th>Помощники</th><th>Воспитанников</th><th>Действия</th></tr></thead>
+        <thead><tr><th>Здание</th><th>Группа</th><th>Возрастная группа</th><th>Воспитатели и помощники воспитателей</th><th>Воспитанников</th><th>Действия</th></tr></thead>
         <tbody>{% for item in items %}<tr>
-          <td>{{ item.building.name if item.building else '—' }}</td><td>{{ item.name }}</td><td>{{ item.age_level or '—' }}</td><td>{{ group_staff_names(item, 'EDUCATOR') }}</td><td>{{ group_staff_names(item, 'ASSISTANT_EDUCATOR') }}</td><td>{{ item.children|selectattr('status', 'equalto', 'active')|list|length }}</td>
-          <td><div class="d-flex gap-1"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('preschool.group_staff', group_id=item.id) }}">Состав</a><a class="btn btn-outline-primary btn-sm" href="{{ url_for('preschool.edit_group', group_id=item.id) }}">Изменить</a><form method="post" action="{{ url_for('preschool.delete_group', group_id=item.id) }}" onsubmit="return confirm('Удалить пустую группу?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Удалить</button></form></div></td>
+          <td>{{ item.building.name if item.building else 'Не назначено' }}</td><td>{{ item.name }}</td><td>{{ item.age_level or '—' }}</td>
+          <td>{% set educators = group_staff_contacts(item, 'EDUCATOR') %}{% set assistants = group_staff_contacts(item, 'ASSISTANT_EDUCATOR') %}{% if educators or assistants %}{% for person in educators %}<div><span class="text-muted">Воспитатель:</span> {{ person.name }}{% if person.phone %} · <a href="tel:{{ person.phone|replace(' ', '') }}">{{ person.phone }}</a>{% endif %}</div>{% endfor %}{% for person in assistants %}<div><span class="text-muted">Помощник:</span> {{ person.name }}{% if person.phone %} · <a href="tel:{{ person.phone|replace(' ', '') }}">{{ person.phone }}</a>{% endif %}</div>{% endfor %}{% else %}<span class="text-muted">Не назначены</span>{% endif %}</td>
+          <td>{{ item.children|selectattr('status', 'equalto', 'active')|list|length }}</td>
+          <td><div class="d-flex flex-wrap gap-1">{% if can_manage_group(item) %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('preschool.group_staff', group_id=item.id) }}">Корпус и сотрудники</a>{% endif %}{% if can_edit_group_metadata %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('preschool.edit_group', group_id=item.id) }}">Изменить</a><form method="post" action="{{ url_for('preschool.delete_group', group_id=item.id) }}" onsubmit="return confirm('Удалить пустую группу?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm" type="submit">Удалить</button></form>{% endif %}</div></td>
         </tr>{% endfor %}</tbody>
       </table></div>
     {% else %}<div class="p-3">{{ empty_state('Групп пока нет', 'Добавьте первую группу для выбранного учебного года.', 'bi-collection') }}</div>{% endif %}

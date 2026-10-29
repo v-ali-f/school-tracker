@@ -1,30 +1,64 @@
 {% extends "workspace_layout.html" %}
 {% from "components/workspace_ui.html" import page_header, card %}
+{% from "preschool/_employee_search.html" import employee_search %}
 {% block title %}Доступ и ответственные ДО{% endblock %}
 {% block workspace_content %}
 <div class="registry-workspace-page">
-  {{ page_header('Доступ и ответственные', 'Назначения действуют сразу и записываются в журнал', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+  {{ page_header('Доступ и ответственные', 'Можно назначить нескольких сотрудников; изменения действуют сразу', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
 
-  {% call card('Ответственный за контингент', 'Просмотр и работа с контингентом всего дошкольного отделения') %}
-    <form method="post" class="d-flex flex-wrap align-items-end gap-2">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="kind" value="{{ contingent_kind }}">
-      <div class="flex-grow-1"><label class="form-label" for="contingentUser">Сотрудник</label><select id="contingentUser" name="user_id" class="form-select"><option value="">Не назначен</option>{% for user in users %}<option value="{{ user.id }}" {% if assignments.get(contingent_kind) and assignments[contingent_kind].user_id == user.id %}selected{% endif %}>{{ user.fio or user.username }} — {{ user.username }}</option>{% endfor %}</select></div>
-      <button class="btn btn-primary" type="submit">Сохранить</button>
+  {% call card('Ответственные за контингент', 'Работают с контингентом всего дошкольного отделения') %}
+    {% if assignments[contingent_kind] %}
+      <div class="list-group mb-3">
+        {% for row in assignments[contingent_kind] %}
+          <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span>{{ row.user.fio or row.user.username }}</span>
+            <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ contingent_kind }}"><input type="hidden" name="user_id" value="{{ row.user_id }}"><input type="hidden" name="action" value="revoke"><button class="btn btn-outline-danger btn-sm" type="submit">Снять доступ</button></form>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}<p class="text-muted">Пока никто не назначен.</p>{% endif %}
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ contingent_kind }}"><input type="hidden" name="action" value="assign">
+      <div class="col-md-9">{{ employee_search('contingent-user') }}</div>
+      <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Добавить</button></div>
     </form>
   {% endcall %}
 
-  {% call card('Главный старший воспитатель', 'Ведёт аттестацию по всему дошкольному отделению') %}
-    <form method="post" class="d-flex flex-wrap align-items-end gap-2">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="kind" value="{{ chief_kind }}">
-      <div class="flex-grow-1"><label class="form-label" for="chiefUser">Старший воспитатель</label><select id="chiefUser" name="user_id" class="form-select"><option value="">Не назначен</option>{% for user in users if user.has_role('SENIOR_EDUCATOR') %}<option value="{{ user.id }}" {% if assignments.get(chief_kind) and assignments[chief_kind].user_id == user.id %}selected{% endif %}>{{ user.fio or user.username }} — {{ user.username }}</option>{% endfor %}</select></div>
-      <button class="btn btn-primary" type="submit">Сохранить</button>
+  {% call card('Старшие воспитатели', 'Назначьте сотрудников из общего реестра; затем распределите их по дошкольным корпусам') %}
+    {% if assignments[senior_kind] %}
+      <div class="list-group mb-3">
+        {% for row in assignments[senior_kind] %}
+          <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span>{{ row.user.fio or row.user.username }}{% if assignments[chief_kind] and assignments[chief_kind][0].user_id == row.user_id %} <span class="badge text-bg-primary">Аттестация</span>{% endif %}</span>
+            <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ senior_kind }}"><input type="hidden" name="user_id" value="{{ row.user_id }}"><input type="hidden" name="action" value="revoke"><button class="btn btn-outline-danger btn-sm" type="submit">Снять назначение</button></form>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}<p class="text-muted">Старшие воспитатели пока не назначены.</p>{% endif %}
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ senior_kind }}"><input type="hidden" name="action" value="assign">
+      <div class="col-md-9">{{ employee_search('senior-user') }}</div>
+      <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Назначить</button></div>
+    </form>
+  {% endcall %}
+
+  {% call card('Ответственный за аттестацию', 'Вносит решения по всем сотрудникам дошкольного отделения') %}
+    {% if assignments[chief_kind] %}
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <strong>{{ assignments[chief_kind][0].user.fio or assignments[chief_kind][0].user.username }}</strong>
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ chief_kind }}"><input type="hidden" name="action" value="revoke"><button class="btn btn-outline-danger btn-sm" type="submit">Снять назначение</button></form>
+      </div>
+    {% else %}<p class="text-muted">Пока никто не назначен.</p>{% endif %}
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ chief_kind }}"><input type="hidden" name="action" value="assign">
+      <div class="col-md-9">{{ employee_search('chief-user') }}</div>
+      <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">{{ 'Сменить' if assignments[chief_kind] else 'Назначить' }}</button></div>
     </form>
   {% endcall %}
 
   {% call card('История назначений') %}
-    {% if changes %}<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Когда</th><th>Назначение</th><th>Было</th><th>Стало</th><th>Изменил</th></tr></thead><tbody>{% for row in changes %}<tr><td>{{ row.changed_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ 'Контингент' if row.kind == contingent_kind else 'Главный старший воспитатель' }}</td><td>{{ row.previous_user.fio if row.previous_user else '—' }}</td><td>{{ row.new_user.fio if row.new_user else '—' }}</td><td>{{ row.changed_by.fio if row.changed_by else '—' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">Назначений пока не было.</p>{% endif %}
+    {% if changes %}<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Когда</th><th>Назначение</th><th>Было</th><th>Стало</th><th>Изменил</th></tr></thead><tbody>{% for row in changes %}<tr><td>{{ row.changed_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ 'Контингент' if row.kind == contingent_kind else ('Старший воспитатель' if row.kind == senior_kind else 'Аттестация') }}</td><td>{{ row.previous_user.fio if row.previous_user else '—' }}</td><td>{{ row.new_user.fio if row.new_user else '—' }}</td><td>{{ row.changed_by.fio if row.changed_by else '—' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">Назначений пока не было.</p>{% endif %}
   {% endcall %}
 </div>
+<script src="{{ url_for('static', filename='js/preschool_staff_search.js') }}?v=20261029_4" defer></script>
 {% endblock %}

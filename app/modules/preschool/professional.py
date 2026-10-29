@@ -6,7 +6,7 @@ from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app.core.extensions import db
-from app.models_legacy import TeacherAttestation, TeacherCourse, TeacherMckoResult, User
+from app.models_legacy import Building, TeacherAttestation, TeacherCourse, TeacherMckoResult, User
 from app.services.teacher_attestation_service import ATTESTATION_CATEGORY_LABELS, position_compliance_due_at
 from app.services.teacher_mcko_service import MCKO_LEVEL_LABELS, mcko_expires_at, mcko_result_view, normalize_mcko_level
 from app.services.teacher_professional_audit_service import CHANGE_CREATED, CHANGE_UPDATED, record_professional_change
@@ -26,7 +26,11 @@ ROLE_LABELS = {
 
 
 def _preschool_employee(user):
-    return bool(PreschoolBuildingStaff.query.filter_by(user_id=user.id, is_active=True).first())
+    return bool(PreschoolBuildingStaff.query.join(Building).filter(
+        PreschoolBuildingStaff.user_id == user.id,
+        PreschoolBuildingStaff.is_active.is_(True),
+        Building.is_preschool.is_(True),
+    ).first())
 
 
 def _can_view_person(user):
@@ -78,7 +82,11 @@ def register_routes(bp):
     @bp.get("/staff/<int:user_id>/profile")
     def staff_profile(user_id):
         user = _person_or_404(user_id)
-        buildings = PreschoolBuildingStaff.query.filter_by(user_id=user.id, is_active=True).all()
+        buildings = PreschoolBuildingStaff.query.join(Building).filter(
+            PreschoolBuildingStaff.user_id == user.id,
+            PreschoolBuildingStaff.is_active.is_(True),
+            Building.is_preschool.is_(True),
+        ).all()
         groups = PreschoolGroupAssignment.query.filter_by(user_id=user.id, is_active=True).all()
         mcko = TeacherMckoResult.query.filter_by(teacher_id=user.id, is_archived=False).order_by(
             TeacherMckoResult.passed_at.desc().nullslast(), TeacherMckoResult.id.desc(),

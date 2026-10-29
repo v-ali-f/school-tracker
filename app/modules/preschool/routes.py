@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from pathlib import Path
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import func, inspect, or_, text
 from werkzeug.utils import secure_filename
@@ -11,19 +11,24 @@ from app.roles import require_roles
 from .access import (
     CHIEF_EDUCATOR,
     CONTINGENT_MANAGER,
+    SENIOR_EDUCATOR,
     RESPONSIBILITY_KINDS,
     assigned_group_ids,
     assigned_building_ids,
     can_assign_responsibilities,
     can_manage_staff_in_building,
+    can_manage_group_in_building,
     can_manage_contingent,
     can_open_preschool,
     can_view_all_contingent,
     can_view_child,
     managed_building_ids,
+    manageable_group_building_ids,
+    is_responsible,
     role_codes,
 )
-from .models import PreschoolAchievement, PreschoolAttendanceRecord, PreschoolAttendanceUpload, PreschoolBuildingStaff, PreschoolChild, PreschoolChildMovement, PreschoolChildrenImport, PreschoolDashboardSetting, PreschoolGroup, PreschoolGroupAssignment, PreschoolProfileChange, PreschoolRepresentative, PreschoolResponsibility, PreschoolResponsibilityChange, PreschoolStaffChange
+from .models import PreschoolAchievement, PreschoolAttendanceRecord, PreschoolAttendanceUpload, PreschoolBuildingStaff, PreschoolChild, PreschoolChildMovement, PreschoolChildrenImport, PreschoolDashboardSetting, PreschoolGroup, PreschoolGroupAssignment, PreschoolProfileChange, PreschoolRepresentative, PreschoolResponsibility, PreschoolResponsibilityChange, PreschoolRoleGrant, PreschoolStaffChange
+from .roles import ensure_preschool_role, release_preschool_role_if_unused
 
 
 bp = Blueprint(
@@ -114,7 +119,7 @@ def ensure_preschool_tables():
     inspector = inspect(db.engine)
     existing_tables = set(inspector.get_table_names())
 
-    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolChildMovement, PreschoolAttendanceUpload, PreschoolAttendanceRecord, PreschoolResponsibility, PreschoolResponsibilityChange, PreschoolBuildingStaff, PreschoolGroupAssignment, PreschoolStaffChange, PreschoolAchievement, PreschoolProfileChange, PreschoolDashboardSetting):
+    for model in (PreschoolGroup, PreschoolChildrenImport, PreschoolChild, PreschoolRepresentative, PreschoolChildMovement, PreschoolAttendanceUpload, PreschoolAttendanceRecord, PreschoolResponsibility, PreschoolResponsibilityChange, PreschoolRoleGrant, PreschoolBuildingStaff, PreschoolGroupAssignment, PreschoolStaffChange, PreschoolAchievement, PreschoolProfileChange, PreschoolDashboardSetting):
         if model.__tablename__ not in existing_tables:
             model.__table__.create(db.engine, checkfirst=True)
 
@@ -298,6 +303,9 @@ def require_preschool_access():
     elif endpoint == "access_settings":
         if not can_assign_responsibilities():
             abort(403)
+    elif endpoint == "staff_search":
+        if not (can_assign_responsibilities() or managed_building_ids() or is_responsible(current_user, CONTINGENT_MANAGER)):
+            abort(403)
     elif endpoint == "my_group":
         if not can_open_preschool():
             abort(403)
@@ -308,7 +316,8 @@ def require_preschool_access():
         if not can_open_preschool():
             abort(403)
     elif endpoint in {"staff", "building_staff_change", "group_staff", "group_staff_change"}:
-        if endpoint in {"group_staff", "group_staff_change"}:
+        group_endpoint = endpoint in {"group_staff", "group_staff_change"}
+        if group_endpoint:
             group = db.session.get(PreschoolGroup, request.view_args["group_id"])
             if group is None:
                 abort(404)
@@ -316,11 +325,14 @@ def require_preschool_access():
         else:
             building_id = request.view_args.get("building_id") if request.view_args else None
         if request.method == "GET":
-            if not (can_assign_responsibilities() or "DEPUTY_DIRECTOR" in role_codes() or managed_building_ids()):
+            if not (can_assign_responsibilities() or "DEPUTY_DIRECTOR" in role_codes() or (manageable_group_building_ids() if group_endpoint else managed_building_ids())):
                 abort(403)
-            if building_id and not (can_assign_responsibilities() or "DEPUTY_DIRECTOR" in role_codes() or can_manage_staff_in_building(building_id)):
+            if building_id and not (can_assign_responsibilities() or "DEPUTY_DIRECTOR" in role_codes() or (can_manage_group_in_building(building_id) if group_endpoint else can_manage_staff_in_building(building_id))):
                 abort(403)
-        elif not can_manage_staff_in_building(building_id):
+        elif group_endpoint and request.form.get("action") in {"set_building", "inline_save"} and building_id is None:
+            if not manageable_group_building_ids():
+                abort(403)
+        elif not (can_manage_group_in_building(building_id) if group_endpoint else can_manage_staff_in_building(building_id)):
             abort(403)
     elif endpoint == "child_card":
         child = db.session.get(PreschoolChild, request.view_args["child_id"])
@@ -395,10 +407,7 @@ def my_group():
 
 
 def _assignment_current(row):
-    today = date.today()
-    return bool(row and row.is_active and
-                (row.start_date is None or row.start_date <= today) and
-                (row.end_date is None or row.end_date >= today))
+    return bool(row and row.is_active)
 
 
 def _group_staff_names(group, position):
@@ -408,14 +417,54 @@ def _group_staff_names(group, position):
     return ", ".join(names) if names else "—"
 
 
+def _group_staff_contacts(group, position):
+    return [
+        {"name": row.user.fio or row.user.username, "phone": row.user.phone,
+         "user_id": row.user_id, "position": row.position}
+        for row in group.staff_assignments
+        if row.position == position and row.is_active and row.user
+    ]
+
+
+@bp.get("/staff/search")
+def staff_search():
+    query_text = " ".join((request.args.get("q") or "").split())[:80]
+    if not query_text:
+        return jsonify([])
+    query = User.query.filter(
+        User.is_active_user.is_(True), User.employment_status == "ACTIVE",
+    )
+    for token in query_text.split()[:4]:
+        escaped = token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        query = query.filter(or_(
+            User.last_name.ilike(pattern, escape="\\"),
+            User.first_name.ilike(pattern, escape="\\"),
+            User.middle_name.ilike(pattern, escape="\\"),
+            User.username.ilike(pattern, escape="\\"),
+        ))
+    users = query.order_by(User.last_name, User.first_name, User.username).limit(12).all()
+    return jsonify([
+        {"id": user.id, "label": f"{user.fio or user.username} — {user.username}"}
+        for user in users
+    ])
+
+
 @bp.get("/staff")
 def staff():
     can_see_all = can_assign_responsibilities() or "DEPUTY_DIRECTOR" in role_codes()
     building_ids = managed_building_ids()
-    if can_see_all:
-        buildings = Building.query.order_by(Building.name.asc()).all()
-    else:
-        buildings = Building.query.filter(Building.id.in_(building_ids or {-1})).order_by(Building.name.asc()).all()
+    year = _get_current_year()
+    linked_building_ids = {
+        building_id for building_id, in PreschoolGroup.query.with_entities(PreschoolGroup.building_id).filter(
+            PreschoolGroup.academic_year_id == year.id if year else False,
+            PreschoolGroup.is_archived.is_(False),
+        ).distinct().all() if building_id
+    }
+    visible_ids = linked_building_ids if can_see_all else linked_building_ids & building_ids
+    buildings = Building.query.filter(
+        Building.is_preschool.is_(True), Building.id.in_(visible_ids or {-1}),
+    ).order_by(Building.name.asc()).all()
     rows = PreschoolBuildingStaff.query.filter(
         PreschoolBuildingStaff.building_id.in_([building.id for building in buildings] or {-1}),
         PreschoolBuildingStaff.is_active.is_(True),
@@ -423,20 +472,22 @@ def staff():
     groups = PreschoolGroup.query.filter(
         PreschoolGroup.building_id.in_([building.id for building in buildings] or {-1}),
         PreschoolGroup.is_archived.is_(False),
+        PreschoolGroup.academic_year_id == year.id if year else False,
     ).order_by(PreschoolGroup.name.asc()).all()
-    users = User.query.filter(User.is_active_user.is_(True)).order_by(
-        User.last_name.asc(), User.first_name.asc(), User.username.asc(),
-    ).all()
     return render_template(
-        "preschool/staff.html", buildings=buildings, rows=rows, users=users, groups=groups,
-        positions=STAFF_POSITIONS, editable_building_ids=building_ids,
+        "preschool/staff.html", buildings=buildings, rows=rows, groups=groups,
+        positions=STAFF_POSITIONS,
+        assignable_positions=STAFF_POSITIONS if can_assign_responsibilities() else {
+            key: value for key, value in STAFF_POSITIONS.items() if key != SENIOR_EDUCATOR
+        },
+        editable_building_ids=building_ids,
     )
 
 
 @bp.post("/staff/buildings/<int:building_id>")
 def building_staff_change(building_id):
     building = db.session.get(Building, building_id)
-    if building is None:
+    if building is None or not building.is_preschool:
         abort(404)
     user_id = request.form.get("user_id", type=int)
     position = (request.form.get("position") or "").strip()
@@ -444,8 +495,10 @@ def building_staff_change(building_id):
     user = db.session.get(User, user_id) if user_id else None
     if not user or position not in STAFF_POSITIONS or action not in {"assign", "revoke"}:
         abort(400)
-    if action == "assign" and (not user.is_active_user or (position != "SPECIALIST" and position not in role_codes(user))):
+    if action == "assign" and (not user.is_active_user or user.employment_status != "ACTIVE"):
         abort(400)
+    if position == SENIOR_EDUCATOR and not can_assign_responsibilities():
+        abort(403)
     row = PreschoolBuildingStaff.query.filter_by(
         building_id=building_id, user_id=user_id, position=position,
     ).first()
@@ -459,11 +512,9 @@ def building_staff_change(building_id):
             group_row.is_active = False
             group_row.end_date = date.today()
             _staff_change("group", building_id, group_row.group_id, user_id, position, "revoke")
+        db.session.flush()
+        release_preschool_role_if_unused(user, position)
     else:
-        start_date = _date_from_form("start_date")
-        end_date = _date_from_form("end_date")
-        if not _valid_period(start_date, end_date):
-            abort(400)
         if row is None:
             row = PreschoolBuildingStaff(
                 building_id=building_id, user_id=user_id, position=position,
@@ -471,10 +522,13 @@ def building_staff_change(building_id):
             db.session.add(row)
         elif row.is_active:
             abort(409)
-        row.start_date = start_date
-        row.end_date = end_date
+        row.start_date = None
+        row.end_date = None
         row.is_active = True
         row.assigned_by_user_id = current_user.id
+        ensure_preschool_role(user, position)
+        if position == SENIOR_EDUCATOR:
+            _add_responsibility(SENIOR_EDUCATOR, user)
     _staff_change("building", building_id, None, user_id, position, action)
     db.session.commit()
     flash("Назначение сотрудника обновлено.", "success")
@@ -486,16 +540,45 @@ def group_staff(group_id):
     group = db.session.get(PreschoolGroup, group_id)
     if group is None:
         abort(404)
-    if not group.building_id:
-        abort(409)
+    if group.building_id and (not group.building or not group.building.is_preschool):
+        abort(404)
     if request.method == "POST":
+        action = (request.form.get("action") or "assign").strip()
+        return_to_summary = action == "inline_save" or request.form.get("return_to") == "summary"
+        if action == "inline_save":
+            building_id = request.form.get("building_id", type=int)
+            building = db.session.get(Building, building_id) if building_id else None
+            if not building or not building.is_preschool or not can_manage_group_in_building(building.id):
+                abort(403)
+            if group.building_id != building.id and PreschoolGroupAssignment.query.filter_by(group_id=group.id, is_active=True).first():
+                flash("Перед сменой корпуса снимите назначения сотрудников группы.", "warning")
+                return redirect(url_for("preschool.children", academic_year_id=group.academic_year_id))
+            group.building_id = building.id
+            if not request.form.get("user_id", type=int):
+                db.session.commit()
+                flash("Корпус группы сохранён.", "success")
+                return redirect(url_for("preschool.children", academic_year_id=group.academic_year_id))
+            action = "assign"
+        if action == "set_building":
+            building_id = request.form.get("building_id", type=int)
+            building = db.session.get(Building, building_id) if building_id else None
+            if not building or not building.is_preschool or not can_manage_group_in_building(building.id):
+                abort(403)
+            if group.building_id != building.id and PreschoolGroupAssignment.query.filter_by(group_id=group.id, is_active=True).first():
+                flash("Перед сменой корпуса снимите назначения сотрудников группы.", "warning")
+                return redirect(url_for("preschool.group_staff", group_id=group.id))
+            group.building_id = building.id
+            db.session.commit()
+            flash("Корпус группы обновлён.", "success")
+            return redirect(url_for("preschool.group_staff", group_id=group.id))
+        if not group.building_id:
+            abort(409)
         user_id = request.form.get("user_id", type=int)
         position = (request.form.get("position") or "").strip()
-        action = (request.form.get("action") or "assign").strip()
         user = db.session.get(User, user_id) if user_id else None
         if not user or position not in GROUP_POSITIONS or action not in {"assign", "revoke"}:
             abort(400)
-        if action == "assign" and (not user.is_active_user or position not in role_codes(user)):
+        if action == "assign" and (not user.is_active_user or user.employment_status != "ACTIVE"):
             abort(400)
         row = PreschoolGroupAssignment.query.filter_by(
             group_id=group.id, user_id=user_id, position=position,
@@ -512,15 +595,15 @@ def group_staff(group_id):
                 building_id=group.building_id, user_id=user_id, position=position,
             ).first()
             if not _assignment_current(member):
-                abort(400)
-            start_date = _date_from_form("start_date")
-            end_date = _date_from_form("end_date")
-            if not _valid_period(start_date, end_date):
-                abort(400)
-            if member.start_date and (start_date is None or start_date < member.start_date):
-                abort(400)
-            if member.end_date and (end_date is None or end_date > member.end_date):
-                abort(400)
+                if member is None:
+                    member = PreschoolBuildingStaff(building_id=group.building_id, user_id=user_id, position=position)
+                    db.session.add(member)
+                member.is_active = True
+                member.start_date = None
+                member.end_date = None
+                member.assigned_by_user_id = current_user.id
+                ensure_preschool_role(user, position)
+                _staff_change("building", group.building_id, None, user_id, position, "assign")
             if row is None:
                 row = PreschoolGroupAssignment(group_id=group.id, user_id=user_id, position=position)
                 db.session.add(row)
@@ -528,71 +611,121 @@ def group_staff(group_id):
                 abort(409)
             row.academic_year_id = group.academic_year_id
             row.building_id = group.building_id
-            row.start_date = start_date
-            row.end_date = end_date
+            row.start_date = None
+            row.end_date = None
             row.is_active = True
             row.source = "manual"
             row.assigned_by_user_id = current_user.id
         _staff_change("group", group.building_id, group.id, user_id, position, action)
         db.session.commit()
         flash("Состав группы обновлён.", "success")
-        return redirect(url_for("preschool.group_staff", group_id=group.id))
+        return redirect(url_for("preschool.children", academic_year_id=group.academic_year_id) if return_to_summary else url_for("preschool.group_staff", group_id=group.id))
     assignments = PreschoolGroupAssignment.query.filter_by(
         group_id=group.id, is_active=True,
     ).order_by(PreschoolGroupAssignment.position.asc()).all()
-    building_staff = PreschoolBuildingStaff.query.filter(
-        PreschoolBuildingStaff.building_id == group.building_id,
-        PreschoolBuildingStaff.position.in_(GROUP_POSITIONS),
-        PreschoolBuildingStaff.is_active.is_(True),
-    ).all()
+    available_buildings = Building.query.filter(
+        Building.id.in_(manageable_group_building_ids() or {-1}),
+        Building.is_preschool.is_(True),
+    ).order_by(Building.name.asc()).all()
     return render_template(
         "preschool/group_staff.html", group=group, assignments=assignments,
-        building_staff=[row for row in building_staff if _assignment_current(row)],
-        positions=GROUP_POSITIONS, can_edit=can_manage_staff_in_building(group.building_id),
+        available_buildings=available_buildings,
+        positions=GROUP_POSITIONS, can_edit=can_manage_group_in_building(group.building_id),
+        can_set_building=bool(available_buildings),
     )
+
+
+def _add_responsibility(kind, user):
+    if PreschoolResponsibility.query.filter_by(kind=kind, user_id=user.id).first():
+        return False
+    db.session.add(PreschoolResponsibility(
+        kind=kind, user_id=user.id, assigned_by_user_id=current_user.id,
+    ))
+    db.session.add(PreschoolResponsibilityChange(
+        kind=kind, previous_user_id=None, new_user_id=user.id,
+        changed_by_user_id=current_user.id,
+    ))
+    if kind == SENIOR_EDUCATOR:
+        ensure_preschool_role(user, SENIOR_EDUCATOR)
+    return True
+
+
+def _remove_responsibility(row):
+    user = row.user
+    db.session.add(PreschoolResponsibilityChange(
+        kind=row.kind, previous_user_id=row.user_id, new_user_id=None,
+        changed_by_user_id=current_user.id,
+    ))
+    db.session.delete(row)
+    db.session.flush()
+    if row.kind == SENIOR_EDUCATOR and user:
+        release_preschool_role_if_unused(user, SENIOR_EDUCATOR)
 
 
 @bp.route("/access", methods=["GET", "POST"])
 def access_settings():
     if request.method == "POST":
         kind = (request.form.get("kind") or "").strip()
+        action = (request.form.get("action") or "assign").strip()
         user_id = request.form.get("user_id", type=int)
-        if kind not in RESPONSIBILITY_KINDS:
+        if action == "assign" and not user_id and kind in {CONTINGENT_MANAGER, CHIEF_EDUCATOR}:
+            action = "revoke"
+        if kind not in RESPONSIBILITY_KINDS or action not in {"assign", "revoke"}:
             abort(400)
         user = db.session.get(User, user_id) if user_id else None
-        if user_id and (user is None or not user.is_active_user or user.employment_status != "ACTIVE"):
+        if action == "assign" and user_id and (
+            user is None or not user.is_active_user or user.employment_status != "ACTIVE"
+        ):
             flash("Выберите действующего сотрудника.", "warning")
             return redirect(url_for("preschool.access_settings"))
-        if kind == CHIEF_EDUCATOR and user and "SENIOR_EDUCATOR" not in role_codes(user):
-            flash("Главным можно назначить только старшего воспитателя.", "warning")
-            return redirect(url_for("preschool.access_settings"))
-        row = PreschoolResponsibility.query.filter_by(kind=kind).first()
-        previous_user_id = row.user_id if row else None
-        if previous_user_id != user_id:
-            if row is None:
-                row = PreschoolResponsibility(kind=kind)
-                db.session.add(row)
-            row.user_id = user_id
-            row.assigned_by_user_id = current_user.id
-            db.session.add(PreschoolResponsibilityChange(
-                kind=kind,
-                previous_user_id=previous_user_id,
-                new_user_id=user_id,
-                changed_by_user_id=current_user.id,
-            ))
-            db.session.commit()
-        flash("Назначение сохранено.", "success")
+
+        if kind == CHIEF_EDUCATOR:
+            row = PreschoolResponsibility.query.filter_by(kind=kind).first()
+            if action == "revoke" or not user_id:
+                if row:
+                    _remove_responsibility(row)
+            else:
+                _add_responsibility(SENIOR_EDUCATOR, user)
+                previous_user_id = row.user_id if row else None
+                if previous_user_id != user.id:
+                    if row is None:
+                        row = PreschoolResponsibility(kind=kind)
+                        db.session.add(row)
+                    row.user_id = user.id
+                    row.assigned_by_user_id = current_user.id
+                    db.session.add(PreschoolResponsibilityChange(
+                        kind=kind, previous_user_id=previous_user_id,
+                        new_user_id=user.id, changed_by_user_id=current_user.id,
+                    ))
+        elif action == "assign":
+            if user is None:
+                abort(400)
+            _add_responsibility(kind, user)
+        else:
+            rows = PreschoolResponsibility.query.filter_by(kind=kind)
+            if user_id:
+                rows = rows.filter_by(user_id=user_id)
+            selected = rows.all()
+            if user_id and not selected:
+                abort(404)
+            for row in selected:
+                if kind == SENIOR_EDUCATOR and PreschoolResponsibility.query.filter_by(
+                    kind=CHIEF_EDUCATOR, user_id=row.user_id,
+                ).first():
+                    flash("Сначала смените ответственного за аттестацию.", "warning")
+                    return redirect(url_for("preschool.access_settings"))
+                _remove_responsibility(row)
+
+        db.session.commit()
+        flash("Назначения обновлены.", "success")
         return redirect(url_for("preschool.access_settings"))
 
-    assignments = {
-        row.kind: row
-        for row in PreschoolResponsibility.query.filter(
-            PreschoolResponsibility.kind.in_(RESPONSIBILITY_KINDS)
-        ).all()
-    }
-    users = User.query.filter_by(is_active_user=True, employment_status="ACTIVE").order_by(
-        User.last_name.asc(), User.first_name.asc(), User.username.asc()
-    ).all()
+    assignments = {kind: [] for kind in RESPONSIBILITY_KINDS}
+    for row in PreschoolResponsibility.query.filter(
+        PreschoolResponsibility.kind.in_(RESPONSIBILITY_KINDS),
+        PreschoolResponsibility.user_id.isnot(None),
+    ).order_by(PreschoolResponsibility.id).all():
+        assignments[row.kind].append(row)
     changes = PreschoolResponsibilityChange.query.order_by(
         PreschoolResponsibilityChange.changed_at.desc(),
         PreschoolResponsibilityChange.id.desc(),
@@ -600,9 +733,9 @@ def access_settings():
     return render_template(
         "preschool/access.html",
         assignments=assignments,
-        users=users,
         changes=changes,
         chief_kind=CHIEF_EDUCATOR,
+        senior_kind=SENIOR_EDUCATOR,
         contingent_kind=CONTINGENT_MANAGER,
     )
 
@@ -626,7 +759,7 @@ def children():
     month_options = _academic_year_month_options(year)
     month_options = _academic_year_month_options(year)
 
-    buildings = Building.query.order_by(Building.name.asc()).all()
+    buildings = Building.query.filter_by(is_preschool=True).order_by(Building.name.asc()).all()
 
     groups_query = (
         PreschoolGroup.query
@@ -664,9 +797,12 @@ def children():
         group_rows.append({
             "id": group.id,
             "name": group.name,
-            "building": group.building.name if group.building else "—",
+            "building": group.building.name if group.building else "Не назначено",
+            "building_id": group.building_id,
             "age_level": group.age_level or "—",
-            "teacher": _group_staff_names(group, "EDUCATOR"),
+            "educators": _group_staff_contacts(group, "EDUCATOR"),
+            "assistants": _group_staff_contacts(group, "ASSISTANT_EDUCATOR"),
+            "can_manage": can_manage_group_in_building(group.building_id) if group.building_id else bool(manageable_group_building_ids()),
             "children_count": children_count,
         })
 
@@ -685,6 +821,7 @@ def children():
         "preschool/children.html",
         group_rows=group_rows,
         buildings=buildings,
+        available_group_buildings=[building for building in buildings if building.id in manageable_group_building_ids()],
         all_years=all_years,
         year=year,
         selected_building_id=building_id,
@@ -719,7 +856,7 @@ def children_registry():
         .all()
     )
 
-    buildings = Building.query.order_by(Building.name.asc()).all()
+    buildings = Building.query.filter_by(is_preschool=True).order_by(Building.name.asc()).all()
 
     groups_query = PreschoolGroup.query.filter(PreschoolGroup.academic_year_id == year.id)
     if building_id:
@@ -897,7 +1034,6 @@ def buildings_redirect():
 
 
 @bp.route("/groups", methods=["GET", "POST"])
-@require_roles("ADMIN")
 def groups():
     year_id = request.args.get("academic_year_id", type=int)
     year = AcademicYear.query.get(year_id) if year_id else _get_current_year()
@@ -911,8 +1047,10 @@ def groups():
         .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
         .all()
     )
-    buildings = Building.query.order_by(Building.name.asc()).all()
+    buildings = Building.query.filter_by(is_preschool=True).order_by(Building.name.asc()).all()
     if request.method == "POST":
+        if not can_assign_responsibilities():
+            abort(403)
         name = (request.form.get("name") or "").strip()
         age_level = (request.form.get("age_level") or "").strip()
         building_id_raw = (request.form.get("building_id") or "").strip()
@@ -924,8 +1062,9 @@ def groups():
 
         academic_year_id = int(academic_year_id_raw) if academic_year_id_raw.isdigit() else year.id
         building_id = int(building_id_raw) if building_id_raw.isdigit() else None
-        if db.session.get(AcademicYear, academic_year_id) is None or building_id is None or db.session.get(Building, building_id) is None:
-            flash("Выберите действующий учебный год и здание из общего реестра.", "warning")
+        building = db.session.get(Building, building_id) if building_id else None
+        if db.session.get(AcademicYear, academic_year_id) is None or not building or not building.is_preschool:
+            flash("Выберите действующий учебный год и дошкольный корпус.", "warning")
             return redirect(url_for("preschool.groups", academic_year_id=year.id))
         if PreschoolGroup.query.filter_by(academic_year_id=academic_year_id, building_id=building_id, name=name).first():
             flash("Группа с таким названием уже есть в выбранном здании и учебном году.", "warning")
@@ -957,6 +1096,9 @@ def groups():
         "preschool/groups.html",
         items=items,
         group_staff_names=_group_staff_names,
+        group_staff_contacts=_group_staff_contacts,
+        can_edit_group_metadata=can_assign_responsibilities(),
+        can_manage_group=lambda group: not group.building_id and bool(manageable_group_building_ids()) or can_manage_group_in_building(group.building_id),
         buildings=buildings,
         age_levels=PRESCHOOL_AGE_LEVELS,
         all_years=all_years,
@@ -973,7 +1115,7 @@ def edit_group(group_id):
         .order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc())
         .all()
     )
-    buildings = Building.query.order_by(Building.name.asc()).all()
+    buildings = Building.query.filter_by(is_preschool=True).order_by(Building.name.asc()).all()
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
         age_level = (request.form.get("age_level") or "").strip()
@@ -988,8 +1130,9 @@ def edit_group(group_id):
             flash("Учебный год группы не меняется через редактирование. Используйте движение воспитанников.", "warning")
             return redirect(url_for("preschool.edit_group", group_id=group.id))
         building_id = int(building_id_raw) if building_id_raw.isdigit() else None
-        if building_id is None or db.session.get(Building, building_id) is None:
-            flash("Выберите здание из общего реестра.", "warning")
+        building = db.session.get(Building, building_id) if building_id else None
+        if not building or not building.is_preschool:
+            flash("Выберите дошкольный корпус из общего реестра.", "warning")
             return redirect(url_for("preschool.edit_group", group_id=group.id))
         if building_id != group.building_id and any(row.is_active for row in group.staff_assignments):
             flash("Сначала снимите назначения сотрудников группы перед сменой здания.", "warning")
@@ -1101,7 +1244,7 @@ def import_children():
         .all()
     )
     groups_by_name = {g.name.strip().lower(): g for g in groups}
-    buildings = Building.query.order_by(Building.name.asc()).all()
+    buildings = Building.query.filter_by(is_preschool=True).order_by(Building.name.asc()).all()
     buildings_by_name = {b.name.strip().lower(): b for b in buildings}
 
     imports = (
@@ -1658,7 +1801,7 @@ def _find_or_create_preschool_group(year, group_name):
         building_key = group_name.split("-", 1)[0].strip().lower()
         building = (
             Building.query
-            .filter(func.lower(Building.name) == building_key)
+            .filter(Building.is_preschool.is_(True), func.lower(Building.name) == building_key)
             .first()
         )
 

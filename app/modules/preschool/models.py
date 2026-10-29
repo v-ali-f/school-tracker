@@ -167,13 +167,30 @@ class PreschoolResponsibility(db.Model):
     __tablename__ = "preschool_responsibility"
 
     id = db.Column(db.Integer, primary_key=True)
-    kind = db.Column(db.String(40), nullable=False, unique=True, index=True)
+    kind = db.Column(db.String(40), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
     assigned_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = db.relationship("User", foreign_keys=[user_id])
     assigned_by = db.relationship("User", foreign_keys=[assigned_by_user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("kind", "user_id", name="uq_preschool_responsibility_kind_user"),
+    )
+
+
+class PreschoolRoleGrant(db.Model):
+    __tablename__ = "preschool_role_grant"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    role_code = db.Column(db.String(40), nullable=False)
+    granted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "role_code", name="uq_preschool_role_grant"),
+    )
 
 
 class PreschoolResponsibilityChange(db.Model):

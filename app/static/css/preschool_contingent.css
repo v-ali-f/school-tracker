@@ -1,0 +1,66 @@
+.preschool-contingent-page .ws-metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preschool-contingent-page .ws-metric {
+  min-height: 56px;
+  padding: 8px 10px;
+}
+
+.preschool-contingent-page .ws-metric-icon {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  font-size: 14px;
+}
+
+.preschool-contingent-page .ws-metric-value { font-size: 18px; }
+
+.registry-workspace-page.preschool-contingent-page table.preschool-contingent-table {
+  min-width: 900px;
+  table-layout: fixed;
+}
+
+.registry-workspace-page.preschool-contingent-page table.preschool-contingent-table thead th {
+  height: 31px !important;
+  padding: 5px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.15;
+  vertical-align: middle;
+}
+
+.registry-workspace-page.preschool-contingent-page table.preschool-contingent-table tbody td {
+  height: 32px;
+  min-height: 0;
+  padding: 3px 6px !important;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.preschool-contingent-table th:nth-child(1) { width: 16%; }
+.preschool-contingent-table th:nth-child(2) { width: 10%; }
+.preschool-contingent-table th:nth-child(3) { width: 16%; }
+.preschool-contingent-table th:nth-child(4) { width: 42%; }
+.preschool-contingent-table th:nth-child(5) { width: 8%; text-align: center; }
+.preschool-contingent-table th:nth-child(6) { width: 8%; text-align: center; }
+.preschool-contingent-table td:nth-child(5),
+.preschool-contingent-table td:nth-child(6) { text-align: center; }
+
+.preschool-contingent-page .preschool-icon-action {
+  width: 27px;
+  height: 27px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  line-height: 1;
+}
+
+.preschool-contingent-page .preschool-icon-action i { font-size: 14px; }
+
+@media (max-width: 720px) {
+  .preschool-contingent-page .ws-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .preschool-contingent-page .ws-metric { padding: 7px; gap: 5px; }
+  .preschool-contingent-page .ws-metric-icon { display: none; }
+}

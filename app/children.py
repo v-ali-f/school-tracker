@@ -6573,6 +6573,7 @@ def buildings_new():
     matrix_tone = normalize_building_matrix_tone(
         request.form.get("matrix_tone")
     )
+    is_preschool = request.form.get("is_preschool") == "1"
 
     if not name:
         flash("Укажите название здания", "danger")
@@ -6583,6 +6584,7 @@ def buildings_new():
         address=address,
         short_name=short_name,
         matrix_tone=matrix_tone,
+        is_preschool=is_preschool,
     ))
     db.session.commit()
     flash("Здание добавлено", "success")
@@ -6600,6 +6602,7 @@ def buildings_update(building_id: int):
     b.matrix_tone = normalize_building_matrix_tone(
         request.form.get("matrix_tone")
     )
+    b.is_preschool = request.form.get("is_preschool") == "1"
 
     if not b.name:
         flash("Название здания не может быть пустым", "danger")

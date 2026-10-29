@@ -206,7 +206,7 @@ def test_repeated_child_import_does_not_duplicate_existing_children(app, client,
 def test_group_uses_common_year_and_building_and_cannot_change_year_silently(app, client, make_user, login):
     year_id, _, _, _ = _sample_contingent(app)
     with app.app_context():
-        building = Building(name="Детский сад № 1")
+        building = Building(name="Детский сад № 1", is_preschool=True)
         db.session.add(building)
         db.session.commit()
         building_id = building.id

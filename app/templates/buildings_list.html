@@ -4,7 +4,7 @@
 <div class="page-head mb-3">
   <div>
     <h1 class="page-title">Реестр зданий</h1>
-    <div class="page-sub">Название, адрес и цвет здания в сводных таблицах</div>
+    <div class="page-sub">Название, адрес, тип корпуса и цвет в сводных таблицах</div>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('children.home') }}">На главную</a>
@@ -17,7 +17,7 @@
       <div class="col-md-3">
         <input class="form-control" name="name" placeholder="Название здания" required>
       </div>
-      <div class="col-md-5">
+      <div class="col-md-3">
         <input class="form-control" name="address" placeholder="Адрес (необязательно)">
       </div>
       <div class="col-md-2">
@@ -26,6 +26,9 @@
             <option value="{{ value }}">{{ label }}</option>
           {% endfor %}
         </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-center">
+        <label class="form-check mb-0"><input class="form-check-input" type="checkbox" name="is_preschool" value="1"> Дошкольный корпус</label>
       </div>
       <div class="col-md-2">
         <button class="btn btn-primary w-100">Добавить</button>
@@ -42,6 +45,7 @@
           <th style="width:60px;">ID</th>
           <th>Название</th>
           <th>Адрес</th>
+          <th style="width:190px;">Тип корпуса</th>
           <th style="width:190px;">Цвет в таблицах</th>
           <th style="width:220px;"></th>
         </tr>
@@ -56,6 +60,9 @@
             </td>
             <td>
                 <input class="form-control" name="address" value="{{ b.address or '' }}">
+            </td>
+            <td>
+                <label class="form-check"><input class="form-check-input" type="checkbox" name="is_preschool" value="1" {% if b.is_preschool %}checked{% endif %}> Дошкольный</label>
             </td>
             <td>
                 <select class="form-select" name="matrix_tone" aria-label="Цвет здания {{ b.name }}">
@@ -78,7 +85,7 @@
           </tr>
         {% endfor %}
         {% if buildings|length == 0 %}
-          <tr><td colspan="5" class="text-muted">Пока нет зданий</td></tr>
+          <tr><td colspan="6" class="text-muted">Пока нет зданий</td></tr>
         {% endif %}
       </tbody>
     </table>

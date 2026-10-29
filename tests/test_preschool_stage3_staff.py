@@ -1,10 +1,11 @@
 from app.core.extensions import db
-from app.models_legacy import AcademicYear, Building
+from app.models_legacy import AcademicYear, Building, User
 from app.modules.preschool.models import (
     PreschoolBuildingStaff,
     PreschoolChild,
     PreschoolGroup,
     PreschoolGroupAssignment,
+    PreschoolResponsibility,
     PreschoolStaffChange,
 )
 
@@ -12,8 +13,8 @@ from app.modules.preschool.models import (
 def _base(app):
     with app.app_context():
         year = AcademicYear(name="2026/2027", is_current=True)
-        first = Building(name="Детский сад № 1")
-        second = Building(name="Детский сад № 2")
+        first = Building(name="Детский сад № 1", is_preschool=True)
+        second = Building(name="Детский сад № 2", is_preschool=True)
         db.session.add_all([year, first, second])
         db.session.flush()
         group = PreschoolGroup(name="Ромашки", academic_year_id=year.id, building_id=first.id)
@@ -61,7 +62,7 @@ def test_multiple_seniors_and_building_scope(app, client, make_user, login):
     assert client.get(f"/preschool/groups/{other_group}/staff").status_code == 403
     assert _building_post(client, first, educator, "EDUCATOR").status_code == 302
     assert _building_post(client, second, educator, "EDUCATOR").status_code == 403
-    assert _building_post(client, first, psychologist, "EDUCATOR").status_code == 400
+    assert _building_post(client, first, psychologist, "EDUCATOR").status_code == 302
     with app.app_context():
         assert PreschoolBuildingStaff.query.filter_by(position="SENIOR_EDUCATOR", building_id=first).count() == 2
 
@@ -96,20 +97,69 @@ def test_multiple_group_staff_access_and_revocation(app, client, make_user, logi
         assert PreschoolStaffChange.query.filter_by(scope="group", action="revoke", user_id=educators[0]).count() == 1
 
 
-def test_group_assignment_requires_matching_building_role_and_period(app, client, make_user, login):
+def test_group_assignment_adds_building_staff_without_dates(app, client, make_user, login):
     first, second, group, _, _, _ = _base(app)
     admin = make_user("ADMIN")
-    educator = make_user("EDUCATOR")
-    assistant = make_user("ASSISTANT_EDUCATOR")
+    educator = make_user("VIEWER")
+    assistant = make_user("VIEWER")
     login(admin)
-    assert _group_post(client, group, educator, "EDUCATOR").status_code == 400
-    assert _building_post(client, second, educator, "EDUCATOR").status_code == 302
-    assert _group_post(client, group, educator, "EDUCATOR").status_code == 400
-    assert _building_post(client, first, educator, "EDUCATOR", start_date="2026-01-01", end_date="2027-12-31").status_code == 302
-    assert _group_post(client, group, educator, "EDUCATOR", start_date="2025-12-31", end_date="2027-01-01").status_code == 400
-    assert _group_post(client, group, educator, "EDUCATOR", start_date="2026-10-01", end_date="2026-09-01").status_code == 400
-    assert _group_post(client, group, educator, "EDUCATOR", start_date="2026-10-01", end_date="2027-01-01").status_code == 302
-    assert _group_post(client, group, assistant, "EDUCATOR").status_code == 400
+    assert _group_post(client, group, educator, "EDUCATOR", start_date="2026-10-01", end_date="2026-09-01").status_code == 302
+    assert _group_post(client, group, assistant, "ASSISTANT_EDUCATOR").status_code == 302
+    with app.app_context():
+        membership = PreschoolBuildingStaff.query.filter_by(building_id=first, user_id=educator, position="EDUCATOR").one()
+        assignment = PreschoolGroupAssignment.query.filter_by(group_id=group, user_id=educator, position="EDUCATOR").one()
+        assert membership.start_date is None and membership.end_date is None
+        assert assignment.start_date is None and assignment.end_date is None
+        assert db.session.get(User, educator).has_role("EDUCATOR")
+        assert PreschoolBuildingStaff.query.filter_by(building_id=second, user_id=educator).count() == 0
+
+
+def test_unlinked_group_can_be_set_up_from_contingent_summary(app, client, make_user, login):
+    first, second, group, _, _, _ = _base(app)
+    admin = make_user("ADMIN")
+    manager = make_user("VIEWER")
+    educator = make_user("VIEWER")
+    with app.app_context():
+        db.session.get(PreschoolGroup, group).building_id = None
+        db.session.get(User, educator).phone = "+7 999 123 45 67"
+        db.session.add(PreschoolResponsibility(kind="CONTINGENT_MANAGER", user_id=manager, assigned_by_user_id=admin))
+        db.session.commit()
+    login(manager)
+    summary = client.get("/preschool/children")
+    assert summary.status_code == 200
+    assert "Изменить" in summary.get_data(as_text=True)
+    assert "Корпус и сотрудники" not in summary.get_data(as_text=True)
+    assert client.post(f"/preschool/groups/{group}/staff", data={
+        "action": "inline_save", "building_id": first, "user_id": educator, "position": "EDUCATOR",
+    }).status_code == 302
+    summary = client.get("/preschool/children").get_data(as_text=True)
+    assert "+7 999 123 45 67" in summary
+    assert "Воспитатель:" in summary
+    assert _building_post(client, second, educator, "EDUCATOR").status_code == 403
+
+
+def test_senior_and_director_can_assign_staff_in_summary_with_building_scope(app, client, make_user, login):
+    first, second, group, other_group, _, _ = _base(app)
+    admin = make_user("ADMIN")
+    senior = make_user("VIEWER")
+    director = make_user("DIRECTOR")
+    educator = make_user("VIEWER")
+    login(admin)
+    assert _building_post(client, first, senior, "SENIOR_EDUCATOR").status_code == 302
+    login(senior)
+    assert client.post(f"/preschool/groups/{group}/staff", data={
+        "action": "inline_save", "building_id": first, "user_id": educator, "position": "EDUCATOR",
+    }).status_code == 302
+    assert client.post(f"/preschool/groups/{other_group}/staff", data={
+        "action": "inline_save", "building_id": second, "user_id": educator, "position": "EDUCATOR",
+    }).status_code == 403
+    login(director)
+    assert client.post(f"/preschool/groups/{other_group}/staff", data={
+        "action": "inline_save", "building_id": second, "user_id": educator, "position": "ASSISTANT_EDUCATOR",
+    }).status_code == 302
+    with app.app_context():
+        assert PreschoolGroupAssignment.query.filter_by(group_id=group, user_id=educator, position="EDUCATOR", is_active=True).count() == 1
+        assert PreschoolGroupAssignment.query.filter_by(group_id=other_group, user_id=educator, position="ASSISTANT_EDUCATOR", is_active=True).count() == 1
 
 
 def test_legacy_teacher_migrates_once_and_stays_revoked(app, client, make_user, login):
@@ -145,3 +195,56 @@ def test_deputy_sees_staff_without_editing(app, client, make_user, login):
     assert client.get(f"/preschool/groups/{group}/staff").status_code == 200
     assert _building_post(client, first, educator, "EDUCATOR").status_code == 403
     assert _group_post(client, group, educator, "EDUCATOR").status_code == 403
+
+
+def test_only_preschool_buildings_appear_and_admin_can_change_type(app, client, make_user, login):
+    first, _, _, _, _, _ = _base(app)
+    admin = make_user("ADMIN")
+    employee = make_user("VIEWER")
+    with app.app_context():
+        school = Building(name="Школьный корпус")
+        db.session.add(school)
+        db.session.commit()
+        school_id = school.id
+    login(admin)
+    page = client.get("/preschool/staff").get_data(as_text=True)
+    assert "Детский сад № 1" in page
+    assert "Школьный корпус" not in page
+    assert 'name="start_date"' not in page and 'name="end_date"' not in page
+    assert _building_post(client, school_id, employee, "EDUCATOR").status_code == 403
+    assert client.post(f"/buildings/{school_id}/update", data={
+        "name": "Школьный корпус", "is_preschool": "1", "matrix_tone": "0",
+    }).status_code == 302
+    assert "Школьный корпус" not in client.get("/preschool/staff").get_data(as_text=True)
+    with app.app_context():
+        group = PreschoolGroup.query.filter_by(building_id=first).first()
+        group.building_id = school_id
+        db.session.commit()
+    assert "Школьный корпус" in client.get("/preschool/staff").get_data(as_text=True)
+    assert client.post(f"/buildings/{school_id}/update", data={
+        "name": "Школьный корпус", "matrix_tone": "0",
+    }).status_code == 302
+    assert "Школьный корпус" not in client.get("/preschool/staff").get_data(as_text=True)
+
+
+def test_building_assignment_grants_and_releases_employee_role(app, client, make_user, login):
+    first, _, _, _, _, _ = _base(app)
+    admin = make_user("ADMIN")
+    employee = make_user("VIEWER")
+    login(admin)
+    assert _building_post(client, first, employee, "EDUCATOR").status_code == 302
+    with app.app_context():
+        assert db.session.get(User, employee).has_role("EDUCATOR")
+    assert _building_post(client, first, employee, "EDUCATOR", action="revoke").status_code == 302
+    with app.app_context():
+        assert not db.session.get(User, employee).has_role("EDUCATOR")
+
+
+def test_employee_search_suggests_after_first_letter(app, client, make_user, login):
+    _base(app)
+    admin = make_user("ADMIN")
+    employee = make_user("VIEWER")
+    login(admin)
+    response = client.get("/preschool/staff/search?q=Т")
+    assert response.status_code == 200
+    assert employee in {person["id"] for person in response.json}

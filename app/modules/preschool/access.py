@@ -1,16 +1,17 @@
 """Preschool access rules shared by routes and navigation."""
 
-from datetime import date
-
 from flask_login import current_user
-from sqlalchemy import or_
+from sqlalchemy import select
+
+from app.models_legacy import Building
 
 from .models import PreschoolBuildingStaff, PreschoolGroup, PreschoolGroupAssignment, PreschoolResponsibility
 
 
 CONTINGENT_MANAGER = "CONTINGENT_MANAGER"
 CHIEF_EDUCATOR = "CHIEF_EDUCATOR"
-RESPONSIBILITY_KINDS = (CONTINGENT_MANAGER, CHIEF_EDUCATOR)
+SENIOR_EDUCATOR = "SENIOR_EDUCATOR"
+RESPONSIBILITY_KINDS = (CONTINGENT_MANAGER, SENIOR_EDUCATOR, CHIEF_EDUCATOR)
 
 MANAGEMENT_ROLES = {"ADMIN", "DIRECTOR"}
 PRESCHOOL_ROLES = {"SENIOR_EDUCATOR", "EDUCATOR", "ASSISTANT_EDUCATOR"}
@@ -32,7 +33,10 @@ def responsibility_user_id(kind):
 
 
 def is_responsible(user, kind):
-    return bool(getattr(user, "id", None) and responsibility_user_id(kind) == user.id)
+    return bool(
+        getattr(user, "id", None)
+        and PreschoolResponsibility.query.filter_by(kind=kind, user_id=user.id).first()
+    )
 
 
 def can_manage_contingent(user=None):
@@ -57,17 +61,15 @@ def assigned_group_ids(user=None):
     positions = role_codes(user) & {"EDUCATOR", "ASSISTANT_EDUCATOR"}
     if not positions:
         return set()
-    today = date.today()
     memberships = {
         (building_id, position)
         for building_id, position in PreschoolBuildingStaff.query.with_entities(
             PreschoolBuildingStaff.building_id, PreschoolBuildingStaff.position,
         ).filter(
             PreschoolBuildingStaff.user_id == user.id,
+            PreschoolBuildingStaff.building_id.in_(select(Building.id).where(Building.is_preschool.is_(True))),
             PreschoolBuildingStaff.position.in_(positions),
             PreschoolBuildingStaff.is_active.is_(True),
-            or_(PreschoolBuildingStaff.start_date.is_(None), PreschoolBuildingStaff.start_date <= today),
-            or_(PreschoolBuildingStaff.end_date.is_(None), PreschoolBuildingStaff.end_date >= today),
         ).all()
     }
     return {
@@ -81,8 +83,6 @@ def assigned_group_ids(user=None):
             PreschoolGroupAssignment.is_active.is_(True),
             PreschoolGroupAssignment.position.in_(positions),
             PreschoolGroup.is_archived.is_(False),
-            or_(PreschoolGroupAssignment.start_date.is_(None), PreschoolGroupAssignment.start_date <= today),
-            or_(PreschoolGroupAssignment.end_date.is_(None), PreschoolGroupAssignment.end_date >= today),
         ).all()
         if building_id is None or (building_id, position) in memberships
     }
@@ -93,18 +93,15 @@ def managed_building_ids(user=None):
     if not getattr(user, "is_authenticated", False):
         return set()
     if role_codes(user) & MANAGEMENT_ROLES or is_responsible(user, CHIEF_EDUCATOR):
-        from app.models_legacy import Building
-        return {building_id for building_id, in Building.query.with_entities(Building.id).all()}
+        return {building_id for building_id, in Building.query.with_entities(Building.id).filter_by(is_preschool=True).all()}
     if "SENIOR_EDUCATOR" not in role_codes(user):
         return set()
-    today = date.today()
     return {
         building_id for building_id, in PreschoolBuildingStaff.query.with_entities(PreschoolBuildingStaff.building_id).filter(
             PreschoolBuildingStaff.user_id == user.id,
             PreschoolBuildingStaff.position == "SENIOR_EDUCATOR",
+            PreschoolBuildingStaff.building_id.in_(select(Building.id).where(Building.is_preschool.is_(True))),
             PreschoolBuildingStaff.is_active.is_(True),
-            or_(PreschoolBuildingStaff.start_date.is_(None), PreschoolBuildingStaff.start_date <= today),
-            or_(PreschoolBuildingStaff.end_date.is_(None), PreschoolBuildingStaff.end_date >= today),
         ).all()
     }
 
@@ -113,19 +110,28 @@ def assigned_building_ids(user=None):
     user = user or current_user
     if not getattr(user, "id", None):
         return set()
-    today = date.today()
     return {
         building_id for building_id, in PreschoolBuildingStaff.query.with_entities(PreschoolBuildingStaff.building_id).filter(
             PreschoolBuildingStaff.user_id == user.id,
+            PreschoolBuildingStaff.building_id.in_(select(Building.id).where(Building.is_preschool.is_(True))),
             PreschoolBuildingStaff.is_active.is_(True),
-            or_(PreschoolBuildingStaff.start_date.is_(None), PreschoolBuildingStaff.start_date <= today),
-            or_(PreschoolBuildingStaff.end_date.is_(None), PreschoolBuildingStaff.end_date >= today),
         ).all()
     }
 
 
 def can_manage_staff_in_building(building_id, user=None):
     return building_id is not None and building_id in managed_building_ids(user)
+
+
+def manageable_group_building_ids(user=None):
+    user = user or current_user
+    if is_responsible(user, CONTINGENT_MANAGER):
+        return {building_id for building_id, in Building.query.with_entities(Building.id).filter_by(is_preschool=True).all()}
+    return managed_building_ids(user)
+
+
+def can_manage_group_in_building(building_id, user=None):
+    return building_id is not None and building_id in manageable_group_building_ids(user)
 
 
 def can_view_own_group(user=None):

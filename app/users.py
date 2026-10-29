@@ -229,13 +229,21 @@ def _sync_user_roles_table(user: User):
     existing = UserRole.query.filter_by(user_id=user.id).all()
     if not existing:
         return
+    from app.modules.preschool.models import PreschoolRoleGrant
+
     role_code = (user.role or "VIEWER").upper()
-    role_obj = Role.query.filter_by(code=role_code).first()
+    role_codes = {role_code}
+    role_codes.update(
+        row.role_code for row in PreschoolRoleGrant.query.filter_by(user_id=user.id).all()
+    )
     for ur in existing:
         db.session.delete(ur)
     db.session.flush()
-    if role_obj:
-        db.session.add(UserRole(user_id=user.id, role_id=role_obj.id))
+    for code in role_codes:
+        role_obj = Role.query.filter_by(code=code).first()
+        if role_obj:
+            db.session.add(UserRole(user_id=user.id, role_id=role_obj.id))
+    db.session.expire(user, ["roles"])
 
 
 def _sync_service_specialist(user: User):

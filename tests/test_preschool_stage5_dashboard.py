@@ -16,8 +16,8 @@ def _data(app, make_user):
     assistant = make_user("ASSISTANT_EDUCATOR")
     with app.app_context():
         year = AcademicYear(name="2026/2027", is_current=True)
-        first = Building(name="Сад 1")
-        second = Building(name="Сад 2")
+        first = Building(name="Сад 1", is_preschool=True)
+        second = Building(name="Сад 2", is_preschool=True)
         db.session.add_all([year, first, second])
         db.session.flush()
         group = PreschoolGroup(name="Группа 1", building_id=first.id, academic_year_id=year.id)

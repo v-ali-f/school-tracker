@@ -1,7 +1,6 @@
 {% macro page_header(title, subtitle='', eyebrow='', back_url='', back_label='Назад') -%}
 <header class="ws-page-header">
   <div class="ws-page-heading">
-    {% if back_url %}<a class="ws-page-back" href="{{ back_url }}"><i class="bi bi-arrow-left"></i><span>{{ back_label }}</span></a>{% endif %}
     {% if eyebrow %}<span class="ws-page-eyebrow">{{ eyebrow }}</span>{% endif %}
     <h1 class="ws-page-title">{{ title }}</h1>
     {% if subtitle %}<div class="ws-page-subtitle">{{ subtitle }}</div>{% endif %}

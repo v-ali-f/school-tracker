@@ -12,8 +12,8 @@ def _setup(app, make_user):
     deputy = make_user("DEPUTY_DIRECTOR")
     with app.app_context():
         year = AcademicYear(name="2026/2027", is_current=True)
-        first = Building(name="Детский сад 1")
-        second = Building(name="Детский сад 2")
+        first = Building(name="Детский сад 1", is_preschool=True)
+        second = Building(name="Детский сад 2", is_preschool=True)
         db.session.add_all([year, first, second])
         db.session.flush()
         group = PreschoolGroup(name="Группа 1", academic_year_id=year.id, building_id=first.id)

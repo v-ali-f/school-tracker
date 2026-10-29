@@ -1,40 +1,40 @@
 {% extends "workspace_layout.html" %}
 {% from "components/workspace_ui.html" import page_header, empty_state %}
+{% from "preschool/_employee_search.html" import employee_search %}
 {% block title %}Сотрудники дошкольного отделения{% endblock %}
 {% block workspace_content %}
 <div class="registry-workspace-page">
-  {{ page_header('Сотрудники дошкольного отделения', 'Состав по зданиям из общего реестра школы', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+  {{ page_header('Сотрудники дошкольного отделения', 'Состав по дошкольным корпусам из общего реестра школы', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
   <div class="d-flex gap-2 mb-3"><a class="btn btn-outline-primary" href="{{ url_for('preschool.composition') }}">Педагогический состав</a><a class="btn btn-outline-primary" href="{{ url_for('preschool.dashboard') }}">Показатели</a></div>
+  {% if not buildings %}<div class="registry-matrix-card p-3">{{ empty_state('Корпуса пока не привязаны к группам', 'Укажите дошкольный корпус в сводке контингента, и он появится здесь.', 'bi-buildings') }}<a class="btn btn-outline-primary mt-2" href="{{ url_for('preschool.children') }}">Открыть сводку контингента</a></div>{% endif %}
   {% for building in buildings %}
   <section class="registry-matrix-card mb-3" aria-labelledby="building-{{ building.id }}">
     <div class="p-3 border-bottom"><h2 class="h5 mb-0" id="building-{{ building.id }}">{{ building.name }}</h2></div>
     {% set members = rows|selectattr('building_id', 'equalto', building.id)|list %}
     {% if members %}
     <div class="table-responsive"><table class="table table-hover align-middle registry-matrix mb-0">
-      <thead><tr><th>Сотрудник</th><th>Роль в здании</th><th>Период</th>{% if building.id in editable_building_ids %}<th>Действие</th>{% endif %}</tr></thead>
+      <thead><tr><th>Сотрудник</th><th>Роль в корпусе</th>{% if building.id in editable_building_ids %}<th>Действие</th>{% endif %}</tr></thead>
       <tbody>{% for row in members %}<tr>
         <td><a href="{{ url_for('preschool.staff_profile', user_id=row.user_id) }}">{{ row.user.fio or row.user.username }}</a></td><td>{{ positions.get(row.position, row.position) }}</td>
-        <td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }} — {{ row.end_date.strftime('%d.%m.%Y') if row.end_date else '—' }}</td>
         {% if building.id in editable_building_ids %}<td><form method="post" action="{{ url_for('preschool.building_staff_change', building_id=building.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ row.user_id }}"><input type="hidden" name="position" value="{{ row.position }}"><input type="hidden" name="action" value="revoke"><button class="btn btn-outline-danger btn-sm" type="submit">Снять назначение</button></form></td>{% endif %}
       </tr>{% endfor %}</tbody>
     </table></div>
-    {% else %}<div class="p-3">{{ empty_state('Сотрудники не назначены', 'Выберите сотрудников из общего списка школы.', 'bi-people') }}</div>{% endif %}
+    {% else %}<div class="p-3">{{ empty_state('Сотрудники не назначены', 'Найдите сотрудника по имени и укажите его роль в корпусе.', 'bi-people') }}</div>{% endif %}
     {% set building_groups = groups|selectattr('building_id', 'equalto', building.id)|list %}
-    {% if building_groups %}<div class="p-3 border-top"><h3 class="h6">Группы здания</h3><div class="d-flex flex-wrap gap-2">{% for group in building_groups %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('preschool.group_staff', group_id=group.id) }}">{{ group.name }} · {{ group.academic_year.name if group.academic_year else 'без учебного года' }}</a>{% endfor %}</div></div>{% endif %}
+    {% if building_groups %}<div class="p-3 border-top"><h3 class="h6">Группы корпуса</h3><div class="d-flex flex-wrap gap-2">{% for group in building_groups %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('preschool.group_staff', group_id=group.id) }}">{{ group.name }} · {{ group.academic_year.name if group.academic_year else 'без учебного года' }}</a>{% endfor %}</div></div>{% endif %}
     {% if building.id in editable_building_ids %}
     <div class="p-3 border-top">
       <h3 class="h6">Назначить сотрудника</h3>
       <form method="post" action="{{ url_for('preschool.building_staff_change', building_id=building.id) }}" class="row g-2 align-items-end">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="assign">
-        <div class="col-lg-4"><label class="form-label" for="staff-user-{{ building.id }}">Сотрудник</label><select class="form-select" id="staff-user-{{ building.id }}" name="user_id" required><option value="">Выберите из общего реестра</option>{% for user in users %}<option value="{{ user.id }}">{{ user.fio or user.username }}</option>{% endfor %}</select></div>
-        <div class="col-lg-3"><label class="form-label" for="staff-position-{{ building.id }}">Роль</label><select class="form-select" id="staff-position-{{ building.id }}" name="position" required>{% for code, label in positions.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="col-lg-2"><label class="form-label" for="staff-start-{{ building.id }}">С</label><input class="form-control" type="date" id="staff-start-{{ building.id }}" name="start_date"></div>
-        <div class="col-lg-2"><label class="form-label" for="staff-end-{{ building.id }}">По</label><input class="form-control" type="date" id="staff-end-{{ building.id }}" name="end_date"></div>
-        <div class="col-lg-1"><button class="btn btn-primary" type="submit">Добавить</button></div>
+        <div class="col-lg-6">{{ employee_search('staff-user-' ~ building.id) }}</div>
+        <div class="col-lg-4"><label class="form-label" for="staff-position-{{ building.id }}">Роль в корпусе</label><select class="form-select" id="staff-position-{{ building.id }}" name="position" required>{% for code, label in assignable_positions.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-lg-2"><button class="btn btn-primary w-100" type="submit">Добавить</button></div>
       </form>
     </div>
     {% endif %}
   </section>
   {% endfor %}
 </div>
+<script src="{{ url_for('static', filename='js/preschool_staff_search.js') }}?v=20261029_4" defer></script>
 {% endblock %}

@@ -1,6 +1,6 @@
 from app.core.extensions import db
-from app.models_legacy import AcademicYear
-from app.modules.preschool.access import CHIEF_EDUCATOR, CONTINGENT_MANAGER
+from app.models_legacy import AcademicYear, User
+from app.modules.preschool.access import CHIEF_EDUCATOR, CONTINGENT_MANAGER, SENIOR_EDUCATOR
 from app.modules.preschool.models import (
     PreschoolChild,
     PreschoolGroup,
@@ -91,7 +91,52 @@ def test_admin_assignment_grants_and_revokes_full_access_with_audit(app, client,
         assert PreschoolResponsibilityChange.query.filter_by(kind=CONTINGENT_MANAGER).count() == 2
 
 
-def test_chief_must_be_senior_and_senior_has_preschool_access(app, client, make_user, login):
+def test_multiple_contingent_managers_and_employee_search(app, client, make_user, login):
+    admin = make_user("ADMIN")
+    first = make_user("EDUCATOR")
+    second = make_user("EDUCATOR")
+    login(admin)
+    page = client.get("/preschool/access").get_data(as_text=True)
+    assert 'data-staff-search' in page
+    assert 'contingentUser' not in page
+    matches = client.get(f"/preschool/staff/search?q=test-user-{second}")
+    assert matches.status_code == 200
+    assert [row["id"] for row in matches.get_json()] == [second]
+    for user_id in (first, second):
+        assert client.post("/preschool/access", data={
+            "kind": CONTINGENT_MANAGER, "user_id": user_id,
+        }).status_code == 302
+    with app.app_context():
+        assert PreschoolResponsibility.query.filter_by(kind=CONTINGENT_MANAGER).count() == 2
+    assert client.post("/preschool/access", data={
+        "kind": CONTINGENT_MANAGER, "user_id": first, "action": "revoke",
+    }).status_code == 302
+    login(first)
+    assert client.get("/preschool/children").status_code == 403
+    assert client.get("/preschool/staff/search?q=test").status_code == 403
+    login(second)
+    assert client.get("/preschool/children").status_code in (200, 302)
+
+
+def test_senior_appointment_grants_and_removes_role(app, client, make_user, login):
+    admin = make_user("ADMIN")
+    employee = make_user("VIEWER")
+    login(admin)
+    assert client.post("/preschool/access", data={
+        "kind": SENIOR_EDUCATOR, "user_id": employee,
+    }).status_code == 302
+    with app.app_context():
+        assert db.session.get(User, employee).has_role(SENIOR_EDUCATOR)
+    assert client.post("/preschool/access", data={
+        "kind": SENIOR_EDUCATOR, "user_id": employee, "action": "revoke",
+    }).status_code == 302
+    with app.app_context():
+        assert not db.session.get(User, employee).has_role(SENIOR_EDUCATOR)
+    login(employee)
+    assert client.get("/preschool/").status_code == 403
+
+
+def test_chief_assignment_adds_senior_role_and_preschool_access(app, client, make_user, login):
     director_id = make_user("DIRECTOR")
     senior_id = make_user("SENIOR_EDUCATOR")
     educator_id = make_user("EDUCATOR")
@@ -100,7 +145,9 @@ def test_chief_must_be_senior_and_senior_has_preschool_access(app, client, make_
 
     assert client.post("/preschool/access", data={"kind": CHIEF_EDUCATOR, "user_id": educator_id}).status_code == 302
     with app.app_context():
-        assert PreschoolResponsibility.query.filter_by(kind=CHIEF_EDUCATOR).count() == 0
+        assert PreschoolResponsibility.query.filter_by(kind=CHIEF_EDUCATOR, user_id=educator_id).count() == 1
+        assert PreschoolResponsibility.query.filter_by(kind=SENIOR_EDUCATOR, user_id=educator_id).count() == 1
+        assert db.session.get(User, educator_id).has_role(SENIOR_EDUCATOR)
     assert client.post("/preschool/access", data={"kind": CHIEF_EDUCATOR, "user_id": senior_id}).status_code == 302
 
     login(senior_id)

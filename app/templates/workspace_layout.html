@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20261009_3">
 {% if request.endpoint and request.endpoint.startswith('safety_') %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_registry.css') }}?v=20261027_1">{% endif %}
 <script src="{{ url_for('static', filename='js/workspace_heading.js') }}?v=20261009_3" defer></script>
+<script src="{{ url_for('static', filename='js/workspace_back.js') }}?v=20261029_1" defer></script>
 {% block workspace_head_extra %}{% endblock %}
 {% endblock %}
 {% block breadcrumb %}{% endblock %}
@@ -16,7 +17,7 @@
 {% set ws_title = workspace_page_title|default(workspace_context_title|default(ws_crumbs[-1].label if ws_crumbs else 'Рабочее пространство'), true) %}
 {% set ws_subtitle = workspace_page_subtitle|default(workspace_context_subtitle|default(''), true) %}
 {% set ws_back_url = workspace_back_url|default(ws_crumbs[-2].url if ws_crumbs|length > 1 else (url_for('main.dashboard') if ws_endpoint != 'main.dashboard' else none)) %}
-{% set ws_back_label = workspace_back_label|default('Назад' if ws_crumbs|length > 1 else 'Главная', true) %}
+{% set ws_back_label = 'Назад' %}
 <div class="sp-workspace ws-workspace" id="workspaceShell">
   <input class="sp-menu-toggle" id="workspaceMenuToggle" type="checkbox" aria-hidden="true">
   <aside class="sp-sidebar" id="workspaceSidebar">
@@ -68,7 +69,7 @@
     <header class="sp-topbar">
       <div class="sp-topbar-heading">
         <label class="btn sp-mobile-menu" for="workspaceMenuToggle" role="button" tabindex="0" aria-label="Показать или скрыть боковое меню" aria-controls="workspaceSidebar"><i class="bi bi-list"></i><span>Меню</span></label>
-        {% if ws_back_url %}<a class="sp-topbar-back" href="{{ ws_back_url }}" aria-label="{{ ws_back_label }}"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>{{ ws_back_label }}</span></a>{% endif %}
+        {% if ws_back_url %}<a class="sp-topbar-back" href="{{ ws_back_url }}" aria-label="{{ ws_back_label }}" data-workspace-back><i class="bi bi-arrow-left" aria-hidden="true"></i><span>{{ ws_back_label }}</span></a>{% endif %}
         <div class="sp-topbar-context"><strong role="heading" aria-level="1">{{ ws_title }}</strong>{% if ws_subtitle %}<span>{{ ws_subtitle }}</span>{% endif %}</div>
       </div>
       <div class="sp-topbar-actions">

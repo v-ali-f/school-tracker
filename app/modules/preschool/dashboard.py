@@ -54,8 +54,10 @@ def _require_dashboard_access():
 
 def _allowed_buildings():
     if role_codes() & {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR"}:
-        return Building.query.order_by(Building.name).all()
-    return Building.query.filter(Building.id.in_(managed_building_ids() or {-1})).order_by(Building.name).all()
+        return Building.query.filter_by(is_preschool=True).order_by(Building.name).all()
+    return Building.query.filter(
+        Building.is_preschool.is_(True), Building.id.in_(managed_building_ids() or {-1}),
+    ).order_by(Building.name).all()
 
 
 def _filters():

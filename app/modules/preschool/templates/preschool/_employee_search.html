@@ -1,0 +1,9 @@
+{% macro employee_search(input_id, label='Сотрудник', required=true) %}
+<div class="position-relative" data-staff-search data-search-url="{{ url_for('preschool.staff_search') }}">
+  <label class="form-label" for="{{ input_id }}">{{ label }}</label>
+  <input class="form-control" id="{{ input_id }}" type="search" placeholder="Начните вводить фамилию или имя" autocomplete="off" {% if required %}required{% endif %}
+         aria-autocomplete="list" aria-expanded="false" aria-controls="{{ input_id }}-results">
+  <input type="hidden" name="user_id">
+  <div class="list-group position-absolute start-0 end-0 shadow d-none" id="{{ input_id }}-results" role="listbox" style="z-index: 1050; max-height: 240px; overflow-y: auto;"></div>
+</div>
+{% endmacro %}
