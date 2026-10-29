@@ -1,7 +1,7 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 {% block title %}Настройки профиля — {{ app_display_title }}{% endblock %}
 
-{% block content %}
+{% block workspace_content %}
 <div class="row">
   <div class="col-lg-9 profile-settings-shell">
     <div class="page-head mb-3 profile-settings-head">
@@ -57,6 +57,11 @@
         </a>
       </li>
       {% endif %}
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" href="{{ url_for('professional_development.my') }}">
+          <i class="bi bi-mortarboard me-1"></i>Мои курсы
+        </a>
+      </li>
     </ul>
 
     <div class="tab-content profile-settings-content">

@@ -67,7 +67,7 @@ MODULE_DESCRIPTIONS = {
     "diagnostics": "Диагностики МЦКО, импорт результатов и аналитика",
     "attendance": "Реестр пропусков, аналитика посещаемости, импорт и начало занятий",
     "registries": "Ученики, движение, ОВЗ, ВШУ, КДН, АЗ и другие реестры",
-    "preschool": "Дошкольное отделение: контингент, группы, представители, детодни и аналитика",
+    "preschool": "Дошкольное образование: группы, воспитанники и профессиональные сведения",
     "control_works": "Контрольные работы, результаты выполнения и сводные показатели",
     "olympiads": "Олимпиады: участие, результаты, стадии и аналитика",
     "orders": "Журнал приказов, шаблоны, поиск и архив",
@@ -106,14 +106,14 @@ MODULE_DEFAULT_ROLES = {
     "diagnostics": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
     "attendance": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "KPP", "EDUCATOR", "SENIOR_EDUCATOR"},
     "registries": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
-    "preschool": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "SENIOR_EDUCATOR", "EDUCATOR"},
+    "preschool": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "SENIOR_EDUCATOR", "EDUCATOR", "ASSISTANT_EDUCATOR"},
     "control_works": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER"},
     "olympiads": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER"},
     "orders": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"},
     "class_guidance": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "SOCIAL_PEDAGOG"},
     "service_staff": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "PSYCHOLOGIST", "SOCIAL_PEDAGOG", "LOGOPEDIST", "DEFECTOLOGIST", "TUTOR"},
     "tasks": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR"},
-    "school_plan": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "CLASS_TEACHER", "SENIOR_EDUCATOR"},
+    "school_plan": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR", "ASSISTANT_EDUCATOR"},
     "knowledge_base": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR", "VIEWER"},
     "drive": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "TEACHER", "CLASS_TEACHER", "SENIOR_EDUCATOR", "EDUCATOR"},
     "documents": {"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "CLASS_TEACHER", "PSYCHOLOGIST", "SOCIAL_PEDAGOG"},
@@ -151,6 +151,7 @@ ROLE_LABELS = {
     "AUDITOR": "Аудитор",
     "SENIOR_EDUCATOR": "Старший воспитатель",
     "EDUCATOR": "Воспитатель",
+    "ASSISTANT_EDUCATOR": "Помощник воспитателя",
 }
 
 
@@ -173,7 +174,7 @@ def _role_choices():
     base_roles = [
         "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST",
         "DEPARTMENT_HEAD", "HR_SPECIALIST", "ECONOMIST", "AUDITOR",
-        "TEACHER", "CLASS_TEACHER", "KPP", "SENIOR_EDUCATOR", "EDUCATOR",
+        "TEACHER", "CLASS_TEACHER", "KPP", "SENIOR_EDUCATOR", "EDUCATOR", "ASSISTANT_EDUCATOR",
     ]
     for item in base_roles:
         if item not in values:

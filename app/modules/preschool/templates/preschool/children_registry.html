@@ -1,243 +1,77 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, metric, empty_state %}
+{% block title %}Реестр воспитанников{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page preschool-registry">
+  {{ page_header('Реестр воспитанников', 'Контингент дошкольного отделения', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
 
-<style>
-  /* На странице реестра ДОУ скрываем общие хлебные крошки */
-  body:has(.dou-registry-page) .breadcrumb,
-  body:has(.dou-registry-page) nav[aria-label="breadcrumb"],
-  body:has(.dou-registry-page) .breadcrumbs,
-  body:has(.dou-registry-page) .content-breadcrumbs,
-  body:has(.dou-registry-page) .page-breadcrumbs {
-    display: none !important;
-  }
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    {% if can_manage_preschool_contingent %}
+      <a class="btn btn-outline-primary" href="{{ url_for('preschool.import_children') }}"><i class="bi bi-cloud-upload me-1"></i>Импорт воспитанников</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('preschool.import_representatives') }}"><i class="bi bi-cloud-upload me-1"></i>Импорт представителей</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('preschool.children', academic_year_id=year.id) }}"><i class="bi bi-bar-chart me-1"></i>Сводка</a>
+  </div>
 
-  .dou-registry-page h2 {
-    font-size: 1.35rem;
-    font-weight: 500;
-    color: #24324b;
-  }
+  <div class="ws-metric-grid mb-3">
+    {{ metric('Записей по фильтру', stats.total, 'bi-people', 'success') }}
+    {{ metric('Групп', stats.groups, 'bi-collection', 'success') }}
+    {{ metric('Зданий', stats.buildings, 'bi-building', 'success') }}
+  </div>
 
-  .dou-registry-subtitle {
-    font-size: 0.9rem;
-    color: #64748b;
-  }
+  {% if can_manage_preschool_contingent %}
+    <details class="registry-matrix-card p-3 mb-3">
+      <summary class="fw-semibold">Добавить воспитанника</summary>
+      <form method="post" class="row g-2 mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-4"><label class="form-label" for="newChildLast">Фамилия</label><input class="form-control" id="newChildLast" name="last_name" required maxlength="150"></div>
+        <div class="col-md-4"><label class="form-label" for="newChildFirst">Имя</label><input class="form-control" id="newChildFirst" name="first_name" required maxlength="150"></div>
+        <div class="col-md-4"><label class="form-label" for="newChildMiddle">Отчество</label><input class="form-control" id="newChildMiddle" name="middle_name" maxlength="150"></div>
+        <div class="col-md-4"><label class="form-label" for="newChildGroup">Группа</label><select class="form-select" id="newChildGroup" name="group_id" required><option value="">Выберите</option>{% for item in groups %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label" for="newChildBirth">Дата рождения</label><input class="form-control" id="newChildBirth" type="date" name="birth_date"></div>
+        <div class="col-md-4"><label class="form-label" for="newChildAccount">Личное дело / номер</label><input class="form-control" id="newChildAccount" name="personal_account" maxlength="100"></div>
+        <div class="col-12"><label class="form-label" for="newChildNote">Примечание</label><textarea class="form-control" id="newChildNote" name="note" rows="2"></textarea></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Добавить</button></div>
+      </form>
+    </details>
+  {% endif %}
 
-  .dou-registry-table th {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: #64748b;
-    background: #f8fafc;
-    white-space: nowrap;
-  }
+  <section class="registry-matrix-card">
+    <form method="get" class="row g-2 align-items-end p-3" aria-label="Фильтры реестра">
+      <div class="col-12 col-lg-3"><label class="form-label" for="preschoolSearch">Поиск по ФИО</label><input id="preschoolSearch" class="form-control" type="search" name="q" value="{{ q or '' }}" placeholder="Фамилия или имя"></div>
+      <div class="col-6 col-lg-2"><label class="form-label" for="preschoolYear">Учебный год</label><select id="preschoolYear" class="form-select" name="academic_year_id">{% for item in all_years %}<option value="{{ item.id }}" {% if item.id == year.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-lg-2"><label class="form-label" for="preschoolBuilding">Здание</label><select id="preschoolBuilding" class="form-select" name="building_id"><option value="">Все здания</option>{% for item in buildings %}<option value="{{ item.id }}" {% if selected_building_id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-lg-2"><label class="form-label" for="preschoolGroup">Группа</label><select id="preschoolGroup" class="form-select" name="group_id"><option value="">Все группы</option>{% for item in groups %}<option value="{{ item.id }}" {% if selected_group_id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-lg-2"><label class="form-label" for="preschoolStatus">Статус</label><select id="preschoolStatus" class="form-select" name="status"><option value="active" {% if status == 'active' %}selected{% endif %}>Воспитанники</option><option value="left" {% if status == 'left' %}selected{% endif %}>Выбыли</option><option value="transfer_school" {% if status == 'transfer_school' %}selected{% endif %}>Переведены в школу</option><option value="all" {% if status == 'all' %}selected{% endif %}>Все записи</option></select></div>
+      <div class="col-6 col-lg-1"><label class="form-label" for="preschoolPageSize">На странице</label><select id="preschoolPageSize" class="form-select" name="per_page">{% for size in [20, 50, 100] %}<option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>{% endfor %}</select></div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">Показать</button></div>
+    </form>
+    {% if items %}
+      <div class="table-responsive"><table class="table table-hover align-middle registry-matrix mb-0">
+        <thead><tr><th>№</th><th>Воспитанник</th><th>Группа</th><th>Здание</th><th>Возрастная группа</th><th>Дата рождения</th><th>Статус</th></tr></thead>
+        <tbody>{% for child in items %}<tr>
+          <td>{{ (pagination.first or 1) + loop.index0 }}</td>
+          <td><a href="{{ url_for('preschool.child_card', child_id=child.id) }}">{{ child.full_name }}</a></td>
+          <td>{{ child.group.name if child.group else '—' }}</td>
+          <td>{{ child.group.building.name if child.group and child.group.building else '—' }}</td>
+          <td>{{ child.group.age_level if child.group and child.group.age_level else '—' }}</td>
+          <td>{{ child.birth_date.strftime('%d.%m.%Y') if child.birth_date else '—' }}</td>
+          <td>{{ {'active': 'Воспитанник', 'left': 'Выбыл', 'transfer_school': 'Переведён в школу'}.get(child.status, child.status) }}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}
+      <div class="p-3">{{ empty_state('Воспитанники не найдены', 'Измените фильтры или проверьте выбранный учебный год.', 'bi-people') }}</div>
+    {% endif %}
+  </section>
 
-  .dou-registry-table td {
-    font-size: 0.88rem;
-    vertical-align: middle;
-  }
-
-  .dou-registry-table .dou-num {
-    width: 44px;
-    text-align: center;
-    color: #64748b;
-  }
-
-  .dou-child-link {
-    color: #0d6efd;
-    text-decoration: none;
-    font-weight: 400;
-  }
-
-  .dou-child-link:hover {
-    text-decoration: underline;
-  }
-
-  .dou-actions {
-    white-space: nowrap;
-    text-align: right;
-  }
-
-  .dou-actions .btn {
-    margin-left: 4px;
-  }
-
-  .dou-footer {
-    font-size: 0.82rem;
-    color: #64748b;
-  }
-</style>
-<div class="dou-registry-page">
-
-  <div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-      <h2 class="mb-1">Реестр ДОУ</h2>
-      <div class="dou-registry-subtitle">
-        Контингент дошкольного отделения, группы и представители.
+  {% if pagination.pages > 1 %}
+    <nav class="d-flex justify-content-between align-items-center gap-2 mt-3" aria-label="Страницы реестра">
+      <span>Страница {{ pagination.page }} из {{ pagination.pages }}</span>
+      <div class="btn-group">
+        {% if pagination.has_prev %}<a class="btn btn-outline-secondary" href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, status=status, q=q, per_page=per_page, page=pagination.prev_num) }}">Назад</a>{% endif %}
+        {% if pagination.has_next %}<a class="btn btn-outline-secondary" href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, status=status, q=q, per_page=per_page, page=pagination.next_num) }}">Далее</a>{% endif %}
       </div>
-    </div>
-
-    <div class="btn-group btn-group-sm" role="group" aria-label="Действия с реестром ДОУ">
-      <a class="btn btn-outline-primary" href="{{ url_for('preschool.index') }}">
-        <i class="bi bi-grid"></i><span class="d-none d-md-inline ms-1">ДОУ</span>
-      </a>
-      <a class="btn btn-outline-primary" href="{{ url_for('preschool.import_children') }}">
-        <i class="bi bi-cloud-upload"></i><span class="d-none d-md-inline ms-1">Импорт детей</span>
-      </a>
-      <a class="btn btn-outline-primary" href="{{ url_for('preschool.import_representatives') }}">
-        <i class="bi bi-cloud-upload"></i><span class="d-none d-md-inline ms-1">Импорт представителей</span>
-      </a>
-      <a class="btn btn-primary" href="{{ url_for('preschool.children') }}">
-        <i class="bi bi-plus-lg"></i><span class="d-none d-md-inline ms-1">Добавить</span>
-      </a>
-    </div>
-  </div>
-
-  <ul class="nav nav-tabs mb-3">
-    <li class="nav-item">
-      <a class="nav-link active" href="{{ url_for('preschool.children_registry') }}">
-        Все дети
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('preschool.index') }}">
-        Раздел ДОУ
-      </a>
-    </li>
-  </ul>
-
-  <form method="get" class="row g-2 mb-3 align-items-end">
-    <div class="col-12 col-md-5">
-      <div class="input-group input-group-sm">
-        <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text"
-               name="q"
-               class="form-control"
-               placeholder="Поиск по ФИО ребёнка"
-               value="{{ q or '' }}">
-        <button class="btn btn-outline-secondary" type="submit">Найти</button>
-        {% if q %}
-          <a class="btn btn-outline-secondary" href="{{ url_for('preschool.children_registry') }}">×</a>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="col-6 col-md-2">
-      <select name="academic_year_id" class="form-select form-select-sm" onchange="this.form.submit()">
-        {% for item in all_years %}
-          <option value="{{ item.id }}" {% if year and item.id == year.id %}selected{% endif %}>
-            {{ item.name }}{% if item.is_current %} • текущий{% endif %}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-6 col-md-2">
-      <select name="building_id" class="form-select form-select-sm" onchange="this.form.submit()">
-        <option value="">Здание: все</option>
-        {% for building in buildings %}
-          <option value="{{ building.id }}" {% if selected_building_id and selected_building_id|int == building.id %}selected{% endif %}>
-            {{ building.name }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-6 col-md-2">
-      <select name="group_id" class="form-select form-select-sm" onchange="this.form.submit()">
-        <option value="">Группа: все</option>
-        {% for group in groups %}
-          <option value="{{ group.id }}" {% if selected_group_id and selected_group_id|int == group.id %}selected{% endif %}>
-            {{ group.name }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="col-6 col-md-1">
-      <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
-        <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
-        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-        <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
-      </select>
-    </div>
-  </form>
-
-  <div class="card border-0 shadow-sm" id="itemsCard">
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0 dou-registry-table">
-        <thead>
-          <tr>
-            <th class="dou-num">№</th>
-            <th>ФИО</th>
-            <th>Группа</th>
-            <th>Здание</th>
-            <th>Возрастная группа</th>
-            <th>Дата рождения</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% if items %}
-            {% for child in items %}
-              <tr>
-                <td class="dou-num">{{ (pagination.first or 1) + loop.index0 }}</td>
-                <td>
-                  <a class="dou-child-link" href="{{ url_for('preschool.child_card', child_id=child.id) }}">
-                    {{ child.full_name }}
-                  </a>
-                </td>
-                <td>{{ child.group.name if child.group else '—' }}</td>
-                <td>{{ child.group.building.name if child.group and child.group.building else '—' }}</td>
-                <td>{{ child.group.age_level if child.group and child.group.age_level else '—' }}</td>
-                <td>{{ child.birth_date.strftime('%d.%m.%Y') if child.birth_date else '—' }}</td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="6" class="text-muted py-3">
-                Реестр ДОУ пуст. Используйте импорт для загрузки данных.
-              </td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="d-flex justify-content-between align-items-center mt-2 dou-footer">
-    <div>
-      {% if pagination.total %}
-        Показано {{ pagination.first }}–{{ pagination.last }} из {{ pagination.total }} записей
-      {% else %}
-        Показано 0–0 из 0 записей
-      {% endif %}
-    </div>
-
-    <div class="btn-group btn-group-sm">
-      {% if pagination.has_prev %}
-        <a class="btn btn-outline-secondary"
-           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=1) }}">«</a>
-        <a class="btn btn-outline-secondary"
-           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.prev_num) }}">‹</a>
-      {% else %}
-        <button class="btn btn-outline-secondary" disabled>«</button>
-        <button class="btn btn-outline-secondary" disabled>‹</button>
-      {% endif %}
-
-      <button class="btn btn-outline-secondary" disabled>
-        {{ pagination.page }} / {{ pagination.pages or 1 }}
-      </button>
-
-      {% if pagination.has_next %}
-        <a class="btn btn-outline-secondary"
-           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.next_num) }}">›</a>
-        <a class="btn btn-outline-secondary"
-           href="{{ url_for('preschool.children_registry', academic_year_id=year.id, building_id=selected_building_id, group_id=selected_group_id, q=q, per_page=per_page, page=pagination.pages) }}">»</a>
-      {% else %}
-        <button class="btn btn-outline-secondary" disabled>›</button>
-        <button class="btn btn-outline-secondary" disabled>»</button>
-      {% endif %}
-    </div>
-  </div>
-
+    </nav>
+  {% endif %}
 </div>
-
 {% endblock %}

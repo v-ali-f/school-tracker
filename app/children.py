@@ -6247,13 +6247,13 @@ def incidents_my():
 
 
 @children_bp.route("/incidents/dashboard")
-@require_roles("ADMIN", "METHODIST", "SOCIAL_PEDAGOG", "PSYCHOLOGIST")
+@require_roles("ADMIN", "METHODIST", "SOCIAL_PEDAGOG", "PSYCHOLOGIST", "SENIOR_EDUCATOR")
 def incidents_dashboard():
     return redirect(url_for("children.incidents_dashboard_legacy", **request.args))
 
 
 @children_bp.route("/incidents/dashboard-legacy")
-@require_roles("ADMIN", "METHODIST", "SOCIAL_PEDAGOG", "PSYCHOLOGIST")
+@require_roles("ADMIN", "METHODIST", "SOCIAL_PEDAGOG", "PSYCHOLOGIST", "SENIOR_EDUCATOR")
 def incidents_dashboard_legacy():
     grade = request.args.get("grade", type=int)
     class_id = request.args.get("class_id", type=int)
@@ -6505,7 +6505,7 @@ def incidents_dashboard_legacy():
 
     classes = (
         SchoolClass.query
-        .filter(SchoolClass.academic_year_id == year.id)
+        .filter(SchoolClass.academic_year_id == year_id)
         .order_by(
             SchoolClass.grade.asc().nullslast(),
             SchoolClass.letter.asc().nullslast(),
@@ -8690,7 +8690,7 @@ def roles_admin():
         _ROLE_PRIORITY = ["ADMIN", "DEPUTY_DIRECTOR", "METHODIST", "PSYCHOLOGIST",
                           "SOCIAL_PEDAGOG", "LOGOPEDIST",
                           "DEFECTOLOGIST", "OLIGOPHRENOPEDAGOG", "CLASS_TEACHER",
-                          "TEACHER", "EDUCATOR", "SENIOR_EDUCATOR", "SPECIALIST",
+                          "TEACHER", "EDUCATOR", "SENIOR_EDUCATOR", "ASSISTANT_EDUCATOR", "SPECIALIST",
                           "TUTOR", "KPP", "VIEWER"]
         non_ct = [c for c in selected_role_codes if c != "CLASS_TEACHER"]
         if non_ct:

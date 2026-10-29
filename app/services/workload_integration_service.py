@@ -2,12 +2,21 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+import re
 
 from flask import current_app
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.extensions import db
 from app.models import (
     AcademicYear,
+    EducationPlanLine,
+    EducationPlanLineScope,
+    TeachingGroup,
+    TeachingGroupClass,
+    TeachingMetagroupSource,
+    Department,
+    DepartmentTeacherMembership,
     EducationActivity,
     OrganizationSettings,
     Subject,
@@ -15,7 +24,9 @@ from app.models import (
     TariffLine,
     TariffVersion,
     TeacherLoad,
+    User,
     WorkloadAssignment,
+    WorkloadNeed,
     WorkloadReconciliationItem,
     WorkloadReconciliationRun,
     WorkloadSourceSetting,
@@ -410,6 +421,42 @@ def current_department_load_rows(
 
     query = (
         WorkloadAssignment.query
+        .options(
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).joinedload(TeachingGroup.source_plan_line).joinedload(
+                EducationPlanLine.education_plan
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).joinedload(TeachingGroup.source_plan_line).selectinload(
+                EducationPlanLine.scopes
+            ).joinedload(EducationPlanLineScope.school_class),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).selectinload(TeachingGroup.source_classes).joinedload(
+                TeachingGroupClass.population_snapshot_class
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.teaching_group
+            ).selectinload(TeachingGroup.metagroup_sources).joinedload(
+                TeachingMetagroupSource.source_group
+            ).selectinload(TeachingGroup.source_classes).joinedload(
+                TeachingGroupClass.population_snapshot_class
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.education_activity
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.department
+            ),
+            joinedload(WorkloadAssignment.workload_need).joinedload(
+                WorkloadNeed.building
+            ),
+            joinedload(WorkloadAssignment.employee),
+            joinedload(WorkloadAssignment.department),
+            joinedload(WorkloadAssignment.building),
+        )
         .join(
             WorkloadAssignment.workload_need,
         )
@@ -503,24 +550,91 @@ def current_department_load_rows(
     return rows, tariff_version
 
 
+def is_primary_department_load(row):
+    grade = getattr(row, "grade", None)
+    if grade is not None:
+        return 1 <= grade <= 4
+    label = (
+        getattr(row, "class_label", None)
+        or getattr(row, "class_name", None)
+        or ""
+    )
+    return any(
+        1 <= int(value) <= 4
+        for value in re.findall(r"(?<!\d)(1[01]|[1-9])(?=\D|$)", label)
+    )
+
+
 def department_teacher_ids(
     academic_year_id,
     department_id,
     *,
     building_id=None,
     organization_id=None,
+    apply_overrides=True,
+    preloaded_rows=None,
+    preloaded_version=None,
 ):
-    if not academic_year_id:
+    department = db.session.get(Department, department_id)
+    if department is None:
         return []
-    rows, _ = current_department_load_rows(
-        academic_year_id,
-        department_id=department_id,
-        building_id=building_id,
-        organization_id=organization_id,
+
+    rows, version = (
+        (preloaded_rows, preloaded_version)
+        if preloaded_rows is not None
+        else (
+            current_department_load_rows(
+                academic_year_id,
+                department_id=department_id,
+                building_id=building_id,
+                organization_id=organization_id,
+            )
+            if academic_year_id else ([], None)
+        )
     )
-    return sorted({
-        row.teacher.id for row in rows if row.teacher is not None
-    })
+
+    teacher_ids = {
+        row.teacher.id
+        for row in rows
+        if row.teacher is not None and (
+            department.code != "primary" or is_primary_department_load(row)
+        )
+    }
+    if version is None:
+        legacy = TeacherLoad.query.filter_by(
+            department_id=department_id,
+            is_archived=False,
+        )
+        if academic_year_id:
+            legacy = legacy.filter(db.or_(
+                TeacherLoad.academic_year_id == academic_year_id,
+                TeacherLoad.academic_year_id.is_(None),
+            ))
+        if building_id:
+            legacy = legacy.filter(TeacherLoad.building_id == building_id)
+        teacher_ids.update(
+            row.teacher_id for row in legacy.all()
+            if department.code != "primary" or is_primary_department_load(row)
+        )
+
+    if apply_overrides:
+        for membership in DepartmentTeacherMembership.query.filter_by(
+            department_id=department_id,
+        ).all():
+            if membership.mode == "INCLUDE":
+                teacher_ids.add(membership.teacher_id)
+            else:
+                teacher_ids.discard(membership.teacher_id)
+
+    if not teacher_ids:
+        return []
+    return sorted(
+        teacher_id for teacher_id, in User.query.with_entities(User.id).filter(
+            User.id.in_(teacher_ids),
+            User.is_active_user.is_(True),
+            User.employment_status == "ACTIVE",
+        ).all()
+    )
 
 
 def _decimal_hours(value):

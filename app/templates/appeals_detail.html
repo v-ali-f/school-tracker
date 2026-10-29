@@ -1,179 +1,115 @@
-{% extends "layout.html" %}
-{% block content %}
-<div class="container py-3">
-  <div class="page-head">
-    <div>
-      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / <a href="{{ url_for('appeals.index') }}" class="text-decoration-none text-muted">Обращения</a> / {{ appeal.number or appeal.id }}</nav>
-      <h1 class="page-title">{{ appeal.subject }}</h1>
-      <div class="page-sub">{{ appeal.applicant_name }}</div>
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import status_badge %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/appeals_card.css') }}?v=20261009_3">{% endblock %}
+{% block workspace_content %}
+<div class="appeals-workspace appeals-editor ws-stack">
+  <div class="appeals-status-row">
+    {% if appeal.is_overdue %}{{ status_badge('Просрочено', 'danger', 'bi-exclamation-circle') }}
+    {% elif appeal.status == 'Закрыто' %}{{ status_badge(appeal.status, 'success', 'bi-check-circle') }}
+    {% else %}{{ status_badge(appeal.status, 'info') }}{% endif %}
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="ws-stack appeals-form">
+    <section class="ws-card" aria-label="Основные сведения обращения">
+      <div class="ws-card-body">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label" for="applicant_name">Заявитель / организация</label><input id="applicant_name" class="form-control" name="applicant_name" value="{{ appeal.applicant_name }}" required></div>
+          <div class="col-md-6"><label class="form-label" for="subject">Тема</label><input id="subject" class="form-control" name="subject" value="{{ appeal.subject }}" required></div>
+          <div class="col-12">
+            <div class="appeals-description-heading">
+              <h3 class="form-label mb-0" id="description-title">Содержание обращения</h3>
+              <button type="button" class="btn btn-outline-primary btn-sm" data-description-toggle aria-controls="description-editor" aria-expanded="false"><i class="bi bi-pencil" aria-hidden="true"></i> Редактировать</button>
+            </div>
+            <div class="appeals-description" data-description-view>{% if appeal.description %}{{ appeal.description }}{% else %}<span class="text-muted">Содержание пока не указано.</span>{% endif %}</div>
+            <div id="description-editor" data-description-edit hidden>
+              <label class="visually-hidden" for="description">Содержание обращения</label>
+              <textarea id="description" class="form-control" rows="5" name="description">{{ appeal.description or '' }}</textarea>
+              <div class="ws-field-help">После изменения нажмите «Сохранить».</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% include '_appeal_responsibles.html' %}
+
+    <section class="ws-card" aria-labelledby="appeal-files-title">
+      <header class="ws-card-header"><div><h2 class="ws-section-title" id="appeal-files-title">Прикреплённые файлы</h2><div class="ws-section-subtitle">Все документы по обращению доступны здесь</div></div><span class="ws-status is-info">{{ attachments|length }}</span></header>
+      <div class="ws-card-body">
+        {% if attachments %}
+          <div class="appeals-files">
+          {% for file, available in attachments %}
+            {% if available %}
+            <div class="appeals-file">
+              <i class="bi bi-file-earmark" aria-hidden="true"></i>
+              <span><strong>{{ file.original_filename }}</strong>{% if file.created_at %}<small>{{ file.created_at.strftime('%d.%m.%Y') }}</small>{% endif %}</span>
+              <div class="appeals-file-actions">
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#appealAttachmentModal" data-preview-url="{{ url_for('appeals.preview_attachment', attachment_id=file.id, embed=1) }}" data-preview-title="{{ file.original_filename }}" data-download-url="{{ url_for('appeals.download_attachment', attachment_id=file.id) }}"><i class="bi bi-eye" aria-hidden="true"></i> Просмотр</button>
+                <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('appeals.download_attachment', attachment_id=file.id) }}"><i class="bi bi-download" aria-hidden="true"></i> Скачать</a>
+              </div>
+            </div>
+            {% else %}
+            <div class="appeals-file is-missing"><i class="bi bi-file-earmark-x" aria-hidden="true"></i><span><strong>{{ file.original_filename }}</strong><small>Файл отсутствует в хранилище. Обратитесь к администратору.</small></span></div>
+            {% endif %}
+          {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-muted mb-3">К обращению пока не прикреплены файлы.</div>
+        {% endif %}
+        <label class="form-label" for="attachments">Добавить файлы</label>
+        <input id="attachments" class="form-control" type="file" name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+        <div class="ws-field-help">После выбора файлов нажмите «Сохранить».</div>
+      </div>
+    </section>
+
+    <section class="ws-card" aria-labelledby="appeal-result-title">
+      <header class="ws-card-header"><div><h2 class="ws-section-title" id="appeal-result-title">Ход исполнения</h2><div class="ws-section-subtitle">Результат работы и ответ заявителю</div></div></header>
+      <div class="ws-card-body">
+        <label class="form-label" for="result_text">Результат / комментарий</label>
+        <textarea id="result_text" class="form-control" rows="4" name="result_text">{{ appeal.result_text or '' }}</textarea>
+      </div>
+    </section>
+
+    <details class="ws-card appeals-extra">
+      <summary class="ws-card-header"><span class="ws-section-title">Дополнительные параметры</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+      <div class="ws-card-body row g-3">
+        <div class="col-md-3"><label class="form-label" for="number">Номер</label><input id="number" class="form-control" name="number" value="{{ appeal.number or '' }}"></div>
+        <div class="col-md-3"><label class="form-label" for="received_at">Дата поступления</label><input id="received_at" class="form-control" type="date" name="received_at" value="{{ appeal.received_at.strftime('%Y-%m-%d') if appeal.received_at else '' }}"></div>
+        <div class="col-md-3"><label class="form-label" for="channel">Канал</label><select id="channel" class="form-select" name="channel"><option value="">—</option>{% for c in channels %}<option value="{{ c }}" {% if appeal.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label" for="deadline_at">Срок ответа</label><input id="deadline_at" class="form-control" type="date" name="deadline_at" value="{{ appeal.deadline_at.strftime('%Y-%m-%d') if appeal.deadline_at else '' }}"></div>
+        <div class="col-md-6"><label class="form-label" for="applicant_contact">Контакты заявителя</label><input id="applicant_contact" class="form-control" name="applicant_contact" value="{{ appeal.applicant_contact or '' }}"></div>
+        <div class="col-md-3"><label class="form-label" for="status">Статус</label><select id="status" class="form-select" name="status">{% for s in statuses %}<option value="{{ s }}" {% if appeal.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label" for="answered_at">Дата ответа</label><input id="answered_at" class="form-control" type="date" name="answered_at" value="{{ appeal.answered_at.strftime('%Y-%m-%d') if appeal.answered_at else '' }}"></div>
+        {% if appeal.linked_task_id %}<div class="col-12"><a href="{{ url_for('tasks.task_card', task_id=appeal.linked_task_id) }}">Открыть связанную задачу №{{ appeal.linked_task_id }}</a></div>{% endif %}
+        {% if current_user.role in ['ADMIN', 'DIRECTOR', 'SECRETARY', 'SECRETARY_ACADEMIC', 'DEPUTY_DIRECTOR'] %}
+        <div class="col-12"><button type="submit" class="btn btn-link text-danger p-0" formaction="{{ url_for('appeals.delete', appeal_id=appeal.id) }}" formnovalidate onclick="return confirm('Удалить обращение? Это действие нельзя отменить.');">Удалить обращение</button></div>
+        {% endif %}
+      </div>
+    </details>
+
+    <div class="ws-action-bar appeals-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('appeals.index') }}">К реестру</a>
+      <button type="submit" class="btn btn-primary">Сохранить</button>
+      {% if appeal.status != 'Закрыто' %}<button type="submit" name="action" value="close" class="btn appeals-close-button"><i class="bi bi-check2-circle"></i>Закрыть обращение</button>{% endif %}
     </div>
-    <div class="page-actions">
-      {% if appeal.linked_task_id %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('tasks.task_card', task_id=appeal.linked_task_id) }}"><i class="bi bi-link-45deg me-1"></i>Связанная задача</a>{% endif %}
-      {% if current_user.role in ['ADMIN', 'DIRECTOR', 'SECRETARY', 'SECRETARY_ACADEMIC', 'DEPUTY_DIRECTOR'] %}
-      <form method="post" action="{{ url_for('appeals.delete', appeal_id=appeal.id) }}" onsubmit="return confirm('Удалить обращение? Это действие нельзя отменить.');" class="d-inline">
-        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Удалить</button>
-      </form>
-      {% endif %}
+  </form>
+  <div class="modal fade appeals-attachment-modal" id="appealAttachmentModal" tabindex="-1" aria-labelledby="appealAttachmentModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-md-down">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="appealAttachmentModalTitle">Просмотр файла</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body p-0">
+          <iframe class="appeals-attachment-frame" title="Содержимое вложения" src="about:blank"></iframe>
+        </div>
+        <div class="modal-footer">
+          <a class="btn btn-outline-secondary btn-sm" data-preview-download href="#"><i class="bi bi-download" aria-hidden="true"></i> Скачать</a>
+          <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="alert alert-primary py-2 mb-3">
-  <i class="bi bi-eye me-1"></i>
-  <strong>На контроле:</strong> Директор
 </div>
-<form method="post" enctype="multipart/form-data" class="card soft-card"><div class="card-body row g-3">
-    <div class="col-md-3"><label class="form-label">Номер</label><input class="form-control" name="number" value="{{ appeal.number or '' }}"></div>
-    <div class="col-md-3"><label class="form-label">Дата поступления</label><input class="form-control" type="date" name="received_at" value="{{ appeal.received_at.strftime('%Y-%m-%d') if appeal.received_at else '' }}"></div>
-    <div class="col-md-3"><label class="form-label">Канал</label><select class="form-select" name="channel"><option value="">—</option>{% for c in channels %}<option {% if appeal.channel == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label">Срок ответа</label><input class="form-control" type="date" name="deadline_at" value="{{ appeal.deadline_at.strftime('%Y-%m-%d') if appeal.deadline_at else '' }}"></div>
-    <div class="col-md-6"><label class="form-label">Заявитель / организация</label><input class="form-control" name="applicant_name" value="{{ appeal.applicant_name }}" required></div>
-    <div class="col-md-6"><label class="form-label">Контакты</label><input class="form-control" name="applicant_contact" value="{{ appeal.applicant_contact or '' }}"></div>
-    <div class="col-12"><label class="form-label">Тема</label><input class="form-control" name="subject" value="{{ appeal.subject }}" required></div>
-    <div class="col-12"><label class="form-label">Содержание обращения</label><textarea class="form-control" rows="4" name="description">{{ appeal.description or '' }}</textarea></div>
-    <div class="col-md-6">
-  <label class="form-label">Ответственные</label>
-  <div class="border rounded-4 p-3 bg-light">
-    <input
-      type="text"
-      class="form-control form-control-sm mb-2 js-user-search"
-      placeholder="Поиск по ФИО, логину или роли"
-      autocomplete="off"
-    >
-
-    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="small text-muted">
-        Отметьте одного или нескольких ответственных. Первый выбранный станет основным ответственным.
-      </div>
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm js-select-visible">
-          Выбрать найденных
-        </button>
-        <button type="button" class="btn btn-outline-secondary btn-sm js-clear-visible">
-          Снять найденных
-        </button>
-      </div>
-    </div>
-
-    <div style="max-height:320px;overflow:auto;" class="js-users-list">
-      {% for u in users %}
-        {% set label = u.fio or u.full_name or u.username %}
-        {% set search_text = ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or '')) %}
-        <label
-          class="d-flex align-items-center gap-2 py-1 user-check-item"
-          data-search="{{ search_text|lower }}"
-        >
-          <input type="checkbox"
-                 class="form-check-input m-0"
-                 name="responsible_user_ids"
-                 value="{{ u.id }}"
-                 {% if appeal.responsible_user_ids and (u.id|string) in appeal.responsible_user_ids.split(',') or appeal.responsible_user_id == u.id %}checked{% endif %}>
-          <span>{{ label }}</span>
-          {% if u.role %}
-            <span class="text-muted small">({{ u.role }})</span>
-          {% endif %}
-        </label>
-      {% endfor %}
-    </div>
-  </div>
-</div>
-    <div class="col-md-3"><label class="form-label">Статус</label><select class="form-select" name="status">{% for s in statuses %}<option {% if appeal.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label">Дата ответа</label><input class="form-control" type="date" name="answered_at" value="{{ appeal.answered_at.strftime('%Y-%m-%d') if appeal.answered_at else '' }}"></div>
-    <div class="col-12"><label class="form-label">Результат / ход исполнения</label><textarea class="form-control" rows="4" name="result_text">{{ appeal.result_text or '' }}</textarea></div>
-    <div class="col-12"><label class="form-label">Добавить файлы</label><input class="form-control" type="file" name="attachments" multiple></div>
-    {% if appeal.attachments %}<div class="col-12"><div class="fw-semibold mb-2">Файлы</div>{% for f in appeal.attachments %}<a class="btn btn-sm btn-outline-secondary me-2 mb-2" href="{{ url_for('appeals.download_attachment', attachment_id=f.id) }}">{{ f.original_filename }}</a>{% endfor %}</div>{% endif %}
-    <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Сохранить</button><a class="btn btn-outline-secondary" href="{{ url_for('appeals.index') }}">К реестру</a></div>
-  </div></form>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  function normalizeText(value) {
-    return (value || '')
-      .toString()
-      .toLowerCase()
-      .replaceAll('ё', 'е')
-      .replace(/[.,;:()«»"']/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  document.querySelectorAll('.js-user-search').forEach(function (input) {
-    const box = input.closest('.border');
-    if (!box) return;
-
-    const items = Array.from(box.querySelectorAll('.user-check-item'));
-    const selectVisibleBtn = box.querySelector('.js-select-visible');
-    const clearVisibleBtn = box.querySelector('.js-clear-visible');
-
-    let counter = box.querySelector('.js-search-counter');
-    if (!counter) {
-      counter = document.createElement('div');
-      counter.className = 'small text-muted mt-2 js-search-counter';
-      input.insertAdjacentElement('afterend', counter);
-    }
-
-    function applyFilter() {
-      const q = normalizeText(input.value);
-      let visibleCount = 0;
-
-      items.forEach(function (item) {
-        const raw = item.dataset.search || item.textContent || '';
-        const text = normalizeText(raw);
-        const matched = !q || text.includes(q);
-
-        if (matched) {
-          item.style.setProperty('display', 'flex', 'important');
-        } else {
-          item.style.setProperty('display', 'none', 'important');
-        }
-
-        if (matched) visibleCount += 1;
-      });
-
-      if (!q) {
-        counter.textContent = '';
-      } else if (visibleCount > 0) {
-        counter.textContent = 'Найдено совпадений: ' + visibleCount;
-      } else {
-        counter.textContent = 'Совпадений не найдено';
-      }
-    }
-
-    input.addEventListener('input', applyFilter);
-    input.addEventListener('keyup', applyFilter);
-    input.addEventListener('change', applyFilter);
-
-    input.addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        applyFilter();
-      }
-    });
-
-    if (selectVisibleBtn) {
-      selectVisibleBtn.addEventListener('click', function () {
-        items.forEach(function (item) {
-          if (item.style.display !== 'none') {
-            const cb = item.querySelector('input[type="checkbox"]');
-            if (cb) cb.checked = true;
-          }
-        });
-      });
-    }
-
-    if (clearVisibleBtn) {
-      clearVisibleBtn.addEventListener('click', function () {
-        items.forEach(function (item) {
-          if (item.style.display !== 'none') {
-            const cb = item.querySelector('input[type="checkbox"]');
-            if (cb) cb.checked = false;
-          }
-        });
-      });
-    }
-
-    applyFilter();
-  });
-});
-</script>
-
+<script src="{{ url_for('static', filename='js/appeals_form.js') }}?v=20261009_2"></script>
 {% endblock %}

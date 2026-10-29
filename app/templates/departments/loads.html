@@ -5,10 +5,6 @@
     <h1 class="page-title">Нагрузка учителей</h1>
     <div class="page-sub">Только для просмотра. Данные поступают из матрицы распределения нагрузки.</div>
   </div>
-  <div class="page-actions">
-    {% if not teacher_view_only %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary') }}">Свод</a>{% endif %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
-  </div>
 </div>
 
 <div class="alert alert-light border py-2">

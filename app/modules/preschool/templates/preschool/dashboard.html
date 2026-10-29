@@ -1,0 +1,22 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, empty_state %}
+{% block title %}Показатели дошкольного отделения{% endblock %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/hub_workspace.css') }}?v=20260923_1">{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Показатели дошкольного отделения', 'МЦКО, аттестация и повышение квалификации', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+  <section class="registry-matrix-card p-3 mb-3"><form method="get" class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label">Здание</label><select class="form-select" name="building_id"><option value="">Все доступные здания</option>{% for item in buildings %}<option value="{{ item.id }}" {% if building_id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Учебный год</label><select class="form-select" name="academic_year_id"><option value="">Текущий учебный год</option>{% for item in years %}<option value="{{ item.id }}" {% if year and year.id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">Должность</label><select class="form-select" name="position"><option value="">Все должности</option>{% for code, label in position_labels.items() %}<option value="{{ code }}" {% if position == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">По состоянию на</label><input class="form-control" type="date" name="as_of" value="{{ as_of.isoformat() }}"></div>
+    <div class="col-md-1"><button class="btn btn-primary" type="submit">Показать</button></div>
+  </form></section>
+  {% if not rows %}<section class="registry-matrix-card p-3">{{ empty_state('Сотрудников не найдено', 'Проверьте здание, должность и дату среза.', 'bi-people') }}</section>{% endif %}
+  {% for title, keys in [('Состав и диагностика МЦКО', ['staff_total','mcko_total','mcko_valid','mcko_missing','mcko_expiring','mcko_expired']), ('Аттестация', ['attest_first','attest_highest','attest_position','attest_missing','attest_due','attest_upcoming','attest_expiring','attest_expired','attest_no_hire_date']), ('Повышение квалификации', ['course_with','course_without','course_hours'])] %}
+  <section class="hub-workspace-section mb-3"><header class="hub-workspace-section-head"><div><h2>{{ title }}</h2><span>Нажмите показатель, чтобы увидеть сотрудников</span></div></header>
+    <div class="hub-workspace-grid">{% for key in keys %}<a class="hub-workspace-card is-green" href="{{ url_for('preschool.composition', status=key, building_id=building_id, academic_year_id=year.id if year else None, position=position, as_of=as_of.isoformat()) }}"><span class="hub-workspace-card-icon"><i class="bi bi-bar-chart-line"></i></span><span class="hub-workspace-card-copy"><strong>{{ values[key] }}</strong><span>{{ metric_labels[key] }}</span></span><i class="bi bi-chevron-right hub-workspace-card-arrow" aria-hidden="true"></i></a>{% endfor %}</div>
+  </section>{% endfor %}
+  {% if can_change_settings %}<section class="registry-matrix-card p-3"><h2 class="h5">Порог «истекает скоро»</h2><form method="post" action="{{ url_for('preschool.dashboard_settings') }}" class="d-flex gap-2 align-items-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div><label class="form-label">Месяцев до окончания</label><input class="form-control" type="number" name="warning_months" min="1" max="24" value="{{ warning_months }}" required></div><button class="btn btn-outline-primary" type="submit">Сохранить</button></form></section>{% endif %}
+</div>
+{% endblock %}

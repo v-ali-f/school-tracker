@@ -1,0 +1,32 @@
+<section class="ws-card" aria-labelledby="appeal-responsibles-title">
+  <header class="ws-card-header"><div><h2 class="ws-section-title" id="appeal-responsibles-title">Ответственные</h2><div class="ws-section-subtitle">Показаны только назначенные сотрудники</div></div></header>
+  <div class="ws-card-body">
+    <div class="appeal-selected-users" data-selected-users>
+      {% for u in selected_users %}
+      <label class="appeal-user-option is-selected" data-user-search="{{ ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or '') ~ ' ' ~ (role_labels.get(u.role, u.role) if u.role else ''))|lower }}">
+        <input class="form-check-input" type="checkbox" name="responsible_user_ids" value="{{ u.id }}" checked>
+        <span><strong>{{ u.fio or u.full_name or u.username }}</strong>{% if u.role %}<small>{{ role_labels.get(u.role, u.role) }}</small>{% endif %}</span>
+        <span class="appeal-user-option-action">Назначен</span>
+      </label>
+      {% endfor %}
+      <p class="appeal-empty-users" data-empty-users {% if selected_users %}hidden{% endif %}>Ответственные пока не назначены.</p>
+    </div>
+    <details class="appeal-picker" data-user-picker>
+      <summary class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i>Добавить ответственного</summary>
+      <div class="appeal-picker-panel">
+        <label class="visually-hidden" for="appeal-user-search">Поиск сотрудника</label>
+        <input id="appeal-user-search" type="search" class="form-control form-control-sm" placeholder="Найти по ФИО или должности" autocomplete="off" data-user-search-input>
+        <div class="appeal-picker-list" data-user-options>
+          {% for u in users if u.id not in selected_responsible_ids %}
+          <label class="appeal-user-option" data-user-search="{{ ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or '') ~ ' ' ~ (role_labels.get(u.role, u.role) if u.role else ''))|lower }}">
+            <input class="form-check-input" type="checkbox" name="responsible_user_ids" value="{{ u.id }}">
+            <span><strong>{{ u.fio or u.full_name or u.username }}</strong>{% if u.role %}<small>{{ role_labels.get(u.role, u.role) }}</small>{% endif %}</span>
+            <span class="appeal-user-option-action">Добавить</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="appeal-picker-no-results" data-no-results hidden>Сотрудники не найдены.</p>
+      </div>
+    </details>
+  </div>
+</section>

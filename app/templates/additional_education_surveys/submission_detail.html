@@ -1,6 +1,6 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 {% block title %}Ответ на форму — {{ org_name }}{% endblock %}
-{% block content %}
+{% block workspace_content %}
 <div class="container py-3" style="max-width:960px">
   <div class="page-head">
     <div><nav class="small mb-1 text-muted"><a href="{{ url_for('additional_education_surveys.results', survey_id=survey.id) }}" class="text-decoration-none text-muted">Результаты формы</a> / Ответ</nav><h1 class="page-title">Ответ от {{ submission.submitted_at.strftime('%d.%m.%Y %H:%M') }}</h1><div class="page-sub">{{ survey.title }}</div></div>

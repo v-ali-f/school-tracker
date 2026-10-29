@@ -1,0 +1,17 @@
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/appeals_card.css') }}?v=20261009_3">{% endblock %}
+{% block workspace_content %}
+<div class="appeals-workspace ws-stack">
+  <section class="ws-card" aria-label="Содержимое файла">
+    <div class="ws-card-body appeals-preview-body">
+      <div class="appeals-preview-toolbar"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('appeals.download_attachment', attachment_id=attachment.id) }}"><i class="bi bi-download" aria-hidden="true"></i> Скачать</a></div>
+      {% if preview_error %}<div class="alert alert-warning mb-0">{{ preview_error }}</div>
+      {% elif inline_url %}<iframe class="appeals-preview-frame" src="{{ inline_url }}" title="Просмотр файла {{ attachment.original_filename }}"></iframe>
+      {% elif archive_names is not none %}
+        <p class="text-muted">Содержимое архива{% if archive_names|length == 100 %} (первые 100 файлов){% endif %}</p>
+        {% if archive_names %}<ul class="appeals-archive-list">{% for name in archive_names %}<li>{{ name }}</li>{% endfor %}</ul>{% else %}<p>Архив пуст.</p>{% endif %}
+      {% else %}<div class="appeals-preview-document">{{ preview_html|safe }}</div>{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

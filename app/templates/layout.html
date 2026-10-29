@@ -49,7 +49,7 @@
   <link rel="icon" href="{{ url_for('static', filename='brand/altair/favicon.ico') }}?v=20260611_brand_1">
   <link rel="apple-touch-icon" href="{{ altair_app_icon_url }}?v=20260611_brand_1">
 
-{% if request.path.startswith('/preschool') %}
+{% if request.path.startswith('/preschool') and not use_workspace_shell|default(false) %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/preschool_standard.css') }}?v=20260604_9">
 {% endif %}
 
@@ -77,6 +77,9 @@
   'DEFECTOLOGIST': 'Учитель-дефектолог',
   'TUTOR': 'Тьютор',
   'ASSISTANT': 'Ассистент',
+  'ASSISTANT_EDUCATOR': 'Помощник воспитателя',
+  'EDUCATOR': 'Воспитатель',
+  'SENIOR_EDUCATOR': 'Старший воспитатель',
   'SPECIALIST': 'Специалист',
   'SUPPORT': 'Сопровождение',
   'DEPUTY_DIRECTOR': 'Заместитель директора',
@@ -225,7 +228,7 @@
   </div>
 </nav>
 
-<div class="container my-4 {% if (request.path == '/' and not use_workspace_shell|default(false)) or request.path.startswith('/documents/registers') %}portal-wide-container{% endif %} {% if request.path.startswith('/preschool') %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
+<div class="container my-4 {% if (request.path == '/' and not use_workspace_shell|default(false)) or request.path.startswith('/documents/registers') %}portal-wide-container{% endif %} {% if request.path.startswith('/preschool') and not use_workspace_shell|default(false) %}preschool-wide-container{% endif %} {% if request.path.startswith('/contingent') %}contingent-compact-container{% endif %}">
 
   {% block breadcrumb %}
   {% if auto_breadcrumbs %}

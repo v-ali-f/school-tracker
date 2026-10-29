@@ -6,6 +6,15 @@ from app.services.org_settings_service import get_active_organization_settings
 
 def register_context_processors(app, has_permission, build_menu_flags):
     @app.context_processor
+    def inject_workspace_navigation_fallback():
+        def workspace_default_navigation():
+            from app.modules.hub.routes import build_home_context
+
+            return build_home_context()
+
+        return {"workspace_default_navigation": workspace_default_navigation}
+
+    @app.context_processor
     def inject_permissions():
         def can(permission_code: str):
             return has_permission(permission_code)
@@ -166,6 +175,8 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'children.comments_registry':  [HOME, ('Комментарии', None)],
             'children.social_passport_dashboard': [HOME, ('Социальные паспорта', None)],
             'children.social_passport_registry':  [HOME, ('Социальные паспорта', None)],
+            'children.social_passport_class':     [HOME, ('Социальные паспорта', 'children.social_passport_registry'), ('Класс', None)],
+            'children.social_passport_summary':   [HOME, ('Социальные паспорта', 'children.social_passport_registry'), ('Сводка', None)],
             # Пропуска
             'children.attendance_passes':  [HOME, ('Пропуска', None)],
             'children.attendance_pass_new':[HOME, ('Пропуска', 'children.attendance_passes'), ('Новый пропуск', None)],
@@ -181,6 +192,11 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'tasks.notifications':         [HOME, ('Задачи', 'tasks.my_tasks'), ('Уведомления', None)],
             'tasks.task_notification_settings': [HOME, ('Задачи', 'tasks.my_tasks'), ('Настройки', None)],
             'tasks.templates_list':        [HOME, ('Задачи', 'tasks.my_tasks'), ('Шаблоны', None)],
+            # Обращения
+            'appeals.index':               [HOME, ('Реестр обращений', None)],
+            'appeals.new':                 [HOME, ('Реестр обращений', 'appeals.index'), ('Новое обращение', None)],
+            'appeals.detail':              [HOME, ('Реестр обращений', 'appeals.index'), ('Карточка обращения', None)],
+            'appeals.preview_attachment':  [HOME, ('Реестр обращений', 'appeals.index'), ('Просмотр файла', None)],
             # Пользователи и роли
             'children.users_list':         [HOME, ('Пользователи', None)],
             'users.users_list':            [HOME, ('Пользователи', None)],
@@ -190,9 +206,24 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'auth.profile_settings':              [HOME, ('Профиль', None), ('Настройки', None)],
             'auth.profile_notifications':         [HOME, ('Профиль', None), ('Уведомления', None)],
             'auth.profile_settings_notifications':[HOME, ('Профиль', None), ('Уведомления', None)],
+            'auth.profile_max':            [HOME, ('Профиль', 'auth.profile_settings'), ('MAX-бот', None)],
+            # База знаний и формы сбора
+            'knowledge.knowledge_list':    [HOME, ('База знаний', None)],
+            'knowledge.knowledge_view':    [HOME, ('База знаний', 'knowledge.knowledge_list'), ('Материал', None)],
+            'knowledge.knowledge_admin':   [HOME, ('База знаний', 'knowledge.knowledge_list'), ('Управление', None)],
+            'knowledge.knowledge_new':     [HOME, ('База знаний', 'knowledge.knowledge_admin'), ('Новый материал', None)],
+            'knowledge.knowledge_edit':    [HOME, ('База знаний', 'knowledge.knowledge_admin'), ('Редактировать материал', None)],
+            'additional_education_surveys.index': [HOME, ('Формы сбора', None)],
+            'additional_education_surveys.new': [HOME, ('Формы сбора', 'additional_education_surveys.index'), ('Новая форма', None)],
+            'additional_education_surveys.edit': [HOME, ('Формы сбора', 'additional_education_surveys.index'), ('Настройка формы', None)],
+            'additional_education_surveys.results': [HOME, ('Формы сбора', 'additional_education_surveys.index'), ('Результаты', None)],
+            'additional_education_surveys.submission_detail': [HOME, ('Формы сбора', 'additional_education_surveys.index'), ('Ответ', None)],
+            'additional_education_surveys.sharing': [HOME, ('Формы сбора', 'additional_education_surveys.index'), ('Доступ к результатам', None)],
             # Хаб (темы)
             'hub.incidents':               [HOME, ('Инциденты', None)],
             'hub.classroom':               [HOME, ('Сопровождение учеников', None)],
+            'hub.classroom_groups':        [HOME, ('Классное руководство', 'hub.classroom'), ('Учебные группы', None)],
+            'hub.classroom_curriculum':    [HOME, ('Классное руководство', 'hub.classroom'), ('Учебный план', None)],
             'hub.contingent':              [HOME, ('Контингент', None)],
             'hub.registries':              [HOME, ('Основные реестры', None)],
             'hub.management':              [HOME, ('Управленческий контур', None)],
@@ -280,6 +311,8 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'iom.create_card':             [HOME, ('ИОМ', 'iom.registry'), ('Новая карточка', None)],
             'iom.card_view':               [HOME, ('ИОМ', 'iom.registry'), ('Карточка', None)],
             'iom.edit_card':               [HOME, ('ИОМ', 'iom.registry'), ('Редактировать', None)],
+            'datalens.class_rating_page':  [HOME, ('Аналитика', None), ('Класс', None)],
+            'reports.report_az':           [HOME, ('Отчёты', None), ('Академическая задолженность', None)],
             # План работы школы
             'school_plan.index':           [HOME, ('План работы школы', None)],
             'school_plan.week_view':       [HOME, ('План работы школы', 'school_plan.index'), ('Неделя', None)],
@@ -307,6 +340,10 @@ def register_context_processors(app, has_permission, build_menu_flags):
             'preschool':           ('ДОУ',                  'preschool.index'),
             'role_access_admin':   ('Настройка ролей',      'role_access_admin.settings'),
             'organization_settings': ('Настройки организации', 'organization_settings.settings_form'),
+            'knowledge':           ('База знаний',          'knowledge.knowledge_list'),
+            'additional_education_surveys': ('Формы сбора', 'additional_education_surveys.index'),
+            'datalens':            ('Аналитика',            'main.dashboard'),
+            'reports':             ('Отчёты',               'main.dashboard'),
         }
 
         crumbs_def = MAP.get(endpoint)

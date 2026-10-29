@@ -25,7 +25,7 @@ def _users_workspace_context():
 
 ROLE_OPTIONS = [
     "ADMIN", "DIRECTOR", "CLASS_TEACHER", "CURATOR", "TEACHER", "VIEWER", "METHODIST", "KPP",
-    "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT", "SENIOR_EDUCATOR", "EDUCATOR",
+    "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT", "SENIOR_EDUCATOR", "EDUCATOR", "ASSISTANT_EDUCATOR",
 ]
 ROLE_LABELS = {
     "ADMIN": "Администратор",
@@ -45,6 +45,7 @@ ROLE_LABELS = {
     "ASSISTANT": "Ассистент",
     "SENIOR_EDUCATOR": "Старший воспитатель",
     "EDUCATOR": "Воспитатель",
+    "ASSISTANT_EDUCATOR": "Помощник воспитателя",
     "DEPUTY_DIRECTOR": "Заместитель директора",
     "DEPARTMENT_HEAD": "Руководитель кафедры",
     "HR_SPECIALIST": "Специалист по кадрам",
@@ -77,6 +78,7 @@ RUSSIAN_ROLE_MAP = {
     "ассистент": "ASSISTANT",
     "старший воспитатель": "SENIOR_EDUCATOR",
     "воспитатель": "EDUCATOR",
+    "помощник воспитателя": "ASSISTANT_EDUCATOR",
 }
 SERVICE_ROLE_CODES = {"METHODIST", "OLIGOPHRENOPEDAGOG", "SOCIAL_PEDAGOG", "LOGOPEDIST", "PSYCHOLOGIST", "DEFECTOLOGIST", "TUTOR", "ASSISTANT"}
 

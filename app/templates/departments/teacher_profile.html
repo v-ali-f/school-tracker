@@ -11,13 +11,6 @@
     <h1 class="page-title">{% if is_self_profile %}Мой профиль преподавателя{% else %}Профиль преподавателя{% endif %}</h1>
     <div class="page-sub">Персональные сведения, профессиональное развитие и педагогическая нагрузка</div>
   </div>
-  <div class="page-actions">
-    {% if can_view_departments_hub %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.summary', academic_year_id=academic_year_id) }}"><i class="bi bi-arrow-left"></i> К своду кафедр</a>
-    {% else %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}"><i class="bi bi-arrow-left"></i> На главную</a>
-    {% endif %}
-  </div>
 </div>
 
 <div class="card teacher-profile-identity mb-2">
@@ -80,15 +73,31 @@
 </div></div>
 {% endif %}
 
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><section class="card h-100"><div class="card-body">
+    <h2 class="section-title mb-1">Мои результаты контрольных</h2>
+    <div class="small text-muted mb-3">Только работы, закреплённые за {{ teacher.fio or teacher.username }}.</div>
+    <div class="teacher-result-metrics"><span>Результатов <strong>{{ teacher_control_stats.total_results }}</strong></span><span>Средний % <strong>{{ teacher_control_stats.avg_percent if teacher_control_stats.avg_percent is not none else '—' }}</strong></span></div>
+    {% if teacher_control_stats.by_subject %}<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in teacher_control_stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="small text-muted">Пока нет результатов.</div>{% endif %}
+  </div></section></div>
+  <div class="col-lg-6"><section class="card h-100"><div class="card-body">
+    <h2 class="section-title mb-1">Моя аналитика диагностик</h2>
+    <div class="small text-muted mb-3">Результаты диагностик, закреплённые за педагогом.</div>
+    <div class="teacher-result-metrics"><span>Результатов <strong>{{ teacher_diagnostics_stats.total_results }}</strong></span><span>Средний % <strong>{{ teacher_diagnostics_stats.avg_percent if teacher_diagnostics_stats.avg_percent is not none else '—' }}</strong></span></div>
+    {% if teacher_diagnostics_stats.by_subject %}<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Диагностика</th><th class="text-end">Средний %</th><th class="text-end">Результатов</th></tr></thead><tbody>{% for item in teacher_diagnostics_stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg if item.avg is not none else '—' }}</td><td class="text-end">{{ item.count }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="small text-muted">Пока нет результатов.</div>{% endif %}
+  </div></section></div>
+</div>
+
 {% if mcko_overview or can_edit_professional %}
 <div class="card mb-4"><div class="card-body">
   <div class="d-flex justify-content-between align-items-start gap-3">
     <div>
       <h2 class="section-title mb-1" id="teacher-mcko">Результаты МЦКО</h2>
-      <div class="small text-muted">Актуальность определяется по сроку три календарных года с даты диагностики.</div>
+      <div class="small text-muted">Каждый предмет диагностики показан отдельно. Срок действия — три года с даты диагностики.</div>
     </div>
     {% if mcko_overview %}<span class="professional-status-badge professional-status-{{ mcko_overview.status }}">{{ mcko_overview.status_label }}</span>{% endif %}
   </div>
+  {% if can_manage_mcko_registry and not can_edit_professional %}<div class="mt-2"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('professional_registry.mcko_new', teacher_id=teacher.id) }}"><i class="bi bi-plus-lg"></i> Добавить результат</a></div>{% endif %}
   {% if mcko_rows %}
   <div class="registry-mobile-scroll-hint mt-3"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
   <div class="registry-matrix-card mt-3"><div class="registry-table-scroll" tabindex="0" aria-label="Результаты МЦКО педагога"><table class="registry-matrix registry-matrix-wide">
@@ -102,7 +111,7 @@
     <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2 mt-1">
       <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
       <input type="hidden" name="academic_year_id" value="{{ academic_year_id or '' }}">
-      <div class="col-md-4"><label class="form-label">Предмет</label><select class="form-select" name="subject_id" required><option value="">Выберите предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label">Вид диагностики</label><select class="form-select" name="subject_id" required><option value="">Выберите вид диагностики</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><label class="form-label">Уровень</label><select class="form-select" name="level" required><option value="">Выберите уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="col-md-3"><label class="form-label">Дата диагностики</label><input class="form-control" type="date" name="passed_at" required></div>
       <div class="col-md-4"><label class="form-label">Номер сертификата</label><input class="form-control" name="certificate_number" maxlength="120"></div>
@@ -114,30 +123,18 @@
 </div></div>
 {% endif %}
 
-{% if course_rows or can_edit_professional %}
-<div class="card mb-4"><div class="card-body">
-  <h2 class="section-title">Курсы повышения квалификации</h2>
+{% if course_rows or can_edit_courses %}
+<div class="card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-start gap-2">
+    <div><h2 class="section-title mb-1">Курсы повышения квалификации</h2><div class="small text-muted">{{ training_status.label }}{% if training_status.latest %} · Последний курс: {{ training_status.latest }}{% endif %}{% if training_status.next %} · Следующий плановый период: {{ training_status.next }}{% endif %}</div></div>
+    {% if can_edit_courses %}<a class="btn btn-primary btn-sm" href="{{ url_for('professional_development.new_course', teacher_id=teacher.id) }}">Добавить курс</a>{% endif %}
+  </div>
   {% if course_rows %}
-  <div class="registry-mobile-scroll-hint mt-3"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
-  <div class="registry-matrix-card mt-3"><div class="registry-table-scroll" tabindex="0" aria-label="Курсы повышения квалификации"><table class="registry-matrix registry-matrix-medium">
-    <thead><tr><th>Курс</th><th>Организация</th><th class="text-end">Часы</th><th>Период</th><th>Примечание</th>{% if can_edit_professional %}<th></th>{% endif %}</tr></thead>
-    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="registry-cell-center">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }}{% if row.end_date %} — {{ row.end_date.strftime('%d.%m.%Y') }}{% endif %}</td><td>{{ row.notes or '—' }}</td>{% if can_edit_professional %}<td class="registry-cell-center"><form method="post" action="{{ url_for('departments.archive_course', record_id=row.id) }}"><button class="btn btn-outline-danger registry-row-action" type="submit" title="Убрать запись" aria-label="Убрать запись"><i class="bi bi-trash"></i></button></form></td>{% endif %}</tr>{% endfor %}</tbody>
+  <div class="registry-mobile-scroll-hint mt-2"><i class="bi bi-arrow-left-right"></i> Таблица прокручивается по горизонтали</div>
+  <div class="registry-matrix-card mt-2"><div class="registry-table-scroll" tabindex="0" aria-label="Курсы повышения квалификации"><table class="registry-matrix registry-matrix-wide">
+    <thead><tr><th>Курс</th><th>Организация</th><th>Часы</th><th>Период</th><th>Источник</th>{% if can_edit_courses %}<th>Действия</th>{% endif %}</tr></thead>
+    <tbody>{% for row in course_rows %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td class="registry-cell-center">{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td><td class="registry-cell-center registry-cell-nowrap">{% if row.end_date %}{{ row.end_date.strftime('%d.%m.%Y') }}{% elif row.start_date %}{{ row.start_date.strftime('%d.%m.%Y') }}{% elif row.source_year is defined %}{{ row.source_year }}/{{ row.source_year + 1 }}{% else %}—{% endif %}</td><td>{{ 'Загруженная таблица' if row.source_year is defined else 'Добавлен вручную' }}</td>{% if can_edit_courses %}<td class="registry-cell-nowrap"><a href="{{ url_for('professional_development.edit_course', kind='imported' if row.source_year is defined else 'manual', record_id=row.id) }}">Редактировать</a></td>{% endif %}</tr>{% endfor %}</tbody>
   </table></div></div>
-  {% endif %}
-  {% if can_edit_professional %}
-  <details class="mt-3">
-    <summary class="btn btn-outline-primary btn-sm">Добавить курс</summary>
-    <form method="post" action="{{ url_for('departments.add_course') }}" class="row g-2 mt-1">
-      <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
-      <div class="col-md-6"><label class="form-label">Название курса</label><input class="form-control" name="title" required></div>
-      <div class="col-md-4"><label class="form-label">Организация</label><input class="form-control" name="provider"></div>
-      <div class="col-md-2"><label class="form-label">Часы</label><input class="form-control" type="number" min="0" step="0.1" name="hours"></div>
-      <div class="col-md-3"><label class="form-label">Дата начала</label><input class="form-control" type="date" name="start_date"></div>
-      <div class="col-md-3"><label class="form-label">Дата окончания</label><input class="form-control" type="date" name="end_date"></div>
-      <div class="col-md-4"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
-      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Сохранить</button></div>
-    </form>
-  </details>
   {% endif %}
 </div></div>
 {% endif %}

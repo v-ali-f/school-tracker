@@ -2,7 +2,7 @@
 
 {% extends "tasks/workspace.html" %}
 {% block tasks_head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/tasks_list.css') }}?v=20260924_1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tasks_list.css') }}?v=20261009_1">
 {% endblock %}
 {% block tasks_content %}
 {% set current_view = request.args.get('view') or ('archive' if list_kind == 'archive' else 'kanban') %}

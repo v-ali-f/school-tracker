@@ -1,0 +1,19 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, empty_state %}
+{% block title %}Достижения дошкольного отделения{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Достижения дошкольного отделения', 'Достижения воспитанников и профессиональные результаты сотрудников', 'Профессиональные реестры') }}
+  <section class="registry-matrix-card p-3 mb-3"><form method="get" class="row g-2 align-items-end">
+    <div class="col-md-6"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ search }}" placeholder="Сотрудник или мероприятие"></div>
+    <div class="col-md-3"><label class="form-label">Вид</label><select class="form-select" name="kind"><option value="ALL" {% if kind == 'ALL' %}selected{% endif %}>Все</option><option value="CHILD" {% if kind == 'CHILD' %}selected{% endif %}>Достижения обучающихся</option><option value="PEDAGOGICAL" {% if kind == 'PEDAGOGICAL' %}selected{% endif %}>Педагогические достижения</option></select></div>
+    <div class="col-md-3"><button class="btn btn-primary" type="submit">Показать</button></div>
+  </form></section>
+  <section class="registry-matrix-card">
+    {% if items %}<div class="table-responsive"><table class="table table-hover align-middle registry-matrix mb-0"><thead><tr><th>Вид</th><th>Сотрудник</th><th>Мероприятие</th><th>Воспитанник или группа</th><th>Дата</th><th>Уровень</th><th>Результат</th><th>Документ</th></tr></thead><tbody>{% for row in items %}<tr>
+      <td>{{ 'Достижение обучающихся' if row.kind == 'CHILD' else 'Педагогическое достижение' }}</td><td><a href="{{ url_for('preschool.staff_profile', user_id=row.teacher_id) }}">{{ row.teacher.fio or row.teacher.username }}</a></td><td>{{ row.event_name }}</td><td>{{ row.child.full_name if row.child else (row.group.name if row.group else '—') }}</td><td>{{ row.event_date.strftime('%d.%m.%Y') if row.event_date else '—' }}</td><td>{{ row.level or '—' }}</td><td>{{ row.result or '—' }}{% if row.award %} · {{ row.award }}{% endif %}</td><td>{{ row.document or '—' }}</td>
+    </tr>{% endfor %}</tbody></table></div>{% else %}<div class="p-3">{{ empty_state('Достижения не найдены', 'Измените поиск или фильтр.', 'bi-award') }}</div>{% endif %}
+  </section>
+  {% if pagination.pages > 1 %}<nav class="d-flex gap-2 mt-3" aria-label="Страницы реестра">{% if pagination.has_prev %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('professional_registry.preschool_achievements_registry', page=pagination.prev_num, q=search, kind=kind) }}">Назад</a>{% endif %}<span class="align-self-center">{{ pagination.page }} из {{ pagination.pages }}</span>{% if pagination.has_next %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('professional_registry.preschool_achievements_registry', page=pagination.next_num, q=search, kind=kind) }}">Далее</a>{% endif %}</nav>{% endif %}
+</div>
+{% endblock %}

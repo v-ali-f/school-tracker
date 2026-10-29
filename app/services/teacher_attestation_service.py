@@ -23,8 +23,9 @@ def position_compliance_due_at(
     *,
     last_decision_date: date | None = None,
 ) -> date | None:
-    basis = last_decision_date or employment_start_date
-    return add_calendar_years(basis, 2)
+    if last_decision_date:
+        return add_calendar_years(last_decision_date, 5)
+    return add_calendar_years(employment_start_date, 2)
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ def attestation_view(record, *, as_of=None):
     is_indefinite = bool(record.is_indefinite)
     valid_until = record.valid_until
     if category == "POSITION_COMPLIANCE" and not is_indefinite:
-        valid_until = valid_until or position_compliance_due_at(
+        valid_until = position_compliance_due_at(
             None,
             last_decision_date=record.decision_date,
         )
@@ -117,7 +118,7 @@ def _employment_requirement(teacher, *, as_of):
             effective_valid_until=None,
             basis_label="Дата приёма не указана",
         )
-    if due_at < as_of:
+    if due_at <= as_of:
         status = "EXPIRED"
         status_label = "Необходимо пройти аттестацию"
     elif due_at <= add_calendar_months(as_of, ATTESTATION_WARNING_MONTHS):
@@ -156,6 +157,7 @@ def attestation_overviews_for_teachers(teacher_ids, *, as_of=None):
     records = TeacherAttestation.query.filter(
         TeacherAttestation.teacher_id.in_(teacher_ids),
         TeacherAttestation.is_archived.is_(False),
+        TeacherAttestation.decision_date <= as_of,
     ).order_by(
         TeacherAttestation.teacher_id.asc(),
         TeacherAttestation.decision_date.desc(),
@@ -197,8 +199,8 @@ def attestation_overviews_for_teachers(teacher_ids, *, as_of=None):
             selected = position_view
             basis_label = "От последней аттестации"
         elif category_view:
-            selected = category_view
-            basis_label = "Квалификационная категория"
+            result[teacher_id] = _employment_requirement(teacher, as_of=as_of)
+            continue
         else:
             result[teacher_id] = _employment_requirement(teacher, as_of=as_of)
             continue

@@ -7,10 +7,11 @@ import re
 from collections import defaultdict
 from datetime import date, datetime
 
-from flask import Blueprint, flash, g, redirect, render_template, request, url_for, abort
+from flask import Blueprint, current_app, flash, g, redirect, render_template, request, url_for, abort
 from flask_login import current_user, login_required
 from openpyxl import load_workbook
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
 from app.services.education_activity_service import (
@@ -18,10 +19,12 @@ from app.services.education_activity_service import (
     get_or_create_subject_activity,
     get_subject_activity,
     list_subject_activities,
+    sync_legacy_department_subject_links,
 )
 from app.services.workload_integration_service import (
     current_department_load_rows,
     department_teacher_ids,
+    is_primary_department_load,
 )
 from app.services.teacher_mcko_service import (
     MCKO_LEVEL_LABELS,
@@ -30,6 +33,11 @@ from app.services.teacher_mcko_service import (
     mcko_results_for_teachers,
     normalize_mcko_level,
 )
+from app.services.teacher_mcko_activity_service import (
+    assign_mcko_activity,
+    get_mcko_activity,
+    mcko_activity_options,
+)
 from app.services.teacher_attestation_service import (
     ATTESTATION_CATEGORY_LABELS,
     attestation_overviews_for_teachers,
@@ -37,6 +45,7 @@ from app.services.teacher_attestation_service import (
     position_compliance_due_at,
 )
 from app.services.teacher_professional_service import professional_entry_source
+from app.services.professional_development_service import course_status, imported_and_manual_courses, staff_overview
 from app.services.teacher_professional_audit_service import (
     CHANGE_ARCHIVED,
     CHANGE_CREATED,
@@ -51,6 +60,7 @@ from .models import (
     AcademicYear,
     Department,
     DepartmentLeader,
+    DepartmentTeacherMembership,
     DepartmentSubject,
     Debt,
     EducationActivity,
@@ -63,17 +73,21 @@ from .models import (
     User,
     WORKLOAD_APPROVAL_STATUS_LABELS,
 )
-from .models.diagnostics import DiagnosticResult, DiagnosticSession
+from .models.diagnostics import DiagnosticResult, DiagnosticSession, DiagnosticTeacherBinding
 from .permissions import (
     CLASS_TEACHER,
     DEPARTMENT_HEAD,
     METHODIST,
     TEACHER,
     has_permission,
+    has_any_role,
     has_role,
     is_admin,
 )
-from .services.olympiad_stats_service import department_stats as olympiad_department_stats, dashboard_stats as olympiad_dashboard_stats
+from .services.olympiad_stats_service import (
+    department_stats as olympiad_department_stats,
+    department_overview_stats as olympiad_department_overview_stats,
+)
 from app.users import register_unmatched_staff
 from app.utils.user_matching import find_existing_user
 
@@ -234,6 +248,8 @@ def _extract_grade_from_class_text(class_text: Optional[str]):
 
 
 def _ensure_default_departments():
+    if current_app.extensions.get("departments_defaults_ensured"):
+        return
     if getattr(g, '_departments_ensured', False):
         return
     g._departments_ensured = True
@@ -256,6 +272,14 @@ def _ensure_default_departments():
             activity, activity_created = get_or_create_subject_activity(subject_name)
             if activity_created:
                 changed = True
+            inactive_override = EducationActivityDepartment.query.filter_by(
+                department_id=dep.id,
+                education_activity_id=activity.id,
+                valid_from=None,
+                is_active=False,
+            ).first()
+            if inactive_override:
+                continue
             legacy_subject_id = (
                 activity.legacy_subject.id
                 if activity.legacy_subject
@@ -280,6 +304,7 @@ def _ensure_default_departments():
                 changed = True
     if changed:
         db.session.commit()
+    current_app.extensions["departments_defaults_ensured"] = True
 
 
 def _can_view_all_departments() -> bool:
@@ -339,6 +364,10 @@ def _managed_department_ids(user=None) -> set[int]:
         row.department_id
         for row in DepartmentLeader.query.filter_by(user_id=user.id).all()
     }
+
+
+def _can_edit_department_content(department_id: int) -> bool:
+    return is_admin(current_user) or department_id in _managed_department_ids()
 
 
 def _can_manage_professional_registry() -> bool:
@@ -937,15 +966,10 @@ def _parse_excel_loads(file_storage):
     _rebind_all_loads_to_departments()
     return created, updated, skipped
 
-def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None):
-    activity_ids = _subject_activity_ids_for_department(dep)
-    if not activity_ids:
-        return {
-            "total_results": 0,
-            "avg_percent": None,
-            "by_subject": [],
-            "by_teacher": [],
-        }
+def _control_work_query(dep: Department | None, teacher_id=None, academic_year_id=None):
+    activity_ids = _subject_activity_ids_for_department(dep) if dep else []
+    if dep and not activity_ids:
+        return None
 
     results_q = (
         db.session.query(
@@ -968,12 +992,38 @@ def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None)
             ),
         )
         .outerjoin(User, User.id == ControlWorkAssignment.teacher_id)
-        .filter(ControlWork.education_activity_id.in_(activity_ids))
     )
+    if activity_ids:
+        results_q = results_q.filter(ControlWork.education_activity_id.in_(activity_ids))
     if teacher_id:
         results_q = results_q.filter(ControlWorkAssignment.teacher_id == teacher_id)
     if academic_year_id:
         results_q = results_q.filter(ControlWorkResult.academic_year_id == academic_year_id)
+    return results_q
+
+
+def _control_work_summary(dep: Department, teacher_id=None, academic_year_id=None):
+    query = _control_work_query(dep, teacher_id, academic_year_id)
+    if query is None:
+        return {"total_results": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
+    count, average = query.filter(
+        ControlWorkResult.percent.isnot(None)
+    ).with_entities(
+        func.count(ControlWorkResult.id),
+        func.avg(ControlWorkResult.percent),
+    ).one()
+    return {
+        "total_results": count,
+        "avg_percent": round(float(average), 1) if average is not None else None,
+        "by_subject": [],
+        "by_teacher": [],
+    }
+
+
+def _control_work_stats(dep: Department, teacher_id=None, academic_year_id=None):
+    results_q = _control_work_query(dep, teacher_id, academic_year_id)
+    if results_q is None:
+        return {"total_results": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
 
     rows = results_q.all()
     percents = [r.ControlWorkResult.percent for r in rows if r.ControlWorkResult.percent is not None]
@@ -1036,34 +1086,117 @@ def index():
 @departments_bp.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    if not is_admin(current_user):
+    can_manage_structure = is_admin(current_user)
+    managed_department_ids = _managed_department_ids()
+    if not (
+        can_manage_structure
+        or has_role("DIRECTOR")
+        or has_role("DEPUTY_DIRECTOR")
+        or has_role(METHODIST)
+        or has_role(DEPARTMENT_HEAD)
+        or managed_department_ids
+    ):
         abort(403)
 
     if request.method == "POST":
+        if not can_manage_structure:
+            abort(403)
         name = (request.form.get("name") or "").strip()
         code = re.sub(r"[^a-z0-9_]+", "_", (request.form.get("code") or name).strip().lower()).strip("_")
-        if not name:
-            flash("Укажите название кафедры.", "danger")
+        if not name or len(name) > 255:
+            flash("Укажите название кафедры длиной до 255 символов.", "danger")
+            return redirect(url_for("departments.settings"))
+        if len(code) > 80:
+            flash("Код кафедры не должен превышать 80 символов.", "danger")
             return redirect(url_for("departments.settings"))
         if Department.query.filter(db.func.lower(Department.name) == name.lower()).first():
             flash("Такая кафедра уже существует.", "warning")
+            return redirect(url_for("departments.settings"))
+        if code and Department.query.filter_by(code=code).first():
+            flash("Такой код кафедры уже используется.", "warning")
             return redirect(url_for("departments.settings"))
         dep = Department(name=name, code=code or None, description=(request.form.get("description") or "").strip() or None)
         db.session.add(dep)
         db.session.commit()
         flash("Кафедра создана.", "success")
-        return redirect(url_for("departments.settings"))
+        return redirect(url_for("departments.settings", department_id=dep.id))
 
     departments = Department.query.order_by(Department.name.asc()).all()
-    users = _department_leader_candidates()
-    buildings = Building.query.order_by(Building.name.asc()).all()
+    if not (can_manage_structure or has_role("DIRECTOR") or has_role("DEPUTY_DIRECTOR")):
+        departments = [item for item in departments if item.id in managed_department_ids]
+    selected_id = request.args.get("department_id", type=int)
+    dep = next((item for item in departments if item.id == selected_id), None)
+    if selected_id is not None and dep is None:
+        if db.session.get(Department, selected_id) is not None:
+            abort(403)
+        abort(404)
+    if selected_id is None and not can_manage_structure and len(departments) == 1:
+        dep = departments[0]
+    can_edit_content = bool(dep and (can_manage_structure or dep.id in managed_department_ids))
+
+    users = []
+    buildings = []
+    members = []
+    manual_member_ids = set()
+    activity_links = []
+    available_activities = []
+    current_year = None
+    if dep is not None:
+        if can_edit_content:
+            users = _department_leader_candidates()
+        if can_manage_structure:
+            buildings = Building.query.order_by(Building.name.asc()).all()
+        current_year = AcademicYear.query.filter_by(is_current=True).first()
+        member_ids = department_teacher_ids(
+            current_year.id if current_year else None,
+            dep.id,
+        )
+        members = sorted(
+            User.query.filter(User.id.in_(member_ids or [-1])).all(),
+            key=lambda user: (user.fio or user.username).casefold(),
+        )
+        manual_member_ids = {
+            row.teacher_id for row in DepartmentTeacherMembership.query.filter_by(
+                department_id=dep.id,
+                mode="INCLUDE",
+            ).all()
+        }
+        activity_links = (
+            EducationActivityDepartment.query
+            .options(joinedload(EducationActivityDepartment.education_activity))
+            .join(EducationActivity, EducationActivity.id == EducationActivityDepartment.education_activity_id)
+            .filter(
+                EducationActivityDepartment.department_id == dep.id,
+                EducationActivityDepartment.is_active.is_(True),
+                or_(EducationActivityDepartment.valid_from.is_(None), EducationActivityDepartment.valid_from <= date.today()),
+                or_(EducationActivityDepartment.valid_to.is_(None), EducationActivityDepartment.valid_to >= date.today()),
+                EducationActivity.is_active.is_(True),
+            )
+            .order_by(EducationActivity.name.asc(), EducationActivity.id.asc())
+            .all()
+        )
+        linked_activity_ids = {link.education_activity_id for link in activity_links}
+        if can_edit_content:
+            available_activities = (
+                EducationActivity.query
+                .filter(EducationActivity.is_active.is_(True), EducationActivity.id.notin_(linked_activity_ids))
+                .order_by(EducationActivity.name.asc(), EducationActivity.id.asc())
+                .all()
+            )
     return render_template(
         "departments/settings.html",
         departments=departments,
+        dep=dep,
         users=users,
         buildings=buildings,
-        department_activities=_department_activities(),
+        members=members,
+        manual_member_ids=manual_member_ids,
+        activity_links=activity_links,
+        available_activities=available_activities,
         activity_kind_labels=ACTIVITY_KIND_LABELS,
+        current_year=current_year,
+        can_manage_structure=can_manage_structure,
+        can_edit_content=can_edit_content,
     )
 
 
@@ -1073,11 +1206,22 @@ def settings_update(department_id):
     if not is_admin(current_user):
         abort(403)
     dep = Department.query.get_or_404(department_id)
-    dep.name = (request.form.get("name") or dep.name).strip()
+    name = (request.form.get("name") or "").strip()
+    if not name or len(name) > 255:
+        flash("Укажите название кафедры длиной до 255 символов.", "danger")
+        return redirect(url_for("departments.settings", department_id=dep.id))
+    duplicate = Department.query.filter(
+        db.func.lower(Department.name) == name.lower(),
+        Department.id != dep.id,
+    ).first()
+    if duplicate:
+        flash("Такая кафедра уже существует.", "warning")
+        return redirect(url_for("departments.settings", department_id=dep.id))
+    dep.name = name
     dep.description = (request.form.get("description") or "").strip() or None
     db.session.commit()
     flash("Настройки кафедры сохранены.", "success")
-    return redirect(url_for("departments.settings"))
+    return redirect(url_for("departments.settings", department_id=dep.id))
 
 
 @departments_bp.route("/settings/<int:department_id>/leader/add", methods=["POST"])
@@ -1104,7 +1248,7 @@ def add_leader(department_id):
     building_id = request.form.get("building_id", type=int)
     if not selected_user_ids:
         flash("Выберите учителя для руководства кафедрой.", "danger")
-        return redirect(url_for("departments.settings"))
+        return redirect(url_for("departments.settings", department_id=dep.id))
 
     added = 0
     skipped = 0
@@ -1126,7 +1270,7 @@ def add_leader(department_id):
         flash("Руководители кафедры назначены.", "success")
     else:
         flash("Все выбранные руководители уже были добавлены.", "warning")
-    return redirect(url_for("departments.settings"))
+    return redirect(url_for("departments.settings", department_id=dep.id))
 
 
 @departments_bp.route("/settings/leader/<int:leader_id>/delete", methods=["POST"])
@@ -1138,7 +1282,134 @@ def delete_leader(leader_id):
     db.session.delete(leader)
     db.session.commit()
     flash("Сотрудник исключён из руководства кафедрой.", "success")
-    return redirect(url_for("departments.settings"))
+    return redirect(url_for("departments.settings", department_id=leader.department_id))
+
+
+@departments_bp.post("/settings/<int:department_id>/teacher/add")
+@login_required
+def add_department_teacher(department_id):
+    if not _can_edit_department_content(department_id):
+        abort(403)
+    department = Department.query.get_or_404(department_id)
+    teacher_id = request.form.get("teacher_id", type=int)
+    candidates = {user.id for user in _department_leader_candidates()}
+    if teacher_id not in candidates:
+        flash("Выберите действующего педагога.", "danger")
+        return redirect(url_for("departments.settings", department_id=department.id))
+    membership = DepartmentTeacherMembership.query.filter_by(
+        department_id=department.id,
+        teacher_id=teacher_id,
+    ).first()
+    if membership is None:
+        membership = DepartmentTeacherMembership(
+            department_id=department.id,
+            teacher_id=teacher_id,
+            mode="INCLUDE",
+            updated_by_user_id=current_user.id,
+        )
+        db.session.add(membership)
+    else:
+        membership.mode = "INCLUDE"
+        membership.updated_by_user_id = current_user.id
+    db.session.commit()
+    flash("Педагог добавлен в кафедру.", "success")
+    return redirect(url_for("departments.settings", department_id=department.id))
+
+
+@departments_bp.post("/settings/<int:department_id>/teacher/<int:teacher_id>/exclude")
+@login_required
+def exclude_department_teacher(department_id, teacher_id):
+    if not _can_edit_department_content(department_id):
+        abort(403)
+    department = Department.query.get_or_404(department_id)
+    teacher = User.query.get_or_404(teacher_id)
+    membership = DepartmentTeacherMembership.query.filter_by(
+        department_id=department.id,
+        teacher_id=teacher.id,
+    ).first()
+    if membership is None:
+        membership = DepartmentTeacherMembership(
+            department_id=department.id,
+            teacher_id=teacher.id,
+            mode="EXCLUDE",
+            updated_by_user_id=current_user.id,
+        )
+        db.session.add(membership)
+    else:
+        membership.mode = "EXCLUDE"
+        membership.updated_by_user_id = current_user.id
+    db.session.commit()
+    flash("Педагог исключён из кафедры.", "success")
+    return redirect(url_for("departments.settings", department_id=department.id))
+
+
+@departments_bp.post("/settings/<int:department_id>/activity/add")
+@login_required
+def add_department_activity(department_id):
+    if not _can_edit_department_content(department_id):
+        abort(403)
+    department = Department.query.get_or_404(department_id)
+    activity_id = request.form.get("activity_id", type=int)
+    activity = db.session.get(EducationActivity, activity_id) if activity_id else None
+    if activity is None or not activity.is_active:
+        flash("Выберите предмет из реестра.", "danger")
+        return redirect(url_for("departments.settings", department_id=department.id))
+    current_link = EducationActivityDepartment.query.filter(
+        EducationActivityDepartment.department_id == department.id,
+        EducationActivityDepartment.education_activity_id == activity.id,
+        EducationActivityDepartment.is_active.is_(True),
+        or_(EducationActivityDepartment.valid_from.is_(None), EducationActivityDepartment.valid_from <= date.today()),
+        or_(EducationActivityDepartment.valid_to.is_(None), EducationActivityDepartment.valid_to >= date.today()),
+    ).first()
+    if current_link:
+        flash("Предмет уже закреплён за кафедрой.", "warning")
+        return redirect(url_for("departments.settings", department_id=department.id))
+    link = EducationActivityDepartment.query.filter_by(
+        department_id=department.id,
+        education_activity_id=activity.id,
+        valid_from=None,
+    ).first()
+    has_primary = EducationActivityDepartment.query.filter_by(
+        education_activity_id=activity.id,
+        is_primary=True,
+        is_active=True,
+        valid_to=None,
+    ).first() is not None
+    if link is None:
+        link = EducationActivityDepartment(
+            department_id=department.id,
+            education_activity_id=activity.id,
+        )
+        db.session.add(link)
+    link.is_active = True
+    link.valid_to = None
+    link.is_primary = not has_primary
+    db.session.flush()
+    if activity.activity_kind == "SUBJECT":
+        sync_legacy_department_subject_links(activity)
+    db.session.commit()
+    flash("Предмет закреплён за кафедрой.", "success")
+    return redirect(url_for("departments.settings", department_id=department.id))
+
+
+@departments_bp.post("/settings/<int:department_id>/activity/<int:link_id>/remove")
+@login_required
+def remove_department_activity(department_id, link_id):
+    if not _can_edit_department_content(department_id):
+        abort(403)
+    Department.query.get_or_404(department_id)
+    link = EducationActivityDepartment.query.filter_by(
+        id=link_id,
+        department_id=department_id,
+    ).first_or_404()
+    link.is_active = False
+    link.is_primary = False
+    db.session.flush()
+    if link.education_activity and link.education_activity.activity_kind == "SUBJECT":
+        sync_legacy_department_subject_links(link.education_activity)
+    db.session.commit()
+    flash("Предмет исключён из кафедры.", "success")
+    return redirect(url_for("departments.settings", department_id=department_id))
 
 
 @departments_bp.route("/loads", methods=["GET", "POST"])
@@ -1294,7 +1565,7 @@ def archived_load_delete(load_id):
 
 
 
-def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
+def _diagnostic_scope_query(dep: Department | None, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
     teacher_ids = teacher_ids or []
     subject_names = {
         _normalize_subject_name(
@@ -1309,29 +1580,60 @@ def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_ye
         )
     }
 
-    results = (
+    session_query = db.session.query(DiagnosticSession.id, DiagnosticSession.subject)
+    if academic_year_id:
+        session_query = session_query.filter(or_(
+            DiagnosticSession.academic_year_id == academic_year_id,
+            DiagnosticSession.academic_year_id.is_(None),
+        ))
+    subject_session_ids = [
+        session_id
+        for session_id, subject in session_query.all()
+        if _normalize_subject_name(subject)
+        and _normalize_subject_name(subject) in subject_names
+    ]
+    query = (
         DiagnosticResult.query
         .join(DiagnosticSession, DiagnosticSession.id == DiagnosticResult.session_id)
+        .outerjoin(
+            DiagnosticTeacherBinding,
+            DiagnosticTeacherBinding.result_id == DiagnosticResult.id,
+        )
         .filter(DiagnosticResult.is_final.is_(True))
+    )
+    if academic_year_id:
+        query = query.filter(or_(
+            DiagnosticSession.academic_year_id == academic_year_id,
+            DiagnosticSession.academic_year_id.is_(None),
+        ))
+    if subject_session_ids or teacher_ids:
+        query = query.filter(or_(
+            DiagnosticResult.session_id.in_(subject_session_ids),
+            DiagnosticTeacherBinding.teacher_id.in_(teacher_ids),
+        ))
+    else:
+        query = query.filter(DiagnosticResult.id == -1)
+    if selected_teacher_id:
+        query = query.filter(DiagnosticTeacherBinding.teacher_id == selected_teacher_id)
+    return query
+
+
+def _diagnostics_department_count(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
+    query = _diagnostic_scope_query(dep, teacher_ids, academic_year_id, selected_teacher_id)
+    return query.with_entities(func.count(DiagnosticResult.id)).scalar() or 0
+
+
+def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_year_id=None, selected_teacher_id=None):
+    filtered = (
+        _diagnostic_scope_query(dep, teacher_ids, academic_year_id, selected_teacher_id)
+        .options(
+            joinedload(DiagnosticResult.session),
+            joinedload(DiagnosticResult.teacher_binding).joinedload(
+                DiagnosticTeacherBinding.teacher
+            ),
+        )
         .all()
     )
-
-    filtered = []
-    for row in results:
-        session = row.session
-        if academic_year_id and getattr(session, "academic_year_id", None) not in {academic_year_id, None}:
-            continue
-        subject_name = _normalize_subject_name(getattr(session, "subject", None) or "")
-        binding = getattr(row, "teacher_binding", None)
-        teacher_id = getattr(binding, "teacher_id", None) if binding else None
-
-        matched_by_subject = bool(subject_name and subject_name in subject_names)
-        matched_by_teacher = bool(teacher_id and teacher_id in teacher_ids)
-        if not (matched_by_subject or matched_by_teacher):
-            continue
-        if selected_teacher_id and teacher_id != selected_teacher_id:
-            continue
-        filtered.append(row)
 
     def pct(values):
         nums = [float(v) for v in values if v is not None]
@@ -1456,10 +1758,21 @@ def _diagnostics_department_stats(dep: Department, teacher_ids=None, academic_ye
 def summary():
     selected_dep_id = request.args.get("department_id", type=int)
     selected_teacher_id = _teacher_scope_user_id()
+    active_section = request.args.get("section", "")
+    active_section = {"courses": "training", "legacy": "load"}.get(active_section, active_section)
+    if active_section not in {"", "training", "load", "control", "diagnostics", "olympiads", "mcko", "attestation"}:
+        active_section = ""
     years = AcademicYear.query.order_by(AcademicYear.start_date.desc().nullslast(), AcademicYear.name.desc()).all()
     current_year = AcademicYear.query.filter_by(is_current=True).first()
     academic_year_id = request.args.get("academic_year_id", type=int) or (current_year.id if current_year else None)
     deps = _load_departments_for_user(academic_year_id)
+    led_department_ids = _managed_department_ids()
+    if led_department_ids and not (
+        is_admin(current_user)
+        or has_role("DIRECTOR")
+        or has_role("DEPUTY_DIRECTOR")
+    ):
+        deps = [item for item in deps if item.id in led_department_ids]
     can_view_department_team = bool(
         _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
     )
@@ -1468,33 +1781,50 @@ def summary():
         or has_role(METHODIST)
         or has_role(DEPARTMENT_HEAD)
     )
+    building_id = request.args.get("building_id", type=int)
+    all_load_rows, workload_version = (
+        current_department_load_rows(academic_year_id, building_id=building_id)
+        if deps and academic_year_id else ([], None)
+    )
+    overview_teacher_ids = defaultdict(set)
+    loads_by_department = defaultdict(list)
+    allowed_department_ids = {item.id for item in deps}
+    for row in all_load_rows:
+        if row.department and row.department.id in allowed_department_ids and row.teacher:
+            if can_view_department_team or row.teacher.id == current_user.id:
+                overview_teacher_ids[row.department.id].add(row.teacher.id)
+                loads_by_department[row.department.id].append(row)
+    all_teacher_ids = {
+        teacher_id for member_ids in overview_teacher_ids.values()
+        for teacher_id in member_ids
+    }
+    all_courses_by_teacher = imported_and_manual_courses(all_teacher_ids) if all_teacher_ids else {}
     dep = None
     if selected_dep_id:
         dep = Department.query.get_or_404(selected_dep_id)
-        if not _department_allowed(dep, academic_year_id=academic_year_id):
+        if dep.id not in allowed_department_ids:
             abort(403)
     elif deps:
-        dep = deps[0]
+        dep = max(deps, key=lambda item: len(overview_teacher_ids[item.id]))
 
     teacher_rows = []
+    teacher_options = []
     stats = {"total_results": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
     olympiad_stats = {"total_results": 0, "unique_children": 0, "winners": 0, "prizers": 0, "by_subject": [], "by_teacher": []}
 
-    diagnostics_stats = {"total_results": 0, "sessions_count": 0, "below_basic_count": 0, "avg_percent": None, "by_subject": [], "by_teacher": []}
     diagnostics_stats = {"total_results": 0, "avg_percent": None, "below_basic_count": 0, "below_basic_percent": 0, "levels": {}, "by_subject": [], "by_teacher": []}
     teacher_ids = []
     mcko_overviews = []
     attestation_overviews = []
     course_rows = []
+    department_training = []
     department_load_rows = []
     teacher_load_summaries = []
     legacy_load_rows = []
     legacy_load_total = 0
-    workload_version = None
-    building_id = request.args.get("building_id", type=int)
 
     if dep:
-        if can_manage_legacy_loads:
+        if active_section == "load" and can_manage_legacy_loads:
             legacy_load_query = TeacherLoad.query.filter(
                 TeacherLoad.department_id == dep.id,
             )
@@ -1519,16 +1849,23 @@ def summary():
                 .limit(100)
                 .all()
             )
-        department_load_rows, workload_version = current_department_load_rows(
+        department_load_rows = [
+            row for row in all_load_rows
+            if row.department and row.department.id == dep.id
+        ]
+        teacher_ids = department_teacher_ids(
             academic_year_id,
-            department_id=dep.id,
+            dep.id,
             building_id=building_id,
+            preloaded_rows=department_load_rows,
+            preloaded_version=workload_version,
         )
-        teacher_ids = sorted({
-            row.teacher.id
-            for row in department_load_rows
+        department_load_rows = [
+            row for row in department_load_rows
             if row.teacher is not None
-        })
+            and row.teacher.id in teacher_ids
+            and (dep.code != "primary" or is_primary_department_load(row))
+        ]
         if not can_view_department_team and (
             has_role(TEACHER) or has_role(CLASS_TEACHER)
         ):
@@ -1539,68 +1876,143 @@ def summary():
             ]
         if selected_teacher_id and selected_teacher_id not in teacher_ids:
             abort(403)
-        teacher_rows = User.query.filter(User.id.in_(teacher_ids)).order_by(User.last_name.asc(), User.first_name.asc()).all() if teacher_ids else []
-        for teacher in teacher_rows:
-            teacher_loads = [
-                row for row in department_load_rows
-                if row.teacher and row.teacher.id == teacher.id
-            ]
-            teacher_load_summaries.append({
-                "teacher": teacher,
-                "total": sum(row.hours for row in teacher_loads),
-                "subjects": len({row.subject_name for row in teacher_loads}),
-                "groups": len({row.group_name for row in teacher_loads if row.group_name}),
-            })
-        stats = _control_work_stats(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
-        mcko_teacher_ids = [selected_teacher_id] if selected_teacher_id else teacher_ids
-        mcko_overview_map = mcko_overviews_for_teachers(mcko_teacher_ids)
-        mcko_overviews = sorted(
-            (
-                mcko_overview_map[teacher_id]
-                for teacher_id in mcko_teacher_ids
-                if teacher_id in mcko_overview_map
-            ),
-            key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
-        )
-        course_q = TeacherCourse.query.filter(
-            TeacherCourse.teacher_id.in_(teacher_ids),
-            TeacherCourse.is_archived.is_(False),
-        ) if teacher_ids else TeacherCourse.query.filter(db.text("0=1"))
-        if academic_year_id:
-            course_q = course_q.filter(db.or_(TeacherCourse.academic_year_id == academic_year_id, TeacherCourse.academic_year_id.is_(None)))
+        missing_course_ids = set(teacher_ids) - set(all_courses_by_teacher)
+        if missing_course_ids:
+            all_courses_by_teacher.update(imported_and_manual_courses(missing_course_ids))
+        teacher_options = User.query.filter(User.id.in_(teacher_ids)).order_by(
+            User.last_name.asc(), User.first_name.asc()
+        ).all() if teacher_ids else []
         if selected_teacher_id:
-            course_q = course_q.filter_by(teacher_id=selected_teacher_id)
-        course_rows = course_q.order_by(TeacherCourse.start_date.desc().nullslast(), TeacherCourse.created_at.desc()).all()
-        attestation_teacher_ids = (
-            [selected_teacher_id]
-            if selected_teacher_id
-            else teacher_ids
+            teacher_ids = [selected_teacher_id]
+            department_load_rows = [
+                row for row in department_load_rows
+                if row.teacher and row.teacher.id == selected_teacher_id
+            ]
+        teacher_rows = [teacher for teacher in teacher_options if teacher.id in teacher_ids]
+        if active_section == "load":
+            legacy_teacher_rows = []
+            if workload_version is None and teacher_ids:
+                legacy_teacher_query = TeacherLoad.query.filter(
+                    TeacherLoad.department_id == dep.id,
+                    TeacherLoad.teacher_id.in_(teacher_ids),
+                    TeacherLoad.is_archived.is_(False),
+                )
+                if academic_year_id:
+                    legacy_teacher_query = legacy_teacher_query.filter(or_(
+                        TeacherLoad.academic_year_id == academic_year_id,
+                        TeacherLoad.academic_year_id.is_(None),
+                    ))
+                if building_id:
+                    legacy_teacher_query = legacy_teacher_query.filter(
+                        TeacherLoad.building_id == building_id,
+                    )
+                legacy_teacher_rows = [
+                    row for row in legacy_teacher_query.all()
+                    if dep.code != "primary" or is_primary_department_load(row)
+                ]
+            for teacher in teacher_rows:
+                teacher_loads = [
+                    row for row in department_load_rows
+                    if row.teacher and row.teacher.id == teacher.id
+                ]
+                if workload_version is None:
+                    teacher_loads = [
+                        row for row in legacy_teacher_rows
+                        if row.teacher_id == teacher.id
+                    ]
+                teacher_load_summaries.append({
+                    "teacher": teacher,
+                    "total": sum(float(row.hours or 0) for row in teacher_loads),
+                    "subjects": len({row.subject_name for row in teacher_loads}),
+                    "groups": len({row.group_name or row.class_name for row in teacher_loads if row.group_name or row.class_name}),
+                })
+        stats = (
+            _control_work_stats(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
+            if active_section == "control"
+            else _control_work_summary(dep, teacher_id=selected_teacher_id, academic_year_id=academic_year_id)
         )
-        attestation_overview_map = attestation_overviews_for_teachers(
-            attestation_teacher_ids
+        if active_section == "mcko":
+            mcko_overview_map = mcko_overviews_for_teachers(teacher_ids)
+            mcko_overviews = sorted(
+                mcko_overview_map.values(),
+                key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
+            )
+        department_training = staff_overview(teacher_rows, all_courses_by_teacher, pedagogical_ids=set(teacher_ids))
+        course_rows = [course for teacher_id in ([selected_teacher_id] if selected_teacher_id else teacher_ids)
+                       for course in all_courses_by_teacher.get(teacher_id, [])]
+        if active_section == "attestation":
+            attestation_overview_map = attestation_overviews_for_teachers(teacher_ids)
+            attestation_overviews = sorted(
+                attestation_overview_map.values(),
+                key=lambda item: (item.teacher.fio or item.teacher.username).casefold(),
+            )
+        olympiad_stats = (
+            olympiad_department_stats(academic_year_id=academic_year_id, department_id=dep.id)
+            if active_section == "olympiads"
+            else olympiad_department_overview_stats(academic_year_id=academic_year_id, department_id=dep.id)
         )
-        attestation_overviews = sorted(
-            (
-                attestation_overview_map[teacher_id]
-                for teacher_id in attestation_teacher_ids
-                if teacher_id in attestation_overview_map
-            ),
-            key=lambda item: (
-                item.teacher.fio or item.teacher.username
-            ).casefold(),
-        )
-        olympiad_stats = olympiad_department_stats(academic_year_id=academic_year_id, department_id=dep.id)
-        diagnostics_stats = _diagnostics_department_stats(dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id, selected_teacher_id=selected_teacher_id)
+        if active_section == "diagnostics":
+            diagnostics_stats = _diagnostics_department_stats(
+                dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id,
+                selected_teacher_id=selected_teacher_id,
+            )
+        else:
+            diagnostics_stats["total_results"] = _diagnostics_department_count(
+                dep, teacher_ids=teacher_ids, academic_year_id=academic_year_id,
+                selected_teacher_id=selected_teacher_id,
+            )
+    department_cards = []
+    if deps and academic_year_id:
+        for department in deps:
+            rows = loads_by_department[department.id]
+            member_ids = {row.teacher.id for row in rows}
+            planning = sum(
+                course_status(all_courses_by_teacher.get(teacher_id, []))["code"]
+                in {"due", "overdue", "no_data"}
+                for teacher_id in member_ids
+            )
+            department_cards.append({
+                "department": department,
+                "teachers": len(member_ids),
+                "hours": sum(row.hours for row in rows),
+                "planning": planning,
+            })
+    dashboard = {
+        "teachers": len(teacher_rows),
+        "hours": sum(row.hours for row in department_load_rows),
+        "subjects": len({row.subject_name for row in department_load_rows}),
+        "groups": len({row.group_name for row in department_load_rows if row.group_name}),
+        "training_ok": sum(row["status"]["code"] == "ok" for row in department_training),
+        "training_attention": sum(row["status"]["code"] in {"due", "overdue", "no_data"}
+                                  for row in department_training),
+        "mcko_count": len(teacher_rows),
+        "attestation_count": len(teacher_rows),
+    }
+    can_manage_professional = bool(dep and _can_manage_professional_registry())
+    section_titles = {
+        "load": "Нагрузка и педагоги",
+        "control": "Контрольные работы",
+        "diagnostics": "Диагностики",
+        "olympiads": "Олимпиады и ВСОШ",
+        "mcko": "МЦКО педагогов",
+        "training": "Повышение квалификации",
+        "attestation": "Аттестация",
+    }
+    template = (
+        "departments/summary_panel.html"
+        if request.headers.get("X-Department-Summary") == "details" and active_section and dep
+        else "departments/summary.html"
+    )
     return render_template(
-        "departments/summary.html",
+        template,
         departments=deps,
         dep=dep,
-        teachers=teacher_rows,
-        all_teachers=User.query.order_by(User.last_name.asc(), User.first_name.asc()).all(),
+        teachers=teacher_options,
         selected_teacher_id=selected_teacher_id,
         stats=stats,
         mcko_overviews=mcko_overviews,
         course_rows=course_rows,
+        department_training=department_training,
         buildings=Building.query.order_by(Building.name.asc()).all(),
         building_id=building_id,
         years=years,
@@ -1613,14 +2025,15 @@ def summary():
         legacy_load_rows=legacy_load_rows,
         legacy_load_total=legacy_load_total,
         mcko_level_labels=MCKO_LEVEL_LABELS,
-        mcko_subjects=list_subject_activities(),
+        mcko_subjects=mcko_activity_options() if active_section == "mcko" and can_manage_professional else [],
         attestation_overviews=attestation_overviews,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
         can_manage_attestation=_can_manage_teacher_attestation(),
-        can_manage_professional=bool(
-            dep
-            and _can_manage_professional_registry()
-        ),
+        can_manage_professional=can_manage_professional,
+        department_cards=department_cards,
+        dashboard=dashboard,
+        active_section=active_section,
+        section_titles=section_titles,
     )
 
 
@@ -1686,16 +2099,8 @@ def teacher_profile(teacher_id):
         teacher_id=teacher.id,
     )
     mcko_overview = mcko_overviews_for_teachers([teacher.id]).get(teacher.id)
-    course_rows = (
-        TeacherCourse.query
-        .filter_by(teacher_id=teacher.id, is_archived=False)
-        .order_by(
-            TeacherCourse.end_date.desc().nullslast(),
-            TeacherCourse.start_date.desc().nullslast(),
-            TeacherCourse.created_at.desc(),
-        )
-        .all()
-    )
+    course_rows = imported_and_manual_courses([teacher.id]).get(teacher.id, [])
+    training_status = course_status(course_rows)
     attestation_rows = (
         TeacherAttestation.query
         .filter_by(teacher_id=teacher.id, is_archived=False)
@@ -1709,6 +2114,17 @@ def teacher_profile(teacher_id):
     attestation_overview = attestation_overviews_for_teachers(
         [teacher.id]
     ).get(teacher.id)
+    teacher_control_stats = _control_work_stats(
+        None,
+        teacher_id=teacher.id,
+        academic_year_id=academic_year_id,
+    )
+    teacher_diagnostics_stats = _diagnostics_department_stats(
+        None,
+        teacher_ids=[teacher.id],
+        academic_year_id=academic_year_id,
+        selected_teacher_id=teacher.id,
+    )
     debt_rows = (
         Debt.query
         .filter_by(created_by_user_id=teacher.id)
@@ -1751,14 +2167,23 @@ def teacher_profile(teacher_id):
         mcko_rows=mcko_rows,
         mcko_overview=mcko_overview,
         mcko_level_labels=MCKO_LEVEL_LABELS,
-        mcko_subjects=list_subject_activities(),
+        mcko_subjects=mcko_activity_options(),
+        teacher_control_stats=teacher_control_stats,
+        teacher_diagnostics_stats=teacher_diagnostics_stats,
         course_rows=course_rows,
+        training_status=training_status,
+        can_edit_courses=(teacher.id == current_user.id or has_any_role(
+            "ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "HR_SPECIALIST"
+        )),
         attestation_rows=attestation_history,
         attestation_overview=attestation_overview,
         debt_rows=debt_rows,
         incident_rows=incident_rows,
         attestation_category_labels=ATTESTATION_CATEGORY_LABELS,
         can_edit_professional=_can_manage_teacher_professional(teacher.id),
+        can_manage_mcko_registry=bool(
+            _can_manage_professional_registry() or has_role(METHODIST)
+        ),
         can_manage_all_professional=_can_manage_all_teacher_professional(),
         can_manage_attestation=_can_manage_teacher_attestation(),
         is_self_profile=teacher.id == current_user.id,
@@ -1768,6 +2193,15 @@ def teacher_profile(teacher_id):
         ),
         can_view_departments_hub=(
             _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
+        ),
+        workspace_back_url=(
+            url_for("departments.summary", academic_year_id=academic_year_id)
+            if _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
+            else url_for("main.dashboard")
+        ),
+        workspace_back_label=(
+            "К своду" if _can_view_all_departments() or has_role(DEPARTMENT_HEAD)
+            else "Главная"
         ),
         today=date.today(),
     )
@@ -1790,9 +2224,9 @@ def add_mcko():
     if not subject_id or not passed_at or not level:
         flash("Укажите предмет, дату диагностики и уровень МЦКО.", "danger")
         return redirect(request.referrer or url_for("departments.summary"))
-    activity = get_subject_activity(subject_id)
+    activity = get_mcko_activity(subject_id)
     if activity is None:
-        flash("Выберите предмет из единого реестра.", "danger")
+        flash("Выберите вид диагностики из списка.", "danger")
         return redirect(request.referrer or url_for("departments.summary"))
     selected_year_id = request.form.get("academic_year_id", type=int)
     current_year = (
@@ -1822,7 +2256,7 @@ def add_mcko():
         updated_by_user_id=current_user.id,
         retention_until=retention_until,
     )
-    assign_subject_activity(result, activity)
+    assign_mcko_activity(result, activity)
     db.session.add(result)
     record_professional_change(
         result,
@@ -1853,7 +2287,7 @@ def add_course():
             retention_until = current_year.end_date.replace(year=current_year.end_date.year + 7)
         except Exception:
             retention_until = None
-    db.session.add(TeacherCourse(
+    record = TeacherCourse(
         teacher_id=teacher.id,
         academic_year_id=current_year.id if current_year else None,
         title=title,
@@ -1862,8 +2296,15 @@ def add_course():
         start_date=datetime.strptime(start_date_raw, "%Y-%m-%d").date() if start_date_raw else None,
         end_date=datetime.strptime(end_date_raw, "%Y-%m-%d").date() if end_date_raw else None,
         notes=(request.form.get("notes") or "").strip() or None,
+        document_title=(request.form.get("document_title") or "").strip() or None,
+        document_number=(request.form.get("document_number") or "").strip() or None,
+        entry_source=professional_entry_source(teacher_id=teacher.id, actor_id=current_user.id),
+        created_by_user_id=current_user.id,
+        updated_by_user_id=current_user.id,
         retention_until=retention_until,
-    ))
+    )
+    db.session.add(record)
+    record_professional_change(record, change_kind=CHANGE_CREATED, actor_id=current_user.id)
     db.session.commit()
     flash("Курс повышения квалификации сохранён.", "success")
     return _professional_redirect(teacher.id)
@@ -1983,4 +2424,3 @@ def archive_attestation(record_id):
         TeacherAttestation.query.get_or_404(record_id),
         label="Запись об аттестации",
     )
-

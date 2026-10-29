@@ -2,6 +2,8 @@ from datetime import datetime
 
 from app.core.extensions import db
 
+PRESCHOOL_MCKO_TITLE = "Профессиональные компетенции воспитателя"
+
 
 class PreschoolGroup(db.Model):
     __tablename__ = "preschool_group"
@@ -50,6 +52,143 @@ class PreschoolGroup(db.Model):
             name="uq_preschool_group_year_building_name",
         ),
     )
+
+
+class PreschoolBuildingStaff(db.Model):
+    __tablename__ = "preschool_building_staff"
+
+    id = db.Column(db.Integer, primary_key=True)
+    building_id = db.Column(db.Integer, db.ForeignKey("buildings.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    position = db.Column(db.String(40), nullable=False)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    assigned_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    building = db.relationship("Building")
+    user = db.relationship("User", foreign_keys=[user_id])
+    assigned_by = db.relationship("User", foreign_keys=[assigned_by_user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("building_id", "user_id", "position", name="uq_preschool_building_staff"),
+    )
+
+
+class PreschoolGroupAssignment(db.Model):
+    __tablename__ = "preschool_group_assignment"
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("preschool_group.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    position = db.Column(db.String(40), nullable=False)
+    academic_year_id = db.Column(db.Integer, db.ForeignKey("academic_year.id"), nullable=True)
+    building_id = db.Column(db.Integer, db.ForeignKey("buildings.id"), nullable=True)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    source = db.Column(db.String(20), nullable=False, default="manual")
+    assigned_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    group = db.relationship("PreschoolGroup", backref=db.backref("staff_assignments", lazy=True))
+    user = db.relationship("User", foreign_keys=[user_id])
+    assigned_by = db.relationship("User", foreign_keys=[assigned_by_user_id])
+    academic_year = db.relationship("AcademicYear")
+    building = db.relationship("Building")
+
+    __table_args__ = (
+        db.UniqueConstraint("group_id", "user_id", "position", name="uq_preschool_group_staff"),
+    )
+
+
+class PreschoolStaffChange(db.Model):
+    __tablename__ = "preschool_staff_change"
+
+    id = db.Column(db.Integer, primary_key=True)
+    scope = db.Column(db.String(20), nullable=False)
+    building_id = db.Column(db.Integer, db.ForeignKey("buildings.id"), nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("preschool_group.id"), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    position = db.Column(db.String(40), nullable=False)
+    action = db.Column(db.String(20), nullable=False)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    changed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PreschoolAchievement(db.Model):
+    __tablename__ = "preschool_achievement"
+
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    child_id = db.Column(db.Integer, db.ForeignKey("preschool_child.id"), nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("preschool_group.id"), nullable=True)
+    event_name = db.Column(db.String(255), nullable=False)
+    level = db.Column(db.String(120), nullable=True)
+    organizer = db.Column(db.String(255), nullable=True)
+    event_date = db.Column(db.Date, nullable=True)
+    result = db.Column(db.String(255), nullable=True)
+    award = db.Column(db.String(255), nullable=True)
+    document = db.Column(db.String(255), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    is_archived = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    teacher = db.relationship("User", foreign_keys=[teacher_id])
+    child = db.relationship("PreschoolChild")
+    group = db.relationship("PreschoolGroup")
+
+
+class PreschoolProfileChange(db.Model):
+    __tablename__ = "preschool_profile_change"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    changed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    old_values = db.Column(db.JSON, nullable=False)
+    new_values = db.Column(db.JSON, nullable=False)
+
+
+class PreschoolDashboardSetting(db.Model):
+    __tablename__ = "preschool_dashboard_setting"
+
+    id = db.Column(db.Integer, primary_key=True)
+    warning_months = db.Column(db.Integer, nullable=False, default=6)
+    updated_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PreschoolResponsibility(db.Model):
+    __tablename__ = "preschool_responsibility"
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(40), nullable=False, unique=True, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
+    assigned_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    assigned_by = db.relationship("User", foreign_keys=[assigned_by_user_id])
+
+
+class PreschoolResponsibilityChange(db.Model):
+    __tablename__ = "preschool_responsibility_change"
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(40), nullable=False, index=True)
+    previous_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    new_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    changed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    previous_user = db.relationship("User", foreign_keys=[previous_user_id])
+    new_user = db.relationship("User", foreign_keys=[new_user_id])
+    changed_by = db.relationship("User", foreign_keys=[changed_by_user_id])
 
 
 class PreschoolChildrenImport(db.Model):
@@ -235,6 +374,11 @@ class PreschoolChildMovement(db.Model):
 
     basis = db.Column(db.String(500), nullable=True)
     comment = db.Column(db.Text, nullable=True)
+    from_status = db.Column(db.String(50), nullable=True)
+    to_status = db.Column(db.String(50), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    reversed_at = db.Column(db.DateTime, nullable=True)
+    reversed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     child = db.relationship("PreschoolChild", backref=db.backref("movements", lazy=True, cascade="all, delete-orphan"))
@@ -242,3 +386,5 @@ class PreschoolChildMovement(db.Model):
     to_academic_year = db.relationship("AcademicYear", foreign_keys=[to_academic_year_id])
     from_group = db.relationship("PreschoolGroup", foreign_keys=[from_group_id])
     to_group = db.relationship("PreschoolGroup", foreign_keys=[to_group_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    reversed_by = db.relationship("User", foreign_keys=[reversed_by_user_id])

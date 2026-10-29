@@ -9,11 +9,16 @@ from app.models import (
     Department,
     DepartmentLeader,
     TeacherAttestation,
+    TeacherCourse,
     TeacherMckoResult,
     User,
 )
 from app.permissions import has_any_role
-from app.services.education_activity_service import assign_subject_activity, list_subject_activities
+from app.services.teacher_mcko_activity_service import (
+    assign_mcko_activity,
+    get_mcko_activity,
+    mcko_activity_options,
+)
 from app.services.teacher_mcko_registry_service import (
     mcko_registry_summary,
     remaining_period_label,
@@ -35,6 +40,8 @@ from app.services.teacher_professional_audit_service import (
     CHANGE_UPDATED,
     record_professional_change,
 )
+from app.modules.preschool.models import PRESCHOOL_MCKO_TITLE, PreschoolAchievement, PreschoolBuildingStaff
+from app.services.teacher_professional_service import entry_source_label
 
 
 professional_registry_bp = Blueprint(
@@ -70,6 +77,14 @@ def _can_manage():
     return bool(_role_codes().intersection({"ADMIN", "DEPUTY_DIRECTOR"}))
 
 
+def _can_manage_mcko():
+    return bool(_role_codes().intersection({"ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"}))
+
+
+def _can_archive_mcko():
+    return bool(_role_codes().intersection({"ADMIN", "DEPUTY_DIRECTOR", "METHODIST"}))
+
+
 def _managed_department_ids():
     if not has_any_role("DEPARTMENT_HEAD") or has_any_role("ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"):
         return None
@@ -86,6 +101,16 @@ def _require_view():
 
 def _require_manage():
     if not _can_manage():
+        abort(403)
+
+
+def _require_manage_mcko():
+    if not _can_manage_mcko():
+        abort(403)
+
+
+def _require_archive_mcko():
+    if not _can_archive_mcko():
         abort(403)
 
 
@@ -111,8 +136,10 @@ def _form_context(record=None):
     return {
         "record": record,
         "teachers": _teacher_options(),
-        "activities": list_subject_activities(),
+        "activities": mcko_activity_options(),
         "levels": MCKO_LEVEL_LABELS,
+        "selected_teacher_id": record.teacher_id if record and record.teacher_id else request.values.get("teacher_id", type=int),
+        "preschool_mcko_title": PRESCHOOL_MCKO_TITLE,
     }
 
 
@@ -122,29 +149,32 @@ def _apply_form(record):
         is_active_user=True,
         employment_status="ACTIVE",
     ).first()
-    activity = next(
-        (
-            item
-            for item in list_subject_activities()
-            if item.id == request.form.get("education_activity_id", type=int)
-        ),
-        None,
-    )
+    activity = get_mcko_activity(request.form.get("education_activity_id", type=int))
     passed_at = _parse_date(request.form.get("passed_at"))
     level = normalize_mcko_level(request.form.get("level"))
     if teacher is None:
         raise ValueError("Выберите педагога.")
-    if activity is None:
-        raise ValueError("Выберите предмет диагностики.")
+    preschool_diagnostic = request.form.get("education_activity_id") == "0"
+    if activity is None and not preschool_diagnostic:
+        raise ValueError("Выберите вид диагностики.")
+    if preschool_diagnostic and "EDUCATOR" not in {str(code).upper() for code in teacher.role_codes}:
+        raise ValueError("Диагностика воспитателя доступна сотруднику с этой ролью.")
     if passed_at is None:
         raise ValueError("Укажите корректную дату сертификата.")
     if level is None:
         raise ValueError("Выберите уровень результата.")
 
     record.teacher_id = teacher.id
-    assign_subject_activity(record, activity)
+    if preschool_diagnostic:
+        record.education_activity_id = None
+        record.subject_id = None
+        record.diagnostic_title = PRESCHOOL_MCKO_TITLE
+    else:
+        assign_mcko_activity(record, activity)
+        record.diagnostic_title = None
     record.passed_at = passed_at
-    record.expires_at = mcko_expires_at(passed_at)
+    explicit_expiry = _parse_date(request.form.get("expires_at")) if preschool_diagnostic else None
+    record.expires_at = explicit_expiry or mcko_expires_at(passed_at)
     record.level = level
     record.certificate_number = (request.form.get("certificate_number") or "").strip() or None
     record.result_text = (request.form.get("result_text") or "").strip() or None
@@ -252,8 +282,9 @@ def mcko_registry():
         rows=rows,
         summary=mcko_registry_summary(rows),
         departments=department_query.order_by(Department.name.asc()).all(),
-        activities=list_subject_activities(),
-        can_manage=_can_manage(),
+        activities=mcko_activity_options(),
+        can_manage=_can_manage_mcko(),
+        can_archive=_can_archive_mcko(),
         remaining_period_label=remaining_period_label,
     )
 
@@ -261,7 +292,7 @@ def mcko_registry():
 @professional_registry_bp.route("/mcko/new", methods=["GET", "POST"])
 @login_required
 def mcko_new():
-    _require_manage()
+    _require_manage_mcko()
     if request.method == "POST":
         current_year = AcademicYear.query.filter_by(is_current=True).first()
         retention_until = None
@@ -287,6 +318,8 @@ def mcko_new():
         record_professional_change(record, change_kind=CHANGE_CREATED, actor_id=current_user.id)
         db.session.commit()
         flash("Результат МЦКО добавлен.", "success")
+        if request.form.get("after_save") == "add_another":
+            return redirect(url_for("professional_registry.mcko_new", teacher_id=record.teacher_id))
         return redirect(url_for("professional_registry.mcko_registry"))
     return render_template("professional_registry/mcko_form.html", **_form_context())
 
@@ -294,7 +327,7 @@ def mcko_new():
 @professional_registry_bp.route("/mcko/<int:record_id>/edit", methods=["GET", "POST"])
 @login_required
 def mcko_edit(record_id):
-    _require_manage()
+    _require_manage_mcko()
     record = TeacherMckoResult.query.filter_by(id=record_id, is_archived=False).first_or_404()
     if request.method == "POST":
         try:
@@ -305,6 +338,8 @@ def mcko_edit(record_id):
         record_professional_change(record, change_kind=CHANGE_UPDATED, actor_id=current_user.id)
         db.session.commit()
         flash("Результат МЦКО обновлён.", "success")
+        if request.form.get("after_save") == "add_another":
+            return redirect(url_for("professional_registry.mcko_new", teacher_id=record.teacher_id))
         return redirect(url_for("professional_registry.mcko_registry"))
     return render_template("professional_registry/mcko_form.html", **_form_context(record))
 
@@ -312,7 +347,7 @@ def mcko_edit(record_id):
 @professional_registry_bp.post("/mcko/<int:record_id>/archive")
 @login_required
 def mcko_archive(record_id):
-    _require_manage()
+    _require_archive_mcko()
     record = TeacherMckoResult.query.filter_by(id=record_id, is_archived=False).first_or_404()
     record.is_archived = True
     record.updated_by_user_id = current_user.id
@@ -441,3 +476,73 @@ def attestation_archive(record_id):
     db.session.commit()
     flash("Запись об аттестации перенесена в архив.", "success")
     return redirect(url_for("professional_registry.attestation_registry"))
+
+
+@professional_registry_bp.get("/courses")
+@login_required
+def course_registry():
+    if not has_any_role("ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"):
+        abort(403)
+    query = TeacherCourse.query.join(User, TeacherCourse.teacher_id == User.id).filter(
+        TeacherCourse.is_archived.is_(False),
+    )
+    search = " ".join((request.args.get("q") or "").split())
+    if search:
+        needle = f"%{search}%"
+        query = query.filter(db.or_(
+            TeacherCourse.title.ilike(needle),
+            User.last_name.ilike(needle),
+            User.first_name.ilike(needle),
+            TeacherCourse.provider.ilike(needle),
+        ))
+    scope = (request.args.get("scope") or "all").strip()
+    preschool_ids = db.session.query(PreschoolBuildingStaff.user_id).filter(
+        PreschoolBuildingStaff.is_active.is_(True),
+    ).distinct()
+    if scope == "preschool":
+        query = query.filter(TeacherCourse.teacher_id.in_(preschool_ids))
+    elif scope == "school":
+        query = query.filter(~TeacherCourse.teacher_id.in_(preschool_ids))
+    else:
+        scope = "all"
+    page = max(request.args.get("page", type=int) or 1, 1)
+    pagination = query.order_by(TeacherCourse.end_date.desc().nullslast(), TeacherCourse.id.desc()).paginate(
+        page=page, per_page=30, error_out=False,
+    )
+    return render_template(
+        "professional_registry/courses.html", items=pagination.items,
+        pagination=pagination, search=search, scope=scope,
+        preschool_user_ids={user_id for user_id, in preschool_ids.all()},
+        entry_source_label=entry_source_label,
+    )
+
+
+@professional_registry_bp.get("/achievements")
+@login_required
+def preschool_achievements_registry():
+    if not has_any_role("ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"):
+        abort(403)
+    query = PreschoolAchievement.query.join(User, PreschoolAchievement.teacher_id == User.id).filter(
+        PreschoolAchievement.is_archived.is_(False),
+    )
+    kind = (request.args.get("kind") or "all").strip().upper()
+    if kind in {"CHILD", "PEDAGOGICAL"}:
+        query = query.filter(PreschoolAchievement.kind == kind)
+    else:
+        kind = "ALL"
+    search = " ".join((request.args.get("q") or "").split())
+    if search:
+        needle = f"%{search}%"
+        query = query.filter(db.or_(
+            PreschoolAchievement.event_name.ilike(needle),
+            User.last_name.ilike(needle),
+            User.first_name.ilike(needle),
+        ))
+    page = max(request.args.get("page", type=int) or 1, 1)
+    pagination = query.order_by(
+        PreschoolAchievement.event_date.desc().nullslast(), PreschoolAchievement.id.desc(),
+    ).paginate(page=page, per_page=30, error_out=False)
+    return render_template(
+        "professional_registry/preschool_achievements.html", items=pagination.items,
+        pagination=pagination, kind=kind, search=search,
+    )

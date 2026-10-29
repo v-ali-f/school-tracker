@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from datetime import date
+from sqlalchemy.orm import joinedload
 
 from app.core.extensions import db
-from app.models import TeacherMckoResult, User
+from app.models import Subject, TeacherMckoResult, User
 from app.services.teacher_professional_service import (
     add_calendar_months,
     add_calendar_years,
@@ -104,11 +105,7 @@ class TeacherMckoOverview:
 
 def mcko_result_view(record, *, as_of=None):
     as_of = as_of or date.today()
-    expires_at = (
-        mcko_expires_at(record.passed_at)
-        if record.passed_at is not None
-        else record.expires_at
-    )
+    expires_at = record.expires_at or (mcko_expires_at(record.passed_at) if record.passed_at else None)
     if record.passed_at is None or expires_at is None:
         status = "INCOMPLETE"
         status_label = "Неполные данные"
@@ -126,7 +123,7 @@ def mcko_result_view(record, *, as_of=None):
         activity = record.subject.education_activity
     return MckoResultView(
         record=record,
-        activity_name=activity.name if activity else "Предмет не указан",
+        activity_name=record.diagnostic_title or (activity.name if activity else "Предмет не указан"),
         level_code=normalize_mcko_level(record.level),
         level_label=mcko_level_label(record.level),
         expires_at=expires_at,
@@ -150,6 +147,9 @@ def mcko_results_for_teachers(
     query = TeacherMckoResult.query.filter(
         TeacherMckoResult.teacher_id.in_(teacher_ids),
         TeacherMckoResult.is_archived.is_(False),
+    ).options(
+        joinedload(TeacherMckoResult.education_activity),
+        joinedload(TeacherMckoResult.subject).joinedload(Subject.education_activity),
     )
     if teacher_id:
         query = query.filter(TeacherMckoResult.teacher_id == teacher_id)
@@ -188,7 +188,7 @@ def mcko_overviews_for_teachers(teacher_ids, *, as_of=None):
         activity_id = view.record.education_activity_id
         if activity_id is None and view.record.subject is not None:
             activity_id = view.record.subject.education_activity_id
-        subject_key = activity_id or view.record.subject_id or f"record-{view.record.id}"
+        subject_key = activity_id or view.record.subject_id or view.record.diagnostic_title or f"record-{view.record.id}"
         key = (view.record.teacher_id, subject_key)
         if key in seen_subjects:
             continue

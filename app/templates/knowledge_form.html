@@ -1,15 +1,5 @@
-{% extends "layout.html" %}
-{% block breadcrumb %}
-<nav class="app-breadcrumb" aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Главная</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('knowledge.knowledge_list') }}">База знаний</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('knowledge.knowledge_admin') }}">Управление</a></li>
-    <li class="breadcrumb-item active">{{ "Редактировать" if article else "Новый материал" }}</li>
-  </ol>
-</nav>
-{% endblock %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_content %}
 
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8">

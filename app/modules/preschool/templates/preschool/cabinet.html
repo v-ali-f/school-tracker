@@ -1,0 +1,120 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, empty_state %}
+{% block title %}Кабинет сотрудника ДО{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header(person.fio or person.username, 'Личные и профессиональные сведения дошкольного отделения', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+  <section class="registry-matrix-card p-3 mb-3">
+    <h2 class="h5">Сведения о сотруднике</h2>
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Должность</dt><dd class="col-sm-9">{% for code in person.role_codes %}{{ role_labels.get(code, code) }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>
+      <dt class="col-sm-3">Здания</dt><dd class="col-sm-9">{% for row in buildings %}{{ row.building.name }}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</dd>
+      <dt class="col-sm-3">Группы</dt><dd class="col-sm-9">{% for row in groups %}{{ row.group.name }}{% if row.group.academic_year %} ({{ row.group.academic_year.name }}){% endif %}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</dd>
+      <dt class="col-sm-3">Контакты</dt><dd class="col-sm-9">{{ person.phone or '—' }} · {{ person.email or '—' }}</dd>
+    </dl>
+    {% if can_edit_profile %}<details class="mt-3"><summary class="btn btn-outline-primary btn-sm">Изменить личные сведения</summary>
+      <form method="post" action="{{ url_for('preschool.profile_update') }}" class="row g-2 mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-4"><label class="form-label">Фамилия</label><input class="form-control" name="last_name" value="{{ person.last_name or '' }}" required></div>
+        <div class="col-md-4"><label class="form-label">Имя</label><input class="form-control" name="first_name" value="{{ person.first_name or '' }}" required></div>
+        <div class="col-md-4"><label class="form-label">Отчество</label><input class="form-control" name="middle_name" value="{{ person.middle_name or '' }}"></div>
+        <div class="col-md-6"><label class="form-label">Телефон</label><input class="form-control" name="phone" value="{{ person.phone or '' }}"></div>
+        <div class="col-md-6"><label class="form-label">Почта</label><input class="form-control" type="email" name="email" value="{{ person.email or '' }}"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить</button></div>
+      </form>
+    </details>{% endif %}
+  </section>
+
+  <section class="registry-matrix-card p-3 mb-3">
+    <h2 class="h5">МЦКО · {{ preschool_mcko_title }}</h2>
+    {% if mcko %}<div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Диагностика</th><th>Дата</th><th>Результат</th><th>Подтверждение</th><th>Действует до</th><th>Источник</th></tr></thead><tbody>{% for item in mcko %}<tr><td>{{ item.activity_name }}</td><td>{{ item.passed_at.strftime('%d.%m.%Y') if item.passed_at else '—' }}</td><td>{{ item.level_label }}{% if item.result_text %} · {{ item.result_text }}{% endif %}</td><td>{{ item.certificate_number or '—' }}</td><td>{{ item.expires_at.strftime('%d.%m.%Y') if item.expires_at else '—' }}</td><td>{{ item.source_label }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">Результатов пока нет.</p>{% endif %}
+    {% if can_edit and person.has_role('EDUCATOR') %}
+    <details><summary class="btn btn-outline-primary btn-sm">Добавить результат</summary>
+      <form method="post" action="{{ url_for('preschool.mcko_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-3"><label class="form-label">Дата диагностики</label><input class="form-control" type="date" name="passed_at" required></div>
+        <div class="col-md-3"><label class="form-label">Уровень</label><select class="form-select" name="level" required>{% for code, label in mcko_levels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label">Номер подтверждения</label><input class="form-control" name="certificate_number"></div>
+        <div class="col-md-3"><label class="form-label">Срок действия</label><input class="form-control" type="date" name="expires_at"></div>
+        <div class="col-md-12"><label class="form-label">Результат</label><input class="form-control" name="result_text"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить в общий реестр</button></div>
+      </form>
+    </details>
+    {% for item in mcko if item.record.diagnostic_title == preschool_mcko_title %}<details class="mt-2"><summary class="btn btn-outline-secondary btn-sm">Исправить результат от {{ item.passed_at.strftime('%d.%m.%Y') if item.passed_at else '—' }}</summary>
+      <form method="post" action="{{ url_for('preschool.mcko_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="record_id" value="{{ item.record.id }}">
+        <div class="col-md-3"><label class="form-label">Дата диагностики</label><input class="form-control" type="date" name="passed_at" value="{{ item.passed_at.isoformat() if item.passed_at else '' }}" required></div>
+        <div class="col-md-3"><label class="form-label">Уровень</label><select class="form-select" name="level">{% for code, label in mcko_levels.items() %}<option value="{{ code }}" {% if code == item.level_code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label">Номер подтверждения</label><input class="form-control" name="certificate_number" value="{{ item.certificate_number or '' }}"></div>
+        <div class="col-md-3"><label class="form-label">Срок действия</label><input class="form-control" type="date" name="expires_at" value="{{ item.expires_at.isoformat() if item.expires_at else '' }}"></div>
+        <div class="col-md-12"><label class="form-label">Результат</label><input class="form-control" name="result_text" value="{{ item.result_text or '' }}"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить исправление</button></div>
+      </form>
+    </details>{% endfor %}
+    {% endif %}
+  </section>
+
+  <section class="registry-matrix-card p-3 mb-3">
+    <h2 class="h5">Курсы повышения квалификации</h2>
+    {% if courses %}<div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Программа</th><th>Организация</th><th>Часы</th><th>Даты</th><th>Документ</th><th>Источник</th></tr></thead><tbody>{% for row in courses %}<tr><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td>{{ row.hours or '—' }}</td><td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }} — {{ row.end_date.strftime('%d.%m.%Y') if row.end_date else '—' }}</td><td>{{ row.document_title or '—' }} {{ row.document_number or '' }}</td><td>{{ row.entry_source or 'LEGACY' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">Курсов пока нет.</p>{% endif %}
+    {% if can_edit %}<details><summary class="btn btn-outline-primary btn-sm">Добавить курс</summary>
+      <form method="post" action="{{ url_for('preschool.course_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-6"><label class="form-label">Программа</label><input class="form-control" name="title" required></div><div class="col-md-6"><label class="form-label">Организация</label><input class="form-control" name="provider"></div>
+        <div class="col-md-3"><label class="form-label">Часы</label><input class="form-control" type="number" step="0.5" min="0.5" name="hours"></div><div class="col-md-3"><label class="form-label">Начало</label><input class="form-control" type="date" name="start_date"></div><div class="col-md-3"><label class="form-label">Окончание</label><input class="form-control" type="date" name="end_date"></div>
+        <div class="col-md-3"><label class="form-label">Документ</label><input class="form-control" name="document_title"></div><div class="col-md-6"><label class="form-label">Номер документа</label><input class="form-control" name="document_number"></div><div class="col-md-6"><label class="form-label">Примечание</label><input class="form-control" name="notes"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить в общий реестр</button></div>
+      </form>
+    </details>
+    {% for row in courses %}<details class="mt-2"><summary class="btn btn-outline-secondary btn-sm">Исправить курс «{{ row.title }}»</summary>
+      <form method="post" action="{{ url_for('preschool.course_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="record_id" value="{{ row.id }}">
+        <div class="col-md-6"><label class="form-label">Программа</label><input class="form-control" name="title" value="{{ row.title }}" required></div><div class="col-md-6"><label class="form-label">Организация</label><input class="form-control" name="provider" value="{{ row.provider or '' }}"></div>
+        <div class="col-md-3"><label class="form-label">Часы</label><input class="form-control" type="number" step="0.5" name="hours" value="{{ row.hours or '' }}"></div><div class="col-md-3"><label class="form-label">Начало</label><input class="form-control" type="date" name="start_date" value="{{ row.start_date.isoformat() if row.start_date else '' }}"></div><div class="col-md-3"><label class="form-label">Окончание</label><input class="form-control" type="date" name="end_date" value="{{ row.end_date.isoformat() if row.end_date else '' }}"></div>
+        <div class="col-md-3"><label class="form-label">Документ</label><input class="form-control" name="document_title" value="{{ row.document_title or '' }}"></div><div class="col-md-6"><label class="form-label">Номер документа</label><input class="form-control" name="document_number" value="{{ row.document_number or '' }}"></div><div class="col-md-6"><label class="form-label">Примечание</label><input class="form-control" name="notes" value="{{ row.notes or '' }}"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить исправление</button></div>
+      </form>
+    </details>{% endfor %}{% endif %}
+  </section>
+
+  <section class="registry-matrix-card p-3 mb-3">
+    <h2 class="h5">Достижения обучающихся</h2>
+    {% set child_achievements = achievements|selectattr('kind', 'equalto', 'CHILD')|list %}
+    {% if child_achievements %}<ul class="list-group mb-3">{% for row in child_achievements %}<li class="list-group-item">{{ row.event_name }} · {{ row.result or 'Результат не указан' }} · {{ row.child.full_name if row.child else (row.group.name if row.group else '—') }}
+      {% if can_edit %}<details class="mt-2"><summary class="btn btn-outline-secondary btn-sm">Исправить</summary><form method="post" action="{{ url_for('preschool.achievement_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="record_id" value="{{ row.id }}"><input type="hidden" name="kind" value="CHILD"><input type="hidden" name="child_id" value="{{ row.child_id or '' }}"><input type="hidden" name="group_id" value="{{ row.group_id or '' }}"><div class="col-md-6"><label class="form-label">Мероприятие</label><input class="form-control" name="event_name" value="{{ row.event_name }}" required></div><div class="col-md-3"><label class="form-label">Уровень</label><input class="form-control" name="level" value="{{ row.level or '' }}"></div><div class="col-md-3"><label class="form-label">Организатор</label><input class="form-control" name="organizer" value="{{ row.organizer or '' }}"></div><div class="col-md-3"><label class="form-label">Дата</label><input class="form-control" type="date" name="event_date" value="{{ row.event_date.isoformat() if row.event_date else '' }}"></div><div class="col-md-3"><label class="form-label">Результат</label><input class="form-control" name="result" value="{{ row.result or '' }}"></div><div class="col-md-3"><label class="form-label">Награда</label><input class="form-control" name="award" value="{{ row.award or '' }}"></div><div class="col-md-3"><label class="form-label">Документ</label><input class="form-control" name="document" value="{{ row.document or '' }}"></div><div class="col-12"><button class="btn btn-primary" type="submit">Сохранить исправление</button></div></form></details>{% endif %}
+    </li>{% endfor %}</ul>{% else %}<p class="text-muted">Достижений пока нет.</p>{% endif %}
+    {% if can_edit and own_groups %}<details><summary class="btn btn-outline-primary btn-sm">Добавить достижение воспитанников</summary>
+      <form method="post" action="{{ url_for('preschool.achievement_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="CHILD">
+        <div class="col-md-6"><label class="form-label">Мероприятие</label><input class="form-control" name="event_name" required></div><div class="col-md-3"><label class="form-label">Группа</label><select class="form-select" name="group_id"><option value="">Выберите</option>{% for row in own_groups %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></div><div class="col-md-3"><label class="form-label">Воспитанник</label><select class="form-select" name="child_id"><option value="">Без конкретного ребёнка</option>{% for row in own_children %}<option value="{{ row.id }}">{{ row.full_name }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label">Уровень</label><input class="form-control" name="level"></div><div class="col-md-3"><label class="form-label">Организатор</label><input class="form-control" name="organizer"></div><div class="col-md-3"><label class="form-label">Дата</label><input class="form-control" type="date" name="event_date"></div><div class="col-md-3"><label class="form-label">Результат</label><input class="form-control" name="result"></div>
+        <div class="col-md-6"><label class="form-label">Награда</label><input class="form-control" name="award"></div><div class="col-md-6"><label class="form-label">Документ</label><input class="form-control" name="document"></div><div class="col-12"><button class="btn btn-primary" type="submit">Сохранить</button></div>
+      </form>
+    </details>{% endif %}
+  </section>
+
+  <section class="registry-matrix-card p-3 mb-3">
+    <h2 class="h5">Педагогические достижения</h2>
+    {% set pedagogical_achievements = achievements|selectattr('kind', 'equalto', 'PEDAGOGICAL')|list %}
+    {% if pedagogical_achievements %}<ul class="list-group mb-3">{% for row in pedagogical_achievements %}<li class="list-group-item">{{ row.event_name }} · {{ row.result or 'Результат не указан' }}{% if row.award %} · {{ row.award }}{% endif %}
+      {% if can_edit %}<details class="mt-2"><summary class="btn btn-outline-secondary btn-sm">Исправить</summary><form method="post" action="{{ url_for('preschool.achievement_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="record_id" value="{{ row.id }}"><input type="hidden" name="kind" value="PEDAGOGICAL"><div class="col-md-6"><label class="form-label">Мероприятие</label><input class="form-control" name="event_name" value="{{ row.event_name }}" required></div><div class="col-md-3"><label class="form-label">Уровень</label><input class="form-control" name="level" value="{{ row.level or '' }}"></div><div class="col-md-3"><label class="form-label">Организатор</label><input class="form-control" name="organizer" value="{{ row.organizer or '' }}"></div><div class="col-md-3"><label class="form-label">Дата</label><input class="form-control" type="date" name="event_date" value="{{ row.event_date.isoformat() if row.event_date else '' }}"></div><div class="col-md-3"><label class="form-label">Результат</label><input class="form-control" name="result" value="{{ row.result or '' }}"></div><div class="col-md-3"><label class="form-label">Награда</label><input class="form-control" name="award" value="{{ row.award or '' }}"></div><div class="col-md-3"><label class="form-label">Документ</label><input class="form-control" name="document" value="{{ row.document or '' }}"></div><div class="col-12"><button class="btn btn-primary" type="submit">Сохранить исправление</button></div></form></details>{% endif %}
+    </li>{% endfor %}</ul>{% else %}<p class="text-muted">Достижений пока нет.</p>{% endif %}
+    {% if can_edit %}<details><summary class="btn btn-outline-primary btn-sm">Добавить педагогическое достижение</summary>
+      <form method="post" action="{{ url_for('preschool.achievement_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="PEDAGOGICAL">
+        <div class="col-md-6"><label class="form-label">Мероприятие</label><input class="form-control" name="event_name" required></div><div class="col-md-3"><label class="form-label">Уровень</label><input class="form-control" name="level"></div><div class="col-md-3"><label class="form-label">Организатор</label><input class="form-control" name="organizer"></div>
+        <div class="col-md-3"><label class="form-label">Дата</label><input class="form-control" type="date" name="event_date"></div><div class="col-md-3"><label class="form-label">Результат</label><input class="form-control" name="result"></div><div class="col-md-3"><label class="form-label">Награда</label><input class="form-control" name="award"></div><div class="col-md-3"><label class="form-label">Документ</label><input class="form-control" name="document"></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить</button></div>
+      </form>
+    </details>{% endif %}
+  </section>
+
+  <section class="registry-matrix-card p-3 mb-3">
+    <h2 class="h5">Аттестация</h2>
+    {% if attestations %}<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Вид</th><th>Должность</th><th>Решение</th><th>Срок</th><th>Приказ</th></tr></thead><tbody>{% for row in attestations %}{% set effective_until = position_compliance_due_at(None, last_decision_date=row.decision_date) if row.category == 'POSITION_COMPLIANCE' else row.valid_until %}<tr><td>{{ attestation_categories.get(row.category, row.category) }}</td><td>{{ row.position_title or '—' }}</td><td>{{ row.decision_date.strftime('%d.%m.%Y') }}</td><td>{{ 'Бессрочно' if row.is_indefinite else (effective_until.strftime('%d.%m.%Y') if effective_until else '—') }}</td><td>{{ row.order_number or '—' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted">Записей об аттестации пока нет.</p>{% endif %}
+    {% if can_attest %}{% for row in attestations %}<details class="mb-2"><summary class="btn btn-outline-secondary btn-sm">Исправить решение от {{ row.decision_date.strftime('%d.%m.%Y') }}</summary><form method="post" action="{{ url_for('preschool.attestation_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="record_id" value="{{ row.id }}"><div class="col-md-4"><label class="form-label">Вид</label><select class="form-select" name="category">{% for code, label in attestation_categories.items() %}<option value="{{ code }}" {% if code == row.category %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><div class="col-md-4"><label class="form-label">Должность</label><input class="form-control" name="position_title" value="{{ row.position_title or '' }}"></div><div class="col-md-4"><label class="form-label">Дата решения</label><input class="form-control" type="date" name="decision_date" value="{{ row.decision_date.isoformat() }}" required></div><div class="col-md-4"><label class="form-label">Действует до</label><input class="form-control" type="date" name="valid_until" value="{{ position_compliance_due_at(None, last_decision_date=row.decision_date).isoformat() if row.category == 'POSITION_COMPLIANCE' else (row.valid_until.isoformat() if row.valid_until else '') }}"></div><div class="col-md-4"><label class="form-label">Номер приказа</label><input class="form-control" name="order_number" value="{{ row.order_number or '' }}"></div><div class="col-md-4"><label class="form-label"><input type="checkbox" name="is_indefinite" value="1" {% if row.is_indefinite %}checked{% endif %}> Бессрочно</label></div><div class="col-12"><button class="btn btn-primary" type="submit">Сохранить исправление</button></div></form></details>{% endfor %}{% endif %}
+    {% if can_attest %}<details><summary class="btn btn-outline-primary btn-sm">Добавить аттестацию</summary>
+      <form method="post" action="{{ url_for('preschool.attestation_save', user_id=person.id) }}" class="row g-2 mt-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-4"><label class="form-label">Вид</label><select class="form-select" name="category" required>{% for code, label in attestation_categories.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label">Должность</label><input class="form-control" name="position_title"></div><div class="col-md-4"><label class="form-label">Дата решения</label><input class="form-control" type="date" name="decision_date" required></div>
+        <div class="col-md-4"><label class="form-label">Действует до</label><input class="form-control" type="date" name="valid_until"></div><div class="col-md-4"><label class="form-label">Номер приказа</label><input class="form-control" name="order_number"></div><div class="col-md-4"><label class="form-label"><input type="checkbox" name="is_indefinite" value="1"> Бессрочно</label></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit">Сохранить в общий реестр</button></div>
+      </form>
+    </details>{% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -22,6 +22,8 @@ AUDITOR = "AUDITOR"
 # PERMISSIONS MATRIX
 # =========================================================
 PERMISSIONS = {
+    "quality_view": {ADMIN, DIRECTOR, DEPUTY_DIRECTOR, METHODIST},
+    "quality_import": {ADMIN, DIRECTOR, DEPUTY_DIRECTOR},
     "dashboard_view": {
         ADMIN, TEACHER, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG, METHODIST
     },
@@ -55,7 +57,8 @@ PERMISSIONS = {
     },
 
     "incident_add": {
-        ADMIN, TEACHER, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG, METHODIST
+        ADMIN, TEACHER, CLASS_TEACHER, PSYCHOLOGIST, SOCIAL_PEDAGOG, METHODIST,
+        "EDUCATOR", "ASSISTANT_EDUCATOR", "SENIOR_EDUCATOR",
     },
 
     "incident_registry_view": {
@@ -63,7 +66,7 @@ PERMISSIONS = {
     },
 
     "incident_dashboard_view": {
-        ADMIN, METHODIST, SOCIAL_PEDAGOG, PSYCHOLOGIST
+        ADMIN, METHODIST, SOCIAL_PEDAGOG, PSYCHOLOGIST, "SENIOR_EDUCATOR"
     },
 
     "low_results_view": {

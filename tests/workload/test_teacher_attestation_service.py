@@ -26,12 +26,12 @@ def _record(
     )
 
 
-def test_position_compliance_is_due_two_calendar_years_after_basis_date():
+def test_position_compliance_first_after_two_years_then_every_five_years():
     assert position_compliance_due_at(date(2024, 2, 29)) == date(2026, 2, 28)
     assert position_compliance_due_at(
         date(2020, 1, 1),
         last_decision_date=date(2025, 5, 20),
-    ) == date(2027, 5, 20)
+    ) == date(2030, 5, 20)
 
 
 def test_attestation_supports_indefinite_and_fixed_categories():
@@ -58,7 +58,7 @@ def test_attestation_supports_indefinite_and_fixed_categories():
     assert expired.status == "EXPIRED"
 
 
-def test_position_compliance_uses_two_year_term_when_end_date_is_missing():
+def test_position_compliance_uses_five_year_term_after_decision():
     view = attestation_view(
         _record(
             category="POSITION_COMPLIANCE",
@@ -67,7 +67,7 @@ def test_position_compliance_uses_two_year_term_when_end_date_is_missing():
         as_of=date(2026, 3, 10),
     )
 
-    assert view.effective_valid_until == date(2027, 3, 10)
+    assert view.effective_valid_until == date(2030, 3, 10)
     assert view.status == "ACTIVE"
 
 

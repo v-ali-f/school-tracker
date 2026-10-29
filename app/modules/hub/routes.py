@@ -23,6 +23,12 @@ def _school_plan_visible():
         return False
 
 
+def _preschool_visible():
+    from app.modules.preschool.access import can_open_preschool
+
+    return can_open_preschool(current_user)
+
+
 ICON_MAP = {
     "Инциденты": ("bi-shield-exclamation", "accent-dark"),
     "Травмы": ("bi-heart-pulse", "accent-orange"),
@@ -37,6 +43,8 @@ ICON_MAP = {
     "Контингент": ("bi-people-fill", "accent-green"),
     "Кафедры": ("bi-diagram-3", "accent-dark"),
     "Диагностики МЦКО": ("bi-clipboard-data", "accent-orange"),
+    "Качество образования": ("bi-mortarboard", "accent-blue"),
+    "Повышение квалификации": ("bi-mortarboard", "accent-blue"),
     "Пропуска и аналитика посещаемости": ("bi-calendar-check", "accent-green"),
     "Основные реестры": ("bi-table", "accent-dark"),
     "Дошкольное отделение": ("bi-house-heart", "accent-green"),
@@ -514,6 +522,18 @@ def _main_page_config():
                 "roles_any": ["ADMIN", "METHODIST"],
             },
             {
+                "title": "Качество образования",
+                "description": "Выбор ОГЭ и ЕГЭ, успеваемость 9 и 11 классов, данные журналов МЭШ.",
+                "endpoint": "quality.index",
+                "permission_any": ["quality_view"],
+            },
+            {
+                "title": "Повышение квалификации",
+                "description": "Курсы сотрудников, аналитика и планирование обучения.",
+                "endpoint": "professional_development.index",
+                "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "HR_SPECIALIST"],
+            },
+            {
                 "title": "Пропуска и аналитика посещаемости",
                 "description": "Реестр пропусков, аналитика, импорт и начало занятий.",
                 "endpoint": "hub.attendance",
@@ -527,9 +547,9 @@ def _main_page_config():
             },
             {
                 "title": "Дошкольное отделение",
-                "description": "Контингент ДОУ, группы, представители и детодни.",
+                "description": "Группы, воспитанники и сотрудники дошкольного отделения.",
                 "endpoint": "preschool.index",
-                "roles_any": ["ADMIN", "METHODIST", "PRESCHOOL_ADMIN", "PRESCHOOL_TEACHER"],
+                "visible_if": _preschool_visible,
             },
             {
                 "title": "Контрольные работы",
@@ -659,13 +679,13 @@ def _theme_configs():
             "roles_any": ["ADMIN", "METHODIST"],
             "quick_actions": _materialize([
                 {"title": "Сводный контингент", "endpoint": "children.contingent", "permission_any": ["contingent_view"]},
-                {"title": "Дошкольное отделение", "endpoint": "preschool.index", "permission_any": ["contingent_view"]},
+                {"title": "Дошкольное отделение", "endpoint": "preschool.index", "visible_if": _preschool_visible},
                 {"title": "Ученики", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
             ]),
             "sections": _materialize([
                 {"title": "Сводный контингент", "description": "Основная аналитика по составу обучающихся.", "endpoint": "children.contingent"},
-                {"title": "Дошкольное отделение", "description": "Контингент ДОУ, группы, представители и детодни.", "endpoint": "preschool.index"},
+                {"title": "Дошкольное отделение", "description": "Группы, воспитанники и сотрудники ДО.", "endpoint": "preschool.index", "visible_if": _preschool_visible},
                 {"title": "Реестр контингента", "description": "Общий список детей по школе.", "endpoint": "children.list_children", "permission_any": ["children_registry_view"]},
                 {"title": "Добавить ученика", "description": "Карточка зачисления нового ученика.", "endpoint": "children.new_child", "roles_any": ["ADMIN", "SECRETARY_ACADEMIC", "SOCIAL_PEDAGOG"]},
                 {"title": "Зачисленные", "description": "Отдельный реестр прибывших детей.", "endpoint": "children.registry_enrolled", "permission_any": ["registry_enrolled_view"]},
@@ -699,6 +719,7 @@ def _theme_configs():
             "sections": _materialize([
                 {"title": "Настройка предметных кафедр", "description": "Структура кафедр и состав участников.", "endpoint": "departments.settings"},
                 {"title": "Свод по кафедрам", "description": "Итоги и показатели по кафедрам.", "endpoint": "departments.summary"},
+                {"title": "Повышение квалификации", "description": "Курсы и планирование обучения сотрудников.", "endpoint": "professional_development.index", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "HR_SPECIALIST"]},
                 {"title": "Нагрузка учителей", "description": "Распределение часов и учебной нагрузки.", "endpoint": "departments.loads"},
                 {
                     "title": "Мой профиль преподавателя",
@@ -739,6 +760,8 @@ def _theme_configs():
             "sections": _materialize([
                 {"title": "Результаты МЦКО педагогов", "description": "Сертификаты, сроки действия и педагоги без актуальной диагностики.", "endpoint": "professional_registry.mcko_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD"]},
                 {"title": "Аттестация педагогов", "description": "Категории, сроки действия и контроль аттестации на соответствие должности.", "endpoint": "professional_registry.attestation_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST", "DEPARTMENT_HEAD"]},
+                {"title": "Курсы повышения квалификации", "description": "Общий реестр курсов школьного и дошкольного отделений.", "endpoint": "professional_registry.course_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"]},
+                {"title": "Достижения дошкольного отделения", "description": "Участие воспитанников и профессиональные достижения сотрудников.", "endpoint": "professional_registry.preschool_achievements_registry", "roles_any": ["ADMIN", "DIRECTOR", "DEPUTY_DIRECTOR", "METHODIST"]},
                 {"title": "Классы учебного года", "description": "Классы, параллели, здания и классные руководители по учебным годам.", "endpoint": "children.classes_registry", "roles_any": ["ADMIN"]},
                 {"title": "Группы ДОУ учебного года", "description": "Группы дошкольного отделения, здания и ответственные педагоги.", "endpoint": "preschool.groups", "roles_any": ["ADMIN"]},
                 {"title": "Реестр предметов", "description": "Единый каталог учебных предметов и видов образовательной деятельности.", "endpoint": "children.subjects_registry", "roles_any": ["ADMIN"]},

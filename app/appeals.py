@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 import os
 import uuid
+from zipfile import ZipFile
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
@@ -13,6 +14,17 @@ from app.models import Appeal, AppealAttachment, Task, User
 from app.services.appeal_notifications import send_appeal_max_notification, send_appeal_mobile_push
 
 appeals_bp = Blueprint('appeals', __name__, url_prefix='/appeals')
+
+
+@appeals_bp.context_processor
+def _appeals_workspace_context():
+    from app.modules.hub.routes import build_home_context
+
+    return {
+        'workspace_nav': build_home_context(),
+        'workspace_context_title': 'Обращения',
+        'workspace_context_subtitle': 'Ответственные, сроки и результаты',
+    }
 
 ADMIN_ROLES = {'ADMIN', 'DEPUTY_DIRECTOR', 'DIRECTOR'}
 SECRETARY_ROLES = {'SECRETARY_ACADEMIC', 'SECRETARY', 'ADMIN', 'DEPUTY_DIRECTOR', 'DIRECTOR'}
@@ -67,6 +79,14 @@ def _upload_root():
     root = current_app.config.get('UPLOAD_FOLDER') or os.path.abspath(os.path.join('data', 'uploads'))
     path = os.path.join(root, 'appeals')
     os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _attachment_path(attachment):
+    root = Path(current_app.config.get('UPLOAD_FOLDER') or os.path.abspath(os.path.join('data', 'uploads'))).resolve()
+    path = (root / attachment.stored_path).resolve()
+    if root not in path.parents:
+        abort(404)
     return path
 
 
@@ -205,8 +225,12 @@ def index():
         'total': q.count(),
         'overdue': sum(1 for x in appeals if x.is_overdue),
         'new': sum(1 for x in appeals if x.status == 'Новое'),
+        'closed': sum(1 for x in appeals if x.status == 'Закрыто'),
     }
-    return render_template('appeals_index.html', appeals=appeals, counts=counts, statuses=Appeal.STATUS_CHOICES, can_create=_can_create())
+    return render_template('appeals_index.html', appeals=appeals, counts=counts, statuses=Appeal.STATUS_CHOICES,
+                           can_create=_can_create(), workspace_page_title='Реестр обращений',
+                           workspace_page_subtitle='Заявители, ответственные, сроки и исполнение',
+                           workspace_back_url=url_for('main.dashboard'), workspace_back_label='Главная')
 
 
 @appeals_bp.route('/new', methods=['GET', 'POST'])
@@ -272,7 +296,11 @@ def new():
 
         flash('Обращение добавлено.', 'success')
         return redirect(url_for('appeals.detail', appeal_id=appeal.id))
-    return render_template('appeals_form.html', appeal=None, users=users, statuses=Appeal.STATUS_CHOICES, channels=Appeal.CHANNEL_CHOICES)
+    return render_template('appeals_form.html', appeal=None, users=users, selected_responsible_ids=[],
+                           selected_users=[], statuses=Appeal.STATUS_CHOICES, channels=Appeal.CHANNEL_CHOICES,
+                           workspace_page_title='Новое обращение',
+                           workspace_page_subtitle='Основные сведения и ответственные',
+                           workspace_back_url=url_for('appeals.index'), workspace_back_label='К реестру')
 
 
 @appeals_bp.route('/<int:appeal_id>', methods=['GET', 'POST'])
@@ -295,9 +323,11 @@ def detail(appeal_id):
         responsible_ids = _parse_responsible_ids()
         _apply_responsibles(appeal, responsible_ids)
         appeal.deadline_at = _parse_date(request.form.get('deadline_at'))
-        appeal.status = request.form.get('status') or appeal.status
+        appeal.status = 'Закрыто' if request.form.get('action') == 'close' else (request.form.get('status') or appeal.status)
         appeal.result_text = request.form.get('result_text') or None
         appeal.answered_at = _parse_date(request.form.get('answered_at'))
+        if request.form.get('action') == 'close' and not appeal.answered_at:
+            appeal.answered_at = datetime.utcnow().date()
         _save_files(appeal, request.files.getlist('attachments'))
         db.session.commit()
 
@@ -318,7 +348,15 @@ def detail(appeal_id):
 
         flash('Обращение сохранено.', 'success')
         return redirect(url_for('appeals.detail', appeal_id=appeal.id))
-    return render_template('appeals_detail.html', appeal=appeal, users=users, statuses=Appeal.STATUS_CHOICES, channels=Appeal.CHANNEL_CHOICES)
+    attachments = [(attachment, _attachment_path(attachment).is_file()) for attachment in appeal.attachments]
+    return render_template('appeals_detail.html', appeal=appeal, users=users,
+                           selected_responsible_ids=_appeal_responsible_ids(appeal),
+                           selected_users=_appeal_responsible_users(appeal),
+                           attachments=attachments, statuses=Appeal.STATUS_CHOICES,
+                           channels=Appeal.CHANNEL_CHOICES,
+                           workspace_page_title=f'Обращение №{appeal.number or appeal.id}',
+                           workspace_page_subtitle=f'{appeal.subject} · {appeal.applicant_name}',
+                           workspace_back_url=url_for('appeals.index'), workspace_back_label='К реестру')
 
 
 @appeals_bp.route('/<int:appeal_id>/delete', methods=['POST'])
@@ -339,8 +377,67 @@ def delete(appeal_id):
 @appeals_bp.route('/attachment/<int:attachment_id>')
 @login_required
 def download_attachment(attachment_id):
+    att, path = _accessible_attachment(attachment_id)
+    return send_file(path, as_attachment=True, download_name=att.original_filename)
+
+
+def _accessible_attachment(attachment_id):
     att = AppealAttachment.query.get_or_404(attachment_id)
     if not _can_edit(att.appeal):
         abort(403)
-    root = current_app.config.get('UPLOAD_FOLDER') or os.path.abspath(os.path.join('data', 'uploads'))
-    return send_file(os.path.join(root, att.stored_path), as_attachment=True, download_name=att.original_filename)
+    path = _attachment_path(att)
+    if not path.is_file():
+        current_app.logger.warning('Appeal attachment missing: attachment_id=%s appeal_id=%s', att.id, att.appeal_id)
+        abort(404, description='Файл обращения отсутствует в хранилище.')
+    return att, path
+
+
+@appeals_bp.route('/attachment/<int:attachment_id>/inline')
+@login_required
+def inline_attachment(attachment_id):
+    att, path = _accessible_attachment(attachment_id)
+    ext = Path(att.original_filename or '').suffix.lower()
+    mimetype = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'}.get(ext)
+    if not mimetype:
+        abort(404)
+    response = send_file(path, mimetype=mimetype, as_attachment=False, download_name=att.original_filename)
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+@appeals_bp.route('/attachment/<int:attachment_id>/preview')
+@login_required
+def preview_attachment(attachment_id):
+    att, path = _accessible_attachment(attachment_id)
+    ext = Path(att.original_filename or '').suffix.lower()
+    preview_html = None
+    inline_url = None
+    archive_names = None
+    preview_error = None
+
+    try:
+        if ext in {'.pdf', '.png', '.jpg', '.jpeg'}:
+            inline_url = url_for('appeals.inline_attachment', attachment_id=att.id)
+        elif ext in {'.txt', '.docx', '.xlsx'}:
+            from app.documents import _render_docx_preview, _render_text_preview, _render_xlsx_preview
+            renderer = {'.txt': _render_text_preview, '.docx': _render_docx_preview, '.xlsx': _render_xlsx_preview}[ext]
+            preview_html = renderer(str(path))
+        elif ext == '.zip':
+            with ZipFile(path) as archive:
+                archive_names = [item.filename for item in archive.infolist()[:100]]
+        else:
+            preview_error = 'Предпросмотр этого формата недоступен. Файл можно скачать.'
+    except Exception:
+        current_app.logger.exception('Appeal attachment preview failed: attachment_id=%s', att.id)
+        preview_error = 'Не удалось открыть файл для просмотра. Файл можно скачать.'
+
+    template = 'appeals_attachment_preview_embed.html' if request.args.get('embed') == '1' else 'appeals_attachment_preview.html'
+    response = current_app.make_response(render_template(
+        template, attachment=att, inline_url=inline_url,
+        preview_html=preview_html, archive_names=archive_names, preview_error=preview_error,
+        workspace_page_title=att.original_filename, workspace_page_subtitle='Файл обращения',
+        workspace_back_url=url_for('appeals.detail', appeal_id=att.appeal_id), workspace_back_label='К обращению',
+    ))
+    response.headers['Cache-Control'] = 'no-store'
+    return response

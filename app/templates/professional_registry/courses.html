@@ -1,0 +1,20 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, empty_state %}
+{% block title %}Курсы повышения квалификации{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Курсы повышения квалификации', 'Общий школьный реестр сотрудников', 'Профессиональные реестры') }}
+  <section class="registry-matrix-card p-3 mb-3"><form method="get" class="row g-2 align-items-end">
+    <div class="col-md-6"><label class="form-label">Поиск</label><input class="form-control" name="q" value="{{ search }}" placeholder="Сотрудник, программа, организация"></div>
+    <div class="col-md-3"><label class="form-label">Раздел</label><select class="form-select" name="scope"><option value="all" {% if scope == 'all' %}selected{% endif %}>Вся школа</option><option value="preschool" {% if scope == 'preschool' %}selected{% endif %}>Дошкольное отделение</option><option value="school" {% if scope == 'school' %}selected{% endif %}>Школьное отделение</option></select></div>
+    <div class="col-md-3"><button class="btn btn-primary" type="submit">Показать</button></div>
+  </form></section>
+  <section class="registry-matrix-card">
+    {% if items %}<div class="table-responsive"><table class="table table-hover align-middle registry-matrix mb-0"><thead><tr><th>Сотрудник</th><th>Программа</th><th>Организация</th><th>Часы</th><th>Период</th><th>Документ</th><th>Источник</th></tr></thead><tbody>{% for row in items %}<tr>
+      <td><a href="{{ url_for('preschool.staff_profile', user_id=row.teacher_id) if row.teacher_id in preschool_user_ids else url_for('departments.teacher_profile', teacher_id=row.teacher_id) }}">{{ row.teacher.fio or row.teacher.username }}</a></td>
+      <td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td>{{ row.hours or '—' }}</td><td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }} — {{ row.end_date.strftime('%d.%m.%Y') if row.end_date else '—' }}</td><td>{{ row.document_title or '—' }} {{ row.document_number or '' }}</td><td>{{ entry_source_label(row.entry_source) }}</td>
+    </tr>{% endfor %}</tbody></table></div>{% else %}<div class="p-3">{{ empty_state('Курсы не найдены', 'Измените поиск или фильтр.', 'bi-journal-bookmark') }}</div>{% endif %}
+  </section>
+  {% if pagination.pages > 1 %}<nav class="d-flex gap-2 mt-3" aria-label="Страницы реестра">{% if pagination.has_prev %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('professional_registry.course_registry', page=pagination.prev_num, q=search, scope=scope) }}">Назад</a>{% endif %}<span class="align-self-center">{{ pagination.page }} из {{ pagination.pages }}</span>{% if pagination.has_next %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('professional_registry.course_registry', page=pagination.next_num, q=search, scope=scope) }}">Далее</a>{% endif %}</nav>{% endif %}
+</div>
+{% endblock %}

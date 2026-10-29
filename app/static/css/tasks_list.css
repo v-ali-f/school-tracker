@@ -517,7 +517,7 @@
   .tasks-page .content-shell,
   .tasks-page .tasks-shell,
   .tasks-page .page-shell {
-    max-width: 1280px !important;
+    max-width: none !important;
   }
 
   .tasks-page .btn,
@@ -590,7 +590,7 @@
 /* Задачи без бокового меню — основной блок на всю ширину */
   .tasks-shell-no-side {
     display: block !important;
-    max-width: 1280px !important;
+    max-width: none !important;
     margin: 0 auto !important;
   }
 
@@ -756,7 +756,7 @@
    ========================================================= */
 
 .tasks-shell {
-  max-width: 1280px !important;
+  max-width: none !important;
   margin: 0 auto !important;
   display: grid !important;
   grid-template-columns: 230px minmax(0, 1fr) !important;
@@ -1089,7 +1089,7 @@
 .tasks-shell.tasks-shell-no-side {
   display: block !important;
   grid-template-columns: none !important;
-  max-width: 1280px !important;
+  max-width: none !important;
   width: 100% !important;
   margin: 0 auto !important;
 }
@@ -1165,7 +1165,7 @@
 /* Финальное выравнивание задач под общий визуальный стандарт портала. */
   .tasks-shell.tasks-shell-no-side {
     width: 100% !important;
-    max-width: 1280px !important;
+    max-width: none !important;
   }
 
   .tasks-shell.tasks-shell-no-side .tasks-topbar {

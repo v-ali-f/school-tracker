@@ -1,0 +1,23 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, empty_state %}
+{% block title %}Моя группа{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Моя группа', 'Воспитанники назначенных вам групп', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+  {% if children %}
+  <section class="registry-matrix-card">
+    <div class="table-responsive"><table class="table table-hover registry-matrix mb-0">
+      <thead><tr><th>Воспитанник</th><th>Группа</th><th>Здание</th><th>Дата рождения</th></tr></thead>
+      <tbody>{% for child in children %}<tr>
+        <td><a href="{{ url_for('preschool.child_card', child_id=child.id) }}">{{ child.full_name }}</a></td>
+        <td>{{ child.group.name if child.group else '—' }}</td>
+        <td>{{ child.group.building.name if child.group and child.group.building else '—' }}</td>
+        <td>{{ child.birth_date.strftime('%d.%m.%Y') if child.birth_date else '—' }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% else %}
+    {{ empty_state('Воспитанников пока нет', 'После назначения группы её воспитанники появятся здесь.', 'bi-people') }}
+  {% endif %}
+</div>
+{% endblock %}

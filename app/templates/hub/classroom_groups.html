@@ -1,15 +1,15 @@
-{% extends "layout.html" %}
+{% extends "workspace_layout.html" %}
 
 {% block title %}Распределение по учебным группам{% endblock %}
 
-{% block head_extra %}
+{% block workspace_head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_workspace.css') }}?v=20260730_4">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/workload_group_composition.css') }}?v=20260804_3">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/classroom_group_composition.css') }}?v=20260804_1">
 {% endblock %}
 
-{% block content %}
+{% block workspace_content %}
 <section class="workload-workspace classroom-group-shell" data-group-composition>
   <header class="classroom-group-header">
     <div>

@@ -10,7 +10,10 @@ body.school-plan-modern-shell > .container.my-4 > .app-breadcrumb {
   display: none !important;
 }
 
-body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(.preschool-wide-container):not(.contingent-compact-container) {
+body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(.preschool-wide-container):not(.contingent-compact-container),
+body.school-plan-modern-shell > .container.my-4.portal-wide-container,
+body.school-plan-modern-shell > .container.my-4.preschool-wide-container,
+body.school-plan-modern-shell > .container.my-4.contingent-compact-container {
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
@@ -24,6 +27,22 @@ body.school-plan-modern-shell > .container.my-4:not(.portal-wide-container):not(
   margin: 0 !important;
   color: var(--ws-color-text);
   background: var(--ws-color-canvas);
+}
+
+.sp-content > .container {
+  width: 100% !important;
+  max-width: none !important;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sp-content .ws-heading-promoted {
+  display: none !important;
+}
+
+.sp-content .ws-page-head-compact {
+  margin-bottom: 12px !important;
+  padding-top: 0 !important;
 }
 
 .sp-menu-toggle {
@@ -133,8 +152,12 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
   backdrop-filter: blur(10px);
 }
 
-.sp-topbar-context { color: #748094; font-size: 11px; }
-.sp-topbar-context strong { display: block; color: var(--ws-color-heading); font-size: 13px; font-weight: 600; }
+.sp-topbar-heading { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.sp-topbar-back { display: inline-flex; align-items: center; gap: 5px; flex: none; min-height: 34px; padding: 0 10px; border: 1px solid var(--ws-color-border); border-radius: var(--ws-radius-pill); color: var(--ws-color-accent); background: #fff; font-size: 11px; font-weight: 600; text-decoration: none; }
+.sp-topbar-back:hover { border-color: var(--ws-color-border-strong); background: var(--ws-color-accent-soft); }
+.sp-topbar-context { min-width: 0; color: #748094; font-size: 10px; line-height: 1.35; }
+.sp-topbar-context strong { display: block; overflow: hidden; color: var(--ws-color-heading); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.sp-topbar-context > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-topbar-actions { display: flex; align-items: center; gap: 8px; }
 .sp-topbar-icon { width: 36px; height: 36px; display: grid !important; place-items: center; border: 1px solid var(--ws-color-border); border-radius: 50% !important; color: #4b5f7e; background: #fff; text-decoration: none; }
 .sp-topbar-icon i { display: block; margin: 0 !important; line-height: 1; }
@@ -145,7 +168,7 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
 .sp-profile-copy > span { display: block; color: #8090a7; font-size: 9px; }
 .sp-mobile-menu { min-height: 36px; display: inline-flex !important; align-items: center; gap: 7px; padding: 0 12px !important; border: 1px solid var(--ws-color-border) !important; border-radius: var(--ws-radius-pill) !important; color: #365170 !important; background: #fff !important; font-size: 11px !important; font-weight: 600; cursor: pointer; }
 .sp-mobile-menu i { margin: 0 !important; font-size: 16px; line-height: 1; }
-.sp-content { width: 100%; max-width: var(--ws-content-max-width); margin: 0 auto; padding: 20px 22px 32px; }
+.sp-content { width: 100%; max-width: none; margin: 0; padding: 20px 22px 32px; }
 .sp-sidebar-overlay { display: none; }
 
 @media (max-width: 767.98px) {
@@ -161,8 +184,15 @@ body.school-plan-modern-shell .sp-workspace .sp-sidebar-close { display: none !i
   .sp-sidebar-overlay.is-open,
   .sp-menu-toggle:checked ~ .sp-sidebar-overlay { display: block; }
   .sp-topbar { height: 56px; padding: 0 12px; }
-  .sp-topbar-context,
+  .sp-topbar { gap: 8px; }
+  .sp-topbar-heading { gap: 6px; }
+  .sp-topbar-back { width: 32px; min-height: 32px; justify-content: center; padding: 0; }
+  .sp-topbar-back span,
+  .sp-topbar-context > span,
   .sp-profile-copy { display: none; }
+  .sp-topbar-context strong { font-size: 12px; }
+  .ws-workspace .sp-topbar-home,
+  .ws-workspace .sp-profile { display: none; }
   .sp-content { padding: 13px 10px 78px; }
 }
 

@@ -1,0 +1,27 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, empty_state %}
+{% block title %}Состав группы{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Состав группы «' ~ group.name ~ '»', (group.building.name if group.building else 'Здание не указано') ~ ' · ' ~ (group.academic_year.name if group.academic_year else 'Учебный год не указан'), 'Сотрудники дошкольного отделения', url_for('preschool.staff'), 'К сотрудникам') }}
+  <section class="registry-matrix-card mb-3">
+    {% if assignments %}<div class="table-responsive"><table class="table table-hover align-middle registry-matrix mb-0">
+      <thead><tr><th>Сотрудник</th><th>Роль</th><th>Период</th>{% if can_edit %}<th>Действие</th>{% endif %}</tr></thead>
+      <tbody>{% for row in assignments %}<tr>
+        <td>{{ row.user.fio or row.user.username }}</td><td>{{ positions.get(row.position, row.position) }}</td>
+        <td>{{ row.start_date.strftime('%d.%m.%Y') if row.start_date else '—' }} — {{ row.end_date.strftime('%d.%m.%Y') if row.end_date else '—' }}</td>
+        {% if can_edit %}<td><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ row.user_id }}"><input type="hidden" name="position" value="{{ row.position }}"><input type="hidden" name="action" value="revoke"><button class="btn btn-outline-danger btn-sm" type="submit">Снять назначение</button></form></td>{% endif %}
+      </tr>{% endfor %}</tbody>
+    </table></div>{% else %}<div class="p-3">{{ empty_state('Сотрудники не назначены', 'Сначала привяжите воспитателей или помощников к зданию.', 'bi-people') }}</div>{% endif %}
+  </section>
+  {% if can_edit %}<section class="registry-matrix-card p-3"><h2 class="h5">Добавить в группу</h2>
+    <form method="post" class="row g-2 align-items-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="assign">
+      <div class="col-lg-5"><label class="form-label" for="groupStaffUser">Сотрудник здания</label><select class="form-select" id="groupStaffUser" name="user_id" required><option value="">Выберите</option>{% for row in building_staff %}<option value="{{ row.user_id }}">{{ row.user.fio or row.user.username }} — {{ positions[row.position] }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2"><label class="form-label" for="groupStaffPosition">Роль</label><select class="form-select" id="groupStaffPosition" name="position" required>{% for code, label in positions.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2"><label class="form-label" for="groupStaffStart">С</label><input class="form-control" type="date" id="groupStaffStart" name="start_date"></div>
+      <div class="col-lg-2"><label class="form-label" for="groupStaffEnd">По</label><input class="form-control" type="date" id="groupStaffEnd" name="end_date"></div>
+      <div class="col-lg-1"><button class="btn btn-primary" type="submit">Добавить</button></div>
+    </form>
+  </section>{% endif %}
+</div>
+{% endblock %}

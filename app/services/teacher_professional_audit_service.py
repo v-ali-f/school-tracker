@@ -3,6 +3,7 @@ from datetime import date, datetime
 from app.core.extensions import db
 from app.models import (
     TeacherAttestation,
+    TeacherCourse,
     TeacherMckoResult,
     TeacherProfessionalRecordChange,
 )
@@ -10,6 +11,7 @@ from app.models import (
 
 RECORD_TYPE_MCKO = "MCKO"
 RECORD_TYPE_ATTESTATION = "ATTESTATION"
+RECORD_TYPE_COURSE = "COURSE"
 
 CHANGE_CREATED = "CREATED"
 CHANGE_UPDATED = "UPDATED"
@@ -32,8 +34,14 @@ def _snapshot(record):
             "level",
             "certificate_number",
             "result_text",
+            "diagnostic_title",
             "entry_source",
             "is_archived",
+        )
+    elif isinstance(record, TeacherCourse):
+        fields = (
+            "title", "provider", "hours", "start_date", "end_date", "document_title",
+            "document_number", "notes", "entry_source", "is_archived",
         )
     elif isinstance(record, TeacherAttestation):
         fields = (
@@ -60,6 +68,8 @@ def record_professional_change(record, *, change_kind, actor_id):
         db.session.flush()
     if isinstance(record, TeacherMckoResult):
         record_type = RECORD_TYPE_MCKO
+    elif isinstance(record, TeacherCourse):
+        record_type = RECORD_TYPE_COURSE
     elif isinstance(record, TeacherAttestation):
         record_type = RECORD_TYPE_ATTESTATION
     else:

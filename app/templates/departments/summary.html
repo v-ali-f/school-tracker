@@ -1,248 +1,71 @@
 {% extends "departments/workspace.html" %}
 {% block departments_head_extra %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/registry_matrix.css') }}?v=20260810_3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher_professional_status.css') }}?v=20260810_4">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/departments_summary_dashboard.css') }}?v=4">
 {% endblock %}
 {% block departments_content %}
-<div class="page-head mb-3">
-  <div>
-    <h1 class="page-title">Свод по кафедрам</h1>
-    <div class="page-sub">Аналитика по нагрузке, контрольным работам, МЦКО и курсам повышения квалификации.</div>
+{% macro direction_url(section) -%}
+{{ url_for('departments.summary', department_id=dep.id, academic_year_id=academic_year_id, teacher_id=selected_teacher_id, building_id=building_id, section=section, _anchor='summary-details') }}
+{%- endmacro %}
+<div class="department-summary-dashboard" data-summary-current="{{ active_section }}">
+  <div class="page-head mb-2">
+    <div><h1 class="page-title">Свод по кафедрам</h1><div class="page-sub">Показатели по направлениям и переход к подробным данным выбранной кафедры</div></div>
+    <div class="page-actions">
+      {% if current_user.has_role('TEACHER') or current_user.has_role('CLASS_TEACHER') or current_user.has_role('DEPARTMENT_HEAD') %}<a class="btn btn-primary btn-sm" href="{{ url_for('departments.my_teacher_profile') }}"><i class="bi bi-person-vcard me-1"></i>Мой профиль</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.loads') }}">Реестр нагрузки</a>
+    </div>
   </div>
-  <div class="page-actions">
-    {% if current_user.has_role('TEACHER') or current_user.has_role('CLASS_TEACHER') or current_user.has_role('DEPARTMENT_HEAD') %}
-    <a class="btn btn-primary btn-sm" href="{{ url_for('departments.my_teacher_profile') }}"><i class="bi bi-person-vcard me-1"></i>Мой профиль</a>
-    {% endif %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('departments.loads') }}">Нагрузка</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">На главную</a>
-  </div>
-</div>
 
-<div class="alert alert-light border py-2">
-  Нагрузка кафедры поступает из единой матрицы и доступна здесь только для просмотра{% if workload_version %} · версия {{ workload_version.version_no }}{% endif %}.
-</div>
-
-<div class="card mb-4"><div class="card-body">
-  <form method="get" class="row g-2">
-    <div class="col-md-3"><select class="form-select" name="academic_year_id" onchange="this.form.submit()"><option value="">Учебный год</option>{% for y in years %}<option value="{{ y.id }}" {% if academic_year_id==y.id %}selected{% endif %}>{{ y.name }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><select class="form-select" name="department_id" onchange="this.form.submit()"><option value="">Выберите кафедру</option>{% for d in departments %}<option value="{{ d.id }}" {% if dep and dep.id==d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><select class="form-select" name="teacher_id" onchange="this.form.submit()"><option value="">Все учителя кафедры</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><select class="form-select" name="building_id" onchange="this.form.submit()"><option value="">Все здания</option>{% for b in buildings %}<option value="{{ b.id }}" {% if building_id==b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
+  <form method="get" action="{{ url_for('departments.summary', _anchor='summary-details') if active_section else url_for('departments.summary') }}" class="registry-filter-panel department-summary-filters" aria-label="Фильтры свода по кафедрам">
+    {% if active_section %}<input type="hidden" name="section" value="{{ active_section }}">{% endif %}
+    <div><label class="form-label" for="summary-year">Учебный год</label><select class="form-select" id="summary-year" name="academic_year_id" onchange="this.form.submit()">{% for year in years %}<option value="{{ year.id }}" {% if academic_year_id == year.id %}selected{% endif %}>{{ year.name }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="summary-department">Кафедра</label><select class="form-select" id="summary-department" name="department_id" onchange="this.form.submit()">{% for item in departments %}<option value="{{ item.id }}" {% if dep and dep.id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="summary-teacher">Педагог</label><select class="form-select" id="summary-teacher" name="teacher_id" onchange="this.form.submit()"><option value="">Все педагоги кафедры</option>{% for teacher in teachers %}<option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>{{ teacher.fio or teacher.username }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="summary-building">Здание</label><select class="form-select" id="summary-building" name="building_id" onchange="this.form.submit()"><option value="">Все здания</option>{% for building in buildings %}<option value="{{ building.id }}" {% if building_id == building.id %}selected{% endif %}>{{ building.name }}</option>{% endfor %}</select></div>
   </form>
-</div></div>
 
-{% if dep %}
-<div class="row g-3 mb-4">
-  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Кафедра / год</div><div class="metric-value department-metric-title">{{ dep.name }}{% if years %}<div class="small text-muted mt-1">{{ (years|selectattr("id", "equalto", academic_year_id)|list|first).name if academic_year_id else "Все годы" }}</div>{% endif %}</div></div></div></div>
-  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Учителей по нагрузке</div><div class="metric-value">{{ teachers|length }}</div></div></div></div>
-  <div class="col-md-4"><div class="card metric-card h-100"><div class="card-body"><div class="metric-label">Средний результат диагностики</div><div class="metric-value">{{ diagnostics_stats.avg_percent if diagnostics_stats.avg_percent is not none else '—' }}</div><div class="small text-muted mt-1">Контрольные: {{ stats.avg_percent if stats.avg_percent is not none else '—' }}</div></div></div></div>
-</div>
-
-<div class="row g-4 mb-4">
-  <div class="col-lg-6" id="department-teachers"><div class="card h-100"><div class="card-body">
-    <h5 class="section-title mb-1">Преподаватели</h5>
-    <div class="small text-muted mb-3">Нажмите на ФИО, чтобы посмотреть нагрузку и профессиональные сведения преподавателя.</div>
-    <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>ФИО</th><th class="text-end">Часы</th><th class="text-end">Предметы</th><th class="text-end">Группы</th></tr></thead><tbody>{% for item in teacher_load_summaries %}<tr><td><a href="{{ url_for('departments.teacher_profile', teacher_id=item.teacher.id, academic_year_id=academic_year_id) }}">{{ item.teacher.fio or item.teacher.username }}</a></td><td class="text-end fw-semibold">{{ item.total|compact_decimal }}</td><td class="text-end">{{ item.subjects }}</td><td class="text-end">{{ item.groups }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет назначенной нагрузки по выбранной кафедре</td></tr>{% endfor %}</tbody></table></div>
-  </div></div></div>
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h5 class="section-title">Результаты контрольных по предметам</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Средний %</th><th class="text-end">Работ</th></tr></thead><tbody>{% for item in stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет результатов</td></tr>{% endfor %}</tbody></table></div></div></div></div>
-</div>
-
-{% if can_manage_professional and legacy_load_total %}
-<details class="card mb-4" id="legacy-loads">
-  <summary class="card-header d-flex align-items-center justify-content-between gap-3">
-    <span class="fw-semibold">Старая нагрузка из файлов</span>
-    <span class="badge text-bg-light border">{{ legacy_load_total }}</span>
-  </summary>
-  <div class="card-body">
-    <div class="small text-muted mb-3">
-      Здесь показаны строки прежнего файлового импорта. Архивные строки можно
-      удалить по одной; действующие строки защищены от удаления.
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead>
-          <tr>
-            <th>Преподаватель</th>
-            <th>Предмет</th>
-            <th>Класс / группа</th>
-            <th class="text-center">Часы</th>
-            <th>Источник</th>
-            <th>Статус</th>
-            <th class="text-end">Действие</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in legacy_load_rows %}
-          <tr>
-            <td>{{ row.teacher.fio if row.teacher else '—' }}</td>
-            <td>{{ row.subject_name or (row.education_activity.name if row.education_activity else '—') }}</td>
-            <td>
-              {{ row.class_name or '—' }}
-              {% if row.group_name %}<span class="text-muted">· {{ row.group_name }}</span>{% endif %}
-            </td>
-            <td class="text-center">{{ row.hours|compact_decimal }}</td>
-            <td>{{ row.source_sheet or 'Старый импорт' }}</td>
-            <td>
-              {% if row.is_archived %}
-                <span class="badge text-bg-light border">Архив</span>
-              {% else %}
-                <span class="badge text-bg-warning">Не архивировано</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              {% if row.is_archived %}
-              <form
-                method="post"
-                action="{{ url_for('departments.archived_load_delete', load_id=row.id) }}"
-                class="d-inline"
-                onsubmit="return confirm('Удалить эту строку архивной нагрузки без возможности восстановления?');"
-              >
-                <button class="btn btn-outline-danger btn-sm" type="submit" title="Удалить строку">
-                  <i class="bi bi-trash" aria-hidden="true"></i>
-                  <span class="visually-hidden">Удалить строку</span>
-                </button>
-              </form>
-              {% else %}
-                <span class="small text-muted">Сначала архивировать</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% if legacy_load_total > legacy_load_rows|length %}
-    <div class="small text-muted mt-2">
-      Показаны первые {{ legacy_load_rows|length }} из {{ legacy_load_total }} строк.
-      Уточните кафедру, учебный год или здание.
-    </div>
-    {% endif %}
-  </div>
-</details>
-{% endif %}
-
-
-<div class="card mb-4"><div class="card-body">
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-      <h5 class="section-title mb-1">Результаты диагностик МЦКО по кафедре</h5>
-      <div class="small text-muted">Режим: {{ diagnostics_stats.result_mode_label }}</div>
-    </div>
-  </div>
-  <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Всего результатов</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.total_results }}</div></div></div>
-    {% if diagnostics_stats.result_mode == 'mark' %}
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Средний балл</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.avg_score if diagnostics_stats.avg_score is not none else '—' }}</div></div></div>
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Средний %</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.avg_percent if diagnostics_stats.avg_percent is not none else '—' }}</div></div></div>
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Двоек</div><div class="fs-4 fw-semibold text-danger">{{ diagnostics_stats.mark2_count }}</div><div class="small text-muted mt-1">{{ diagnostics_stats.mark2_percent }}%</div></div></div>
-    {% elif diagnostics_stats.result_mode in ['percent', 'score'] %}
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Средний балл</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.avg_score if diagnostics_stats.avg_score is not none else '—' }}</div></div></div>
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Средний %</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.avg_percent if diagnostics_stats.avg_percent is not none else '—' }}</div></div></div>
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Предметов / учителей</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.unique_subjects }} / {{ diagnostics_stats.unique_teachers }}</div></div></div>
-    {% else %}
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Средний %</div><div class="fs-4 fw-semibold">{{ diagnostics_stats.avg_percent if diagnostics_stats.avg_percent is not none else '—' }}</div></div></div>
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">{{ diagnostics_stats.issue_label }}</div><div class="fs-4 fw-semibold text-danger">{{ diagnostics_stats.issue_count }}</div></div></div>
-      <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">{{ diagnostics_stats.issue_percent_label }}</div><div class="fs-4 fw-semibold text-danger">{{ diagnostics_stats.issue_percent }}</div></div></div>
-    {% endif %}
-  </div>
-  {% if diagnostics_stats.show_subject_table or diagnostics_stats.show_teacher_table %}
-  <div class="row g-4">
-    {% if diagnostics_stats.show_subject_table %}
-    <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">{% if diagnostics_stats.result_mode in ['mark', 'percent', 'score', 'mixed'] %}Средний балл{% else %}Средний %{% endif %}</th><th class="text-end">Работ</th><th class="text-end">{% if diagnostics_stats.result_mode == 'mark' %}% двоек{% elif diagnostics_stats.result_mode in ['percent', 'score'] %}Средний %{% else %}% ниже базового{% endif %}</th></tr></thead><tbody>{% for item in diagnostics_stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{% if diagnostics_stats.result_mode in ['mark', 'percent', 'score', 'mixed'] %}{{ item.avg_score if item.avg_score is not none else '—' }}{% else %}{{ item.avg if item.avg is not none else '—' }}{% endif %}</td><td class="text-end">{{ item.count }}</td><td class="text-end {% if (diagnostics_stats.result_mode == 'mark' and item.mark2_percent) or (diagnostics_stats.result_mode not in ['mark', 'percent', 'score'] and item.below_basic_percent) %}text-danger fw-semibold{% endif %}">{% if diagnostics_stats.result_mode == 'mark' %}{{ item.mark2_percent }}{% elif diagnostics_stats.result_mode in ['percent', 'score'] %}{{ item.avg if item.avg is not none else '—' }}{% else %}{{ item.below_basic_percent }}{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет результатов диагностик</td></tr>{% endfor %}</tbody></table></div></div>
-    {% endif %}
-    {% if diagnostics_stats.show_teacher_table %}
-    <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th class="text-end">{% if diagnostics_stats.result_mode in ['mark', 'percent', 'score', 'mixed'] %}Средний балл{% else %}Средний %{% endif %}</th><th class="text-end">Работ</th><th class="text-end">{% if diagnostics_stats.result_mode == 'mark' %}% двоек{% elif diagnostics_stats.result_mode in ['percent', 'score'] %}Средний %{% else %}% ниже базового{% endif %}</th></tr></thead><tbody>{% for item in diagnostics_stats.by_teacher %}<tr><td>{{ item.name }}</td><td class="text-end">{% if diagnostics_stats.result_mode in ['mark', 'percent', 'score', 'mixed'] %}{{ item.avg_score if item.avg_score is not none else '—' }}{% else %}{{ item.avg if item.avg is not none else '—' }}{% endif %}</td><td class="text-end">{{ item.count }}</td><td class="text-end {% if (diagnostics_stats.result_mode == 'mark' and item.mark2_percent) or (diagnostics_stats.result_mode not in ['mark', 'percent', 'score'] and item.below_basic_percent) %}text-danger fw-semibold{% endif %}">{% if diagnostics_stats.result_mode == 'mark' %}{{ item.mark2_percent }}{% elif diagnostics_stats.result_mode in ['percent', 'score'] %}{{ item.avg if item.avg is not none else '—' }}{% else %}{{ item.below_basic_percent }}{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных по учителям</td></tr>{% endfor %}</tbody></table></div></div>
-    {% endif %}
-  </div>
+  {% if department_cards %}
+  <section class="department-overview" aria-label="Обзор кафедр">
+    <div class="department-overview-head"><h2 class="section-title mb-0">Кафедры</h2><span class="text-muted small">Выберите кафедру · список прокручивается вправо</span></div>
+    <div class="department-overview-grid">{% for item in department_cards %}
+      <a class="department-overview-card {% if dep and dep.id == item.department.id %}is-selected{% endif %}" href="{{ url_for('departments.summary', department_id=item.department.id, academic_year_id=academic_year_id, building_id=building_id, section=active_section or None, _anchor='summary-details' if active_section else None) }}" {% if dep and dep.id == item.department.id %}aria-current="page"{% endif %}>
+        <span class="department-overview-title">{{ item.department.name }}</span>
+        <span class="department-overview-values"><b>{{ item.teachers }}</b> педагогов <b>{{ item.hours|compact_decimal }}</b> ч/нед.{% if item.planning %}<em>{{ item.planning }} планировать</em>{% endif %}</span>
+      </a>
+    {% endfor %}</div>
+  </section>
   {% endif %}
-</div></div>
 
-<div class="card mb-4"><div class="card-body"><h5 class="section-title">Результаты контрольных по учителям</h5><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th class="text-end">Средний %</th><th class="text-end">Результатов</th></tr></thead><tbody>{% for item in stats.by_teacher %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.avg }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="3" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div></div>
+  {% if dep %}
+  <div class="department-selected-head"><div><span class="department-eyebrow">Выбранная кафедра</span><h2>{{ dep.name }}</h2><span>{{ years|selectattr('id', 'equalto', academic_year_id)|map(attribute='name')|first|default('Учебный год не выбран') }} · состав по действующей нагрузке{% if selected_teacher_id %} · выбран один педагог{% endif %}</span></div>{% if workload_version %}<span class="department-source-tag">Нагрузка: версия {{ workload_version.version_no }}</span>{% endif %}</div>
 
-
-<div class="card mb-4"><div class="card-body">
-  <h5 class="section-title">Олимпиады / ВСОШ по кафедре</h5>
-  <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Всего записей</div><div class="fs-4 fw-semibold">{{ olympiad_stats.total_results }}</div></div></div>
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Участников</div><div class="fs-4 fw-semibold">{{ olympiad_stats.unique_children }}</div></div></div>
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Победителей</div><div class="fs-4 fw-semibold">{{ olympiad_stats.winners }}</div></div></div>
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Призёров</div><div class="fs-4 fw-semibold">{{ olympiad_stats.prizers }}</div></div></div>
-    <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Аннулировано</div><div class="fs-4 fw-semibold text-danger">{{ olympiad_stats.annulled or 0 }}</div></div></div>
+  <div class="department-kpi-grid">
+    <a href="{{ direction_url('load') }}" class="department-kpi"><span>Педагогов по нагрузке</span><strong>{{ dashboard.teachers }}</strong><small>В выбранной кафедре</small></a>
+    <a href="{{ direction_url('load') }}" class="department-kpi"><span>Часов в неделю</span><strong>{{ dashboard.hours|compact_decimal }}</strong><small>{{ dashboard.subjects }} предметов · {{ dashboard.groups }} групп</small></a>
+    <a href="{{ direction_url('training') }}" class="department-kpi"><span>Обучение в пределах 3 лет</span><strong>{{ dashboard.training_ok }}</strong><small>По имеющимся сведениям о курсах</small></a>
+    <a href="{{ direction_url('training') }}" class="department-kpi is-warning"><span>Планировать обучение</span><strong>{{ dashboard.training_attention }}</strong><small>Включая отсутствие сведений</small></a>
   </div>
-  <div class="row g-4">
-    <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Предмет</th><th class="text-end">Участий</th></tr></thead><tbody>{% for item in olympiad_stats.by_subject %}<tr><td>{{ item.name }}</td><td class="text-end">{{ item.count }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
-    <div class="col-lg-6"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Предмет</th><th class="text-end">Участий</th><th class="text-end">Победителей</th><th class="text-end">Призёров</th><th class="text-end">Аннулировано</th></tr></thead><tbody>{% for item in olympiad_stats.by_teacher %}<tr><td>{{ item.name }}</td><td>{{ item.subject }}</td><td class="text-end">{{ item.total }}</td><td class="text-end">{{ item.winners }}</td><td class="text-end">{{ item.prizers }}</td><td class="text-end text-danger">{{ item.annulled or 0 }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div></div>
-  </div>
-</div></div>
 
-<div class="row g-4">
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
-    <h5 class="section-title" id="teacher-mcko">Результаты МЦКО педагогов</h5>
-    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-      <div class="small text-muted">Показаны все педагоги кафедры, включая педагогов без действующей диагностики.</div>
-      {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('professional_registry.mcko_registry', department_id=dep.id) }}">Открыть реестр</a>{% endif %}
-    </div>
-    <div class="registry-matrix-card mb-3"><div class="table-responsive"><table class="registry-matrix registry-matrix-medium">
-      <thead><tr><th>Педагог</th><th>Диагностики</th><th>Ближайший срок</th><th>Статус</th></tr></thead>
-      <tbody>{% for overview in mcko_overviews %}<tr>
-        <td><a href="{{ url_for('departments.teacher_profile', teacher_id=overview.teacher.id, academic_year_id=academic_year_id) }}">{{ overview.teacher.fio or overview.teacher.username }}</a></td>
-        <td><div class="professional-result-list">{% for row in overview.latest_results %}<small class="professional-result-level professional-level-{{ row.level_code }}">{{ row.activity_name }} · {{ row.level_label }} · до {{ row.expires_at.strftime('%d.%m.%Y') if row.expires_at else 'дата не указана' }}</small>{% else %}<span class="text-muted">—</span>{% endfor %}</div></td>
-        <td class="registry-cell-center">{{ overview.nearest_expiration.strftime('%d.%m.%Y') if overview.nearest_expiration else '—' }}</td>
-        <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span></td>
-      </tr>{% else %}<tr><td colspan="4" class="registry-empty-row">В выбранной кафедре нет педагогов.</td></tr>{% endfor %}</tbody>
-    </table></div></div>
-    {% if can_manage_professional %}
-    <form method="post" action="{{ url_for('departments.add_mcko') }}" class="row g-2">
-      <input type="hidden" name="department_id" value="{{ dep.id }}">
-      <input type="hidden" name="academic_year_id" value="{{ academic_year_id or '' }}">
-      <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
-      <div class="col-md-3"><select class="form-select" name="subject_id" required><option value="">Предмет</option>{% for subject in mcko_subjects %}<option value="{{ subject.id }}">{{ subject.name }}</option>{% endfor %}</select></div>
-      <div class="col-md-2"><select class="form-select" name="level" required><option value="">Уровень</option>{% for code, label in mcko_level_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
-      <div class="col-md-3"><input class="form-control" type="date" name="passed_at" required></div>
-      <div class="col-md-6"><input class="form-control" name="certificate_number" maxlength="120" placeholder="Номер сертификата"></div>
-      <div class="col-md-6"><input class="form-control" name="result_text" maxlength="255" placeholder="Примечание"></div>
-      <div class="col-md-12 d-grid"><button class="btn btn-outline-primary">Добавить результат МЦКО</button></div>
-    </form>
-    {% endif %}
-  </div></div></div>
-  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
-    <h5 class="section-title">Курсы повышения квалификации</h5>
-    <div class="table-responsive mb-3"><table class="table table-sm"><thead><tr><th>Учитель</th><th>Курс</th><th>Организация</th><th>Часы</th></tr></thead><tbody>{% for row in course_rows %}<tr><td>{% if row.teacher %}<a href="{{ url_for('departments.teacher_profile', teacher_id=row.teacher.id, academic_year_id=academic_year_id) }}">{{ row.teacher.fio }}</a>{% else %}—{% endif %}</td><td>{{ row.title }}</td><td>{{ row.provider or '—' }}</td><td>{{ row.hours|compact_decimal if row.hours is not none else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">Нет данных</td></tr>{% endfor %}</tbody></table></div>
-    {% if can_manage_professional %}
-    <form method="post" action="{{ url_for('departments.add_course') }}" class="row g-2">
-      <input type="hidden" name="department_id" value="{{ dep.id }}">
-      <div class="col-md-4"><select class="form-select" name="teacher_id" required><option value="">Выберите преподавателя</option>{% for t in teachers %}<option value="{{ t.id }}" {% if selected_teacher_id==t.id %}selected{% endif %}>{{ t.fio or t.username }}</option>{% endfor %}</select></div>
-      <div class="col-md-4"><input class="form-control" name="title" placeholder="Название курса" required></div>
-      <div class="col-md-2"><input class="form-control" type="number" step="0.1" name="hours" placeholder="Часы"></div>
-      <div class="col-md-2"><input class="form-control" type="date" name="start_date"></div>
-      <div class="col-md-12"><input class="form-control" name="provider" placeholder="Провайдер / организация"></div>
-      <div class="col-md-12 d-grid"><button class="btn btn-outline-success">Добавить курс</button></div>
-    </form>
-    {% endif %}
-  </div></div></div>
+  <div class="department-directions" aria-label="Направления аналитики">
+    <a href="{{ direction_url('load') }}" class="department-direction {% if active_section == 'load' %}is-selected{% endif %}" {% if active_section == 'load' %}aria-current="true"{% endif %}><span class="department-direction-icon is-blue"><i class="bi bi-person-lines-fill"></i></span><span><b>Нагрузка и педагоги</b><small>{{ dashboard.teachers }} педагогов · {{ dashboard.hours|compact_decimal }} ч/нед.</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('control') }}" class="department-direction {% if active_section == 'control' %}is-selected{% endif %}" {% if active_section == 'control' %}aria-current="true"{% endif %}><span class="department-direction-icon is-teal"><i class="bi bi-clipboard-data"></i></span><span><b>Контрольные работы</b><small>{{ stats.total_results }} результатов · средний {{ stats.avg_percent if stats.avg_percent is not none else '—' }}%</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('diagnostics') }}" class="department-direction {% if active_section == 'diagnostics' %}is-selected{% endif %}" {% if active_section == 'diagnostics' %}aria-current="true"{% endif %}><span class="department-direction-icon is-violet"><i class="bi bi-graph-up"></i></span><span><b>Диагностики</b><small>{{ diagnostics_stats.total_results }} результатов{% if diagnostics_stats.result_mode_label %} · {{ diagnostics_stats.result_mode_label }}{% endif %}</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('olympiads') }}" class="department-direction {% if active_section == 'olympiads' %}is-selected{% endif %}" {% if active_section == 'olympiads' %}aria-current="true"{% endif %}><span class="department-direction-icon is-amber"><i class="bi bi-trophy"></i></span><span><b>Олимпиады и ВСОШ</b><small>{{ olympiad_stats.unique_children }} участников · {{ olympiad_stats.winners }} победителей · {{ olympiad_stats.prizers }} призёров</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('mcko') }}" class="department-direction {% if active_section == 'mcko' %}is-selected{% endif %}" {% if active_section == 'mcko' %}aria-current="true"{% endif %}><span class="department-direction-icon is-indigo"><i class="bi bi-award"></i></span><span><b>МЦКО педагогов</b><small>{{ dashboard.mcko_count }} записей по педагогам</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('training') }}" class="department-direction {% if active_section == 'training' %}is-selected{% endif %}" {% if active_section == 'training' %}aria-current="true"{% endif %}><span class="department-direction-icon is-green"><i class="bi bi-mortarboard"></i></span><span><b>Повышение квалификации</b><small>{{ course_rows|length }} курсов · {{ dashboard.training_attention }} требуют планирования</small></span><i class="bi bi-arrow-right"></i></a>
+    <a href="{{ direction_url('attestation') }}" class="department-direction {% if active_section == 'attestation' %}is-selected{% endif %}" {% if active_section == 'attestation' %}aria-current="true"{% endif %}><span class="department-direction-icon is-slate"><i class="bi bi-patch-check"></i></span><span><b>Аттестация</b><small>{{ dashboard.attestation_count }} педагогов в перечне</small></span><i class="bi bi-arrow-right"></i></a>
+  </div>
+
+  <div class="department-quick-links">
+    {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('HR_SPECIALIST') %}<a href="{{ url_for('professional_development.index', department_id=dep.id) }}">Реестр курсов кафедры <i class="bi bi-arrow-up-right"></i></a><a href="{{ url_for('professional_development.index', scope='preschool') }}">Дошкольные работники <i class="bi bi-arrow-up-right"></i></a>{% endif %}
+    {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a href="{{ url_for('professional_registry.mcko_registry', department_id=dep.id) }}">Реестр МЦКО <i class="bi bi-arrow-up-right"></i></a><a href="{{ url_for('professional_registry.attestation_registry', department_id=dep.id) }}">Реестр аттестации <i class="bi bi-arrow-up-right"></i></a>{% endif %}
+  </div>
+
+  <div id="summary-details-host" data-summary-details-host>{% if active_section %}{% include "departments/summary_panel.html" %}{% endif %}</div>
+  {% else %}
+  <div class="alert alert-info">Для выбранной роли пока нет доступных кафедр или нагрузка ещё не загружена.</div>
+  {% endif %}
 </div>
-
-<div class="card mt-4"><div class="card-body">
-  <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-    <div>
-      <h5 class="section-title mb-1">Аттестация преподавателей</h5>
-      <div class="small text-muted">Показаны все педагоги кафедры, включая сотрудников без даты приёма или действующей аттестации.</div>
-    </div>
-    {% if current_user.has_role('ADMIN') or current_user.has_role('DIRECTOR') or current_user.has_role('DEPUTY_DIRECTOR') or current_user.has_role('METHODIST') or current_user.has_role('DEPARTMENT_HEAD') %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('professional_registry.attestation_registry', department_id=dep.id) }}">Открыть реестр</a>{% endif %}
-  </div>
-  <div class="registry-matrix-card"><div class="table-responsive"><table class="registry-matrix registry-matrix-wide">
-    <thead><tr><th>Педагог</th><th>Дата приёма</th><th>Аттестация</th><th>Дата решения</th><th>Действует / срок</th><th>Статус</th>{% if can_manage_attestation %}<th>Действие</th>{% endif %}</tr></thead>
-    <tbody>{% for overview in attestation_overviews %}{% set record = overview.record %}<tr>
-      <td><a href="{{ url_for('departments.teacher_profile', teacher_id=overview.teacher.id, academic_year_id=academic_year_id) }}">{{ overview.teacher.fio or overview.teacher.username }}</a></td>
-      <td class="registry-cell-center {% if not overview.teacher.employment_start_date %}text-danger{% endif %}">{{ overview.teacher.employment_start_date.strftime('%d.%m.%Y') if overview.teacher.employment_start_date else 'Не указана' }}</td>
-      <td>{{ overview.category_label }}{% if record and record.position_title %}<span class="d-block small text-muted">{{ record.position_title }}</span>{% endif %}</td>
-      <td class="registry-cell-center">{{ record.decision_date.strftime('%d.%m.%Y') if record and record.decision_date else '—' }}</td>
-      <td class="registry-cell-center">{% if overview.status == 'INDEFINITE' %}Бессрочно{% else %}{{ overview.effective_valid_until.strftime('%d.%m.%Y') if overview.effective_valid_until else '—' }}{% endif %}</td>
-      <td><span class="professional-status-badge professional-status-{{ overview.status }}">{{ overview.status_label }}</span><span class="d-block small text-muted mt-1">{{ overview.basis_label }}</span></td>
-      {% if can_manage_attestation %}<td class="registry-cell-center"><a class="btn btn-outline-primary registry-row-action" href="{% if record %}{{ url_for('professional_registry.attestation_edit', record_id=record.id) }}{% else %}{{ url_for('professional_registry.attestation_new', teacher_id=overview.teacher.id) }}{% endif %}" title="{{ 'Редактировать' if record else 'Добавить' }}"><i class="bi {{ 'bi-pencil' if record else 'bi-plus-lg' }}"></i></a></td>{% endif %}
-    </tr>{% else %}<tr><td class="registry-empty-row" colspan="{{ 7 if can_manage_attestation else 6 }}">В выбранной кафедре нет педагогов.</td></tr>{% endfor %}</tbody>
-  </table></div></div>
-</div></div>
-{% else %}
-<div class="alert alert-info">Для выбранной роли пока нет доступных кафедр или нагрузка ещё не загружена.</div>
-{% endif %}
+<script defer src="{{ url_for('static', filename='js/departments_summary.js') }}?v=1"></script>
 {% endblock %}

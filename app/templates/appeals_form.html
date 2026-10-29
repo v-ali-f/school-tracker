@@ -1,167 +1,41 @@
-{% extends "layout.html" %}
-{% block content %}
-<div class="container py-3">
-  <div class="page-head">
-    <div>
-      <nav class="small mb-1 text-muted"><a href="{{ url_for('main.dashboard') }}" class="text-decoration-none text-muted">Главная</a> / <a href="{{ url_for('appeals.index') }}" class="text-decoration-none text-muted">Обращения</a> / Новое</nav>
-      <h1 class="page-title">Новое обращение</h1>
-    </div>
-    <div class="page-actions">
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('appeals.index') }}"><i class="bi bi-arrow-left me-1"></i>К реестру</a>
-    </div>
-  </div>
-  <form method="post" enctype="multipart/form-data" class="card soft-card"><div class="card-body row g-3">
-    <div class="col-md-3"><label class="form-label">Номер</label><input class="form-control" name="number"></div>
-    <div class="col-md-3"><label class="form-label">Дата поступления</label><input class="form-control" type="date" name="received_at"></div>
-    <div class="col-md-3"><label class="form-label">Канал</label><select class="form-select" name="channel"><option value="">—</option>{% for c in channels %}<option>{{ c }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label">Срок ответа</label><input class="form-control" type="date" name="deadline_at"></div>
-    <div class="col-md-6"><label class="form-label">Заявитель / организация</label><input class="form-control" name="applicant_name" required></div>
-    <div class="col-md-6"><label class="form-label">Контакты</label><input class="form-control" name="applicant_contact"></div>
-    <div class="col-12"><label class="form-label">Тема</label><input class="form-control" name="subject" required></div>
-    <div class="col-12"><label class="form-label">Содержание обращения</label><textarea class="form-control" rows="5" name="description"></textarea></div>
-    <div class="col-md-6">
-  <label class="form-label">Ответственные</label>
-  <div class="border rounded-4 p-3 bg-light">
-    <input
-      type="text"
-      class="form-control form-control-sm mb-2 js-user-search"
-      placeholder="Поиск по ФИО, логину или роли"
-      autocomplete="off"
-    >
-
-    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="small text-muted">
-        Отметьте одного или нескольких ответственных. Первый выбранный станет основным ответственным.
+{% extends "workspace_layout.html" %}
+{% block workspace_head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/appeals_card.css') }}?v=20261009_3">{% endblock %}
+{% block workspace_content %}
+<div class="appeals-workspace appeals-editor ws-stack">
+  <form method="post" enctype="multipart/form-data" class="ws-stack appeals-form">
+    <section class="ws-card" aria-label="Основные сведения обращения">
+      <div class="ws-card-body row g-3">
+        <div class="col-md-6"><label class="form-label" for="applicant_name">Заявитель / организация</label><input id="applicant_name" class="form-control" name="applicant_name" required></div>
+        <div class="col-md-6"><label class="form-label" for="subject">Тема</label><input id="subject" class="form-control" name="subject" required></div>
+        <div class="col-12"><label class="form-label" for="description">Содержание обращения</label><textarea id="description" class="form-control" rows="5" name="description"></textarea></div>
       </div>
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm js-select-visible">
-          Выбрать найденных
-        </button>
-        <button type="button" class="btn btn-outline-secondary btn-sm js-clear-visible">
-          Снять найденных
-        </button>
+    </section>
+    {% include '_appeal_responsibles.html' %}
+    <section class="ws-card">
+      <header class="ws-card-header"><div><h2 class="ws-section-title">Файлы</h2><div class="ws-section-subtitle">Документы к обращению</div></div></header>
+      <div class="ws-card-body">
+        <label class="form-label" for="attachments">Прикрепить файлы</label>
+        <input id="attachments" class="form-control" type="file" name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.txt">
+        <div class="ws-field-help">Файлы появятся в карточке после сохранения.</div>
       </div>
+    </section>
+    <details class="ws-card appeals-extra">
+      <summary class="ws-card-header"><span class="ws-section-title">Дополнительные параметры</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+      <div class="ws-card-body row g-3">
+        <div class="col-md-3"><label class="form-label" for="number">Номер</label><input id="number" class="form-control" name="number"></div>
+        <div class="col-md-3"><label class="form-label" for="received_at">Дата поступления</label><input id="received_at" class="form-control" type="date" name="received_at"></div>
+        <div class="col-md-3"><label class="form-label" for="channel">Канал</label><select id="channel" class="form-select" name="channel"><option value="">—</option>{% for c in channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label" for="deadline_at">Срок ответа</label><input id="deadline_at" class="form-control" type="date" name="deadline_at"></div>
+        <div class="col-md-6"><label class="form-label" for="applicant_contact">Контакты заявителя</label><input id="applicant_contact" class="form-control" name="applicant_contact"></div>
+        <div class="col-md-3"><label class="form-label" for="status">Статус</label><select id="status" class="form-select" name="status">{% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></div>
+        <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input class="form-check-input" type="checkbox" name="create_task" value="1" checked><span class="form-check-label">Создать задачу ответственному</span></label></div>
+      </div>
+    </details>
+    <div class="ws-action-bar appeals-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('appeals.index') }}">Отмена</a>
+      <button type="submit" class="btn btn-primary">Сохранить обращение</button>
     </div>
-
-    <div style="max-height:320px;overflow:auto;" class="js-users-list">
-      {% for u in users %}
-        {% set label = u.fio or u.full_name or u.username %}
-        {% set search_text = ((u.fio or '') ~ ' ' ~ (u.full_name or '') ~ ' ' ~ (u.username or '') ~ ' ' ~ (u.role or '')) %}
-        <label
-          class="d-flex align-items-center gap-2 py-1 user-check-item"
-          data-search="{{ search_text|lower }}"
-        >
-          <input type="checkbox"
-                 class="form-check-input m-0"
-                 name="responsible_user_ids"
-                 value="{{ u.id }}"
-                 >
-          <span>{{ label }}</span>
-          {% if u.role %}
-            <span class="text-muted small">({{ u.role }})</span>
-          {% endif %}
-        </label>
-      {% endfor %}
-    </div>
-  </div>
+  </form>
 </div>
-    <div class="col-md-3"><label class="form-label">Статус</label><select class="form-select" name="status">{% for s in statuses %}<option>{{ s }}</option>{% endfor %}</select></div>
-    <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input class="form-check-input" type="checkbox" name="create_task" value="1" checked> <span class="form-check-label">Создать задачу ответственному</span></label></div>
-    <div class="col-12"><label class="form-label">Файлы</label><input class="form-control" type="file" name="attachments" multiple></div>
-    <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Сохранить</button><a class="btn btn-outline-secondary" href="{{ url_for('appeals.index') }}">Отмена</a></div>
-  </div></form>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  function normalizeText(value) {
-    return (value || '')
-      .toString()
-      .toLowerCase()
-      .replaceAll('ё', 'е')
-      .replace(/[.,;:()«»"']/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  document.querySelectorAll('.js-user-search').forEach(function (input) {
-    const box = input.closest('.border');
-    if (!box) return;
-
-    const items = Array.from(box.querySelectorAll('.user-check-item'));
-    const selectVisibleBtn = box.querySelector('.js-select-visible');
-    const clearVisibleBtn = box.querySelector('.js-clear-visible');
-
-    let counter = box.querySelector('.js-search-counter');
-    if (!counter) {
-      counter = document.createElement('div');
-      counter.className = 'small text-muted mt-2 js-search-counter';
-      input.insertAdjacentElement('afterend', counter);
-    }
-
-    function applyFilter() {
-      const q = normalizeText(input.value);
-      let visibleCount = 0;
-
-      items.forEach(function (item) {
-        const raw = item.dataset.search || item.textContent || '';
-        const text = normalizeText(raw);
-        const matched = !q || text.includes(q);
-
-        if (matched) {
-          item.style.setProperty('display', 'flex', 'important');
-        } else {
-          item.style.setProperty('display', 'none', 'important');
-        }
-
-        if (matched) visibleCount += 1;
-      });
-
-      if (!q) {
-        counter.textContent = '';
-      } else if (visibleCount > 0) {
-        counter.textContent = 'Найдено совпадений: ' + visibleCount;
-      } else {
-        counter.textContent = 'Совпадений не найдено';
-      }
-    }
-
-    input.addEventListener('input', applyFilter);
-    input.addEventListener('keyup', applyFilter);
-    input.addEventListener('change', applyFilter);
-
-    input.addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        applyFilter();
-      }
-    });
-
-    if (selectVisibleBtn) {
-      selectVisibleBtn.addEventListener('click', function () {
-        items.forEach(function (item) {
-          if (item.style.display !== 'none') {
-            const cb = item.querySelector('input[type="checkbox"]');
-            if (cb) cb.checked = true;
-          }
-        });
-      });
-    }
-
-    if (clearVisibleBtn) {
-      clearVisibleBtn.addEventListener('click', function () {
-        items.forEach(function (item) {
-          if (item.style.display !== 'none') {
-            const cb = item.querySelector('input[type="checkbox"]');
-            if (cb) cb.checked = false;
-          }
-        });
-      });
-    }
-
-    applyFilter();
-  });
-});
-</script>
-
+<script src="{{ url_for('static', filename='js/appeals_form.js') }}?v=20261009_2"></script>
 {% endblock %}

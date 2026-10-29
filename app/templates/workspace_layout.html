@@ -1,15 +1,22 @@
 {% extends "layout.html" %}
 {% set use_workspace_shell = true %}
 {% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20260923_3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace_ui.css') }}?v=20261009_3">
 {% if request.endpoint and request.endpoint.startswith('safety_') %}<link rel="stylesheet" href="{{ url_for('static', filename='css/safety_registry.css') }}?v=20261027_1">{% endif %}
+<script src="{{ url_for('static', filename='js/workspace_heading.js') }}?v=20261009_3" defer></script>
 {% block workspace_head_extra %}{% endblock %}
 {% endblock %}
 {% block breadcrumb %}{% endblock %}
 {% block content %}
-{% set ws = workspace_nav|default({}, true) %}
+{% set ws = workspace_nav|default(none, true) %}
+{% if ws is none %}{% set ws = workspace_default_navigation() %}{% endif %}
 {% set ws_page = ws.get('page', {}) %}
 {% set ws_endpoint = request.endpoint or '' %}
+{% set ws_crumbs = auto_breadcrumbs|default([], true) %}
+{% set ws_title = workspace_page_title|default(workspace_context_title|default(ws_crumbs[-1].label if ws_crumbs else 'Рабочее пространство'), true) %}
+{% set ws_subtitle = workspace_page_subtitle|default(workspace_context_subtitle|default(''), true) %}
+{% set ws_back_url = workspace_back_url|default(ws_crumbs[-2].url if ws_crumbs|length > 1 else (url_for('main.dashboard') if ws_endpoint != 'main.dashboard' else none)) %}
+{% set ws_back_label = workspace_back_label|default('Назад' if ws_crumbs|length > 1 else 'Главная', true) %}
 <div class="sp-workspace ws-workspace" id="workspaceShell">
   <input class="sp-menu-toggle" id="workspaceMenuToggle" type="checkbox" aria-hidden="true">
   <aside class="sp-sidebar" id="workspaceSidebar">
@@ -35,7 +42,7 @@
 
       {% if ws.get('sidebar_sections') %}<div class="sp-sidebar-label">Разделы и сервисы</div>{% endif %}
       {% for item in ws.get('sidebar_sections', []) %}
-      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'safety_passports.index' and ws_endpoint.startswith('safety_passports.')) or (item.endpoint == 'safety_instructions.library' and ws_endpoint.startswith('safety_instructions.')) or (item.endpoint == 'safety_journals.index' and (ws_endpoint.startswith('safety_journals.') or ws_endpoint.startswith('safety_trips.'))) or (item.endpoint == 'safety_trips.index' and ws_endpoint.startswith('safety_trips.')) or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'hub.departments' and (ws_endpoint.startswith('departments.') or ws_endpoint.startswith('professional_registry.'))) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.attendance' and ws_endpoint.startswith('attendance.')) or (item.endpoint == 'hub.registries' and ((ws_endpoint.startswith('children.') and not ws_endpoint.startswith('children.incident') and ws_endpoint not in ['children.academic_years_registry', 'children.buildings_registry', 'children.roles_admin', 'children.subjects_import']) or ws_endpoint.startswith('transfers.'))) or (item.endpoint == 'service_staff.index' and ws_endpoint.startswith('service_staff.')) or (item.endpoint == 'familiarizations.index' and ws_endpoint.startswith('familiarizations.')) or (item.endpoint == 'drive.index' and (ws_endpoint.startswith('drive.') or ws_endpoint.startswith('office.'))) or (item.endpoint == 'hub.orders' and (ws_endpoint.startswith('orders.') or ws_endpoint.startswith('document_registers.'))) %}
+      {% set item_active = ws_endpoint == item.endpoint or (item.endpoint == 'safety_passports.index' and ws_endpoint.startswith('safety_passports.')) or (item.endpoint == 'safety_instructions.library' and ws_endpoint.startswith('safety_instructions.')) or (item.endpoint == 'safety_journals.index' and (ws_endpoint.startswith('safety_journals.') or ws_endpoint.startswith('safety_trips.'))) or (item.endpoint == 'safety_trips.index' and ws_endpoint.startswith('safety_trips.')) or (item.endpoint == 'appeals.index' and ws_endpoint.startswith('appeals.')) or (item.endpoint == 'workload.index' and ws_endpoint.startswith('workload.')) or (item.endpoint == 'hub.departments' and (ws_endpoint.startswith('departments.') or ws_endpoint.startswith('professional_registry.'))) or (item.endpoint == 'lesson_visits.index' and ws_endpoint.startswith('lesson_visits.')) or (item.endpoint == 'hub.control_works' and ws_endpoint.startswith('control_works.')) or (item.endpoint == 'hub.attendance' and ws_endpoint.startswith('attendance.')) or (item.endpoint == 'hub.registries' and ((ws_endpoint.startswith('children.') and not ws_endpoint.startswith('children.incident') and ws_endpoint not in ['children.academic_years_registry', 'children.buildings_registry', 'children.roles_admin', 'children.subjects_import']) or ws_endpoint.startswith('transfers.'))) or (item.endpoint == 'service_staff.index' and ws_endpoint.startswith('service_staff.')) or (item.endpoint == 'familiarizations.index' and ws_endpoint.startswith('familiarizations.')) or (item.endpoint == 'drive.index' and (ws_endpoint.startswith('drive.') or ws_endpoint.startswith('office.'))) or (item.endpoint == 'hub.orders' and (ws_endpoint.startswith('orders.') or ws_endpoint.startswith('document_registers.'))) %}
       <a class="sp-nav-link {% if item_active %}is-active{% endif %}" href="{{ item.url }}" title="{{ item.title }}"><i class="bi {{ item.icon or 'bi-grid' }}"></i><span>{{ item.title }}</span></a>
       {% endfor %}
 
@@ -59,12 +66,13 @@
 
   <main class="sp-main">
     <header class="sp-topbar">
-      <div class="d-flex align-items-center gap-2">
+      <div class="sp-topbar-heading">
         <label class="btn sp-mobile-menu" for="workspaceMenuToggle" role="button" tabindex="0" aria-label="Показать или скрыть боковое меню" aria-controls="workspaceSidebar"><i class="bi bi-list"></i><span>Меню</span></label>
-        <div class="sp-topbar-context"><strong>{{ workspace_context_title|default('Рабочее пространство') }}</strong>{{ workspace_context_subtitle|default('Единый интерфейс портала') }}</div>
+        {% if ws_back_url %}<a class="sp-topbar-back" href="{{ ws_back_url }}" aria-label="{{ ws_back_label }}"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>{{ ws_back_label }}</span></a>{% endif %}
+        <div class="sp-topbar-context"><strong role="heading" aria-level="1">{{ ws_title }}</strong>{% if ws_subtitle %}<span>{{ ws_subtitle }}</span>{% endif %}</div>
       </div>
       <div class="sp-topbar-actions">
-        <a class="sp-topbar-icon" href="{{ url_for('main.dashboard') }}" title="Главная" aria-label="Главная"><i class="bi bi-house-door"></i></a>
+        <a class="sp-topbar-icon sp-topbar-home" href="{{ url_for('main.dashboard') }}" title="Главная" aria-label="Главная"><i class="bi bi-house-door"></i></a>
         <a class="sp-topbar-icon position-relative" href="{{ url_for('tasks.my_tasks') }}" title="Задачи" aria-label="Задачи"><i class="bi bi-bell"></i>{% if bell_unread_total %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">{{ bell_unread_total }}</span>{% endif %}</a>
         <a class="sp-profile" href="{{ url_for('auth.profile_settings') }}"><span class="sp-profile-avatar">{{ (current_user.first_name or current_user.username or 'П')[:1] }}{{ (current_user.last_name or '')[:1] }}</span><span class="sp-profile-copy"><strong>{{ current_user.fio or current_user.username }}</strong><span>{{ role_labels.get(current_user.role, current_user.role) }}</span></span></a>
         <a class="sp-topbar-icon" href="{{ url_for('auth.logout') }}" title="Выйти" aria-label="Выйти"><i class="bi bi-box-arrow-right"></i></a>

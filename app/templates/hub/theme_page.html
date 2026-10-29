@@ -1,5 +1,5 @@
-{% extends "layout.html" %}
-{% block content %}
+{% extends "workspace_layout.html" %}
+{% block workspace_content %}
 {% macro hub_card(item, fallback_icon='bi-folder2-open') %}
   {% if item.url %}
   <a class="portal-home-card portal-home-card-{{ item.zone or theme.zone or 'blue' }}" href="{{ item.url }}">

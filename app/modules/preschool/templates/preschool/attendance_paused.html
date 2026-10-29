@@ -1,0 +1,12 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header %}
+{% block title %}Учёт посещаемости ДО временно недоступен{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Учёт посещаемости ДО', 'Раздел временно выведен из работы', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+  <div class="registry-matrix-card p-4">
+    <p class="mb-2">Старый модуль «Детодни» больше не используется. Новый порядок учёта будет добавлен отдельно.</p>
+    <p class="text-muted mb-0">Ранее загруженные записи сохранены.</p>
+  </div>
+</div>
+{% endblock %}

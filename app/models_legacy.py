@@ -750,6 +750,7 @@ class TeacherMckoResult(db.Model):
     level = db.Column(db.String(120), nullable=True)
     certificate_number = db.Column(db.String(120), nullable=True)
     result_text = db.Column(db.String(255), nullable=True)
+    diagnostic_title = db.Column(db.String(255), nullable=True)
     entry_source = db.Column(
         db.String(24),
         nullable=False,
@@ -805,11 +806,19 @@ class TeacherCourse(db.Model):
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    document_title = db.Column(db.String(255), nullable=True)
+    document_number = db.Column(db.String(120), nullable=True)
+    entry_source = db.Column(db.String(24), nullable=False, default="LEGACY", server_default="LEGACY")
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
     retention_until = db.Column(db.Date, nullable=True)
     is_archived = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     teacher = db.relationship("User", foreign_keys=[teacher_id])
+    created_by_user = db.relationship("User", foreign_keys=[created_by_user_id])
+    updated_by_user = db.relationship("User", foreign_keys=[updated_by_user_id])
     academic_year = db.relationship("AcademicYear", foreign_keys=[academic_year_id])
 
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ attachment.original_filename }}</title>
+  <style>
+    html, body { min-height: 100%; margin: 0; }
+    body { background: #fff; color: #17243a; font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+    .preview-frame { display: block; width: 100%; height: 100vh; border: 0; }
+    .preview-content { padding: 18px; overflow-wrap: anywhere; }
+    .preview-content pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+    .preview-content table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+    .preview-content th, .preview-content td { border: 1px solid #d9e1ec; padding: 6px 9px; vertical-align: top; }
+    .preview-content .table-responsive { overflow-x: auto; }
+    .preview-message { margin: 18px; padding: 14px; border-radius: 10px; background: #fff6e3; color: #6b4b12; }
+    .preview-content li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  {% if preview_error %}<p class="preview-message">{{ preview_error }}</p>
+  {% elif inline_url %}<iframe class="preview-frame" src="{{ inline_url }}" title="{{ attachment.original_filename }}"></iframe>
+  {% elif archive_names is not none %}
+    <div class="preview-content">
+      <p>Содержимое архива{% if archive_names|length == 100 %} (первые 100 файлов){% endif %}</p>
+      {% if archive_names %}<ul>{% for name in archive_names %}<li>{{ name }}</li>{% endfor %}</ul>{% else %}<p>Архив пуст.</p>{% endif %}
+    </div>
+  {% else %}<div class="preview-content">{{ preview_html|safe }}</div>{% endif %}
+</body>
+</html>

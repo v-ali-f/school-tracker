@@ -1,0 +1,30 @@
+{% extends "workspace_layout.html" %}
+{% from "components/workspace_ui.html" import page_header, card %}
+{% block title %}Доступ и ответственные ДО{% endblock %}
+{% block workspace_content %}
+<div class="registry-workspace-page">
+  {{ page_header('Доступ и ответственные', 'Назначения действуют сразу и записываются в журнал', 'Дошкольное образование', url_for('preschool.index'), 'К разделу') }}
+
+  {% call card('Ответственный за контингент', 'Просмотр и работа с контингентом всего дошкольного отделения') %}
+    <form method="post" class="d-flex flex-wrap align-items-end gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="kind" value="{{ contingent_kind }}">
+      <div class="flex-grow-1"><label class="form-label" for="contingentUser">Сотрудник</label><select id="contingentUser" name="user_id" class="form-select"><option value="">Не назначен</option>{% for user in users %}<option value="{{ user.id }}" {% if assignments.get(contingent_kind) and assignments[contingent_kind].user_id == user.id %}selected{% endif %}>{{ user.fio or user.username }} — {{ user.username }}</option>{% endfor %}</select></div>
+      <button class="btn btn-primary" type="submit">Сохранить</button>
+    </form>
+  {% endcall %}
+
+  {% call card('Главный старший воспитатель', 'Ведёт аттестацию по всему дошкольному отделению') %}
+    <form method="post" class="d-flex flex-wrap align-items-end gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="kind" value="{{ chief_kind }}">
+      <div class="flex-grow-1"><label class="form-label" for="chiefUser">Старший воспитатель</label><select id="chiefUser" name="user_id" class="form-select"><option value="">Не назначен</option>{% for user in users if user.has_role('SENIOR_EDUCATOR') %}<option value="{{ user.id }}" {% if assignments.get(chief_kind) and assignments[chief_kind].user_id == user.id %}selected{% endif %}>{{ user.fio or user.username }} — {{ user.username }}</option>{% endfor %}</select></div>
+      <button class="btn btn-primary" type="submit">Сохранить</button>
+    </form>
+  {% endcall %}
+
+  {% call card('История назначений') %}
+    {% if changes %}<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Когда</th><th>Назначение</th><th>Было</th><th>Стало</th><th>Изменил</th></tr></thead><tbody>{% for row in changes %}<tr><td>{{ row.changed_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ 'Контингент' if row.kind == contingent_kind else 'Главный старший воспитатель' }}</td><td>{{ row.previous_user.fio if row.previous_user else '—' }}</td><td>{{ row.new_user.fio if row.new_user else '—' }}</td><td>{{ row.changed_by.fio if row.changed_by else '—' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-muted mb-0">Назначений пока не было.</p>{% endif %}
+  {% endcall %}
+</div>
+{% endblock %}
